@@ -15,7 +15,7 @@ echo "=========================================================="
 lsof -ti :$PORT | xargs kill -9 2>/dev/null || true
 
 # 1. Start ie-gateway
-echo "[1/6] Launching InferenceExchange Gateway on port $PORT..."
+echo "[1/6] Launching Inference Exchange Gateway on port $PORT..."
 $BIN_GATEWAY --port $PORT &
 GATEWAY_PID=$!
 sleep 2

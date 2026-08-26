@@ -13,7 +13,7 @@ use tracing::{error, info, warn};
 use uuid::Uuid;
 
 #[derive(Parser, Debug)]
-#[command(name = "ie-node", about = "InferenceExchange Provider Worker Node & Dynamic Market Maker")]
+#[command(name = "ie-node", about = "Inference Exchange Provider Worker Node & Dynamic Market Maker")]
 struct Cli {
     #[arg(long, default_value = "ws://127.0.0.1:8080/v1/provider/tunnel", env = "IE_GATEWAY_URL")]
     gateway_url: String,
@@ -122,7 +122,7 @@ async fn main() -> anyhow::Result<()> {
     let price_in_micro = (args.price_in * 1_000_000.0) as u64;
     let price_out_micro = (args.price_out * 1_000_000.0) as u64;
 
-    info!("Starting InferenceExchange Provider Node Daemon...");
+    info!("Starting Inference Exchange Provider Node Daemon...");
     info!("Hardware Node: {}", args.name);
     info!("Serving Model: {}", args.model);
     info!("Base Asks: ${:.4}/1M In | ${:.4}/1M Out | Capacity: {} concurrent slots", args.price_in, args.price_out, args.slots);
@@ -132,7 +132,7 @@ async fn main() -> anyhow::Result<()> {
         .await
         .map_err(|e| anyhow::anyhow!("Failed to connect to gateway at '{}': {}", args.gateway_url, e))?;
 
-    info!("Connected outbound WebSocket tunnel to InferenceExchange Gateway!");
+    info!("Connected outbound WebSocket tunnel to Inference Exchange Gateway!");
 
     let (mut ws_write, mut ws_read) = ws_stream.split();
     let (out_tx, mut out_rx) = mpsc::unbounded_channel::<ProviderToGatewayMsg>();
@@ -270,9 +270,9 @@ async fn execute_builtin_stream(
     let prompt_tokens = (last_user_msg.len() / 4).max(10) as u64;
 
     let response_text = format!(
-        "Hello! This response was computed and streamed by a decentralized Apple Silicon provider node connected to **InferenceExchange (IE)**.\n\n\
+        "Hello! This response was computed and streamed by a decentralized Apple Silicon provider node connected to **Inference Exchange (IE)**.\n\n\
         Your prompt was: \"{}\"\n\n\
-        Key advantages of InferenceExchange:\n\
+        Key advantages of Inference Exchange:\n\
         1. **Level-2 Continuous Limit Order Book**: Compute providers dynamically adjust Asks based on thermals and capacity.\n\
         2. **Sub-millisecond Price-Time Matching**: Routing directly to the lowest effective price per token.\n\
         3. **Real-time Streaming Escrow**: Micro-settlement with exact per-chunk metering and zero financial slippage.",

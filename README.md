@@ -1,14 +1,14 @@
-# InferenceExchange (IE) ⚡
+# Inference Exchange (IE) ⚡
 
 > **A Decentralized Level-2 (L2) Continuous Limit Order Book for LLM Compute**
 
-InferenceExchange turns compute providers (such as Apple Silicon Macs running MLX/llama.cpp and GPU clusters running vLLM) into **Market Makers** offering real-time spot capacity, and gives API consumers an **OpenAI-compatible gateway** that automatically matches requests with the lowest effective price per token in microseconds.
+Inference Exchange turns compute providers (such as Apple Silicon Macs running MLX/llama.cpp and GPU clusters running vLLM) into **Market Makers** offering real-time spot capacity, and gives API consumers an **OpenAI-compatible gateway** that automatically matches requests with the lowest effective price per token in microseconds.
 
 ---
 
-## 🌟 Why InferenceExchange?
+## 🌟 Why Inference Exchange?
 
-Traditional aggregators (like OpenRouter) use **static retail rate cards** set behind the scenes. InferenceExchange introduces a **Continuous Limit Order Book (CLOB)**:
+Traditional aggregators (like OpenRouter) use **static retail rate cards** set behind the scenes. Inference Exchange introduces a **Continuous Limit Order Book (CLOB)**:
 
 1. **Dynamic Level-2 Order Book**: Providers continuously quote input ($P_{in}$) and output ($P_{out}$) prices per 1M tokens, concurrency slots, and max context windows.
 2. **Sub-Millisecond Matching Engine**: Automatically routes requests based on **Composite Effective Price** ($P_{eff} = P_{in} + 3.0 \cdot P_{out}$), SLA (TPS guarantee), and trust tiers.
@@ -27,7 +27,7 @@ Traditional aggregators (like OpenRouter) use **static retail rate cards** set b
                                            │
                                            ▼
 ┌────────────────────────────────────────────────────────────────────────────────────────┐
-│                        InferenceExchange Core Gateway (Rust)                           │
+│                        Inference Exchange Core Gateway (Rust)                          │
 │                                                                                        │
 │   ┌──────────────────────────┐   ┌─────────────────────────────────────────────────┐   │
 │   │  OpenAI / Anthropic API  │   │          Real-time L2 Order Book Core           │   │
@@ -130,7 +130,7 @@ curl -N http://localhost:8080/v1/chat/completions \
   -H "Authorization: Bearer demo-user-key" \
   -d '{
     "model": "llama-3.3-70b-instruct",
-    "messages": [{"role": "user", "content": "Hello InferenceExchange!"}],
+    "messages": [{"role": "user", "content": "Hello Inference Exchange!"}],
     "stream": true
   }'
 ```
@@ -161,4 +161,4 @@ cargo test
 
 ## 📄 License & IP
 
-InferenceExchange is built **100% clean-room from scratch** under the **Apache-2.0 License**. Zero proprietary code, schemas, or scripts were copied from any proprietary third-party codebase.
+Inference Exchange is built **100% clean-room from scratch** under the **Apache-2.0 License**. Zero proprietary code, schemas, or scripts were copied from any proprietary third-party codebase.

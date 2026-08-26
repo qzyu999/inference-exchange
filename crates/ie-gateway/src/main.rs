@@ -4,7 +4,8 @@ mod provider_hub;
 
 use axum::extract::ws::WebSocketUpgrade;
 use axum::extract::State;
-use axum::response::{Html, IntoResponse, Response};
+use axum::response::Html;
+use axum::response::Response;
 use axum::routing::{get, post};
 use axum::Router;
 use clap::Parser;
@@ -17,7 +18,7 @@ use tower_http::trace::TraceLayer;
 use tracing::info;
 
 #[derive(Parser, Debug)]
-#[command(name = "ie-gateway", about = "InferenceExchange Core Gateway & L2 Matching Engine")]
+#[command(name = "ie-gateway", about = "Inference Exchange Core Gateway & L2 Matching Engine")]
 struct Cli {
     #[arg(long, default_value = "0.0.0.0", env = "IE_HOST")]
     host: String,
@@ -51,7 +52,7 @@ async fn main() -> anyhow::Result<()> {
 
     let args = Cli::parse();
 
-    info!("Initializing InferenceExchange Core Matching Engine & Escrow Ledger...");
+    info!("Initializing Inference Exchange Core Matching Engine & Escrow Ledger...");
 
     let registry = Arc::new(ExchangeRegistry::new());
     let escrow = Arc::new(EscrowLedger::new(args.protocol_fee_bps));
@@ -80,7 +81,7 @@ async fn main() -> anyhow::Result<()> {
         .with_state(hub);
 
     let addr: SocketAddr = format!("{}:{}", args.host, args.port).parse()?;
-    info!("🚀 InferenceExchange Gateway listening on http://{}", addr);
+    info!("🚀 Inference Exchange Gateway listening on http://{}", addr);
     info!("   - OpenAI Endpoint: http://{}/v1/chat/completions", addr);
     info!("   - L2 Market Feed:  ws://{}/v1/market/feed", addr);
     info!("   - Provider Tunnel: ws://{}/v1/provider/tunnel", addr);
