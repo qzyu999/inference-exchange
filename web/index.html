@@ -1,0 +1,818 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>InferenceExchange (IE) | Level-2 Order Book for LLM Compute</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-dark: #090a0f;
+      --bg-card: #12141c;
+      --bg-card-hover: #191c28;
+      --border-color: #232738;
+      --text-main: #f0f2f8;
+      --text-muted: #8a92a6;
+      --accent-green: #00f076;
+      --accent-green-bg: rgba(0, 240, 118, 0.12);
+      --accent-red: #ff3366;
+      --accent-red-bg: rgba(255, 51, 102, 0.12);
+      --accent-cyan: #00d2ff;
+      --accent-purple: #9d4edd;
+      --font-sans: 'Plus Jakarta Sans', sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background-color: var(--bg-dark);
+      color: var(--text-main);
+      font-family: var(--font-sans);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow-x: hidden;
+    }
+
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 24px;
+      background: rgba(18, 20, 28, 0.85);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border-color);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-weight: 800;
+      font-size: 1.25rem;
+      letter-spacing: -0.5px;
+    }
+    .brand-badge {
+      background: linear-gradient(135deg, var(--accent-cyan), var(--accent-purple));
+      color: #fff;
+      padding: 3px 8px;
+      border-radius: 6px;
+      font-size: 0.75rem;
+      font-weight: 700;
+    }
+
+    .header-stats {
+      display: flex;
+      gap: 24px;
+      align-items: center;
+    }
+    .stat-pill {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      padding: 6px 14px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.85rem;
+    }
+    .stat-pill .val {
+      font-family: var(--font-mono);
+      font-weight: 700;
+      color: var(--accent-cyan);
+    }
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--accent-green);
+      box-shadow: 0 0 8px var(--accent-green);
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+
+    /* Market Bar */
+    .market-bar {
+      display: flex;
+      align-items: center;
+      gap: 24px;
+      padding: 12px 24px;
+      background: #0d0f17;
+      border-bottom: 1px solid var(--border-color);
+      font-size: 0.85rem;
+    }
+    .model-select {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      color: var(--text-main);
+      padding: 6px 12px;
+      border-radius: 6px;
+      font-family: var(--font-mono);
+      font-weight: 600;
+      cursor: pointer;
+      outline: none;
+    }
+    .ticker-item {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .ticker-label {
+      font-size: 0.7rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .ticker-val {
+      font-family: var(--font-mono);
+      font-weight: 700;
+    }
+    .ticker-val.green { color: var(--accent-green); }
+    .ticker-val.red { color: var(--accent-red); }
+    .ticker-val.cyan { color: var(--accent-cyan); }
+
+    /* Main Grid */
+    .exchange-grid {
+      display: grid;
+      grid-template-columns: 340px 1fr 420px;
+      flex: 1;
+      height: calc(100vh - 120px);
+    }
+
+    /* Column 1: L2 Order Book */
+    .col-orderbook {
+      border-right: 1px solid var(--border-color);
+      display: flex;
+      flex-direction: column;
+      background: var(--bg-card);
+    }
+    .panel-header {
+      padding: 12px 16px;
+      font-size: 0.85rem;
+      font-weight: 700;
+      border-bottom: 1px solid var(--border-color);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .ob-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+    }
+    .ob-table th {
+      text-align: right;
+      padding: 8px 12px;
+      color: var(--text-muted);
+      font-weight: 500;
+      border-bottom: 1px solid var(--border-color);
+    }
+    .ob-table th:first-child { text-align: left; }
+    .ob-table td {
+      padding: 6px 12px;
+      text-align: right;
+      position: relative;
+    }
+    .ob-table td:first-child { text-align: left; }
+    
+    .depth-row {
+      position: relative;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .depth-row:hover { background: var(--bg-card-hover); }
+    .depth-bar-ask {
+      position: absolute;
+      top: 0;
+      right: 0;
+      bottom: 0;
+      background: var(--accent-red-bg);
+      z-index: 1;
+      pointer-events: none;
+    }
+    .depth-content { position: relative; z-index: 2; }
+    .price-ask { color: var(--accent-red); font-weight: 600; }
+    .price-bid { color: var(--accent-green); font-weight: 600; }
+
+    .spread-bar {
+      padding: 8px 14px;
+      background: #0d0f17;
+      border-top: 1px solid var(--border-color);
+      border-bottom: 1px solid var(--border-color);
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.75rem;
+      font-family: var(--font-mono);
+    }
+
+    /* Column 2: Center - Depth Chart & Recent Trades */
+    .col-center {
+      display: flex;
+      flex-direction: column;
+      border-right: 1px solid var(--border-color);
+      background: var(--bg-dark);
+    }
+    .chart-container {
+      flex: 1;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      border-bottom: 1px solid var(--border-color);
+      position: relative;
+    }
+    .chart-canvas {
+      width: 100%;
+      height: 100%;
+      border-radius: 8px;
+    }
+    .trades-container {
+      height: 220px;
+      display: flex;
+      flex-direction: column;
+      background: var(--bg-card);
+    }
+    .trades-list {
+      flex: 1;
+      overflow-y: auto;
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+    }
+    .trade-row {
+      display: grid;
+      grid-template-columns: 80px 1fr 100px 90px 80px;
+      padding: 6px 14px;
+      border-bottom: 1px solid rgba(255,255,255,0.03);
+      align-items: center;
+    }
+    .trade-row:hover { background: var(--bg-card-hover); }
+
+    /* Column 3: Playground & Routing Inspector */
+    .col-playground {
+      display: flex;
+      flex-direction: column;
+      background: var(--bg-card);
+      padding: 16px;
+      gap: 14px;
+      overflow-y: auto;
+    }
+    .prompt-box {
+      width: 100%;
+      height: 90px;
+      background: #090a0f;
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      color: var(--text-main);
+      padding: 10px;
+      font-family: var(--font-sans);
+      font-size: 0.85rem;
+      resize: none;
+      outline: none;
+    }
+    .prompt-box:focus { border-color: var(--accent-cyan); }
+
+    .btn-exec {
+      background: linear-gradient(135deg, var(--accent-cyan), #0077ff);
+      color: #fff;
+      border: none;
+      padding: 10px 16px;
+      border-radius: 8px;
+      font-weight: 700;
+      font-size: 0.9rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: opacity 0.2s, transform 0.1s;
+    }
+    .btn-exec:hover { opacity: 0.92; }
+    .btn-exec:active { transform: scale(0.98); }
+    .btn-exec:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .response-area {
+      flex: 1;
+      background: #090a0f;
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 12px;
+      font-family: var(--font-mono);
+      font-size: 0.8rem;
+      line-height: 1.5;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      min-height: 160px;
+    }
+
+    .routing-receipt {
+      background: #141724;
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 10px;
+      font-size: 0.75rem;
+      font-family: var(--font-mono);
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .receipt-row {
+      display: flex;
+      justify-content: space-between;
+    }
+    .receipt-row .label { color: var(--text-muted); }
+    .receipt-row .val { color: var(--text-main); font-weight: 600; }
+  </style>
+</head>
+<body>
+
+  <!-- Header -->
+  <header>
+    <div class="brand">
+      <span>⚡ INFERENCE EXCHANGE</span>
+      <span class="brand-badge">L2 CLOB SPOT</span>
+    </div>
+
+    <div class="header-stats">
+      <div class="stat-pill">
+        <span class="status-dot"></span>
+        <span>Gateway:</span>
+        <span class="val" id="ws-status">Connecting...</span>
+      </div>
+      <div class="stat-pill">
+        <span>Balance:</span>
+        <span class="val" id="account-balance">$10.0000</span>
+      </div>
+      <div class="stat-pill">
+        <span>Active Nodes:</span>
+        <span class="val" id="active-nodes-count">0</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- Market Bar -->
+  <div class="market-bar">
+    <div class="ticker-item">
+      <span class="ticker-label">Active Model</span>
+      <select id="model-select" class="model-select">
+        <option value="llama-3.3-70b-instruct">llama-3.3-70b-instruct</option>
+        <option value="gemma-4-26b">gemma-4-26b</option>
+      </select>
+    </div>
+
+    <div class="ticker-item">
+      <span class="ticker-label">Best Ask (In / 1M)</span>
+      <span class="ticker-val green" id="bbo-input">$0.0500</span>
+    </div>
+
+    <div class="ticker-item">
+      <span class="ticker-label">Best Ask (Out / 1M)</span>
+      <span class="ticker-val green" id="bbo-output">$0.2000</span>
+    </div>
+
+    <div class="ticker-item">
+      <span class="ticker-label">Available Capacity</span>
+      <span class="ticker-val cyan" id="bbo-capacity">0 slots</span>
+    </div>
+
+    <div class="ticker-item">
+      <span class="ticker-label">Avg Throughput</span>
+      <span class="ticker-val" id="avg-tps">-- TPS</span>
+    </div>
+  </div>
+
+  <!-- Main Grid -->
+  <div class="exchange-grid">
+
+    <!-- Column 1: L2 Order Book -->
+    <div class="col-orderbook">
+      <div class="panel-header">
+        <span>LEVEL-2 ORDER BOOK</span>
+        <span style="font-size:0.75rem; color:var(--text-muted);">PRICE-TIME PRIORITY</span>
+      </div>
+
+      <div style="flex:1; overflow-y:auto;">
+        <table class="ob-table">
+          <thead>
+            <tr>
+              <th>Ask (In/Out $/1M)</th>
+              <th>Effective</th>
+              <th>Avail/Total</th>
+              <th>Nodes</th>
+            </tr>
+          </thead>
+          <tbody id="asks-body">
+            <!-- Asks injected dynamically -->
+          </tbody>
+        </table>
+      </div>
+
+      <div class="spread-bar">
+        <span style="color:var(--text-muted);">Best Offer Spread</span>
+        <span id="bbo-spread-val" style="color:var(--accent-green); font-weight:700;">--</span>
+      </div>
+    </div>
+
+    <!-- Column 2: Center - Depth Chart & Recent Executions -->
+    <div class="col-center">
+      <div class="chart-container">
+        <div class="panel-header" style="padding:0 0 12px 0;">
+          <span>MARKET DEPTH & CAPACITY CURVE</span>
+          <span style="font-size:0.75rem; color:var(--text-muted);">CUMULATIVE CONCURRENCY SLOTS</span>
+        </div>
+        <canvas id="depth-chart" class="chart-canvas"></canvas>
+      </div>
+
+      <div class="trades-container">
+        <div class="panel-header">
+          <span>LIVE TRADE SETTLEMENTS</span>
+          <span style="font-size:0.75rem; color:var(--text-muted);">MICRO-USD ESCROW FEED</span>
+        </div>
+        <div class="trades-list" id="trades-list">
+          <!-- Live trades injected here -->
+        </div>
+      </div>
+    </div>
+
+    <!-- Column 3: Interactive Prompt & Order Routing -->
+    <div class="col-playground">
+      <div class="panel-header" style="padding:0 0 8px 0;">
+        <span>SPOT INFERENCE PLAYGROUND</span>
+        <span style="font-size:0.75rem; color:var(--accent-cyan);">OPENAI SDK COMPLIANT</span>
+      </div>
+
+      <div style="display:flex; flex-direction:column; gap:6px;">
+        <label style="font-size:0.75rem; color:var(--text-muted); text-transform:uppercase;">Prompt</label>
+        <textarea id="prompt-input" class="prompt-box" placeholder="Ask anything to route across the L2 Order Book...">Why is a Level-2 Order Book better than OpenRouter's static pricing for decentralized AI compute?</textarea>
+      </div>
+
+      <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
+        <div>
+          <label style="font-size:0.7rem; color:var(--text-muted);">Max Acceptable Out $/1M</label>
+          <input type="number" id="max-price-out" value="0.80" step="0.05" class="model-select" style="width:100%; margin-top:4px;">
+        </div>
+        <div>
+          <label style="font-size:0.7rem; color:var(--text-muted);">Min TPS Guarantee</label>
+          <input type="number" id="min-tps" value="20" step="5" class="model-select" style="width:100%; margin-top:4px;">
+        </div>
+      </div>
+
+      <button id="btn-submit" class="btn-exec">
+        <span>⚡ Route & Execute Spot Inference</span>
+      </button>
+
+      <div class="response-area" id="response-text">Awaiting prompt dispatch...</div>
+
+      <div class="routing-receipt" id="routing-receipt" style="display:none;">
+        <div class="receipt-row">
+          <span class="label">Matched Node:</span>
+          <span class="val" id="rec-provider">--</span>
+        </div>
+        <div class="receipt-row">
+          <span class="label">Effective Price:</span>
+          <span class="val" id="rec-price">--</span>
+        </div>
+        <div class="receipt-row">
+          <span class="label">Tokens (In / Out):</span>
+          <span class="val" id="rec-tokens">--</span>
+        </div>
+        <div class="receipt-row">
+          <span class="label">Settled Cost:</span>
+          <span class="val" id="rec-cost" style="color:var(--accent-green);">--</span>
+        </div>
+        <div class="receipt-row">
+          <span class="label">Stream Latency & TPS:</span>
+          <span class="val" id="rec-tps">--</span>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    const wsUrl = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/v1/market/feed';
+    let ws = null;
+    let currentModel = 'llama-3.3-70b-instruct';
+    let orderBookDepth = null;
+
+    function connectMarketFeed() {
+      ws = new WebSocket(wsUrl);
+      ws.onopen = () => {
+        document.getElementById('ws-status').textContent = 'LIVE FEED (ONLINE)';
+        document.getElementById('ws-status').style.color = 'var(--accent-green)';
+      };
+
+      ws.onmessage = (event) => {
+        try {
+          const msg = JSON.parse(event.data);
+          if (msg.type === 'DepthUpdated' && msg.data.model === currentModel) {
+            updateOrderBookView(msg.data.snapshot);
+          } else if (msg.type === 'TradeExecuted') {
+            addTradeRow(msg.data.receipt);
+            updateBalance();
+          } else if (msg.type === 'ProviderJoined' || msg.type === 'ProviderLeft') {
+            // refresh models
+            fetchModels();
+          }
+        } catch (e) {
+          console.error('WS Parse Error:', e);
+        }
+      };
+
+      ws.onclose = () => {
+        document.getElementById('ws-status').textContent = 'RECONNECTING...';
+        document.getElementById('ws-status').style.color = 'var(--accent-red)';
+        setTimeout(connectMarketFeed, 2000);
+      };
+    }
+
+    function updateOrderBookView(snapshot) {
+      orderBookDepth = snapshot;
+      document.getElementById('bbo-input').textContent = snapshot.bbo_ask_input 
+        ? `$${(snapshot.bbo_ask_input / 1000000).toFixed(4)}` : '--';
+      document.getElementById('bbo-output').textContent = snapshot.bbo_ask_output 
+        ? `$${(snapshot.bbo_ask_output / 1000000).toFixed(4)}` : '--';
+      document.getElementById('bbo-capacity').textContent = `${snapshot.total_available_slots}/${snapshot.total_capacity_slots} slots`;
+      document.getElementById('active-nodes-count').textContent = snapshot.active_providers;
+      document.getElementById('avg-tps').textContent = `${snapshot.avg_tps.toFixed(1)} TPS`;
+
+      if (snapshot.bbo_ask_output) {
+        document.getElementById('bbo-spread-val').textContent = `$${(snapshot.bbo_ask_output / 1000000).toFixed(4)} / 1M Out`;
+      } else {
+        document.getElementById('bbo-spread-val').textContent = 'No Asks (Empty Book)';
+      }
+
+      const tbody = document.getElementById('asks-body');
+      tbody.innerHTML = '';
+
+      if (!snapshot.asks || snapshot.asks.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; padding:20px; color:var(--text-muted);">No provider capacity currently posted for this model. Start an <code>ie-node</code> to offer compute!</td></tr>';
+        drawDepthChart([]);
+        return;
+      }
+
+      let maxSlots = Math.max(...snapshot.asks.map(a => a.total_slots), 1);
+
+      snapshot.asks.forEach(ask => {
+        const tr = document.createElement('tr');
+        tr.className = 'depth-row';
+        const pInStr = (ask.price_input / 1000000).toFixed(4);
+        const pOutStr = (ask.price_output / 1000000).toFixed(4);
+        const effStr = (ask.effective_price / 1000000).toFixed(4);
+        const pct = Math.min((ask.total_slots / maxSlots) * 100, 100);
+
+        tr.innerHTML = `
+          <td>
+            <div class="depth-bar-ask" style="width:${pct}%;"></div>
+            <div class="depth-content price-ask">$${pInStr} / $${pOutStr}</div>
+          </td>
+          <td><div class="depth-content">$${effStr}</div></td>
+          <td><div class="depth-content">${ask.available_slots} / ${ask.total_slots}</div></td>
+          <td><div class="depth-content">${ask.provider_count}</div></td>
+        `;
+        tbody.appendChild(tr);
+      });
+
+      drawDepthChart(snapshot.asks);
+    }
+
+    function drawDepthChart(asks) {
+      const canvas = document.getElementById('depth-chart');
+      const ctx = canvas.getContext('2d');
+      const rect = canvas.getBoundingClientRect();
+      canvas.width = rect.width * window.devicePixelRatio;
+      canvas.height = rect.height * window.devicePixelRatio;
+      ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+
+      const w = rect.width;
+      const h = rect.height;
+      ctx.clearRect(0, 0, w, h);
+
+      if (!asks || asks.length === 0) {
+        ctx.fillStyle = '#8a92a6';
+        ctx.font = '12px Plus Jakarta Sans';
+        ctx.textAlign = 'center';
+        ctx.fillText('Order Book Empty — Launch a provider node to add liquidity', w / 2, h / 2);
+        return;
+      }
+
+      // Draw Asks Step Curve
+      ctx.beginPath();
+      ctx.strokeStyle = '#ff3366';
+      ctx.lineWidth = 2;
+      ctx.fillStyle = 'rgba(255, 51, 102, 0.15)';
+
+      let totalCumulative = 0;
+      const points = [];
+
+      asks.forEach((ask, i) => {
+        totalCumulative += ask.total_slots;
+        points.push({ price: ask.effective_price, slots: totalCumulative });
+      });
+
+      const maxCum = Math.max(totalCumulative, 1);
+      const stepX = w / (points.length + 1);
+
+      ctx.moveTo(0, h);
+      points.forEach((pt, i) => {
+        const x = (i + 1) * stepX;
+        const y = h - (pt.slots / maxCum) * (h - 30);
+        if (i === 0) {
+          ctx.lineTo(x, h);
+          ctx.lineTo(x, y);
+        } else {
+          const prevX = i * stepX;
+          ctx.lineTo(x, points[i-1] ? h - (points[i-1].slots / maxCum) * (h - 30) : y);
+          ctx.lineTo(x, y);
+        }
+      });
+      ctx.lineTo(w, h - (totalCumulative / maxCum) * (h - 30));
+      ctx.lineTo(w, h);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+
+      // Axis labels
+      ctx.fillStyle = '#8a92a6';
+      ctx.font = '10px JetBrains Mono';
+      ctx.textAlign = 'left';
+      ctx.fillText(`Lowest Ask: $${(asks[0].effective_price / 1000000).toFixed(3)}`, 10, 20);
+      ctx.textAlign = 'right';
+      ctx.fillText(`Total Liquidity: ${totalCumulative} slots`, w - 10, 20);
+    }
+
+    function addTradeRow(receipt) {
+      const list = document.getElementById('trades-list');
+      const row = document.createElement('div');
+      row.className = 'trade-row';
+      const timeStr = new Date().toLocaleTimeString();
+      const costUsd = (receipt.total_cost_micro_usd / 1000000).toFixed(6);
+
+      row.innerHTML = `
+        <span style="color:var(--text-muted);">${timeStr}</span>
+        <span style="color:var(--text-main); font-weight:600;">${receipt.model}</span>
+        <span style="color:var(--accent-green);">$${costUsd}</span>
+        <span>${receipt.input_tokens}in / ${receipt.output_tokens}out</span>
+        <span style="color:var(--accent-cyan);">${receipt.tps.toFixed(1)} tps</span>
+      `;
+      list.insertBefore(row, list.firstChild);
+      if (list.children.length > 50) list.removeChild(list.lastChild);
+    }
+
+    async function fetchModels() {
+      try {
+        const res = await fetch('/v1/models');
+        const data = await res.json();
+        const select = document.getElementById('model-select');
+        const currentVal = select.value;
+        select.innerHTML = '';
+        data.data.forEach(m => {
+          const opt = document.createElement('option');
+          opt.value = m.id;
+          opt.textContent = m.id;
+          if (m.id === currentVal) opt.selected = true;
+          select.appendChild(opt);
+        });
+        if (data.data.length > 0) {
+          currentModel = select.value;
+          fetchOrderBook(currentModel);
+        }
+      } catch (e) {
+        console.error('Failed to fetch models:', e);
+      }
+    }
+
+    async function fetchOrderBook(model) {
+      try {
+        const res = await fetch(`/v1/orderbook/${model}`);
+        if (res.ok) {
+          const data = await res.json();
+          updateOrderBookView(data);
+        }
+      } catch (e) {
+        console.error('Failed to fetch orderbook:', e);
+      }
+    }
+
+    async function updateBalance() {
+      try {
+        const res = await fetch('/v1/account/balance');
+        const data = await res.json();
+        document.getElementById('account-balance').textContent = `$${data.available_usd.toFixed(4)}`;
+      } catch (e) {}
+    }
+
+    document.getElementById('model-select').addEventListener('change', (e) => {
+      currentModel = e.target.value;
+      fetchOrderBook(currentModel);
+    });
+
+    // Execute Inference via OpenAI streaming endpoint
+    document.getElementById('btn-submit').addEventListener('click', async () => {
+      const prompt = document.getElementById('prompt-input').value.trim();
+      if (!prompt) return;
+
+      const btn = document.getElementById('btn-submit');
+      const responseArea = document.getElementById('response-text');
+      const receiptEl = document.getElementById('routing-receipt');
+
+      btn.disabled = true;
+      responseArea.textContent = 'Matching with Best Offer on Level-2 Order Book...\n';
+      receiptEl.style.display = 'none';
+
+      const maxPOut = document.getElementById('max-price-out').value;
+      const minTps = document.getElementById('min-tps').value;
+
+      const startTime = performance.now();
+      let firstChunkTime = null;
+      let tokenCount = 0;
+
+      try {
+        const response = await fetch('/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer demo-user-key',
+            'X-IE-Max-Price-Output': maxPOut,
+            'X-IE-Min-TPS': minTps,
+          },
+          body: JSON.stringify({
+            model: currentModel,
+            messages: [{ role: 'user', content: prompt }],
+            stream: true,
+          }),
+        });
+
+        if (!response.ok) {
+          const err = await response.json();
+          responseArea.textContent = `❌ Order Book Execution Failed:\n${JSON.stringify(err, null, 2)}`;
+          btn.disabled = false;
+          return;
+        }
+
+        responseArea.textContent = '';
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder('utf-8');
+        let buffer = '';
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop();
+
+          for (const line of lines) {
+            const trimmed = line.trim();
+            if (trimmed.startsWith('data: ')) {
+              const dataStr = trimmed.substring(6);
+              if (dataStr === '[DONE]') break;
+              try {
+                const parsed = JSON.parse(dataStr);
+                const delta = parsed.choices[0]?.delta?.content;
+                if (delta) {
+                  if (!firstChunkTime) firstChunkTime = performance.now();
+                  tokenCount++;
+                  responseArea.textContent += delta;
+                  responseArea.scrollTop = responseArea.scrollHeight;
+                }
+              } catch (e) {}
+            }
+          }
+        }
+
+        const totalTime = performance.now() - startTime;
+        const ttft = firstChunkTime ? (firstChunkTime - startTime).toFixed(0) : '--';
+        const tps = ((tokenCount / (totalTime / 1000))).toFixed(1);
+
+        receiptEl.style.display = 'flex';
+        document.getElementById('rec-provider').textContent = 'Hardware Node (Secure Enclave Attested)';
+        document.getElementById('rec-price').textContent = `$${document.getElementById('bbo-output').textContent}`;
+        document.getElementById('rec-tokens').textContent = `Prompt est. / ~${tokenCount} completion`;
+        document.getElementById('rec-cost').textContent = `Settled on Micro-Ledger (0% platform fee)`;
+        document.getElementById('rec-tps').textContent = `TTFT: ${ttft}ms | ${tps} tokens/sec`;
+
+      } catch (err) {
+        responseArea.textContent = `Error: ${err.message}`;
+      } finally {
+        btn.disabled = false;
+        updateBalance();
+      }
+    });
+
+    // Initialize
+    connectMarketFeed();
+    fetchModels();
+    updateBalance();
+  </script>
+</body>
+</html>

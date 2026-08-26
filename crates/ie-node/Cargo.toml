@@ -1,0 +1,27 @@
+[package]
+name = "ie-node"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "ie-node"
+path = "src/main.rs"
+
+[dependencies]
+ie-core = { path = "../ie-core" }
+tokio = { workspace = true }
+tokio-tungstenite = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+futures-util = { workspace = true }
+uuid = { workspace = true }
+chrono = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+clap = { workspace = true }
+parking_lot = { workspace = true }
+sysinfo = { workspace = true }
+rand = { workspace = true }
+anyhow = { workspace = true }
+reqwest = { workspace = true }
