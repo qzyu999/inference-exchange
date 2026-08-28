@@ -11,9 +11,10 @@ from fastapi.staticfiles import StaticFiles
 from inference_exchange.config import CoordinatorConfig
 from inference_exchange.shared.protocol import HeartbeatMessage, MessageType, RegisterMessage
 
-from .api import router, set_auth, set_billing, set_hub
+from .api import router, set_auth, set_billing, set_hub, set_tps_tracker
 from .provider_hub import ProviderHub
 from .store import Store
+from .tps_tracker import TPSTracker
 
 STATIC_DIR = Path(__file__).parent / "static"
 
@@ -117,9 +118,11 @@ def create_app() -> FastAPI:
     hub = ProviderHub()
     auth = StoreAuthAdapter(store)
     billing = StoreBillingAdapter(store)
+    tps_tracker = TPSTracker()
     set_hub(hub)
     set_billing(billing)
     set_auth(auth)
+    set_tps_tracker(tps_tracker)
 
     # Mount consumer API
     app.include_router(router)

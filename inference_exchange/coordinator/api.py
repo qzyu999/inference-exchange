@@ -21,6 +21,7 @@ from inference_exchange.shared.protocol import (
 from .auth import AuthStore
 from .billing import BillingLedger
 from .provider_hub import ProviderHub
+from .tps_tracker import TPSTracker
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -68,6 +69,7 @@ class ModelInfo(BaseModel):
 _hub: ProviderHub | None = None
 _billing: BillingLedger | None = None
 _auth: AuthStore | None = None
+_tps: TPSTracker | None = None
 
 
 def set_hub(hub: ProviderHub):
@@ -83,6 +85,11 @@ def set_billing(billing: BillingLedger):
 def set_auth(auth: AuthStore):
     global _auth
     _auth = auth
+
+
+def set_tps_tracker(tracker: TPSTracker):
+    global _tps
+    _tps = tracker
 
 
 def get_hub() -> ProviderHub:
@@ -101,6 +108,12 @@ def get_auth() -> AuthStore:
     if _auth is None:
         raise RuntimeError("AuthStore not initialized")
     return _auth
+
+
+def get_tps_tracker() -> TPSTracker:
+    if _tps is None:
+        raise RuntimeError("TPSTracker not initialized")
+    return _tps
 
 
 # --- Endpoints ---
@@ -344,6 +357,24 @@ async def get_depth():
 async def get_traces():
     """Full decision traces for recent requests — shows the matching engine's reasoning."""
     return {"traces": list(reversed(_request_traces[-30:]))}
+
+
+@router.get("/v1/exchange/tps")
+async def get_tps_stats():
+    """Dynamic TPS measurements per provider per model."""
+    tracker = get_tps_tracker()
+    return {"tps_stats": tracker.get_all_stats()}
+
+
+@router.get("/v1/exchange/models/search")
+async def search_models(q: str = ""):
+    """Search HuggingFace for available GGUF models."""
+    from .model_registry import ModelRegistry
+    registry = ModelRegistry()
+    if not q:
+        return {"models": [], "hint": "Pass ?q=llama to search HuggingFace for GGUF models"}
+    results = registry.search_hf_models(q, limit=10)
+    return {"query": q, "models": results}
 
 
 @router.get("/v1/admin/state")
@@ -635,6 +666,7 @@ async def _stream_response(
 ):
     """Generate SSE stream from provider response chunks."""
     token_count = 0
+    start_time = time.time()
     try:
         while True:
             try:
@@ -698,6 +730,18 @@ async def _stream_response(
             price_per_mtok_input=provider.capabilities.price_per_mtok_input,
             price_per_mtok_output=provider.capabilities.price_per_mtok_output,
         )
+
+        # Record TPS measurement
+        elapsed = time.time() - start_time
+        if token_count > 0 and elapsed > 0:
+            tps_tracker = get_tps_tracker()
+            tps_tracker.record_request(
+                provider_id=provider.provider_id,
+                model=model,
+                tokens=token_count,
+                seconds=elapsed,
+                hardware=provider.capabilities.hardware,
+            )
     finally:
         hub.remove_response_queue(request_id)
 
@@ -707,6 +751,7 @@ async def _collect_response(
 ) -> dict:
     """Collect all tokens into a single non-streaming response."""
     tokens: list[str] = []
+    start_time = time.time()
     try:
         while True:
             try:
@@ -737,6 +782,18 @@ async def _collect_response(
         price_per_mtok_input=provider.capabilities.price_per_mtok_input,
         price_per_mtok_output=provider.capabilities.price_per_mtok_output,
     )
+
+    # Record TPS
+    elapsed = time.time() - start_time
+    if len(tokens) > 0 and elapsed > 0:
+        tps_tracker = get_tps_tracker()
+        tps_tracker.record_request(
+            provider_id=provider.provider_id,
+            model=model,
+            tokens=len(tokens),
+            seconds=elapsed,
+            hardware=provider.capabilities.hardware,
+        )
 
     content = "".join(tokens)
     return {
