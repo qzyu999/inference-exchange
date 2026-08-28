@@ -108,6 +108,16 @@
                 <div class="section-title">Connected Providers</div>
                 <div id="providers"></div>
             </div>
+            <div class="section">
+                <div class="section-title">🔍 Model Discovery</div>
+                <div style="display:flex;gap:4px;margin-bottom:6px;">
+                    <input id="model-search" type="text" placeholder="Search models (e.g. llama, qwen)..." style="flex:1;padding:5px 8px;border:1px solid #d4d4d8;border-radius:4px;font-size:10px;outline:none;font-family:inherit;" />
+                    <button onclick="searchModelsConsumer()" style="padding:3px 8px;background:#7c3aed;color:white;border:none;border-radius:4px;font-size:9px;cursor:pointer;">Search</button>
+                </div>
+                <div style="font-size:10px;color:#64748b;margin-bottom:4px;"><b>Available on exchange:</b></div>
+                <div id="available-models" style="margin-bottom:6px;"></div>
+                <div id="hf-search-results" style="max-height:200px;overflow-y:auto;"></div>
+            </div>
         </div>
 
         <!-- CENTER: Decision Traces + Telemetry -->
@@ -213,6 +223,9 @@ async function refresh() {
             </div>
         `).join('');
 
+        // Available models
+        updateAvailableModels(providers);
+
         // Metrics
         const econ = telemetry.economics;
         const tp = telemetry.throughput;
@@ -277,8 +290,72 @@ async function refresh() {
 
 function formatUp(s) { return s < 60 ? s+'s' : s < 3600 ? Math.floor(s/60)+'m' : Math.floor(s/3600)+'h'; }
 
+// Show available models from providers
+async function updateAvailableModels(providers) {
+    const el = document.getElementById('available-models');
+    const models = new Map();
+    providers.providers.forEach(p => {
+        p.models.forEach(m => {
+            if (!models.has(m)) models.set(m, { name: m, providers: 0, cheapest: Infinity });
+            const info = models.get(m);
+            info.providers++;
+            info.cheapest = Math.min(info.cheapest, p.price_output);
+        });
+    });
+    if (models.size > 0) {
+        el.innerHTML = Array.from(models.values()).map(m =>
+            `<div style="display:flex;justify-content:space-between;padding:2px 4px;font-size:10px;border-bottom:1px solid #f1f5f9;">
+                <span style="font-weight:600;">${m.name}</span>
+                <span style="color:#64748b;">${m.providers}p · $${m.cheapest.toFixed(2)}/M</span>
+            </div>`
+        ).join('');
+    } else {
+        el.innerHTML = '<div style="color:#94a3b8;font-size:10px;">No providers connected</div>';
+    }
+}
+
 refresh();
 setInterval(refresh, 2000);
+
+// HF Model Search (consumer)
+async function searchModelsConsumer() {
+    const input = document.getElementById('model-search');
+    const q = input.value.trim();
+    if (!q) return;
+
+    const el = document.getElementById('hf-search-results');
+    el.innerHTML = '<div style="color:#64748b;font-size:10px;">Searching HuggingFace...</div>';
+
+    try {
+        const r = await fetch('/v1/exchange/models/search?q=' + encodeURIComponent(q));
+        const data = await r.json();
+
+        if (data.models.length === 0) {
+            el.innerHTML = '<div style="color:#94a3b8;font-size:10px;">No results</div>';
+            return;
+        }
+
+        el.innerHTML = '<div style="font-size:9px;color:#64748b;margin-bottom:3px;"><b>HuggingFace results:</b></div>' +
+            data.models.slice(0, 8).map(m => {
+                const avail = m.available_on_exchange
+                    ? `<span style="color:#16a34a;font-weight:600;">✓ ${m.provider_count}p</span>`
+                    : '<span style="color:#94a3b8;">—</span>';
+                return `<div style="display:flex;justify-content:space-between;align-items:center;padding:3px 4px;font-size:10px;border-bottom:1px solid #f1f5f9;">
+                    <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:160px;" title="${m.repo_id}">${m.repo_id}</span>
+                    <span style="display:flex;gap:6px;align-items:center;">
+                        ${avail}
+                        <span style="color:#64748b;">${(m.downloads||0).toLocaleString()} ↓</span>
+                    </span>
+                </div>`;
+            }).join('');
+    } catch(e) {
+        el.innerHTML = '<div style="color:#dc2626;font-size:10px;">Search failed</div>';
+    }
+}
+
+document.getElementById('model-search').addEventListener('keydown', e => {
+    if (e.key === 'Enter') searchModelsConsumer();
+});
 
 // Chat
 let msgs = [];

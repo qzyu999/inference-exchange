@@ -38,6 +38,8 @@ class ProviderAgent:
         trust_level: str = "open",
         measured_tps: float = 0,
         hardware_override: str | None = None,
+        model_names_override: list[str] | None = None,
+        model_identity: dict | None = None,
     ):
         self.config = config
         self.engine = engine
@@ -46,6 +48,8 @@ class ProviderAgent:
         self.trust_level = trust_level
         self.measured_tps = measured_tps
         self.hardware_override = hardware_override
+        self.model_names_override = model_names_override
+        self.model_identity = model_identity or {}
         self._ws = None
         self._active_requests = 0
         self._running = False
@@ -76,10 +80,13 @@ class ProviderAgent:
             logger.info("Connected to coordinator")
 
             # Register
+            model_list = self.model_names_override or [self.engine.model_name, "default"]
+            if "default" not in model_list:
+                model_list.append("default")
             reg = RegisterMessage(
                 provider_name=self.config.provider_name,
                 capabilities=ProviderCapabilities(
-                    models=[self.engine.model_name, "default"],
+                    models=model_list,
                     max_concurrent=self.config.max_concurrent,
                     trust_level=TrustLevel(self.trust_level),
                     hardware=self.hardware_override or self._detect_hardware(),

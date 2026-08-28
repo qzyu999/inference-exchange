@@ -119,6 +119,27 @@
         </table>
     </div>
 
+    <!-- TPS Performance Tracking -->
+    <div class="card" style="margin-bottom:16px;">
+        <h2>TPS Performance (Observed vs Estimated)</h2>
+        <table>
+            <thead><tr><th>Provider</th><th>Model</th><th>Hardware</th><th>Estimated TPS</th><th>Observed TPS (EMA)</th><th>Effective</th><th>Requests</th><th>Total Tokens</th><th>Status</th></tr></thead>
+            <tbody id="tps-table"><tr><td colspan="9" style="color:#94a3b8;">Send requests to generate TPS measurements...</td></tr></tbody>
+        </table>
+    </div>
+
+    <!-- Model Search (HuggingFace) -->
+    <div class="card" style="margin-bottom:16px;">
+        <h2>Model Discovery (HuggingFace)</h2>
+        <div style="display:flex;gap:8px;margin-bottom:12px;">
+            <input id="hf-search-input" type="text" placeholder="Search for GGUF models (e.g. llama, qwen, mistral)..." style="flex:1;padding:8px 12px;border:1px solid #e2e8f0;border-radius:6px;font-size:12px;outline:none;" />
+            <button onclick="searchModels()" style="padding:6px 14px;background:#7c3aed;color:white;border:none;border-radius:6px;font-size:12px;cursor:pointer;">Search</button>
+        </div>
+        <div id="hf-results" style="max-height:300px;overflow-y:auto;">
+            <div style="color:#94a3b8;font-size:12px;">Search HuggingFace to find models providers can serve.</div>
+        </div>
+    </div>
+
     <!-- Matching Engine -->
     <div class="card" style="margin-bottom:16px;">
         <h2>Matching Engine Configuration</h2>
@@ -155,6 +176,7 @@
 async function refresh() {
     try {
         const data = await fetch('/v1/admin/state').then(r => r.json());
+        const tpsData = await fetch('/v1/exchange/tps').then(r => r.json());
 
         // Components
         document.getElementById('components').innerHTML = data.system.components.map(c =>
@@ -243,6 +265,34 @@ async function refresh() {
                 <tr><td>Forward secrecy</td><td><b>Yes (per-request ephemeral keys)</b></td></tr>
             </tbody></table>
         `;
+
+        // TPS Performance Table
+        const tpsTable = document.getElementById('tps-table');
+        if (tpsData.tps_stats.length > 0) {
+            tpsTable.innerHTML = tpsData.tps_stats.map(s => {
+                const status = s.is_anomalous
+                    ? '<span class="badge badge-yellow">⚠ Anomaly</span>'
+                    : '<span class="badge badge-green">Normal</span>';
+                const delta = s.observed_tps_ema > 0
+                    ? ((s.observed_tps_ema / s.estimated_tps * 100) - 100).toFixed(0)
+                    : '—';
+                const deltaColor = delta > 0 ? 'color:#16a34a' : delta < -30 ? 'color:#dc2626' : '';
+                return `<tr>
+                    <td><b>${s.provider_id}</b></td>
+                    <td>${s.model}</td>
+                    <td>${s.hardware}</td>
+                    <td>${s.estimated_tps} tok/s</td>
+                    <td><b>${s.observed_tps_ema.toFixed(1)}</b> tok/s <span style="font-size:10px;${deltaColor}">(${delta}%)</span></td>
+                    <td><b>${s.effective_tps.toFixed(1)}</b> tok/s</td>
+                    <td>${s.total_requests}</td>
+                    <td>${s.total_tokens.toLocaleString()}</td>
+                    <td>${status}</td>
+                </tr>`;
+            }).join('');
+        }
+                <tr><td>Forward secrecy</td><td><b>Yes (per-request ephemeral keys)</b></td></tr>
+            </tbody></table>
+        `;
     } catch(e) { console.error(e); }
 }
 
@@ -250,6 +300,42 @@ function formatUp(s) { if(s<60)return s+'s'; if(s<3600)return Math.floor(s/60)+'
 
 refresh();
 setInterval(refresh, 3000);
+
+// Model Search
+async function searchModels() {
+    const input = document.getElementById('hf-search-input');
+    const q = input.value.trim();
+    if (!q) return;
+
+    const el = document.getElementById('hf-results');
+    el.innerHTML = '<div style="color:#64748b;">Searching HuggingFace...</div>';
+
+    try {
+        const r = await fetch('/v1/exchange/models/search?q=' + encodeURIComponent(q));
+        const data = await r.json();
+
+        if (data.models.length === 0) {
+            el.innerHTML = '<div style="color:#94a3b8;">No GGUF models found for "' + q + '"</div>';
+            return;
+        }
+
+        el.innerHTML = `<table><thead><tr><th>Repository</th><th>Downloads</th><th>Type</th><th>Tags</th></tr></thead><tbody>` +
+            data.models.map(m => `<tr>
+                <td><b>${m.repo_id}</b></td>
+                <td>${(m.downloads || 0).toLocaleString()}</td>
+                <td>${m.pipeline_tag || '—'}</td>
+                <td style="font-size:10px;color:#64748b;">${(m.tags || []).slice(0, 5).join(', ')}</td>
+            </tr>`).join('') +
+            '</tbody></table>';
+    } catch(e) {
+        el.innerHTML = '<div style="color:#dc2626;">Search failed: ' + e.message + '</div>';
+    }
+}
+
+// Enter key triggers search
+document.getElementById('hf-search-input').addEventListener('keydown', e => {
+    if (e.key === 'Enter') searchModels();
+});
 </script>
 </body>
 </html>

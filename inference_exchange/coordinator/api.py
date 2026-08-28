@@ -368,13 +368,36 @@ async def get_tps_stats():
 
 @router.get("/v1/exchange/models/search")
 async def search_models(q: str = ""):
-    """Search HuggingFace for available GGUF models."""
+    """Search HuggingFace for GGUF models and show availability on the exchange."""
     from .model_registry import ModelRegistry
+    hub = get_hub()
     registry = ModelRegistry()
+
     if not q:
         return {"models": [], "hint": "Pass ?q=llama to search HuggingFace for GGUF models"}
+
     results = registry.search_hf_models(q, limit=10)
-    return {"query": q, "models": results}
+
+    # Cross-reference with what's currently available on the exchange
+    available_models = set()
+    for p in hub._providers.values():
+        for m in p.capabilities.models:
+            available_models.add(m.lower())
+
+    for result in results:
+        # Check if any provider has this model (fuzzy match on repo name parts)
+        repo_parts = result["repo_id"].lower().replace("/", " ").replace("-", " ").split()
+        result["available_on_exchange"] = any(
+            any(part in avail for part in repo_parts if len(part) > 3)
+            for avail in available_models
+        )
+        # Count providers serving this model
+        result["provider_count"] = sum(
+            1 for p in hub._providers.values()
+            if any(part in m.lower() for m in p.capabilities.models for part in repo_parts if len(part) > 3)
+        )
+
+    return {"query": q, "models": results, "exchange_models": sorted(available_models)}
 
 
 @router.get("/v1/admin/state")

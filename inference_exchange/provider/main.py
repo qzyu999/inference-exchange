@@ -9,6 +9,7 @@ from inference_exchange.config import ProviderConfig
 
 from .agent import ProviderAgent
 from .inference import InferenceEngine, find_model_path
+from .model_identity import get_model_identity
 
 logging.basicConfig(
     level=logging.INFO,
@@ -32,6 +33,7 @@ def main():
                         help="Advertised trust level")
     parser.add_argument("--tps", type=float, default=0, help="Advertised tokens/sec (0=auto-measure)")
     parser.add_argument("--hardware", default=None, help="Hardware label (e.g. apple-m4-pro)")
+    parser.add_argument("--models", default=None, help="Comma-separated model names to advertise (overrides auto-detect)")
     args = parser.parse_args()
 
     config = ProviderConfig(
@@ -58,6 +60,13 @@ def main():
         n_gpu_layers=config.n_gpu_layers,
     )
 
+    # Read model identity from GGUF file
+    identity = get_model_identity(model_path)
+    model_names = args.models.split(",") if args.models else [identity["name"]]
+    logger.info(f"Model identity: {identity['name']} ({identity['architecture']}, {identity['quantization']})")
+    logger.info(f"  File hash: {identity['file_hash'][:16]}...")
+    logger.info(f"  Advertising as: {model_names}")
+
     # Run agent with pricing
     agent = ProviderAgent(
         config, engine,
@@ -66,6 +75,8 @@ def main():
         trust_level=args.trust,
         measured_tps=args.tps,
         hardware_override=args.hardware,
+        model_names_override=model_names,
+        model_identity=identity,
     )
     logger.info(f"Provider '{args.name}' — ${args.price_output}/Mtok, trust={args.trust}, tps={args.tps}")
 
