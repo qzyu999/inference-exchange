@@ -1,164 +1,151 @@
-# Inference Exchange (IE) ⚡
+# Inference Exchange
 
-> **A Decentralized Level-2 (L2) Continuous Limit Order Book for LLM Compute**
+A decentralized marketplace for AI inference. Providers contribute idle compute and set their own prices. Consumers get OpenAI-compatible inference with configurable privacy, routed by a matching engine that optimizes for price, speed, or security based on consumer preference.
 
-Inference Exchange turns compute providers (such as Apple Silicon Macs running MLX/llama.cpp and GPU clusters running vLLM) into **Market Makers** offering real-time spot capacity, and gives API consumers an **OpenAI-compatible gateway** that automatically matches requests with the lowest effective price per token in microseconds.
+Built on the [Open Confidential Inference Protocol (OCIP)](https://github.com/qzyu999/ocip).
 
----
-
-## 🌟 Why Inference Exchange?
-
-Traditional aggregators (like OpenRouter) use **static retail rate cards** set behind the scenes. Inference Exchange introduces a **Continuous Limit Order Book (CLOB)**:
-
-1. **Dynamic Level-2 Order Book**: Providers continuously quote input ($P_{in}$) and output ($P_{out}$) prices per 1M tokens, concurrency slots, and max context windows.
-2. **Sub-Millisecond Matching Engine**: Automatically routes requests based on **Composite Effective Price** ($P_{eff} = P_{in} + 3.0 \cdot P_{out}$), SLA (TPS guarantee), and trust tiers.
-3. **Outbound Provider Tunnel**: Provider nodes connect *outbound* via WebSockets — **no open ports, port forwarding, or firewall configuration required**.
-4. **Real-time Streaming Escrow**: Locks pre-flight maximum cost, meters SSE chunks in real time, and instantly settles micro-USD upon completion with zero financial slippage.
-5. **Dynamic Pricing Agent**: Provider daemon auto-adjusts ask quotes based on local hardware load (CPU/GPU thermals, time of day, queue depth).
-6. **100% OpenAI & Anthropic Drop-in Compatible**: Switch one `base_url` in standard SDKs.
-
----
-
-## 🏛️ Architecture
+## What It Does
 
 ```
-                                [ API Consumers / Takers ]
-                     (OpenAI / Anthropic SDK · Trading Bots · Web UI)
-                                           │
-                                           ▼
-┌────────────────────────────────────────────────────────────────────────────────────────┐
-│                        Inference Exchange Core Gateway (Rust)                          │
-│                                                                                        │
-│   ┌──────────────────────────┐   ┌─────────────────────────────────────────────────┐   │
-│   │  OpenAI / Anthropic API  │   │          Real-time L2 Order Book Core           │   │
-│   │  - POST /v1/chat/...     │   │  - Per-model Bid / Ask Depth Books              │   │
-│   │  - GET /v1/models        │──▶│  - Composite Pricing: P_eff = P_in + α * P_out  │   │
-│   │  - GET /v1/orderbook/:id │   │  - Price-Time-SLA Priority Matching Engine      │   │
-│   └──────────────────────────┘   └─────────────────────────────────────────────────┘   │
-│                │                                          │                            │
-│                ▼                                          ▼                            │
-│   ┌──────────────────────────┐   ┌─────────────────────────────────────────────────┐   │
-│   │ Escrow & Metering Engine │   │       Provider WebSocket Tunnel & Router        │   │
-│   │  - Pre-flight micro-hold │   │  - Outbound WS session multiplexer              │   │
-│   │  - SSE chunk token meter │   │  - Dynamic Heartbeat & SLA tracking (TPS, TTFT) │   │
-│   │  - Instant settlement    │   │  - Zero-port inbound NAT traversal              │   │
-│   └──────────────────────────┘   └─────────────────────────────────────────────────┘   │
-└────────────────────────────────────────────────────────────────────────────────────────┘
-                                           │ (Outbound WebSockets)
-                                           ▼
-                          [ Compute Providers / Makers ]
-   ┌───────────────────────────────────────────────────────────────────────────────────┐
-   │ `ie-node` Provider Daemon:                                                        │
-   │  - Dynamic Pricing Engine (Auto-adjust Asks based on thermals, load, idle time)   │
-   │  - In-process or local backend inference runner (MLX / llama.cpp / vLLM / Ollama) │
-   │  - Slot Concurrency & KV-Cache capacity manager                                   │
-   └───────────────────────────────────────────────────────────────────────────────────┘
+Consumer (OpenAI SDK)  →  Coordinator (matching engine)  →  Provider (llama.cpp)
+     "cheapest"              scores 3 providers               budget-mac wins
+     "fastest"               scores 3 providers               gpu-beast wins  
+     "most_secure"           scores 3 providers               secure-vault wins
 ```
 
----
+- **Providers** connect over WebSocket, advertise models/prices/hardware/trust level
+- **Consumers** send standard OpenAI API requests with optional preference hints
+- **Matching engine** scores all eligible providers and picks the best one per-request
+- **E2E encryption** — prompts are encrypted to the provider's X25519 key (coordinator can't read them)
+- **Per-request billing** — consumers pay per token, providers earn 90%, platform keeps 10%
+- **Multi-tenant API keys** — each consumer has isolated balance and usage tracking
+- **SQLite persistence** — keys, balances, and billing survive restarts
 
-## 🚀 Quickstart
+## Try It (5 minutes)
 
-### 1. Build the Workspace
 ```bash
-cargo build --release
+# Clone and setup
+git clone https://github.com/qzyu999/inference-exchange
+cd inference-exchange
+python -m venv .venv && .venv\Scripts\activate   # Windows
+# source .venv/bin/activate                      # macOS/Linux
+pip install -e .
+pip install llama-cpp-python --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cpu
+
+# Download a small model (~400MB)
+python -m inference_exchange download-model
+
+# Terminal 1: Start coordinator
+python -m inference_exchange.coordinator
+
+# Terminal 2: Start a provider
+python -m inference_exchange.provider --name "my-node" --price-output 0.15
+
+# Terminal 3: Send a request
+curl http://localhost:8000/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -d '{"model":"default","messages":[{"role":"user","content":"Hello!"}],"stream":true}'
 ```
 
-### 2. Run the Gateway & Matching Engine
+Open `http://localhost:8000` for the exchange dashboard, `http://localhost:8000/admin.html` for the admin control plane.
+
+## Multiple Providers (see the matching in action)
+
 ```bash
-./target/release/ie-gateway --port 8080
-```
-- **Web UI & L2 Depth Chart:** `http://localhost:8080`
-- **OpenAI Endpoint:** `http://localhost:8080/v1/chat/completions`
-- **L2 Order Book Depth:** `http://localhost:8080/v1/orderbook/llama-3.3-70b-instruct`
-- **Real-Time Market Feed:** `ws://localhost:8080/v1/market/feed`
+# Cheap, slow, no isolation
+python -m inference_exchange.provider --name "budget-mac" --price-output 0.08 --trust open --tps 25
 
----
+# Expensive, fast, container-isolated
+python -m inference_exchange.provider --name "gpu-beast" --price-output 0.30 --trust contained --tps 120
 
-### 3. Connect a Provider Node (Compute Maker)
-
-Run on an Apple Silicon Mac or GPU server:
-```bash
-./target/release/ie-node \
-  --gateway-url "ws://127.0.0.1:8080/v1/provider/tunnel" \
-  --name "Mac Studio M2 Ultra (192GB)" \
-  --model "llama-3.3-70b-instruct" \
-  --price-in 0.05 \
-  --price-out 0.20 \
-  --slots 4 \
-  --tps 38.5 \
-  --dynamic-pricing true
+# Premium, hardware-encrypted (SEV-SNP)
+python -m inference_exchange.provider --name "secure-vault" --price-output 0.50 --trust confidential --tps 60
 ```
 
-Optional: Forward to a local engine (e.g. Ollama, llama.cpp, or MLX):
-```bash
-  --local-backend-url "http://127.0.0.1:11434/v1"
+Then switch the preference dropdown in the dashboard — watch different providers win.
+
+## Consumer Preferences (OCIP routing)
+
+Add `ocip_preference` to your request body to control routing:
+
+```json
+{
+  "model": "default",
+  "messages": [{"role": "user", "content": "Hello"}],
+  "ocip_preference": "cheapest",
+  "ocip_min_confidence": "contained",
+  "ocip_max_price": 0.30
+}
 ```
 
----
+| Preference | Optimizes for |
+|---|---|
+| `balanced` | Weighted mix of all factors (default) |
+| `cheapest` | Lowest price provider |
+| `fastest` | Highest throughput provider |
+| `most_secure` | Highest trust level provider |
 
-### 4. Execute Spot Inference (Consumer / Taker)
+## API (OpenAI-compatible)
 
-Use the standard **Python OpenAI SDK**:
+```
+POST /v1/chat/completions    — inference (streaming + non-streaming)
+GET  /v1/models              — available models
+POST /v1/auth/keys           — create API key
+GET  /v1/auth/me             — your account info
+GET  /v1/exchange/providers  — connected providers
+GET  /v1/exchange/pricing    — current market prices
+GET  /v1/exchange/depth      — order book (capacity at each price level)
+GET  /v1/exchange/balance    — your balance
+GET  /v1/exchange/telemetry  — engine metrics
+GET  /v1/exchange/traces     — recent matching decisions with full scoring
+GET  /v1/admin/state         — full system state (admin)
+```
+
+Standard OpenAI SDK works:
 ```python
 from openai import OpenAI
-
-client = OpenAI(
-    base_url="http://localhost:8080/v1",
-    api_key="demo-user-key",
-    default_headers={
-        "X-IE-Max-Price-Output": "0.50",   # Max $ / 1M output tokens (Slippage guard)
-        "X-IE-Min-TPS": "25",              # Minimum throughput SLA
-    }
-)
-
-stream = client.chat.completions.create(
-    model="llama-3.3-70b-instruct",
-    messages=[{"role": "user", "content": "Explain Level-2 order books for AI compute."}],
-    stream=True,
-)
-
-for chunk in stream:
-    if chunk.choices[0].delta.content:
-        print(chunk.choices[0].delta.content, end="", flush=True)
+client = OpenAI(base_url="http://localhost:8000/v1", api_key="sk-ie-...")
 ```
 
-Or with `curl`:
-```bash
-curl -N http://localhost:8080/v1/chat/completions \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer demo-user-key" \
-  -d '{
-    "model": "llama-3.3-70b-instruct",
-    "messages": [{"role": "user", "content": "Hello Inference Exchange!"}],
-    "stream": true
-  }'
+## Architecture
+
+```
+inference_exchange/
+├── coordinator/              # FastAPI service
+│   ├── main.py               # App setup, WebSocket hub, static serving
+│   ├── api.py                # Consumer API + exchange endpoints
+│   ├── provider_hub.py       # WebSocket connection manager + scoring
+│   ├── store.py              # SQLite persistence (keys, billing, accounts)
+│   ├── billing.py            # In-memory billing (legacy, kept for reference)
+│   ├── auth.py               # In-memory auth (legacy, kept for reference)
+│   ├── matching/             # Pluggable matching engine
+│   │   ├── strategy.py       # GreedyStrategy + BatchAuctionStrategy
+│   │   ├── engine.py         # Orchestrator (immediate or periodic matching)
+│   │   └── models.py         # Formal order/offer types
+│   └── static/               # Dashboard HTML
+├── provider/                 # What runs on each provider machine
+│   ├── agent.py              # WebSocket client + inference dispatch
+│   ├── inference.py          # llama-cpp-python wrapper
+│   └── main.py               # CLI entrypoint with pricing/trust flags
+├── shared/                   # Protocol types + crypto
+│   ├── protocol.py           # OCIP wire message types
+│   └── crypto.py             # X25519 E2E encryption (NaCl Box)
+└── config.py                 # Configuration
 ```
 
----
+## Key Design Decisions
 
-## 🧪 Running Automated Tests & E2E Verification
+- **Matching is pluggable** — swap `GreedyStrategy` for `BatchAuctionStrategy` (or your own) at runtime
+- **Providers connect outbound** — works behind NAT, no port forwarding needed
+- **E2E encryption uses ephemeral keys** — forward secrecy, coordinator is a blind relay
+- **Scoring is multi-dimensional** — price, speed, trust, load — weighted by consumer preference
+- **Protocol is open** — see [OCIP spec](https://github.com/qzyu999/ocip) for the full wire format
 
-```bash
-# Run unit tests
-cargo test
+## Status
 
-# Run complete multi-node live exchange simulation
-./scripts/demo_exchange.sh
-```
+Working proof-of-concept. Local-only, in-memory provider state (reconnects on restart), SQLite for durable data. Not production-hardened yet.
 
----
+## License
 
-## 📂 Repository Structure
+MIT
 
-- `crates/ie-core/`: In-memory Continuous Limit Order Book (CLOB), Price-Time-SLA matching engine, and micro-escrow ledger.
-- `crates/ie-gateway/`: OpenAI/Anthropic SSE reverse proxy, provider WebSocket tunnel hub, and real-time market data feed.
-- `crates/ie-node/`: Provider daemon with hardware thermal/load dynamic pricing controller and streaming inference engine.
-- `web/`: Live web dashboard with real-time Level-2 depth chart, order book table, trade ticker, and prompt playground.
-- `scripts/`: Integration verification scripts.
-
----
-
-## 📄 License & IP
-
-Inference Exchange is built **100% clean-room from scratch** under the **Apache-2.0 License**. Zero proprietary code, schemas, or scripts were copied from any proprietary third-party codebase.

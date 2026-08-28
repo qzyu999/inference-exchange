@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Inference Exchange — Operations</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'SF Mono', 'Cascadia Code', monospace; background: #fafafa; color: #1a1a1a; font-size: 12px; }
+
+        .layout { display: grid; grid-template-rows: 40px 1fr; height: 100vh; }
+        header { background: #fff; border-bottom: 1px solid #e5e5e5; display: flex; align-items: center; padding: 0 16px; gap: 24px; }
+        header h1 { font-size: 13px; font-weight: 600; color: #111; }
+        header h1 span { color: #7c3aed; }
+        .hstat { font-size: 11px; color: #71717a; }
+        .hstat b { color: #111; }
+
+        .panels { display: grid; grid-template-columns: 320px 1fr 320px; overflow: hidden; }
+        .col { border-right: 1px solid #e5e5e5; overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 12px; }
+        .col:last-child { border-right: none; }
+
+        .section { background: #fff; border: 1px solid #e5e5e5; border-radius: 6px; padding: 10px; }
+        .section-title { font-size: 9px; text-transform: uppercase; letter-spacing: 1px; color: #a1a1aa; margin-bottom: 8px; font-weight: 700; }
+
+        /* Order Book */
+        .ob-header { display: grid; grid-template-columns: 70px 1fr 50px 40px; font-size: 9px; color: #a1a1aa; padding: 2px 4px; text-transform: uppercase; }
+        .ob-row { display: grid; grid-template-columns: 70px 1fr 50px 40px; padding: 3px 4px; border-radius: 3px; position: relative; align-items: center; }
+        .ob-row:hover { background: #f5f5f5; }
+        .ob-bar { position: absolute; right: 0; top: 0; bottom: 0; background: #fee2e220; border-radius: 3px; border: 1px solid #fecaca40; }
+        .ob-price { color: #dc2626; font-weight: 600; position: relative; }
+        .ob-size { position: relative; text-align: center; }
+        .ob-prov { position: relative; color: #a1a1aa; text-align: right; }
+        .ob-name { position: relative; font-size: 10px; color: #525252; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+        /* Provider cards */
+        .prov-card { background: #fafafa; border: 1px solid #e5e5e5; border-radius: 4px; padding: 8px; margin-bottom: 6px; }
+        .prov-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+        .prov-name { font-weight: 600; font-size: 11px; }
+        .prov-badge { padding: 1px 5px; border-radius: 3px; font-size: 9px; font-weight: 600; }
+        .badge-open { background: #f4f4f5; color: #71717a; border: 1px solid #e4e4e7; }
+        .badge-contained { background: #eff6ff; color: #2563eb; border: 1px solid #bfdbfe; }
+        .badge-hardened { background: #f5f3ff; color: #7c3aed; border: 1px solid #ddd6fe; }
+        .badge-confidential { background: #f0fdf4; color: #16a34a; border: 1px solid #bbf7d0; }
+        .prov-stats { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 4px; font-size: 10px; color: #71717a; }
+        .prov-stats span { display: flex; flex-direction: column; }
+        .prov-stats b { color: #1a1a1a; }
+
+        /* Decision traces */
+        .trace { background: #fafafa; border: 1px solid #e5e5e5; border-radius: 4px; padding: 8px; margin-bottom: 6px; }
+        .trace-header { display: flex; justify-content: space-between; margin-bottom: 6px; }
+        .trace-id { color: #7c3aed; font-weight: 600; }
+        .trace-status { font-size: 10px; }
+        .trace-status.matched { color: #16a34a; }
+        .trace-status.no_match { color: #dc2626; }
+        .trace-scoring { margin-top: 4px; }
+        .trace-score-row { display: grid; grid-template-columns: 1fr 50px 50px 50px 50px; font-size: 10px; padding: 1px 0; border-bottom: 1px solid #f4f4f5; }
+        .trace-score-row.winner { background: #f0fdf4; border-left: 2px solid #16a34a; padding-left: 4px; }
+        .trace-score-row .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .trace-score-row .val { text-align: right; }
+
+        /* Telemetry */
+        .metric-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+        .metric { background: #fafafa; border: 1px solid #e5e5e5; border-radius: 4px; padding: 8px; text-align: center; }
+        .metric .val { font-size: 20px; font-weight: 700; margin: 2px 0; }
+        .metric .label { font-size: 9px; color: #a1a1aa; text-transform: uppercase; }
+        .metric .val.green { color: #16a34a; }
+        .metric .val.purple { color: #7c3aed; }
+        .metric .val.blue { color: #2563eb; }
+        .metric .val.red { color: #dc2626; }
+        .metric .val.yellow { color: #ca8a04; }
+
+        /* Util bar */
+        .util-track { height: 4px; background: #e5e5e5; border-radius: 2px; margin-top: 4px; }
+        .util-fill { height: 4px; border-radius: 2px; transition: width 0.5s; }
+
+        /* Chat */
+        .chat-msgs { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; padding: 4px 0; min-height: 100px; max-height: 300px; }
+        .msg { padding: 5px 8px; border-radius: 5px; font-size: 11px; line-height: 1.4; white-space: pre-wrap; font-family: -apple-system, system-ui, sans-serif; max-width: 90%; }
+        .msg.user { background: #f4f4f5; align-self: flex-end; }
+        .msg.assistant { border: 1px solid #e5e5e5; }
+        .chat-input { display: flex; gap: 4px; margin-top: 6px; }
+        .chat-input input { flex: 1; background: #fff; border: 1px solid #d4d4d8; border-radius: 4px; padding: 6px 8px; color: #111; font-size: 11px; outline: none; font-family: inherit; }
+        .chat-input input:focus { border-color: #7c3aed; }
+        .chat-input button { padding: 4px 10px; background: #7c3aed; border: none; border-radius: 4px; color: white; font-size: 10px; cursor: pointer; }
+    </style>
+</head>
+<body>
+<div class="layout">
+    <header>
+        <h1><span>⚡</span> Inference Exchange</h1>
+        <span class="hstat">Providers: <b id="h-prov">0</b></span>
+        <span class="hstat">Capacity: <b id="h-cap">0/0</b></span>
+        <span class="hstat">Balance: <b id="h-bal" style="color:#4ade80">$10.00</b></span>
+        <span class="hstat">Requests: <b id="h-reqs">0</b></span>
+        <span class="hstat">Volume: <b id="h-vol">$0.00</b></span>
+        <span class="hstat">Encryption: <b id="h-enc" style="color:#a78bfa">—</b></span>
+    </header>
+
+    <div class="panels">
+        <!-- LEFT: Order Book + Providers -->
+        <div class="col">
+            <div class="section">
+                <div class="section-title">Order Book — Provider Offers (Sell Side)</div>
+                <div class="ob-header"><span>Price/M</span><span>Provider</span><span>Slots</span><span>🔐</span></div>
+                <div id="orderbook"></div>
+            </div>
+            <div class="section">
+                <div class="section-title">Connected Providers</div>
+                <div id="providers"></div>
+            </div>
+        </div>
+
+        <!-- CENTER: Decision Traces + Telemetry -->
+        <div class="col">
+            <div class="section">
+                <div class="section-title">Engine Telemetry</div>
+                <div class="metric-grid" id="metrics"></div>
+            </div>
+            <div class="section" style="flex:1;">
+                <div class="section-title">Matching Decision Traces (most recent first)</div>
+                <div id="traces" style="overflow-y:auto; max-height:500px;"></div>
+            </div>
+        </div>
+
+        <!-- RIGHT: Chat + Activity -->
+        <div class="col">
+            <div class="section">
+                <div class="section-title">Chat (generates real traced requests)</div>
+                <div style="display:flex;gap:4px;margin-bottom:6px;flex-wrap:wrap;">
+                    <select id="pref-select" style="font-size:10px;padding:2px 4px;border-radius:3px;border:1px solid #d4d4d8;background:#fff;">
+                        <option value="balanced">⚖️ Balanced</option>
+                        <option value="cheapest">💰 Cheapest</option>
+                        <option value="fastest">⚡ Fastest</option>
+                        <option value="most_secure">🔒 Most Secure</option>
+                    </select>
+                    <select id="trust-select" style="font-size:10px;padding:2px 4px;border-radius:3px;border:1px solid #d4d4d8;background:#fff;">
+                        <option value="open">Min: Open</option>
+                        <option value="contained">Min: Contained</option>
+                        <option value="hardened">Min: Hardened</option>
+                        <option value="confidential">Min: Confidential</option>
+                    </select>
+                    <input id="max-price" type="number" step="0.05" placeholder="Max $/M" style="width:70px;font-size:10px;padding:2px 4px;border-radius:3px;border:1px solid #d4d4d8;" />
+                </div>
+                <div class="chat-msgs" id="chat-msgs"></div>
+                <div class="chat-input">
+                    <input id="chat-in" placeholder="Type to send a real request..." />
+                    <button onclick="sendChat()">Send</button>
+                </div>
+            </div>
+            <div class="section" style="flex:1;">
+                <div class="section-title">Transaction Log</div>
+                <div id="txlog" style="overflow-y:auto; max-height:400px;"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+async function refresh() {
+    try {
+        const [bal, providers, depth, telemetry, history, traces] = await Promise.all([
+            fetch('/v1/exchange/balance').then(r=>r.json()),
+            fetch('/v1/exchange/providers').then(r=>r.json()),
+            fetch('/v1/exchange/depth').then(r=>r.json()),
+            fetch('/v1/exchange/telemetry').then(r=>r.json()),
+            fetch('/v1/exchange/history').then(r=>r.json()),
+            fetch('/v1/exchange/traces').then(r=>r.json()),
+        ]);
+
+        // Header
+        const fleet = telemetry.fleet;
+        document.getElementById('h-prov').textContent = fleet.providers_online;
+        document.getElementById('h-cap').textContent = `${fleet.used_slots}/${fleet.total_capacity_slots}`;
+        document.getElementById('h-bal').textContent = '$' + bal.balance_usd.toFixed(4);
+        document.getElementById('h-reqs').textContent = telemetry.economics.total_requests;
+        document.getElementById('h-vol').textContent = '$' + telemetry.economics.total_volume_usd.toFixed(4);
+        document.getElementById('h-enc').textContent = `${fleet.encrypted_providers}/${fleet.providers_online}`;
+
+        // Order Book
+        const ob = document.getElementById('orderbook');
+        if (providers.providers.length > 0) {
+            const sorted = [...providers.providers].sort((a,b) => a.price_output - b.price_output);
+            const maxSlots = Math.max(...sorted.map(p => p.max_concurrent));
+            ob.innerHTML = sorted.map(p => {
+                const barW = (p.max_concurrent - p.active_requests) / maxSlots * 100;
+                const enc = p.encrypted ? '🔐' : '🔓';
+                return `<div class="ob-row">
+                    <div class="ob-bar" style="width:${barW}%"></div>
+                    <span class="ob-price">$${p.price_output.toFixed(2)}</span>
+                    <span class="ob-name" title="${p.name}">${p.name}</span>
+                    <span class="ob-size">${p.max_concurrent - p.active_requests}/${p.max_concurrent}</span>
+                    <span class="ob-prov">${enc}</span>
+                </div>`;
+            }).join('');
+        } else {
+            ob.innerHTML = '<div style="color:#3f3f46;padding:8px;">No providers connected</div>';
+        }
+
+        // Provider cards
+        const provEl = document.getElementById('providers');
+        provEl.innerHTML = providers.providers.map(p => `
+            <div class="prov-card">
+                <div class="prov-header">
+                    <span class="prov-name">${p.name}</span>
+                    <span class="prov-badge badge-${p.trust_level}">${p.trust_level}</span>
+                </div>
+                <div class="prov-stats">
+                    <span>Price<br><b>$${p.price_output.toFixed(2)}/M</b></span>
+                    <span>Load<br><b>${(p.load*100).toFixed(0)}%</b></span>
+                    <span>Slots<br><b>${p.active_requests}/${p.max_concurrent}</b></span>
+                    <span>Up<br><b>${formatUp(p.uptime_seconds)}</b></span>
+                </div>
+            </div>
+        `).join('');
+
+        // Metrics
+        const econ = telemetry.economics;
+        const tp = telemetry.throughput;
+        const util = fleet.utilization * 100;
+        const utilColor = util < 40 ? '#16a34a' : util < 75 ? '#ca8a04' : '#dc2626';
+        document.getElementById('metrics').innerHTML = `
+            <div class="metric"><div class="label">Utilization</div><div class="val" style="color:${utilColor}">${util.toFixed(0)}%</div>
+                <div class="util-track"><div class="util-fill" style="width:${util}%;background:${utilColor}"></div></div></div>
+            <div class="metric"><div class="label">Match Rate</div><div class="val green">${(telemetry.engine.match_rate*100).toFixed(0)}%</div></div>
+            <div class="metric"><div class="label">Reqs (5m)</div><div class="val blue">${tp.requests_last_5m}</div></div>
+            <div class="metric"><div class="label">Tokens (5m)</div><div class="val">${tp.tokens_last_5m}</div></div>
+            <div class="metric"><div class="label">Avg Cost</div><div class="val">${econ.avg_cost_per_request_usd > 0 ? '$'+econ.avg_cost_per_request_usd.toFixed(6) : '—'}</div></div>
+            <div class="metric"><div class="label">Strategy</div><div class="val purple" style="font-size:11px">${telemetry.engine.strategy}</div></div>
+        `;
+
+        // Decision traces
+        const tracesEl = document.getElementById('traces');
+        if (traces.traces.length > 0) {
+            tracesEl.innerHTML = traces.traces.map(t => {
+                let scoring = '';
+                if (t.scoring) {
+                    scoring = `<div class="trace-scoring">
+                        <div class="trace-score-row" style="color:#52525b;font-size:9px;"><span>Provider</span><span class="val">Price</span><span class="val">Trust</span><span class="val">Load</span><span class="val">Score</span></div>
+                        ${t.scoring.map(s => `<div class="trace-score-row ${s.selected?'winner':''}">
+                            <span class="name">${s.name}</span>
+                            <span class="val">$${s.price.toFixed(2)}</span>
+                            <span class="val">${s.trust}</span>
+                            <span class="val">${(s.load*100).toFixed(0)}%</span>
+                            <span class="val" style="color:${s.selected?'#4ade80':'#a1a1aa'}">${s.score.toFixed(3)}</span>
+                        </div>`).join('')}
+                    </div>`;
+                }
+                const ts = new Date(t.timestamp * 1000).toLocaleTimeString();
+                return `<div class="trace">
+                    <div class="trace-header">
+                        <span class="trace-id">${t.request_id}</span>
+                        <span class="trace-status ${t.status}">${t.status === 'matched' ? '✓ → '+t.selected_provider : '✗ '+t.reason}</span>
+                    </div>
+                    <div style="font-size:10px;color:#71717a;">model=${t.model} | pref=<b style="color:#7c3aed">${t.preference||'balanced'}</b> | min_trust=${t.min_confidence||'open'} | ${t.providers_evaluated} providers | ${t.encrypted?'🔐':'🔓'} | ${ts}</div>
+                    ${scoring}
+                </div>`;
+            }).join('');
+        } else {
+            tracesEl.innerHTML = '<div style="color:#3f3f46;padding:8px;">Send a request to see matching decisions...</div>';
+        }
+
+        // Transaction log
+        const txEl = document.getElementById('txlog');
+        if (history.transactions.length > 0) {
+            txEl.innerHTML = history.transactions.slice().reverse().map(t => {
+                const ts = new Date(t.timestamp * 1000).toLocaleTimeString();
+                return `<div style="display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid #1a1a1d;font-size:10px;">
+                    <span style="color:#71717a">${ts}</span>
+                    <span>${t.model}</span>
+                    <span>${t.tokens} tok</span>
+                    <span style="color:#f87171">-$${t.cost_usd.toFixed(6)}</span>
+                </div>`;
+            }).join('');
+        }
+    } catch(e) { console.error(e); }
+}
+
+function formatUp(s) { return s < 60 ? s+'s' : s < 3600 ? Math.floor(s/60)+'m' : Math.floor(s/3600)+'h'; }
+
+refresh();
+setInterval(refresh, 2000);
+
+// Chat
+let msgs = [];
+document.getElementById('chat-in').addEventListener('keydown', e => { if (e.key === 'Enter') sendChat(); });
+
+async function sendChat() {
+    const input = document.getElementById('chat-in');
+    const text = input.value.trim();
+    if (!text) return;
+    input.value = '';
+    msgs.push({role:'user',content:text});
+    appendMsg('user', text);
+    const el = appendMsg('assistant','');
+    let full = '';
+    try {
+        const pref = document.getElementById('pref-select').value;
+        const trust = document.getElementById('trust-select').value;
+        const maxPriceEl = document.getElementById('max-price');
+        const maxPrice = maxPriceEl.value ? parseFloat(maxPriceEl.value) : null;
+
+        const body = {
+            model:'default', messages:msgs, stream:true,
+            ocip_preference: pref,
+            ocip_min_confidence: trust,
+        };
+        if (maxPrice !== null) body.ocip_max_price = maxPrice;
+
+        const res = await fetch('/v1/chat/completions', {
+            method:'POST', headers:{'Content-Type':'application/json'},
+            body: JSON.stringify(body),
+        });
+        const reader = res.body.getReader();
+        const dec = new TextDecoder();
+        let buf = '';
+        while(true) {
+            const {done,value} = await reader.read();
+            if(done) break;
+            buf += dec.decode(value,{stream:true});
+            const lines = buf.split('\n'); buf = lines.pop();
+            for(const line of lines) {
+                if(!line.startsWith('data: ')) continue;
+                const d = line.slice(6);
+                if(d==='[DONE]') break;
+                try { const c=JSON.parse(d); const t=c.choices?.[0]?.delta?.content; if(t){full+=t;el.textContent=full;} } catch{}
+            }
+        }
+        msgs.push({role:'assistant',content:full});
+        setTimeout(refresh, 300);
+    } catch(e) { el.textContent = 'Error: '+e.message; }
+}
+
+function appendMsg(role, text) {
+    const el = document.createElement('div');
+    el.className = 'msg ' + role;
+    el.textContent = text;
+    const c = document.getElementById('chat-msgs');
+    c.appendChild(el);
+    c.scrollTop = 99999;
+    return el;
+}
+</script>
+</body>
+</html>

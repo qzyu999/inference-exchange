@@ -1,0 +1,25 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Install dependencies
+COPY pyproject.toml .
+RUN pip install --no-cache-dir \
+    fastapi uvicorn websockets pydantic httpx pynacl huggingface-hub sse-starlette \
+    && pip install --no-cache-dir llama-cpp-python \
+       --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cpu
+
+# Copy source
+COPY inference_exchange/ inference_exchange/
+
+# Provider entrypoint — configure via environment variables
+ENV COORDINATOR_URL=ws://host.docker.internal:8000/ws/provider
+ENV PROVIDER_NAME=docker-provider
+ENV PRICE_OUTPUT=0.20
+ENV MAX_CONCURRENT=2
+
+CMD python -m inference_exchange.provider \
+    --name "${PROVIDER_NAME}" \
+    --price-output "${PRICE_OUTPUT}" \
+    --coordinator "${COORDINATOR_URL}" \
+    --max-concurrent "${MAX_CONCURRENT}"

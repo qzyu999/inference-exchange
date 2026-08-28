@@ -1,0 +1,40 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "inference-exchange"
+version = "0.1.0"
+description = "Decentralized marketplace for private AI inference"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.115.0,<1",
+    "uvicorn[standard]>=0.30.0,<1",
+    "websockets>=13.0,<14",
+    "pydantic>=2.9.0,<3",
+    "llama-cpp-python>=0.3.0,<1",
+    "httpx>=0.27.0,<1",
+    "pynacl>=1.5.0,<2",
+    "huggingface-hub>=0.25.0,<1",
+    "sse-starlette>=2.0.0,<3",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.24",
+    "ruff>=0.6",
+]
+
+[tool.setuptools.packages.find]
+include = ["inference_exchange*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
