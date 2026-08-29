@@ -20,6 +20,7 @@ class MessageType(str, Enum):
     ATTESTATION_RESPONSE = "attestation_response"
 
     # Coordinator → Provider
+    REGISTERED = "registered"  # Coordinator → Provider (confirmation)
     INFERENCE_REQUEST = "inference_request"
     CANCEL_REQUEST = "cancel_request"
     ATTESTATION_CHALLENGE = "attestation_challenge"
@@ -54,10 +55,20 @@ class ProviderCapabilities(BaseModel):
 
 class RegisterMessage(BaseModel):
     type: str = MessageType.REGISTER
+    protocol_version: str = "0.1.0"  # OCIP protocol version
     provider_name: str
     capabilities: ProviderCapabilities
     encryption_public_key: str = ""  # Base64 X25519 public key for E2E encryption
     model_identity: dict[str, Any] | None = None  # Model file hash + metadata from provider
+
+
+class RegisteredMessage(BaseModel):
+    """Coordinator → Provider: confirms registration."""
+
+    type: str = MessageType.REGISTERED
+    provider_id: str
+    confidence_level: str = "open"
+    protocol_version: str = "0.1.0"
 
 
 class HeartbeatMessage(BaseModel):

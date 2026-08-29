@@ -15,6 +15,7 @@ from inference_exchange.shared.protocol import (
     AttestationResponse,
     HeartbeatMessage,
     MessageType,
+    RegisteredMessage,
     RegisterMessage,
 )
 
@@ -251,6 +252,13 @@ def create_app() -> FastAPI:
 
             reg = RegisterMessage(**data)
             provider_id = hub.register_provider(ws, reg)
+
+            # Send registration confirmation
+            confirmed = RegisteredMessage(
+                provider_id=provider_id,
+                confidence_level=reg.capabilities.trust_level.value,
+            )
+            await ws.send_json(confirmed.model_dump())
 
             # HF hash verification
             model_verified = verify_model_hash(model_registry, reg)

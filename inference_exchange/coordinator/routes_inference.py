@@ -6,11 +6,19 @@ import logging
 import time
 import uuid
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from inference_exchange.shared.crypto import encrypt_json
+from inference_exchange.shared.errors import (
+    NoProviderAvailable,
+    ProviderError,
+    ProviderTimeout,
+    QueueFull,
+    QueueTimeout,
+    RateLimitExceeded,
+)
 from inference_exchange.shared.protocol import (
     InferenceDone,
     InferenceError,
@@ -84,11 +92,7 @@ async def chat_completions(request: ChatCompletionRequest, raw_request: Request)
 
     # Rate limit check
     if not _rate_limiter.allow(consumer_id):
-        raise HTTPException(
-            status_code=429,
-            detail="Rate limit exceeded. Try again in a few seconds.",
-            headers={"Retry-After": "5"},
-        )
+        raise RateLimitExceeded()
 
     # Pre-compute input token estimate for billing (used by both paths)
     messages_plain = [m.model_dump() for m in request.messages]
@@ -135,10 +139,7 @@ async def chat_completions(request: ChatCompletionRequest, raw_request: Request)
                 "reason": f"Queue full ({hub.QUEUE_MAX_DEPTH} pending)",
                 "providers_evaluated": hub.provider_count,
             })
-            raise HTTPException(
-                status_code=503,
-                detail=f"Queue full ({hub.QUEUE_MAX_DEPTH} pending). Try again later.",
-            )
+            raise QueueFull(hub.QUEUE_MAX_DEPTH)
 
         # Wait for a provider to be assigned (up to timeout)
         try:
@@ -155,18 +156,12 @@ async def chat_completions(request: ChatCompletionRequest, raw_request: Request)
                 "reason": f"No provider available after {hub.QUEUE_TIMEOUT_SECONDS}s wait",
                 "providers_evaluated": hub.provider_count,
             })
-            raise HTTPException(
-                status_code=503,
-                detail=f"No provider available after {int(hub.QUEUE_TIMEOUT_SECONDS)}s wait.",
-            )
+            raise QueueTimeout(hub.QUEUE_TIMEOUT_SECONDS)
 
         # Provider was assigned by the dispatch loop
         provider = pending.provider
         if provider is None:
-            raise HTTPException(
-                status_code=503,
-                detail="Provider assignment failed.",
-            )
+            raise NoProviderAvailable("Provider assignment failed.")
 
         logger.info(
             f"[{request_id[:8]}] Dequeued → {provider.name} "
@@ -196,7 +191,7 @@ async def chat_completions(request: ChatCompletionRequest, raw_request: Request)
             await hub.send_to_provider(provider, inference_req)
         except Exception as e:
             hub.remove_response_queue(request_id)
-            raise HTTPException(status_code=502, detail=f"Failed to reach provider: {e}")
+            raise ProviderError(f"Failed to reach provider: {e}")
 
         # Build scoring trace
         scoring_details = []
@@ -322,9 +317,9 @@ async def chat_completions(request: ChatCompletionRequest, raw_request: Request)
                 logger.info(f"[{request_id[:8]}] Retried on {retry_provider.name}")
             except Exception as e2:
                 hub.remove_response_queue(request_id)
-                raise HTTPException(status_code=502, detail=f"All providers failed: {e2}")
+                raise ProviderError(f"All providers failed: {e2}")
         else:
-            raise HTTPException(status_code=502, detail=f"Failed to reach provider: {e}")
+            raise ProviderError(f"Failed to reach provider: {e}")
 
     # Log the full decision trace
     _add_trace({
@@ -504,7 +499,7 @@ async def _collect_response(
                 # Record reputation before raising
                 reputation = get_reputation_tracker()
                 reputation.record_timeout(provider.provider_id)
-                raise HTTPException(status_code=504, detail="Provider timeout")
+                raise ProviderTimeout()
 
             if isinstance(msg, InferenceResponseChunk):
                 tokens.append(msg.token)
@@ -517,7 +512,7 @@ async def _collect_response(
                 # Record reputation before raising
                 reputation = get_reputation_tracker()
                 reputation.record_error(provider.provider_id)
-                raise HTTPException(status_code=502, detail=msg.error)
+                raise ProviderError(msg.error)
     finally:
         hub.remove_response_queue(request_id)
 

@@ -31,6 +31,18 @@ async def list_models():
     }
 
 
+@router.get("/v1/encryption-key")
+async def get_encryption_key():
+    """Public coordinator encryption key (for optional sender-side sealing)."""
+    # In coordinator-terminated mode, the coordinator has a long-lived X25519 key
+    # For now, return a placeholder indicating E2E is provider-direct only
+    return {
+        "mode": "provider-direct",
+        "note": "E2E encryption is per-provider. Provider keys are in /v1/exchange/providers.",
+        "algorithm": "x25519-xsalsa20-poly1305",
+    }
+
+
 @router.get("/v1/exchange/providers")
 async def list_providers():
     """List all connected providers with their pricing and status."""
