@@ -99,11 +99,11 @@
 1. ~~Proper token counting~~ ✅ Done
 2. ~~Session affinity~~ ✅ Done
 3. ~~Provider reputation~~ ✅ Done
-4. **Request retry on failure** — auto-retry on another provider if one fails mid-inference
-5. **Rate limiting** — per-key token bucket
-6. **Coordinator → HF hash verification** — verify provider's reported hash matches HF published hash
-7. **WebSocket real-time feed** — push events to dashboards instead of polling
-8. **OpenAI SDK compatibility test** — prove official `openai` package works
+4. ~~Request retry on failure~~ ✅ Done
+5. ~~Rate limiting~~ ✅ Done (30 req/min per key, token bucket)
+6. ~~OpenAI SDK compatibility test~~ ✅ Done (streaming + non-streaming + models)
+7. **Coordinator → HF hash verification** — verify provider's reported hash matches HF published hash
+8. **WebSocket real-time feed** — push events to dashboards instead of polling
 9. **React frontend** — proper SPA with real-time charting
 10. **Model catalog with filtering** — search by family, size, quantization, with availability overlay
 
@@ -136,6 +136,7 @@ inference_exchange/
 │   ├── auth.py              Legacy in-memory auth
 │   ├── tps_tracker.py       Dynamic TPS measurement (EMA)
 │   ├── reputation.py        Provider reputation (success/fail/timeout EMA)
+│   ├── rate_limiter.py      Per-consumer token bucket rate limiting
 │   ├── model_registry.py    HuggingFace model search + hash verification
 │   ├── matching/            Pluggable matching engine
 │   │   ├── strategy.py      GreedyStrategy + BatchAuctionStrategy
@@ -185,6 +186,7 @@ tests/
 ├── test_matching.py         Matching engine unit tests (13 tests)
 ├── test_preferences.py      Preference routing verification
 ├── test_integration.py      End-to-end integration test
+├── test_openai_sdk.py       Official OpenAI SDK compatibility proof
 ├── simulate_exchange.py     Multi-buyer exchange simulation
 └── load_test.py             Concurrent load testing
 
