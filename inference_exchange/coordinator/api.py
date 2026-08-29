@@ -21,7 +21,7 @@ from inference_exchange.shared.protocol import (
 from .auth import AuthStore
 from .billing import BillingLedger
 from .event_bus import EventBus
-from .provider_hub import ProviderHub
+from .provider_hub import PendingRequest, ProviderHub
 from .rate_limiter import RateLimiter
 from .reputation import ReputationTracker
 from .tps_tracker import TPSTracker
@@ -653,18 +653,161 @@ async def chat_completions(request: ChatCompletionRequest, raw_request: Request)
         reputation_fn=get_reputation_tracker().get_score,
     )
     if provider is None:
+        # No provider available right now — try queuing
+        request_id = str(uuid.uuid4())
+
+        # Build the inference request early so it's ready when dispatched
+        messages_plain = [m.model_dump() for m in request.messages]
+        inference_req = InferenceRequest(
+            request_id=request_id,
+            model=request.model,
+            messages=messages_plain,
+            max_tokens=request.max_tokens,
+            temperature=request.temperature,
+            stream=request.stream,
+        )
+
+        try:
+            pending = hub.enqueue_request(
+                inference_req,
+                model=request.model,
+                preference=request.ocip_preference,
+                min_confidence=request.ocip_min_confidence,
+                max_price=request.ocip_max_price,
+                session_id=request.ocip_session_id,
+            )
+        except asyncio.QueueFull:
+            _add_trace({
+                "request_id": request_id[:8],
+                "timestamp": time.time(),
+                "model": request.model,
+                "status": "queue_full",
+                "reason": f"Queue full ({hub.QUEUE_MAX_DEPTH} pending)",
+                "providers_evaluated": hub.provider_count,
+            })
+            raise HTTPException(
+                status_code=503,
+                detail=f"Queue full ({hub.QUEUE_MAX_DEPTH} pending). Try again later.",
+            )
+
+        # Wait for a provider to be assigned (up to timeout)
+        try:
+            await asyncio.wait_for(
+                pending.event.wait(),
+                timeout=hub.QUEUE_TIMEOUT_SECONDS,
+            )
+        except asyncio.TimeoutError:
+            _add_trace({
+                "request_id": request_id[:8],
+                "timestamp": time.time(),
+                "model": request.model,
+                "status": "queue_timeout",
+                "reason": f"No provider available after {hub.QUEUE_TIMEOUT_SECONDS}s wait",
+                "providers_evaluated": hub.provider_count,
+            })
+            raise HTTPException(
+                status_code=503,
+                detail=f"No provider available after {int(hub.QUEUE_TIMEOUT_SECONDS)}s wait.",
+            )
+
+        # Provider was assigned by the dispatch loop
+        provider = pending.provider
+        if provider is None:
+            raise HTTPException(
+                status_code=503,
+                detail="Provider assignment failed.",
+            )
+
+        logger.info(
+            f"[{request_id[:8]}] Dequeued → {provider.name} "
+            f"(waited {time.time() - pending.queued_at:.1f}s)"
+        )
+
+        # Re-encrypt if needed (the initial inference_req was built with plaintext)
+        if provider.encryption_public_key:
+            encrypted_body = encrypt_json(
+                {"messages": messages_plain},
+                provider.encryption_public_key,
+            ).to_dict()
+            inference_req = InferenceRequest(
+                request_id=request_id,
+                model=request.model,
+                messages=None,
+                encrypted_body=encrypted_body,
+                max_tokens=request.max_tokens,
+                temperature=request.temperature,
+                stream=request.stream,
+            )
+            logger.info(f"[{request_id[:8]}] 🔐 Request encrypted to provider")
+
+        # Now send to the assigned provider
+        queue = hub.create_response_queue(request_id)
+        try:
+            await hub.send_to_provider(provider, inference_req)
+        except Exception as e:
+            hub.remove_response_queue(request_id)
+            raise HTTPException(status_code=502, detail=f"Failed to reach provider: {e}")
+
+        # Build scoring trace
+        scoring_details = []
+        for p in hub._providers.values():
+            score = p.score_for_request(request.model, request.ocip_preference)
+            scoring_details.append({
+                "provider_id": p.provider_id,
+                "name": p.name,
+                "price": p.capabilities.price_per_mtok_output,
+                "trust": p.capabilities.trust_level.value,
+                "load": round(p.load_factor, 2),
+                "tps": p.capabilities.measured_tps,
+                "score": round(score, 4),
+                "selected": p.provider_id == provider.provider_id,
+                "encrypted": bool(p.encryption_public_key),
+            })
+        scoring_details.sort(key=lambda x: x["score"], reverse=True)
+
         _add_trace({
-            "request_id": request_id,
+            "request_id": request_id[:8],
             "timestamp": time.time(),
             "model": request.model,
-            "status": "no_match",
-            "reason": f"No provider (pref={request.ocip_preference}, min_trust={request.ocip_min_confidence}, max_price={request.ocip_max_price})",
-            "providers_evaluated": hub.provider_count,
+            "preference": request.ocip_preference,
+            "min_confidence": request.ocip_min_confidence,
+            "max_price": request.ocip_max_price,
+            "status": "matched_from_queue",
+            "wait_seconds": round(time.time() - pending.queued_at, 2),
+            "selected_provider": provider.name,
+            "selected_price": provider.capabilities.price_per_mtok_output,
+            "selected_trust": provider.capabilities.trust_level.value,
+            "encrypted": bool(provider.encryption_public_key),
+            "scoring": scoring_details,
+            "providers_evaluated": len(scoring_details),
         })
-        raise HTTPException(
-            status_code=503,
-            detail="No provider available for this model. Is a provider connected?",
-        )
+
+        # Publish match event
+        bus = get_event_bus()
+        if bus is not None:
+            bus.publish({
+                "type": "match",
+                "request_id": request_id,
+                "provider": provider.name,
+                "model": request.model,
+                "source": "queue",
+            })
+
+        if request.stream:
+            return StreamingResponse(
+                _stream_response(request_id, request.model, queue, hub, provider, consumer_id),
+                media_type="text/event-stream",
+                headers={
+                    "Cache-Control": "no-cache",
+                    "Connection": "keep-alive",
+                    "X-OCIP-Provider": provider.name,
+                    "X-OCIP-Trust-Level": provider.capabilities.trust_level.value,
+                    "X-OCIP-Price-Output": str(provider.capabilities.price_per_mtok_output),
+                    "X-OCIP-Queued": "true",
+                },
+            )
+        else:
+            return await _collect_response(request_id, request.model, queue, hub, provider, consumer_id)
 
     # Build scoring trace for this decision
     scoring_details = []

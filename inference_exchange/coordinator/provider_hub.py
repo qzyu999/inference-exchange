@@ -91,8 +91,28 @@ class ConnectedProvider:
         return score
 
 
+@dataclass
+class PendingRequest:
+    """A consumer request waiting in the queue for a provider to free up."""
+
+    request_id: str
+    inference_req: InferenceRequest
+    event: asyncio.Event
+    provider: ConnectedProvider | None = None
+    queued_at: float = field(default_factory=time.time)
+    # Routing constraints (so dispatch picks a compatible provider)
+    model: str = "default"
+    preference: str = "balanced"
+    min_confidence: str = "open"
+    max_price: float | None = None
+    session_id: str | None = None
+
+
 class ProviderHub:
     """Manages all connected providers and routes inference requests."""
+
+    QUEUE_MAX_DEPTH = 50
+    QUEUE_TIMEOUT_SECONDS = 30.0
 
     def __init__(self):
         self._providers: dict[str, ConnectedProvider] = {}
@@ -103,6 +123,10 @@ class ProviderHub:
         self._session_affinity: dict[str, str] = {}
         # Maps request_id → provider_id (for disconnect cleanup)
         self._request_to_provider: dict[str, str] = {}
+        # Pending request queue: requests waiting for a provider to free up
+        self._pending_queue: asyncio.Queue[PendingRequest] = asyncio.Queue(
+            maxsize=self.QUEUE_MAX_DEPTH
+        )
 
     @property
     def provider_count(self) -> int:
@@ -254,6 +278,90 @@ class ProviderHub:
         self._request_to_provider[request.request_id] = provider.provider_id
         await provider.ws.send_json(request.model_dump())
 
+    def enqueue_request(
+        self,
+        inference_req: InferenceRequest,
+        *,
+        model: str = "default",
+        preference: str = "balanced",
+        min_confidence: str = "open",
+        max_price: float | None = None,
+        session_id: str | None = None,
+    ) -> PendingRequest:
+        """Enqueue a request for later dispatch when a provider frees up.
+
+        Returns a PendingRequest whose .event the caller should await.
+        Raises asyncio.QueueFull if the queue is at capacity.
+        """
+        pending = PendingRequest(
+            request_id=inference_req.request_id,
+            inference_req=inference_req,
+            event=asyncio.Event(),
+            model=model,
+            preference=preference,
+            min_confidence=min_confidence,
+            max_price=max_price,
+            session_id=session_id,
+        )
+        self._pending_queue.put_nowait(pending)  # Raises QueueFull if at max depth
+        logger.info(
+            f"[{inference_req.request_id[:8]}] Queued — "
+            f"depth={self._pending_queue.qsize()}/{self.QUEUE_MAX_DEPTH}"
+        )
+        return pending
+
+    @property
+    def pending_queue_size(self) -> int:
+        return self._pending_queue.qsize()
+
+    async def _try_dispatch_queued(self, freed_provider_id: str | None = None):
+        """Try to dispatch the oldest queued request to a newly-freed provider.
+
+        Called after a provider completes a request (InferenceDone / InferenceError).
+        Scans the queue front-to-back (FIFO) and dispatches the first compatible
+        request to any available provider.
+        """
+        if self._pending_queue.empty():
+            return
+
+        # Collect all pending items, try to dispatch the first compatible one,
+        # and re-enqueue the rest in order.
+        items: list[PendingRequest] = []
+        dispatched = False
+
+        while not self._pending_queue.empty():
+            try:
+                items.append(self._pending_queue.get_nowait())
+            except asyncio.QueueEmpty:
+                break
+
+        for i, pending in enumerate(items):
+            if dispatched:
+                # Already dispatched one — put the rest back
+                self._pending_queue.put_nowait(pending)
+                continue
+
+            # Try to find a provider for this pending request
+            provider = self.select_provider(
+                pending.model,
+                preference=pending.preference,
+                min_confidence=pending.min_confidence,
+                max_price=pending.max_price,
+                session_id=pending.session_id,
+            )
+            if provider is not None:
+                # Dispatch it
+                pending.provider = provider
+                pending.event.set()
+                dispatched = True
+                logger.info(
+                    f"[{pending.request_id[:8]}] Dispatched from queue → "
+                    f"{provider.name} ({provider.provider_id})"
+                )
+            else:
+                # No provider yet — put it back
+                self._pending_queue.put_nowait(pending)
+
     def handle_provider_message(self, provider_id: str, data: dict):
         """Process a message from a provider and route to the correct response queue."""
         msg_type = data.get("type")
@@ -276,6 +384,8 @@ class ProviderHub:
                 self._providers[provider_id].active_requests = max(
                     0, self._providers[provider_id].active_requests - 1
                 )
+            # Try to dispatch a queued request now that this provider freed capacity
+            asyncio.ensure_future(self._try_dispatch_queued(freed_provider_id=provider_id))
 
         elif msg_type == MessageType.INFERENCE_ERROR:
             error = InferenceError(**data)
@@ -284,6 +394,8 @@ class ProviderHub:
                 self._providers[provider_id].active_requests = max(
                     0, self._providers[provider_id].active_requests - 1
                 )
+            # Also try dispatch on error — the provider freed a slot
+            asyncio.ensure_future(self._try_dispatch_queued(freed_provider_id=provider_id))
 
     def handle_heartbeat(self, provider_id: str, msg: HeartbeatMessage):
         """Update provider state from heartbeat."""
