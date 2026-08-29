@@ -21,6 +21,7 @@ from inference_exchange.shared.protocol import (
 from .auth import AuthStore
 from .billing import BillingLedger
 from .provider_hub import ProviderHub
+from .rate_limiter import RateLimiter
 from .tps_tracker import TPSTracker
 
 logger = logging.getLogger(__name__)
@@ -83,6 +84,7 @@ _hub: ProviderHub | None = None
 _billing: BillingLedger | None = None
 _auth: AuthStore | None = None
 _tps: TPSTracker | None = None
+_rate_limiter: RateLimiter = RateLimiter()  # Default: 30 req/min, burst 10
 
 
 def set_hub(hub: ProviderHub):
@@ -601,6 +603,14 @@ async def chat_completions(request: ChatCompletionRequest, raw_request: Request)
     # Resolve consumer identity from auth header
     consumer_id = auth.resolve_consumer(raw_request.headers.get("authorization"))
 
+    # Rate limit check
+    if not _rate_limiter.allow(consumer_id):
+        raise HTTPException(
+            status_code=429,
+            detail="Rate limit exceeded. Try again in a few seconds.",
+            headers={"Retry-After": "5"},
+        )
+
     # Select a provider
     provider = hub.select_provider(
         request.model,
@@ -671,7 +681,25 @@ async def chat_completions(request: ChatCompletionRequest, raw_request: Request)
         await hub.send_to_provider(provider, inference_req)
     except Exception as e:
         hub.remove_response_queue(request_id)
-        raise HTTPException(status_code=502, detail=f"Failed to reach provider: {e}")
+        # RETRY: try another provider
+        logger.warning(f"[{request_id[:8]}] Provider {provider.name} unreachable, retrying...")
+        retry_provider = hub.select_provider(
+            request.model,
+            preference=request.ocip_preference,
+            min_confidence=request.ocip_min_confidence,
+            max_price=request.ocip_max_price,
+        )
+        if retry_provider and retry_provider.provider_id != provider.provider_id:
+            queue = hub.create_response_queue(request_id)
+            provider = retry_provider  # Use the retry provider for billing/traces
+            try:
+                await hub.send_to_provider(retry_provider, inference_req)
+                logger.info(f"[{request_id[:8]}] Retried on {retry_provider.name}")
+            except Exception as e2:
+                hub.remove_response_queue(request_id)
+                raise HTTPException(status_code=502, detail=f"All providers failed: {e2}")
+        else:
+            raise HTTPException(status_code=502, detail=f"Failed to reach provider: {e}")
 
     # Log the full decision trace
     _add_trace({
