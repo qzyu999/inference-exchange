@@ -543,3 +543,333 @@ the plaintext messages). So either:
 Vision models charge differently for image tokens (more compute per token).
 Need to account for image resolution → token count mapping. Not urgent for
 text-only MVP but worth noting.
+
+
+---
+
+## Detailed Analysis of Open Questions
+
+### Question 1: Speculative Decoding / Multi-Token Prediction
+
+**What it is:** Some inference engines predict multiple tokens at once using a
+smaller "draft" model, then verify with the full model. Accepted tokens are
+output; rejected speculations are discarded.
+
+```
+Standard decoding:   token → token → token → token (1 at a time)
+Speculative (k=4):   [draft 4 tokens] → verify → accept 3, reject 1 → output 3
+                     Net: 3 tokens produced per full-model forward pass
+```
+
+MLX multi-token prediction (MTP) is similar — the model predicts N next tokens
+in one pass.
+
+**Billing decision:**
+
+```
+Option A: Bill by ACCEPTED tokens only (what consumer receives)
+  • Consumer pays for value received
+  • Provider absorbs cost of rejected speculations
+  • Provider incentive: better draft model = more accepted = more throughput = more revenue/hour
+
+Option B: Bill by full-model forward passes
+  • More aligned with provider compute cost
+  • But consumer can't observe or control this
+  • Creates perverse incentive (bad draft model = more passes = more billing)
+
+RECOMMENDATION: Option A (accepted tokens only)
+  • Simple, fair, consumer-friendly
+  • Provider's efficiency gains are their competitive advantage
+  • A fast provider serves more requests per hour → more total revenue
+```
+
+### Question 2: Continuous Batching
+
+**What it is:** Modern engines (vLLM, TGI, llama.cpp with parallel slots) process
+multiple requests simultaneously. GPU computes attention for 8 users' prompts
+in one batch.
+
+```
+GPU doing inference:
+  Batch slot 1: User A's request (token 15/50)
+  Batch slot 2: User B's request (token 3/200)
+  Batch slot 3: User C's request (prefilling...)
+  Batch slot 4: (idle)
+  
+One GPU forward pass produces tokens for all active slots.
+```
+
+**Billing decision:**
+
+```
+Option A: Each request billed independently (as if sole user)
+  • Simple — consumer doesn't know about batching
+  • Provider keeps efficiency gains (batching = more revenue per GPU-second)
+  • Current standard (OpenAI, Anthropic don't tell you about their batching)
+
+Option B: Discount based on batch size (shared compute)
+  • More "fair" — you're sharing the GPU with others
+  • Complex — variable pricing per request depending on what else is running
+  • Reveals information about other users (privacy concern)
+
+RECOMMENDATION: Option A (independent billing)
+  • Industry standard
+  • Simple for consumers
+  • Batching efficiency is the provider's reward for running a good engine
+  • Don't expose batch state — it leaks information about other users
+```
+
+**Security implication for OCIP Level 2+:**
+
+When batching, multiple users' decrypted prompts exist in the SAME process memory
+simultaneously. The hardening must protect ALL of them:
+- All prompts equally protected from the operator (same hardened process)
+- One user can't observe another's prompts (they're in different request contexts)
+- If process is compromised, ALL batched prompts leak (the risk is the same as
+  without batching — one process, one boundary)
+
+### Question 3: Long Context Pricing
+
+**The problem:** Attention computation in prefill is O(n²) in context length.
+A 100K token input costs ~100× more compute than a 1K token input
+(not just 100× more tokens — quadratically more FLOPS).
+
+```
+Input tokens    Prefill FLOPS (relative)
+1,000           1×
+10,000          100×
+32,000          1,024×
+100,000         10,000×
+```
+
+**Billing options:**
+
+```
+Option A: Linear pricing (same $/tok regardless of length)
+  cost = T_in × P_in  (P_in constant)
+  • Simple for consumer
+  • Unfair to provider at long contexts (quadratic cost, linear revenue)
+  • Provider can refuse long-context requests (set max_tokens in registration)
+
+Option B: Tiered pricing
+  First 8K tokens:  P_in
+  8K - 32K:         2 × P_in
+  32K - 128K:       5 × P_in
+  128K+:            10 × P_in
+  • More fair to provider
+  • Complex for consumer (hard to predict cost)
+
+Option C: Provider sets their own tiers
+  Provider advertises: 
+    {"context_pricing": {"0-8k": 0.05, "8k-32k": 0.10, "32k+": 0.25}}
+  • Maximum flexibility
+  • Consumers can compare providers' long-context rates
+  • Adds complexity to the matching engine (price depends on request size)
+
+RECOMMENDATION: Option A for MVP (linear), evolve to Option C
+  • Start simple: providers who can't handle long context set max_tokens limit
+  • Later: providers advertise tiered pricing, matching engine factors request
+    size into cost calculation
+```
+
+### Question 4: Cost Estimation Before Streaming
+
+**The problem:** Once streaming starts, every token generated is billable.
+The consumer might want to know "roughly how much will this cost?" before
+committing.
+
+**Proposed solution:**
+
+```json
+// Request with estimate_only flag:
+POST /v1/chat/completions
+{
+  "messages": [...],
+  "max_tokens": 500,
+  "ocip": {
+    "estimate_only": true
+  }
+}
+
+// Response (no inference runs, just pricing calculation):
+{
+  "estimate": {
+    "input_tokens": 1250,
+    "max_output_tokens": 500,
+    "input_cost_usd": 0.0000625,
+    "max_output_cost_usd": 0.000100,
+    "max_total_cost_usd": 0.0001625,
+    "provider": "alpha-node",
+    "price_input_per_mtok": 0.05,
+    "price_output_per_mtok": 0.20,
+    "note": "Actual cost depends on tokens generated (usually less than max)"
+  }
+}
+```
+
+This requires the coordinator to count input tokens (possible in coordinator-
+terminated mode, NOT possible with E2E encryption). Alternative: client SDK
+counts locally and reports estimated input tokens.
+
+### Question 5: Failed / Partial Requests
+
+**Scenarios:**
+
+```
+A. Provider crashes at token 50 of 200:
+   Consumer received 50 useful tokens.
+   Provider did compute for 50 tokens.
+   
+B. Provider returns error before any tokens:
+   Consumer received nothing.
+   Provider did some prefill compute.
+
+C. Consumer cancels at token 30:
+   Consumer chose to stop.
+   Provider did 30 tokens of work.
+   
+D. Timeout (provider too slow):
+   Consumer waited 120s, got nothing useful.
+   Provider might still be computing.
+```
+
+**Billing for each:**
+
+```
+Scenario A (partial delivery):
+  Bill for tokens delivered: 50 × P_out + T_in × P_in
+  Consumer got value. Provider did work. Fair to bill.
+
+Scenario B (provider error before output):
+  Bill NOTHING to consumer (they got no value)
+  Provider absorbs the prefill cost
+  Provider's reputation takes a hit (failed request)
+
+Scenario C (consumer cancel):
+  Bill for tokens delivered before cancel: 30 × P_out + T_in × P_in
+  Consumer chose to receive those tokens. Fair to bill.
+  
+Scenario D (timeout):
+  Bill NOTHING to consumer
+  Provider's reputation penalized (too slow)
+  Request may be retried on another provider (consumer doesn't re-pay for the retry)
+```
+
+**Implementation:**
+
+```python
+# On InferenceDone:  bill normally
+# On InferenceError: 
+#   if tokens_delivered > 0: bill for delivered tokens
+#   if tokens_delivered == 0: no charge, penalize provider reputation
+# On Cancel: bill for tokens delivered up to cancel point
+# On Timeout: no charge, penalize provider
+```
+
+### Question 6: Token Counting with E2E Encryption
+
+**The fundamental tension:**
+
+```
+E2E encryption: coordinator CANNOT read message content
+Billing:        coordinator NEEDS to know token count for billing
+```
+
+**Options:**
+
+```
+Option A: Consumer reports token count (in request metadata)
+  {
+    "ocip": {
+      "claimed_input_tokens": 1250  // consumer-side tokenizer count
+    },
+    "encrypted_body": {...}  // coordinator can't verify this claim
+  }
+  
+  Problem: consumer could lie (claim fewer tokens → pay less)
+  Mitigation: provider reports actual count after decryption, disputes resolve in provider's favor
+
+Option B: Provider reports actual count (after inference)
+  Provider sends back: {"usage": {"input_tokens": 1250, "output_tokens": 85}}
+  
+  Problem: provider could lie (claim more tokens → earn more)
+  Mitigation: cross-reference with TTFT (more tokens = longer prefill = observable)
+
+Option C: Both report, coordinator compares
+  consumer_claim = 1250
+  provider_report = 1248
+  difference = 2 tokens (rounding/tokenizer differences — acceptable)
+  
+  If |consumer - provider| > 10%: flag for review
+  Otherwise: use provider_report (they did the actual tokenization)
+
+Option D: Encrypted token count proof (ZK-ish)
+  Consumer includes a commitment: hash(token_count || salt)
+  After inference, reveal: count + salt
+  Coordinator verifies the commitment matches
+  
+  Problem: adds protocol complexity, consumer can still commit to wrong number
+  Overkill for MVP
+
+RECOMMENDATION: Option C (both report, trust provider unless large discrepancy)
+  • Consumer SDK counts tokens locally (approximate — different tokenizers differ by 1-2%)
+  • Provider reports actual token count after inference
+  • Coordinator bills based on provider report (they did the work)
+  • If consumer disputes (>10% difference), investigate
+  • TTFT measurement as additional verification signal
+```
+
+### Question 7: Multi-Modal (Images / Audio)
+
+**How image tokens work:**
+
+Vision models (LLaVA, Qwen-VL, etc.) convert images into token sequences:
+- A 512×512 image ≈ 256-576 tokens (depending on model)
+- A 1024×1024 image ≈ 1024-2048 tokens
+- Higher resolution = more tokens
+
+**Billing approach:**
+
+```
+Option A: Count image tokens as regular input tokens
+  • Simple — image tokens go through the same compute as text tokens
+  • Provider doesn't need to declare different pricing
+  • Consumer pays more for larger images (proportional to compute)
+
+Option B: Separate image pricing
+  Input text:   $0.05 / Mtok
+  Input image:  $0.50 / Mtok (10× more — reflects vision tower compute)
+  Output text:  $0.20 / Mtok
+  
+  • More accurate to actual compute cost
+  • Requires providers to declare image pricing separately
+  • Consumer needs to know how many "image tokens" their image produces
+
+RECOMMENDATION: Option A for MVP (images are just input tokens)
+  • Models already convert images to tokens internally
+  • The token count includes both text and image tokens
+  • Provider charges same $/tok regardless of modality
+  • Later: add optional image surcharge if providers want to charge more for vision workloads
+```
+
+**Audio (Whisper, speech models):**
+
+Not in scope for text-inference exchange. Audio models are a different
+workload type (fixed-length processing, not auto-regressive). Could be
+a future OCIP extension.
+
+---
+
+## Summary of Billing Design Decisions
+
+| Question | Decision | Rationale |
+|----------|----------|-----------|
+| Speculative decoding | Bill accepted tokens only | Consumer pays for value, provider keeps efficiency gains |
+| Continuous batching | Independent billing per request | Industry standard, don't expose batch state |
+| Long context | Linear pricing (MVP), tiered later | Start simple, providers set max context limits |
+| Cost estimation | Optional `estimate_only` flag | Helps consumers plan, not blocking |
+| Failed requests | Bill for delivered tokens; zero for errors/timeouts | Fair to both sides |
+| Token counting (E2E) | Both sides report, trust provider, verify with TTFT | Practical balance of privacy and accuracy |
+| Multi-modal | Images are regular input tokens | Simple, proportional to compute |
+| Minimum charge | Remove it; use rate limiting for spam | Charge actual cost with nano-USD precision |
+| Cache pricing | Option 2 (session affinity, same rate) → Option 3 (cache discount) later | Start simple, evolve |
