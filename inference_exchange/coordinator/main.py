@@ -18,7 +18,8 @@ from inference_exchange.shared.protocol import (
     RegisterMessage,
 )
 
-from .api import router, set_auth, set_billing, set_hub, set_reputation, set_tps_tracker
+from .api import router, set_auth, set_billing, set_event_bus, set_hub, set_reputation, set_tps_tracker
+from .event_bus import EventBus
 from .model_registry import ModelRegistry
 from .provider_hub import ProviderHub
 from .reputation import ReputationTracker
@@ -195,12 +196,14 @@ def create_app() -> FastAPI:
     tps_tracker = TPSTracker()
     reputation = ReputationTracker()
     model_registry = ModelRegistry()
+    event_bus = EventBus()
 
     set_hub(hub)
     set_billing(billing)
     set_auth(auth)
     set_tps_tracker(tps_tracker)
     set_reputation(reputation)
+    set_event_bus(event_bus)
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -257,6 +260,15 @@ def create_app() -> FastAPI:
                 reg.capabilities.measured_tps,
             )
 
+            # Publish provider_connect event
+            event_bus.publish({
+                "type": "provider_connect",
+                "provider": reg.provider_name,
+                "provider_id": provider_id,
+                "models": reg.capabilities.models,
+                "trust_level": reg.capabilities.trust_level.value,
+            })
+
             # Main message loop
             while True:
                 raw = await ws.receive_text()
@@ -269,6 +281,15 @@ def create_app() -> FastAPI:
 
                 elif msg_type == MessageType.ATTESTATION_RESPONSE:
                     hub.handle_attestation_response(provider_id, data)
+                    # Publish attestation event
+                    if provider_id in hub._providers:
+                        p = hub._providers[provider_id]
+                        event_bus.publish({
+                            "type": "attestation",
+                            "provider": p.name,
+                            "provider_id": provider_id,
+                            "status": p.attestation_status,
+                        })
 
                 elif msg_type in (
                     MessageType.INFERENCE_RESPONSE,
@@ -286,8 +307,30 @@ def create_app() -> FastAPI:
             logger.error(f"Provider WebSocket error: {e}")
         finally:
             if provider_id:
+                name = hub._providers[provider_id].name if provider_id in hub._providers else provider_id
                 hub.disconnect_provider(provider_id)
                 store.log_provider_disconnect(provider_id)
+                event_bus.publish({
+                    "type": "provider_disconnect",
+                    "provider": name,
+                    "provider_id": provider_id,
+                })
+
+    # Dashboard real-time event feed
+    @app.websocket("/ws/events")
+    async def events_websocket(ws: WebSocket):
+        await ws.accept()
+        queue = event_bus.subscribe()
+        try:
+            while True:
+                event = await queue.get()
+                await ws.send_json(event)
+        except WebSocketDisconnect:
+            pass
+        except Exception:
+            pass
+        finally:
+            event_bus.unsubscribe(queue)
 
     # Health / info endpoints
     @app.get("/health")

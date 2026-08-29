@@ -20,6 +20,7 @@ from inference_exchange.shared.protocol import (
 
 from .auth import AuthStore
 from .billing import BillingLedger
+from .event_bus import EventBus
 from .provider_hub import ProviderHub
 from .rate_limiter import RateLimiter
 from .reputation import ReputationTracker
@@ -86,6 +87,7 @@ _billing: BillingLedger | None = None
 _auth: AuthStore | None = None
 _tps: TPSTracker | None = None
 _reputation: ReputationTracker | None = None
+_event_bus: EventBus | None = None
 _rate_limiter: RateLimiter = RateLimiter()  # Default: 30 req/min, burst 10
 
 
@@ -112,6 +114,11 @@ def set_tps_tracker(tracker: TPSTracker):
 def set_reputation(tracker: ReputationTracker):
     global _reputation
     _reputation = tracker
+
+
+def set_event_bus(bus: EventBus):
+    global _event_bus
+    _event_bus = bus
 
 
 def get_hub() -> ProviderHub:
@@ -142,6 +149,11 @@ def get_reputation_tracker() -> ReputationTracker:
     if _reputation is None:
         raise RuntimeError("ReputationTracker not initialized")
     return _reputation
+
+
+def get_event_bus() -> EventBus | None:
+    """Return the event bus, or None if not yet initialized."""
+    return _event_bus
 
 
 # --- Endpoints ---
@@ -399,6 +411,15 @@ async def get_reputation():
     """Provider reputation scores."""
     tracker = get_reputation_tracker()
     return {"reputation": tracker.get_all_stats()}
+
+
+@router.get("/v1/exchange/events/recent")
+async def get_recent_events():
+    """Return the last 50 events for clients that missed real-time updates."""
+    bus = get_event_bus()
+    if bus is None:
+        return {"events": []}
+    return {"events": bus.recent_events(50)}
 
 
 @router.get("/v1/exchange/models/search")
@@ -730,6 +751,17 @@ async def chat_completions(request: ChatCompletionRequest, raw_request: Request)
         "providers_evaluated": len(scoring_details),
     })
 
+    # Publish match event
+    bus = get_event_bus()
+    if bus is not None:
+        bus.publish({
+            "type": "match",
+            "request_id": request_id,
+            "provider": provider.name,
+            "model": request.model,
+            "score": max((s["score"] for s in scoring_details if s["selected"]), default=0),
+        })
+
     if request.stream:
         return StreamingResponse(
             _stream_response(request_id, request.model, queue, hub, provider, consumer_id),
@@ -820,6 +852,21 @@ async def _stream_response(
             price_per_mtok_output=provider.capabilities.price_per_mtok_output,
         )
 
+        # Publish billing event
+        bus = get_event_bus()
+        if bus is not None:
+            bus.publish({
+                "type": "billing",
+                "request_id": request_id,
+                "consumer_id": consumer_id,
+                "provider_id": provider.provider_id,
+                "model": model,
+                "cost_usd": round(
+                    (token_count * provider.capabilities.price_per_mtok_output) / 1_000_000, 6
+                ),
+                "tokens": token_count,
+            })
+
         # Record TPS measurement
         elapsed = time.time() - start_time
         if token_count > 0 and elapsed > 0:
@@ -892,6 +939,21 @@ async def _collect_response(
         price_per_mtok_input=provider.capabilities.price_per_mtok_input,
         price_per_mtok_output=provider.capabilities.price_per_mtok_output,
     )
+
+    # Publish billing event
+    bus = get_event_bus()
+    if bus is not None:
+        bus.publish({
+            "type": "billing",
+            "request_id": request_id,
+            "consumer_id": consumer_id,
+            "provider_id": provider.provider_id,
+            "model": model,
+            "cost_usd": round(
+                (len(tokens) * provider.capabilities.price_per_mtok_output) / 1_000_000, 6
+            ),
+            "tokens": len(tokens),
+        })
 
     # Record TPS
     elapsed = time.time() - start_time
