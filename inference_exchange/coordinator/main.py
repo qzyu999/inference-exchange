@@ -18,7 +18,11 @@ from inference_exchange.shared.protocol import (
     RegisterMessage,
 )
 
-from .api import router, set_auth, set_billing, set_event_bus, set_hub, set_reputation, set_tps_tracker
+from .dependencies import set_auth, set_billing, set_event_bus, set_hub, set_reputation, set_tps_tracker
+from .routes_admin import router as admin_router
+from .routes_auth import router as auth_router
+from .routes_exchange import router as exchange_router
+from .routes_inference import router as inference_router
 from .event_bus import EventBus
 from .model_registry import ModelRegistry
 from .provider_hub import ProviderHub
@@ -224,8 +228,11 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
 
-    # Mount consumer API
-    app.include_router(router)
+    # Mount consumer API routers
+    app.include_router(auth_router)
+    app.include_router(exchange_router)
+    app.include_router(admin_router)
+    app.include_router(inference_router)
 
     # Provider WebSocket endpoint
     @app.websocket("/ws/provider")

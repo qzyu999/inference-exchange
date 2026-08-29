@@ -1,4 +1,6 @@
-"""Billing — tracks consumer balances and provider earnings.
+"""Legacy in-memory billing, used by tests only. Production uses store.py.
+
+Billing — tracks consumer balances and provider earnings.
 
 All amounts stored in micro-USD (1 USD = 1,000,000 micro-USD) to avoid
 floating-point precision issues. Display as dollars in the API.

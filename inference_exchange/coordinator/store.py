@@ -132,7 +132,7 @@ class Store:
             (key_hash, key_id, "default-consumer", "Default Key", time.time()),
         )
         self._conn.commit()
-        logger.info(f"Default API key: {raw}")
+        logger.info(f"Default API key: {raw[:12]}...{raw[-4:]}")
         return raw
 
     @property

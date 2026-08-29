@@ -2,7 +2,7 @@
 
 import pytest
 
-from inference_exchange.coordinator.billing import (
+from inference_exchange.coordinator.billing_memory import (
     MICRO_PER_DOLLAR,
     BillingLedger,
 )

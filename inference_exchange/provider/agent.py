@@ -1,4 +1,11 @@
-"""Provider agent — connects to coordinator, receives requests, runs inference."""
+"""DEPRECATED: Use ocip_agent/agent.py instead.
+
+This is the simple single-process provider agent. The production
+implementation is in ocip_agent/agent.py which manages a separate
+inference server process with health monitoring and lifecycle management.
+
+Kept for backward compatibility and simple testing.
+"""
 
 import asyncio
 import json

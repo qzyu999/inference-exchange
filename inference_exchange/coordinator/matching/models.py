@@ -26,7 +26,10 @@ class ConfidenceLevel(int, Enum):
     CONTAINED = 1
     HARDENED = 2
     CONFIDENTIAL = 3
-    FULLY_CONFIDENTIAL = 4
+    # Level 4 (FULLY_CONFIDENTIAL) is defined in the OCIP spec but not yet
+    # available on any consumer hardware. Uncomment when NVIDIA CC or similar
+    # supports it.
+    # FULLY_CONFIDENTIAL = 4
 
 
 @dataclass

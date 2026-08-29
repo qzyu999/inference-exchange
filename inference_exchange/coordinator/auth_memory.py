@@ -1,4 +1,6 @@
-"""API key authentication — multi-tenant consumer identity.
+"""Legacy in-memory auth, used by tests only. Production uses store.py.
+
+API key authentication — multi-tenant consumer identity.
 
 Keys follow the format: sk-ie-<32 hex chars>
 Each key is tied to a consumer account with its own balance and usage.
