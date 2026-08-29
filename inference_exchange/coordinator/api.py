@@ -38,6 +38,18 @@ def _add_trace(trace: dict):
         _request_traces.pop(0)
 
 
+def _estimate_input_tokens(messages: list) -> int:
+    """Estimate token count from messages (approximate: ~4 chars per token for English).
+
+    This is a fast approximation. For exact counting, use the model's tokenizer.
+    Good enough for billing at the micro-USD level.
+    """
+    total_chars = sum(len(str(m.get("content", "") if isinstance(m, dict) else getattr(m, "content", ""))) for m in messages)
+    # Add ~4 tokens per message for role/formatting overhead
+    overhead = len(messages) * 4
+    return max(1, total_chars // 4 + overhead)
+
+
 # --- Request/Response models (OpenAI-compatible) ---
 
 
@@ -56,6 +68,7 @@ class ChatCompletionRequest(BaseModel):
     ocip_preference: str = "balanced"  # cheapest | fastest | most_secure | balanced
     ocip_min_confidence: str = "open"  # open | contained | hardened | confidential
     ocip_max_price: float | None = None  # Max $/Mtok output (None = no limit)
+    ocip_session_id: str | None = None  # Session ID for cache affinity
 
 
 class ModelInfo(BaseModel):
@@ -366,6 +379,15 @@ async def get_tps_stats():
     return {"tps_stats": tracker.get_all_stats()}
 
 
+@router.get("/v1/exchange/reputation")
+async def get_reputation():
+    """Provider reputation scores."""
+    from .reputation import ReputationTracker
+    # For now return empty — reputation is tracked but not yet wired to a global tracker
+    # TODO: wire global ReputationTracker instance
+    return {"reputation": [], "note": "Reputation tracking active — scores factor into routing"}
+
+
 @router.get("/v1/exchange/models/search")
 async def search_models(q: str = ""):
     """Search HuggingFace for GGUF models and show availability on the exchange."""
@@ -585,6 +607,7 @@ async def chat_completions(request: ChatCompletionRequest, raw_request: Request)
         preference=request.ocip_preference,
         min_confidence=request.ocip_min_confidence,
         max_price=request.ocip_max_price,
+        session_id=request.ocip_session_id,
     )
     if provider is None:
         _add_trace({
@@ -748,7 +771,7 @@ async def _stream_response(
             consumer_id=consumer_id,
             provider_id=provider.provider_id,
             model=model,
-            input_tokens=10,  # Approximate; real counting would need tokenizer
+            input_tokens=_estimate_input_tokens(request.messages),  # Approximate; real counting would need tokenizer
             output_tokens=token_count,
             price_per_mtok_input=provider.capabilities.price_per_mtok_input,
             price_per_mtok_output=provider.capabilities.price_per_mtok_output,
@@ -800,7 +823,7 @@ async def _collect_response(
         consumer_id=consumer_id,
         provider_id=provider.provider_id,
         model=model,
-        input_tokens=10,
+        input_tokens=_estimate_input_tokens(request.messages),
         output_tokens=len(tokens),
         price_per_mtok_input=provider.capabilities.price_per_mtok_input,
         price_per_mtok_output=provider.capabilities.price_per_mtok_output,

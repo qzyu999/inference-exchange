@@ -91,6 +91,8 @@ class ProviderHub:
         # Maps request_id → asyncio.Queue for streaming responses back to consumer
         self._response_queues: dict[str, asyncio.Queue] = {}
         self._next_provider_id = 0
+        # Session affinity: session_id → provider_id (for cache preference)
+        self._session_affinity: dict[str, str] = {}
 
     @property
     def provider_count(self) -> int:
@@ -133,11 +135,39 @@ class ProviderHub:
     def select_provider(
         self, model: str, preference: str = "balanced",
         min_confidence: str = "open", max_price: float | None = None,
+        session_id: str | None = None,
+        reputation_fn=None,
     ) -> ConnectedProvider | None:
-        """Pick the best available provider for a request with consumer preferences."""
+        """Pick the best available provider for a request with consumer preferences.
+
+        Args:
+            model: Required model name
+            preference: Routing preference (cheapest/fastest/most_secure/balanced)
+            min_confidence: Minimum trust level
+            max_price: Max $/Mtok output
+            session_id: If provided, prefer the provider that last served this session (cache affinity)
+            reputation_fn: Callable(provider_id) → float [0,1] reputation score
+        """
         # Map confidence strings to numeric values for comparison
         confidence_map = {"open": 0, "contained": 1, "hardened": 2, "confidential": 3}
         min_conf_val = confidence_map.get(min_confidence, 0)
+
+        # Session affinity: check if we have a previous provider for this session
+        session_provider: ConnectedProvider | None = None
+        if session_id and session_id in self._session_affinity:
+            pid = self._session_affinity[session_id]
+            if pid in self._providers:
+                candidate = self._providers[pid]
+                # Verify it's still eligible
+                score = candidate.score_for_request(model, preference)
+                conf = confidence_map.get(candidate.capabilities.trust_level.value, 0)
+                price_ok = max_price is None or candidate.capabilities.price_per_mtok_output <= max_price
+                if score > 0 and conf >= min_conf_val and price_ok:
+                    session_provider = candidate
+
+        # If session affinity found a valid provider, prefer it (cache benefit)
+        if session_provider:
+            return session_provider
 
         best: ConnectedProvider | None = None
         best_score = -1.0
@@ -156,9 +186,18 @@ class ProviderHub:
             if max_price is not None and provider.capabilities.price_per_mtok_output > max_price:
                 continue
 
+            # Factor in reputation (if available)
+            if reputation_fn:
+                rep_score = reputation_fn(provider.provider_id)
+                score *= (0.5 + 0.5 * rep_score)  # Reputation scales score 50%-100%
+
             if score > best_score:
                 best_score = score
                 best = provider
+
+        # Record session affinity for next request
+        if best and session_id:
+            self._session_affinity[session_id] = best.provider_id
 
         return best
 
