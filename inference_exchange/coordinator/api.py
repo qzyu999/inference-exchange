@@ -800,7 +800,7 @@ async def _stream_response(
                 break
 
             elif isinstance(msg, InferenceError):
-                outcome = "error"
+                outcome = "disconnect" if msg.error == "provider_disconnected" else "error"
                 error_data = {"error": {"message": msg.error, "type": "provider_error"}}
                 yield f"data: {json.dumps(error_data)}\n\n"
                 break
@@ -839,6 +839,8 @@ async def _stream_response(
             reputation.record_success(provider.provider_id, tokens=token_count, latency_ms=elapsed_ms)
         elif outcome == "timeout":
             reputation.record_timeout(provider.provider_id)
+        elif outcome == "disconnect":
+            reputation.record_disconnect(provider.provider_id)
         elif outcome == "error":
             reputation.record_error(provider.provider_id)
     finally:

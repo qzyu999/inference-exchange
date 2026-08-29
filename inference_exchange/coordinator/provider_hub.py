@@ -101,6 +101,8 @@ class ProviderHub:
         self._next_provider_id = 0
         # Session affinity: session_id → provider_id (for cache preference)
         self._session_affinity: dict[str, str] = {}
+        # Maps request_id → provider_id (for disconnect cleanup)
+        self._request_to_provider: dict[str, str] = {}
 
     @property
     def provider_count(self) -> int:
@@ -134,11 +136,37 @@ class ProviderHub:
         return provider_id
 
     def disconnect_provider(self, provider_id: str):
-        """Remove a provider on disconnect."""
+        """Remove a provider on disconnect. Push errors to any in-flight request queues."""
         if provider_id in self._providers:
-            name = self._providers[provider_id].name
+            provider = self._providers[provider_id]
+            name = provider.name
+
+            # Find all in-flight requests assigned to this provider
+            orphaned_requests = [
+                req_id for req_id, pid in self._request_to_provider.items()
+                if pid == provider_id
+            ]
+
+            # Push an InferenceError to each orphaned queue so consumers get a clean error
+            for req_id in orphaned_requests:
+                if req_id in self._response_queues:
+                    error = InferenceError(
+                        request_id=req_id,
+                        error="provider_disconnected",
+                    )
+                    self._response_queues[req_id].put_nowait(error)
+                    logger.warning(
+                        f"Provider {name} disconnected mid-stream — "
+                        f"pushed error to request {req_id[:8]}"
+                    )
+                self._request_to_provider.pop(req_id, None)
+
             del self._providers[provider_id]
             logger.info(f"Provider disconnected: {name} ({provider_id})")
+
+            return orphaned_requests
+
+        return []
 
     def select_provider(
         self, model: str, preference: str = "balanced",
@@ -218,10 +246,12 @@ class ProviderHub:
     def remove_response_queue(self, request_id: str):
         """Clean up after request completes."""
         self._response_queues.pop(request_id, None)
+        self._request_to_provider.pop(request_id, None)
 
     async def send_to_provider(self, provider: ConnectedProvider, request: InferenceRequest):
         """Send an inference request to a provider."""
         provider.active_requests += 1
+        self._request_to_provider[request.request_id] = provider.provider_id
         await provider.ws.send_json(request.model_dump())
 
     def handle_provider_message(self, provider_id: str, data: dict):
