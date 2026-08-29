@@ -2,12 +2,15 @@
 
 import asyncio
 import logging
+import secrets
 import time
 from dataclasses import dataclass, field
 
 from fastapi import WebSocket
 
 from inference_exchange.shared.protocol import (
+    AttestationChallenge,
+    AttestationResponse,
     HeartbeatMessage,
     InferenceDone,
     InferenceError,
@@ -33,6 +36,11 @@ class ConnectedProvider:
     connected_at: float = field(default_factory=time.time)
     active_requests: int = 0
     last_heartbeat: float = field(default_factory=time.time)
+    model_verified: bool = False  # HF hash verification passed
+    attestation_status: str = "pending"  # pending | passed | degraded
+    last_attestation: float = 0.0  # Timestamp of last successful attestation
+    pending_challenge_nonce: str | None = None  # Nonce awaiting response
+    challenge_sent_at: float = 0.0  # When the current challenge was sent
 
     @property
     def load_factor(self) -> float:
@@ -253,3 +261,54 @@ class ProviderHub:
             provider = self._providers[provider_id]
             provider.active_requests = msg.active_requests
             provider.last_heartbeat = time.time()
+
+    async def send_attestation_challenge(self, provider: ConnectedProvider) -> str:
+        """Send an attestation challenge to a provider. Returns the nonce."""
+        nonce = secrets.token_hex(16)
+        challenge = AttestationChallenge(
+            nonce=nonce,
+            timestamp=time.time(),
+        )
+        provider.pending_challenge_nonce = nonce
+        provider.challenge_sent_at = time.time()
+        await provider.ws.send_json(challenge.model_dump())
+        logger.info(f"Attestation challenge sent to {provider.name} ({provider.provider_id})")
+        return nonce
+
+    def handle_attestation_response(self, provider_id: str, data: dict):
+        """Process an attestation response from a provider."""
+        if provider_id not in self._providers:
+            return
+
+        provider = self._providers[provider_id]
+        response = AttestationResponse(**data)
+
+        if provider.pending_challenge_nonce and response.nonce == provider.pending_challenge_nonce:
+            provider.attestation_status = "passed"
+            provider.last_attestation = time.time()
+            provider.pending_challenge_nonce = None
+            logger.info(
+                f"Attestation passed: {provider.name} "
+                f"(SIP={response.sip_enabled}, secure_boot={response.secure_boot})"
+            )
+        else:
+            provider.attestation_status = "degraded"
+            logger.warning(
+                f"Attestation FAILED for {provider.name}: nonce mismatch "
+                f"(expected={provider.pending_challenge_nonce}, got={response.nonce})"
+            )
+
+    def check_attestation_timeouts(self, timeout_seconds: float = 30.0):
+        """Mark providers as degraded if they haven't responded to a challenge in time."""
+        now = time.time()
+        for provider in self._providers.values():
+            if (
+                provider.pending_challenge_nonce
+                and provider.challenge_sent_at > 0
+                and (now - provider.challenge_sent_at) > timeout_seconds
+            ):
+                provider.attestation_status = "degraded"
+                provider.pending_challenge_nonce = None
+                logger.warning(
+                    f"Attestation timeout for {provider.name} ({provider.provider_id}) — marked degraded"
+                )

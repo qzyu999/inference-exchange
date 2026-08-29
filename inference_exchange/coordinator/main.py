@@ -1,7 +1,9 @@
 """Coordinator entrypoint — FastAPI app with WebSocket provider hub."""
 
+import asyncio
 import json
 import logging
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 import uvicorn
@@ -9,10 +11,17 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.staticfiles import StaticFiles
 
 from inference_exchange.config import CoordinatorConfig
-from inference_exchange.shared.protocol import HeartbeatMessage, MessageType, RegisterMessage
+from inference_exchange.shared.protocol import (
+    AttestationResponse,
+    HeartbeatMessage,
+    MessageType,
+    RegisterMessage,
+)
 
-from .api import router, set_auth, set_billing, set_hub, set_tps_tracker
+from .api import router, set_auth, set_billing, set_hub, set_reputation, set_tps_tracker
+from .model_registry import ModelRegistry
 from .provider_hub import ProviderHub
+from .reputation import ReputationTracker
 from .store import Store
 from .tps_tracker import TPSTracker
 
@@ -105,24 +114,112 @@ class StoreBillingAdapter:
         return {a["account_id"]: Acc(a) for a in accounts}
 
 
-def create_app() -> FastAPI:
-    app = FastAPI(
-        title="Inference Exchange",
-        description="Decentralized private inference marketplace",
-        version="0.1.0",
-    )
+def verify_model_hash(registry: ModelRegistry, reg: RegisterMessage) -> bool:
+    """Verify provider's model file hash against HuggingFace's published hashes.
 
+    Returns True if verification passed (or was skipped due to missing data).
+    """
+    identity = reg.model_identity
+    if not identity:
+        logger.info("No model_identity in registration — skipping hash verification")
+        return False
+
+    file_hash = identity.get("file_hash", "")
+    model_name = identity.get("name", "")
+    if not file_hash or file_hash.startswith("skipped-"):
+        logger.info(f"No usable file hash for {model_name} — skipping verification")
+        return False
+
+    # Check each advertised model against known HF hashes
+    for model in reg.capabilities.models:
+        if model == "default":
+            continue
+        pm = registry.register_provider_model(
+            provider_id="pending",  # Will be updated after registration
+            model_name=model,
+            file_hash=file_hash,
+        )
+        if pm.verified:
+            logger.info(f"✅ Model hash verified via HuggingFace: {model}")
+            return True
+
+    # Try a direct HF lookup for the model's repo if we don't have it cached
+    repo_id = identity.get("repo_id", "")
+    filename = identity.get("filename", "")
+    if repo_id and filename:
+        hf_info = registry.register_model_from_hf(repo_id, filename)
+        if hf_info and hf_info.sha256 and hf_info.sha256 == file_hash:
+            logger.info(f"✅ Model hash verified via HuggingFace lookup: {repo_id}/{filename}")
+            return True
+
+    logger.warning(f"⚠️  Could not verify model hash for {model_name}")
+    return False
+
+
+async def attestation_challenge_loop(hub: ProviderHub):
+    """Background task: send attestation challenges to all providers every 5 minutes."""
+    CHALLENGE_INTERVAL = 300  # 5 minutes
+    TIMEOUT_CHECK_INTERVAL = 10  # Check for timeouts every 10 seconds
+    CHALLENGE_TIMEOUT = 30  # 30 seconds to respond
+
+    while True:
+        try:
+            # Send challenges to all connected providers
+            for provider in list(hub._providers.values()):
+                if provider.pending_challenge_nonce is None:
+                    try:
+                        await hub.send_attestation_challenge(provider)
+                    except Exception as e:
+                        logger.warning(f"Failed to send attestation challenge to {provider.name}: {e}")
+
+            # Wait for the interval, checking timeouts periodically
+            elapsed = 0.0
+            while elapsed < CHALLENGE_INTERVAL:
+                await asyncio.sleep(TIMEOUT_CHECK_INTERVAL)
+                elapsed += TIMEOUT_CHECK_INTERVAL
+                hub.check_attestation_timeouts(timeout_seconds=CHALLENGE_TIMEOUT)
+
+        except asyncio.CancelledError:
+            break
+        except Exception as e:
+            logger.error(f"Attestation loop error: {e}")
+            await asyncio.sleep(60)
+
+
+def create_app() -> FastAPI:
     # SQLite-backed store (persists across restarts)
     store = Store()
-
     hub = ProviderHub()
     auth = StoreAuthAdapter(store)
     billing = StoreBillingAdapter(store)
     tps_tracker = TPSTracker()
+    reputation = ReputationTracker()
+    model_registry = ModelRegistry()
+
     set_hub(hub)
     set_billing(billing)
     set_auth(auth)
     set_tps_tracker(tps_tracker)
+    set_reputation(reputation)
+
+    @asynccontextmanager
+    async def lifespan(app: FastAPI):
+        # Start attestation challenge background task
+        task = asyncio.create_task(attestation_challenge_loop(hub))
+        logger.info("Attestation challenge loop started (interval=5m, timeout=30s)")
+        yield
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
+
+    app = FastAPI(
+        title="Inference Exchange",
+        description="Decentralized private inference marketplace",
+        version="0.1.0",
+        lifespan=lifespan,
+    )
 
     # Mount consumer API
     app.include_router(router)
@@ -145,6 +242,11 @@ def create_app() -> FastAPI:
             reg = RegisterMessage(**data)
             provider_id = hub.register_provider(ws, reg)
 
+            # HF hash verification
+            model_verified = verify_model_hash(model_registry, reg)
+            if provider_id in hub._providers:
+                hub._providers[provider_id].model_verified = model_verified
+
             # Create billing account + log connection
             billing.get_or_create_provider(provider_id, reg.provider_name)
             store.log_provider_connect(
@@ -164,6 +266,9 @@ def create_app() -> FastAPI:
                 if msg_type == MessageType.HEARTBEAT:
                     hb = HeartbeatMessage(**data)
                     hub.handle_heartbeat(provider_id, hb)
+
+                elif msg_type == MessageType.ATTESTATION_RESPONSE:
+                    hub.handle_attestation_response(provider_id, data)
 
                 elif msg_type in (
                     MessageType.INFERENCE_RESPONSE,

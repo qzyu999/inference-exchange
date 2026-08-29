@@ -17,6 +17,7 @@ class MessageType(str, Enum):
     INFERENCE_RESPONSE = "inference_response"
     INFERENCE_DONE = "inference_done"
     INFERENCE_ERROR = "inference_error"
+    ATTESTATION_RESPONSE = "attestation_response"
 
     # Coordinator → Provider
     INFERENCE_REQUEST = "inference_request"
@@ -56,6 +57,7 @@ class RegisterMessage(BaseModel):
     provider_name: str
     capabilities: ProviderCapabilities
     encryption_public_key: str = ""  # Base64 X25519 public key for E2E encryption
+    model_identity: dict[str, Any] | None = None  # Model file hash + metadata from provider
 
 
 class HeartbeatMessage(BaseModel):
@@ -103,3 +105,20 @@ class InferenceRequest(BaseModel):
 class CancelRequest(BaseModel):
     type: str = MessageType.CANCEL_REQUEST
     request_id: str
+
+
+class AttestationChallenge(BaseModel):
+    """Coordinator → Provider: periodic challenge to verify provider liveness and security state."""
+    type: str = MessageType.ATTESTATION_CHALLENGE
+    nonce: str  # Random nonce the provider must echo back
+    timestamp: float = 0.0  # When the challenge was issued
+
+
+class AttestationResponse(BaseModel):
+    """Provider → Coordinator: response to an attestation challenge."""
+    type: str = MessageType.ATTESTATION_RESPONSE
+    nonce: str  # Echoed nonce from the challenge
+    sip_enabled: bool = False  # System Integrity Protection enabled
+    secure_boot: bool = False  # Secure boot enabled
+    hardware_attestation: bool = False  # Hardware-level attestation available
+    os_version: str = ""  # OS version string

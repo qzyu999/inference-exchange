@@ -22,6 +22,7 @@ from .auth import AuthStore
 from .billing import BillingLedger
 from .provider_hub import ProviderHub
 from .rate_limiter import RateLimiter
+from .reputation import ReputationTracker
 from .tps_tracker import TPSTracker
 
 logger = logging.getLogger(__name__)
@@ -84,6 +85,7 @@ _hub: ProviderHub | None = None
 _billing: BillingLedger | None = None
 _auth: AuthStore | None = None
 _tps: TPSTracker | None = None
+_reputation: ReputationTracker | None = None
 _rate_limiter: RateLimiter = RateLimiter()  # Default: 30 req/min, burst 10
 
 
@@ -105,6 +107,11 @@ def set_auth(auth: AuthStore):
 def set_tps_tracker(tracker: TPSTracker):
     global _tps
     _tps = tracker
+
+
+def set_reputation(tracker: ReputationTracker):
+    global _reputation
+    _reputation = tracker
 
 
 def get_hub() -> ProviderHub:
@@ -129,6 +136,12 @@ def get_tps_tracker() -> TPSTracker:
     if _tps is None:
         raise RuntimeError("TPSTracker not initialized")
     return _tps
+
+
+def get_reputation_tracker() -> ReputationTracker:
+    if _reputation is None:
+        raise RuntimeError("ReputationTracker not initialized")
+    return _reputation
 
 
 # --- Endpoints ---
@@ -384,10 +397,8 @@ async def get_tps_stats():
 @router.get("/v1/exchange/reputation")
 async def get_reputation():
     """Provider reputation scores."""
-    from .reputation import ReputationTracker
-    # For now return empty — reputation is tracked but not yet wired to a global tracker
-    # TODO: wire global ReputationTracker instance
-    return {"reputation": [], "note": "Reputation tracking active — scores factor into routing"}
+    tracker = get_reputation_tracker()
+    return {"reputation": tracker.get_all_stats()}
 
 
 @router.get("/v1/exchange/models/search")
@@ -618,6 +629,7 @@ async def chat_completions(request: ChatCompletionRequest, raw_request: Request)
         min_confidence=request.ocip_min_confidence,
         max_price=request.ocip_max_price,
         session_id=request.ocip_session_id,
+        reputation_fn=get_reputation_tracker().get_score,
     )
     if provider is None:
         _add_trace({
@@ -741,12 +753,14 @@ async def _stream_response(
     """Generate SSE stream from provider response chunks."""
     token_count = 0
     start_time = time.time()
+    outcome = "success"  # Track outcome for reputation
     try:
         while True:
             try:
                 msg = await asyncio.wait_for(queue.get(), timeout=120.0)
             except asyncio.TimeoutError:
                 # Send error and close
+                outcome = "timeout"
                 error_data = {
                     "error": {"message": "Provider timeout", "type": "timeout"}
                 }
@@ -786,6 +800,7 @@ async def _stream_response(
                 break
 
             elif isinstance(msg, InferenceError):
+                outcome = "error"
                 error_data = {"error": {"message": msg.error, "type": "provider_error"}}
                 yield f"data: {json.dumps(error_data)}\n\n"
                 break
@@ -816,6 +831,16 @@ async def _stream_response(
                 seconds=elapsed,
                 hardware=provider.capabilities.hardware,
             )
+
+        # Record reputation outcome
+        reputation = get_reputation_tracker()
+        elapsed_ms = int((time.time() - start_time) * 1000)
+        if outcome == "success":
+            reputation.record_success(provider.provider_id, tokens=token_count, latency_ms=elapsed_ms)
+        elif outcome == "timeout":
+            reputation.record_timeout(provider.provider_id)
+        elif outcome == "error":
+            reputation.record_error(provider.provider_id)
     finally:
         hub.remove_response_queue(request_id)
 
@@ -826,11 +851,16 @@ async def _collect_response(
     """Collect all tokens into a single non-streaming response."""
     tokens: list[str] = []
     start_time = time.time()
+    outcome = "success"
     try:
         while True:
             try:
                 msg = await asyncio.wait_for(queue.get(), timeout=120.0)
             except asyncio.TimeoutError:
+                outcome = "timeout"
+                # Record reputation before raising
+                reputation = get_reputation_tracker()
+                reputation.record_timeout(provider.provider_id)
                 raise HTTPException(status_code=504, detail="Provider timeout")
 
             if isinstance(msg, InferenceResponseChunk):
@@ -840,6 +870,10 @@ async def _collect_response(
             elif isinstance(msg, InferenceDone):
                 break
             elif isinstance(msg, InferenceError):
+                outcome = "error"
+                # Record reputation before raising
+                reputation = get_reputation_tracker()
+                reputation.record_error(provider.provider_id)
                 raise HTTPException(status_code=502, detail=msg.error)
     finally:
         hub.remove_response_queue(request_id)
@@ -868,6 +902,11 @@ async def _collect_response(
             seconds=elapsed,
             hardware=provider.capabilities.hardware,
         )
+
+    # Record reputation — success
+    reputation = get_reputation_tracker()
+    elapsed_ms = int((time.time() - start_time) * 1000)
+    reputation.record_success(provider.provider_id, tokens=len(tokens), latency_ms=elapsed_ms)
 
     content = "".join(tokens)
     return {
