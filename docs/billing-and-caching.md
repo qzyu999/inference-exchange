@@ -356,3 +356,190 @@ Consumer sees per-request cost:
 Store all amounts as integers in **nano-USD** (1 USD = 1,000,000,000 nano-USD)
 to avoid floating point issues at small amounts. Display with appropriate
 precision.
+
+
+---
+
+## Cache Reliability (Why Cache Hits Are Not Guaranteed)
+
+Even when routing to the same provider, cache hits are NOT guaranteed. The
+coordinator should treat caching as probabilistic, not deterministic.
+
+### Why Cache Misses Happen on the Same Provider
+
+| Reason | What happened | How common |
+|--------|--------------|------------|
+| Idle timeout | Provider evicted session after N minutes of inactivity | Very common |
+| Memory pressure / LRU | Other sessions pushed this one out of cache | Common under load |
+| Provider restart | Process restart clears all in-memory KV cache | Occasional |
+| Model swap | Provider loaded a different model, clearing all cache | Occasional |
+| Context overflow | Conversation exceeded model's context window → reset | Predictable |
+| Config change | Provider changed quantization/settings | Rare |
+
+### Cache Lifecycle
+
+```
+Turn 1: Cache CREATED (full prefill, store KV pairs)
+  │
+  │  time passes (0-30 minutes depending on provider config)
+  │
+  ├── If next request arrives quickly AND same provider:
+  │     → Cache HIT (skip prefill, immediate decode)
+  │
+  ├── If idle too long:
+  │     → Cache EVICTED (must re-prefill everything)
+  │
+  ├── If provider is busy (many other sessions):
+  │     → Cache EVICTED by LRU (other sessions needed the memory)
+  │
+  └── If provider restarts:
+        → Cache LOST (all state gone)
+```
+
+### Verifying Cache State (Trustless)
+
+The provider reports cache state, but how do we verify it without trust?
+
+**Signal: Time to First Token (TTFT)**
+
+```
+Cache hit:  TTFT ≈ 10-50ms   (no prefill needed, just start decoding)
+Cache miss: TTFT ≈ 200-2000ms (must prefill all input tokens first)
+```
+
+The coordinator measures TTFT for every request. This is an observable,
+unfakeable signal:
+- Fast TTFT → cache was working → charge cached rate (if using Option 3)
+- Slow TTFT → cache missed → charge full input rate
+
+A provider can't fake a fast TTFT without actually having the cache.
+The computation time for prefill is proportional to input tokens — you
+can't skip it without the cached KV pairs.
+
+**TTFT-Based Billing Verification:**
+
+```
+If using three-rate billing (Option 3):
+  measured_ttft = time_to_first_token(request)
+  expected_ttft_no_cache = T_in / provider_prefill_tps  (e.g. 500 tok / 2000 tps = 250ms)
+  
+  If measured_ttft < expected_ttft_no_cache × 0.3:
+    → Cache hit verified (charge P_cache for cached portion)
+  Else:
+    → Cache miss (charge P_in for all input tokens)
+```
+
+### Provider Cache Reporting Protocol
+
+Provider heartbeat includes current cache state:
+
+```json
+{
+  "type": "heartbeat",
+  "active_requests": 1,
+  "loaded_models": ["llama-3-8b"],
+  "cache": {
+    "sessions": ["chat-abc123", "chat-def456"],
+    "total_tokens_cached": 15000,
+    "capacity_tokens": 100000,
+    "eviction_policy": "lru",
+    "idle_timeout_seconds": 300
+  }
+}
+```
+
+Per-request response includes actual cache state:
+
+```json
+{
+  "usage": {
+    "input_tokens": 500,
+    "output_tokens": 50,
+    "cache_hit_tokens": 450,
+    "cache_miss_tokens": 50,
+    "ttft_ms": 35
+  }
+}
+```
+
+### Design Decision: Trust but Verify
+
+- Route based on provider's REPORTED cache state (from heartbeat)
+- Verify with TTFT measurement (from observed timing)
+- If provider claims cache hit but TTFT is slow → flag discrepancy
+- Don't fail the request — just bill accurately based on observed TTFT
+- Over time, providers with consistent cache claims get routing preference
+
+---
+
+## What We're Still Missing (Open Questions)
+
+### 1. Speculative Decoding / Multi-Token Prediction
+
+Some engines (llama.cpp with speculative decoding, MLX with MTP) generate
+multiple tokens per step. How does this affect billing?
+
+- Bill by ACCEPTED tokens (what the consumer receives), not speculative attempts
+- The efficiency gain is the provider's reward (faster = more requests/hour)
+
+### 2. Batched Requests (Continuous Batching)
+
+Modern inference engines (vLLM, TGI) batch multiple requests and process
+them simultaneously. One provider might serve 8 requests at once.
+
+- Billing: each request is billed independently (consumer doesn't know about batching)
+- Provider benefit: higher throughput, more revenue per GPU-second
+- OCIP concern: multiple consumers' prompts in the same batch → they're in the same
+  process memory simultaneously. For Level 2+, the hardening must protect ALL of them.
+
+### 3. Long Context Pricing
+
+Some models support 128K+ context. A 100K input token request is extremely
+expensive for the provider (quadratic attention in prefill). Should pricing
+be linear or have surcharges for very long contexts?
+
+Options:
+- Linear: same $/tok regardless of context length (simple, slightly unfair to provider)
+- Tiered: higher $/tok above 32K context (reflects quadratic compute cost)
+- Provider choice: let each provider set their own tier structure
+
+### 4. Streaming Cost Commitment
+
+When streaming starts, the consumer is committed to paying for ALL generated
+tokens (they can cancel, but tokens already generated are billed). Should
+there be a cost preview / estimate before inference starts?
+
+```json
+// Consumer could request an estimate first:
+POST /v1/chat/completions
+{"messages": [...], "ocip": {"estimate_only": true}}
+
+Response:
+{"estimated_cost": {"min": 0.000050, "max": 0.000200, "model": "llama-3-8b"}}
+```
+
+### 5. Failed Requests
+
+If the provider crashes mid-inference (returns partial response):
+- Bill for tokens actually delivered? (partial bill)
+- Bill nothing? (provider ate the compute cost)
+- Current: bill for what was delivered, since consumer received value
+
+### 6. Prompt Token Counting — Who Counts?
+
+Options:
+- **Coordinator counts** before sending (using tiktoken/tokenizer): accurate, but adds latency
+- **Provider reports** after inference: simpler, but relies on provider honesty
+- **Both count, compare**: belt-and-suspenders verification
+
+For OCIP with E2E encryption: the coordinator CAN'T count tokens (it can't read
+the plaintext messages). So either:
+- Count on the consumer side (client SDK reports token count)
+- Trust the provider's report
+- Use message byte length as a proxy (imperfect but close enough for billing)
+
+### 7. Multi-Modal (Images/Audio)
+
+Vision models charge differently for image tokens (more compute per token).
+Need to account for image resolution → token count mapping. Not urgent for
+text-only MVP but worth noting.
