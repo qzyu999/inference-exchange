@@ -1,15 +1,29 @@
-# Multi-provider demo — spins up 5 providers at different prices/configs
-# to demonstrate the matching engine under load.
+# Multi-provider demo + coordinator deployment
 #
-# Usage:
-#   1. Start coordinator locally: python -m inference_exchange.coordinator
-#   2. Run providers: docker compose up --build
-#   3. Open http://localhost:8000 to see the exchange dashboard
-#   4. Run load test: python tests/load_test.py
+# Start coordinator:   docker compose up coordinator
+# Start everything:    docker compose up
+# Scale providers:     docker compose up --scale provider-cheap=3
 #
-# NOTE: Providers need a model file. Mount your local model directory.
+# Coordinator UI: http://localhost:8000
+# Admin UI:       http://localhost:8000/admin.html
 
 services:
+  coordinator:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    volumes:
+      - ie-data:/root/.inference-exchange
+    environment:
+      - PYTHONUNBUFFERED=1
+    healthcheck:
+      test: ["CMD", "python", "-c", "import httpx; r=httpx.get('http://localhost:8000/health'); assert r.status_code==200"]
+      interval: 30s
+      timeout: 5s
+      start_period: 10s
+
   provider-cheap:
     build:
       context: .
@@ -18,11 +32,12 @@ services:
       PROVIDER_NAME: "cheap-node ($0.08)"
       PRICE_OUTPUT: "0.08"
       MAX_CONCURRENT: "2"
-      COORDINATOR_URL: "ws://host.docker.internal:8000/ws/provider"
+      COORDINATOR_URL: "ws://coordinator:8000/ws/provider"
     volumes:
-      - "${HOME}/.inference-exchange/models:/root/.inference-exchange/models:ro"
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
+      - models:/root/.inference-exchange/models:ro
+    depends_on:
+      coordinator:
+        condition: service_healthy
 
   provider-fast:
     build:
@@ -32,11 +47,12 @@ services:
       PROVIDER_NAME: "fast-node ($0.20)"
       PRICE_OUTPUT: "0.20"
       MAX_CONCURRENT: "4"
-      COORDINATOR_URL: "ws://host.docker.internal:8000/ws/provider"
+      COORDINATOR_URL: "ws://coordinator:8000/ws/provider"
     volumes:
-      - "${HOME}/.inference-exchange/models:/root/.inference-exchange/models:ro"
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
+      - models:/root/.inference-exchange/models:ro
+    depends_on:
+      coordinator:
+        condition: service_healthy
 
   provider-premium:
     build:
@@ -46,36 +62,13 @@ services:
       PROVIDER_NAME: "premium-node ($0.50)"
       PRICE_OUTPUT: "0.50"
       MAX_CONCURRENT: "3"
-      COORDINATOR_URL: "ws://host.docker.internal:8000/ws/provider"
+      COORDINATOR_URL: "ws://coordinator:8000/ws/provider"
     volumes:
-      - "${HOME}/.inference-exchange/models:/root/.inference-exchange/models:ro"
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
+      - models:/root/.inference-exchange/models:ro
+    depends_on:
+      coordinator:
+        condition: service_healthy
 
-  provider-budget:
-    build:
-      context: .
-      dockerfile: Dockerfile.provider
-    environment:
-      PROVIDER_NAME: "budget-node ($0.05)"
-      PRICE_OUTPUT: "0.05"
-      MAX_CONCURRENT: "1"
-      COORDINATOR_URL: "ws://host.docker.internal:8000/ws/provider"
-    volumes:
-      - "${HOME}/.inference-exchange/models:/root/.inference-exchange/models:ro"
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-
-  provider-secure:
-    build:
-      context: .
-      dockerfile: Dockerfile.provider
-    environment:
-      PROVIDER_NAME: "secure-node ($0.35)"
-      PRICE_OUTPUT: "0.35"
-      MAX_CONCURRENT: "2"
-      COORDINATOR_URL: "ws://host.docker.internal:8000/ws/provider"
-    volumes:
-      - "${HOME}/.inference-exchange/models:/root/.inference-exchange/models:ro"
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
+volumes:
+  ie-data:
+  models:

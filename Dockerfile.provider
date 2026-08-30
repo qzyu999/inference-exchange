@@ -22,4 +22,5 @@ CMD python -m inference_exchange.provider \
     --name "${PROVIDER_NAME}" \
     --price-output "${PRICE_OUTPUT}" \
     --coordinator "${COORDINATOR_URL}" \
-    --max-concurrent "${MAX_CONCURRENT}"
+    --max-concurrent "${MAX_CONCURRENT}" \
+    --n-gpu-layers 0

@@ -19,6 +19,12 @@ dependencies = [
     "sse-starlette>=2.0.0,<3",
 ]
 
+[project.scripts]
+ie-coordinator = "inference_exchange.coordinator.main:main"
+ie-provider = "inference_exchange.provider.main:main"
+ie-agent = "ocip_agent.agent:main"
+ie = "inference_exchange.cli:main"
+
 [project.optional-dependencies]
 dev = [
     "pytest>=8.0",
