@@ -1,108 +1,84 @@
-# Apple Silicon Hardening — M3 Step-by-Step Guide
+# Apple Silicon Hardening -- M3 Step-by-Step Guide
 
-Tested for: M3 company laptop with possible IT restrictions.
+Tested on: M3 company laptop (macOS Sequoia). All phases verified working.
 
 ## Prerequisites Check (5 minutes)
 
-Open Terminal and run each of these. If any fail, that tells you where
-the company restrictions bite.
+Open Terminal and run each of these.
 
 ```bash
-# Check 1: Do you have Xcode Command Line Tools?
+# Check 1: Xcode Command Line Tools
 xcode-select -p
-# If YES → prints a path like /Library/Developer/CommandLineTools
-# If NO  → run: xcode-select --install
 
-# Check 2: Do you have git?
+# Check 2: git
 git --version
-# Should work if Xcode CLT is installed
 
-# Check 3: Can you install cmake?
-# Option A — Homebrew (if you have it):
-brew install cmake
-# Option B — Download cmake.app from https://cmake.org/download/
-#            (the macOS .dmg, drag to Applications, then add to PATH):
-#            export PATH="/Applications/CMake.app/Contents/bin:$PATH"
-# Option C — It might already be there:
+# Check 3: cmake
 cmake --version
+# If missing: brew install cmake (or download from https://cmake.org/download/)
 
-# Check 4: SIP status (should be enabled on company laptops)
+# Check 4: SIP enabled (company laptops should have this)
 csrutil status
-# Expected: "System Integrity Protection status: enabled."
 
-# Check 5: Python 3 (for the OCIP agent)
+# Check 5: Python 3
 python3 --version
+```
 
-# Check 6: Can you download a GGUF model?
-# This is just downloading a file — any browser or curl works.
-# ~350MB for the smallest useful model:
+You also need a GGUF model. If you have Ollama installed, you already
+have models at `~/.ollama/models/blobs/`. Otherwise download one:
+
+```bash
 curl -L -o ~/Qwen2.5-0.5B-Instruct-Q4_K_M.gguf \
   "https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct-GGUF/resolve/main/qwen2.5-0.5b-instruct-q4_k_m.gguf"
 ```
-
-If checks 1-3 pass, you can build. If check 6 is blocked, download
-the model on a personal device and transfer via USB/AirDrop.
 
 ---
 
 ## Phase 1: Build Unhardened llama-server (Prove Metal Works)
 
-No hardening, no signing. Just prove the inference engine runs on your M3.
-
 ```bash
-# Clone llama.cpp
 cd ~/Desktop
 git clone --depth 1 https://github.com/ggerganov/llama.cpp
 cd llama.cpp
 
-# Build with Metal GPU support
 cmake -B build -DCMAKE_BUILD_TYPE=Release -DGGML_METAL=ON
 cmake --build build --target llama-server -j$(sysctl -n hw.ncpu)
 
-# Test it (replace model path with wherever you put the GGUF)
-./build/bin/llama-server \
-    --model ~/Qwen2.5-0.5B-Instruct-Q4_K_M.gguf \
-    --port 8081 \
-    --n-gpu-layers -1
+# Test (use your model path -- Ollama blob paths work too)
+./build/bin/llama-server -m ~/path/to/model.gguf -ngl -1 --port 8081
 ```
 
-In another terminal tab:
+In another terminal:
 
 ```bash
-# Send a test request
 curl http://localhost:8081/v1/chat/completions \
   -H "Content-Type: application/json" \
-  -d '{
-    "model": "test",
-    "messages": [{"role": "user", "content": "What is 2+2?"}],
-    "max_tokens": 50
-  }'
+  -d '{"model":"test","messages":[{"role":"user","content":"What is 2+2?"}],"max_tokens":50}'
 ```
 
-**If you get a response with "4" in it, Metal GPU inference works on your M3.**
-
-Kill the server: Ctrl+C in the first terminal.
+If you get a response: Metal GPU inference works. Kill the server (Ctrl+C).
 
 ---
 
 ## Phase 2: Apply Hardening Patch
 
-This adds ~20 lines of C to the server. No Developer ID needed yet.
+Copy the hardening files (adjust path to your inference-exchange clone):
 
 ```bash
 cd ~/Desktop/llama.cpp
-
-# Copy the hardening files from the repo
-# (adjust path to wherever you cloned inference-exchange)
 cp /path/to/inference-exchange/provider-hardened/hardening.c tools/server/ocip_hardening.c
 cp /path/to/inference-exchange/provider-hardened/hardening.h tools/server/ocip_hardening.h
 ```
 
-Now patch two files. You can do this manually in any text editor:
+**Important:** Fix the include in the copied .c file (the repo version
+references `hardening.h` but the copy is named `ocip_hardening.h`):
 
-**File 1: `tools/server/main.cpp`**
+```bash
+sed -i '' 's/#include "hardening.h"/#include "ocip_hardening.h"/' tools/server/ocip_hardening.c
+```
 
-This is the entry point (only 6 lines). Replace its contents with:
+**Edit `tools/server/main.cpp`** -- replace its entire contents with:
+
 ```cpp
 #include "ocip_hardening.h"
 
@@ -114,25 +90,17 @@ int main(int argc, char ** argv) {
 }
 ```
 
-**File 2: `tools/server/CMakeLists.txt`**
-
-Find the section near the bottom that builds `llama-server` executable:
+**Edit `tools/server/CMakeLists.txt`** -- find the line near the bottom:
 
 ```cmake
-set(TARGET llama-server)
-
 add_executable(${TARGET} main.cpp)
 ```
 
-Change it to:
+Change to:
 
 ```cmake
-set(TARGET llama-server)
-
 add_executable(${TARGET} main.cpp ocip_hardening.c)
 ```
-
-That's it — just add `ocip_hardening.c` next to `main.cpp`.
 
 **Rebuild:**
 
@@ -144,16 +112,11 @@ cmake --build build --target llama-server -j$(sysctl -n hw.ncpu)
 
 ## Phase 3: Test Hardening (No Signing Required)
 
-Start the hardened server:
-
 ```bash
-./build/bin/llama-server \
-    --model ~/Qwen2.5-0.5B-Instruct-Q4_K_M.gguf \
-    --port 8081 \
-    --n-gpu-layers -1
+./build/bin/llama-server -m ~/path/to/model.gguf -ngl -1 --port 8081
 ```
 
-You should see in the output:
+You should see:
 ```
 [OCIP] Applying security hardening...
 [OCIP] ✓ Debugger attachment blocked (PT_DENY_ATTACH)
@@ -162,77 +125,99 @@ You should see in the output:
 [OCIP] Hardening complete. Process is protected.
 ```
 
-**Test that debuggers can't attach:**
+**Verify debugger is blocked** (in another terminal):
 
 ```bash
-# In another terminal:
-lldb -p $(pgrep llama-server)
-# Expected: "error: attach failed: Operation not permitted"
+lldb -p $(pgrep llama-server) -o "quit" 2>&1
 ```
 
-**Test inference still works:**
+You may see a "Developer Tools Access" popup -- you can dismiss it.
+The lldb prompt will show "no target" or "attach failed". That means
+PT_DENY_ATTACH is working.
+
+**Verify inference still works:**
 
 ```bash
 curl http://localhost:8081/v1/chat/completions \
   -H "Content-Type: application/json" \
-  -d '{
-    "model": "test",
-    "messages": [{"role": "user", "content": "Say hello"}],
-    "max_tokens": 20
-  }'
+  -d '{"model":"test","messages":[{"role":"user","content":"Say hello"}],"max_tokens":20}'
 ```
 
-**If debugger is blocked AND inference works: hardening is working.**
+Kill the server (Ctrl+C).
 
 ---
 
-## Phase 4: Ad-Hoc Codesign (POC Level)
+## Phase 4: Static Build + Codesign with Hardened Runtime
 
-This gives you Hardened Runtime without a $99 Apple Developer ID.
-Ad-hoc signing works on the same machine but not on other machines.
+Hardened Runtime requires codesigning, and codesigned binaries reject
+loading dylibs signed by a different team. The solution: build
+everything as a single static binary with no external dylib dependencies.
+
+**This is the critical step. Delete the old build and rebuild from scratch:**
 
 ```bash
-codesign --sign - \
-         --options runtime \
-         --entitlements /path/to/inference-exchange/provider-hardened/entitlements.plist \
-         --force \
-         build/bin/llama-server
+cd ~/Desktop/llama.cpp
+rm -rf build
+cmake -B build \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DGGML_METAL=ON \
+  -DLLAMA_CURL=OFF \
+  -DBUILD_SHARED_LIBS=OFF \
+  -DOPENSSL_ROOT_DIR=/nonexistent
+cmake --build build --target llama-server -j$(sysctl -n hw.ncpu)
 ```
 
-Verify:
+The flags:
+- `BUILD_SHARED_LIBS=OFF` -- static linking, no dylibs
+- `LLAMA_CURL=OFF` -- no curl dependency
+- `OPENSSL_ROOT_DIR=/nonexistent` -- prevents cmake from finding
+  Homebrew's OpenSSL (it would link a dylib that Hardened Runtime
+  then rejects due to Team ID mismatch). We don't need OpenSSL --
+  the server only listens on localhost.
+
+**Codesign (ad-hoc, no Apple Developer ID needed):**
+
+```bash
+codesign --sign - --options runtime --entitlements /path/to/inference-exchange/provider-hardened/entitlements.plist --force build/bin/llama-server
+```
+
+**Verify Hardened Runtime is active:**
 
 ```bash
 codesign -dv build/bin/llama-server 2>&1
-# Should show "Runtime Version" in the output
 ```
 
-With Hardened Runtime, you get the additional protections:
-- task_for_pid() blocked (no external process can read your memory)
-- DYLD_INSERT_LIBRARIES blocked (no dylib injection)
-- These work even for root users
+Look for `flags=0x10002(adhoc,runtime)` and `Runtime Version` in the output.
+
+**Test it runs:**
+
+```bash
+./build/bin/llama-server -m ~/path/to/model.gguf -ngl -1 --port 9999
+```
+
+You should see the OCIP hardening messages, then the normal llama-server
+startup. Test with curl from another terminal:
+
+```bash
+curl http://localhost:9999/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -d '{"model":"test","messages":[{"role":"user","content":"What is 2+2?"}],"max_tokens":20}'
+```
 
 ---
 
 ## Phase 5: Wire to OCIP Agent (Full E2E Test)
 
-This proves the two-process architecture works with a hardened server.
+This proves the two-process architecture: hardened inference server +
+OCIP agent + coordinator + encrypted routing.
 
-**Terminal 1 — Start hardened server on Unix socket:**
+**Terminal 1 -- Hardened inference server (already running from Phase 4):**
 
 ```bash
-# llama-server supports --host with a unix socket path
-./build/bin/llama-server \
-    --model ~/Qwen2.5-0.5B-Instruct-Q4_K_M.gguf \
-    --host 127.0.0.1 \
-    --port 9999 \
-    --n-gpu-layers -1
+./build/bin/llama-server -m ~/path/to/model.gguf -ngl -1 --port 9999
 ```
 
-(Note: llama-server may or may not support Unix sockets depending on
-version. If not, localhost:9999 is fine for the POC — the agent connects
-over HTTP either way. Unix socket is a production refinement.)
-
-**Terminal 2 — Start the coordinator (on same machine or your Windows):**
+**Terminal 2 -- Coordinator:**
 
 If running on the M3:
 ```bash
@@ -243,9 +228,10 @@ pip install -e .
 python -m inference_exchange.coordinator
 ```
 
-Or point to your Windows coordinator if it's already running.
+Or use the coordinator already running on your Windows machine (change
+the WebSocket URL in Terminal 3 accordingly).
 
-**Terminal 3 — Start the OCIP agent:**
+**Terminal 3 -- OCIP agent:**
 
 ```bash
 cd /path/to/inference-exchange
@@ -257,70 +243,62 @@ python ocip_agent/agent.py \
     --coordinator ws://localhost:8000/ws/provider
 ```
 
-The agent will:
-1. Spawn the inference server (or connect to the already-running one)
-2. Register with the coordinator
-3. Start serving encrypted inference requests
-
-**Terminal 4 — Send a request through the full stack:**
+**Terminal 4 -- Send a request through the full stack:**
 
 ```bash
 curl http://localhost:8000/v1/chat/completions \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer $(curl -s http://localhost:8000/health | python3 -c 'import sys,json; print(json.load(sys.stdin)["default_api_key"])')" \
-  -d '{
-    "model": "default",
-    "messages": [{"role": "user", "content": "What is the capital of France?"}],
-    "stream": false
-  }'
+  -d '{"model":"default","messages":[{"role":"user","content":"What is the capital of France?"}],"stream":false}'
 ```
 
 ---
 
-## What You're Proving at Each Phase
+## Summary: What Each Phase Proves
 
-| Phase | What it proves | Blocked by company IT? |
-|-------|---------------|----------------------|
-| 1 — Unhardened build | Metal GPU inference works on M3 | Only if git/cmake blocked |
-| 2 — Patch applied | Hardening code compiles | No (just C code) |
-| 3 — PT_DENY_ATTACH | Debuggers can't attach | No |
-| 4 — Ad-hoc codesign | Hardened Runtime active | No (no Apple ID needed) |
-| 5 — Full E2E | Two-process arch + coordinator + encrypted | Only if Python/pip blocked |
+| Phase | What it proves | Time |
+|-------|---------------|------|
+| 1 -- Unhardened build | Metal GPU inference works on M3 | ~10 min |
+| 2 -- Patch applied | OCIP hardening compiles into llama.cpp | ~2 min |
+| 3 -- PT_DENY_ATTACH | Debuggers blocked, inference unaffected | ~1 min |
+| 4 -- Static + codesign | Hardened Runtime active, kernel protections | ~5 min |
+| 5 -- Full E2E | Two-process arch + coordinator + routing | ~10 min |
 
 **For production (not on company laptop):**
-- Phase 6 would be: real Apple Developer ID ($99/yr) for proper codesigning
-- Phase 7: notarization (so it runs on other people's Macs)
-- Phase 8: distribution (provider downloads signed binary, doesn't build)
+- Phase 6: real Apple Developer ID ($99/yr) for proper codesigning
+- Phase 7: notarization (runs on other people's Macs via Gatekeeper)
+- Phase 8: distribution (providers download signed binary, no build needed)
 
 ---
 
 ## Troubleshooting
 
-**`xcode-select --install` fails or is blocked:**
-- Check if it's already installed: `xcode-select -p`
-- Try: `pkgutil --pkg-info=com.apple.pkg.CLTools_Executables` — if this returns info, you have CLT
+**`xcode-select --install` blocked:**
+Check if already installed: `xcode-select -p`
 
-**`brew install cmake` blocked:**
-- Download cmake directly: https://cmake.org/download/ (macOS .dmg)
-- Or use the cmake that comes with Xcode: `/Applications/Xcode.app/Contents/Developer/usr/bin/cmake`
+**`cmake` not found:**
+Download from https://cmake.org/download/ (macOS .dmg).
 
-**`git clone` fails (network blocked):**
-- Download the llama.cpp zip from GitHub in a browser
-- Or clone on a personal machine, zip it, transfer via USB
+**`#include "hardening.h" not found`:**
+You forgot the sed command. Run:
+`sed -i '' 's/#include "hardening.h"/#include "ocip_hardening.h"/' tools/server/ocip_hardening.c`
 
-**PT_DENY_ATTACH returns ENOSYS:**
-- You're probably not on macOS. This is a Darwin-only syscall.
+**`Undefined symbols: ocip_harden()` linker error:**
+The header needs `extern "C"`. Make sure you pulled the latest
+`hardening.h` which includes the `extern "C"` wrapper.
 
-**`codesign` fails:**
-- Ad-hoc signing (`--sign -`) always works, no account needed
-- If it fails, you may be in a directory your MDM restricts writes to. Try ~/Desktop/
+**`Library not loaded: libllama-server-impl.dylib` (Team ID mismatch):**
+You built with shared libs. Rebuild with `rm -rf build` then
+`-DBUILD_SHARED_LIBS=OFF` (see Phase 4).
 
-**Metal not detected:**
-- Run: `system_profiler SPDisplaysDataType | grep Metal`
-- M3 should show "Metal Family: Metal 3" or similar
-- If missing, macOS may need an update
+**`Library not loaded: libssl.3.dylib` (Team ID mismatch):**
+OpenSSL from Homebrew is a dylib. Rebuild with
+`-DOPENSSL_ROOT_DIR=/nonexistent` to exclude it (see Phase 4).
 
-**Model download blocked:**
-- HuggingFace URLs might be blocked by corporate proxy
-- Download on phone, AirDrop to Mac
-- Or use a personal hotspot for the download
+**`lldb` shows a "Developer Tools Access" popup:**
+Dismiss it. The lldb prompt showing "no target" means the attach
+was blocked -- that's the success case.
+
+**Model download blocked by corporate proxy:**
+Download on phone, AirDrop to Mac. Or use Ollama models already
+on disk at `~/.ollama/models/blobs/`.
