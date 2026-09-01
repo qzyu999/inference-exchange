@@ -78,56 +78,33 @@ xcrun notarytool submit build/bin/llama-server \
 
 ### Step 2: The Hardening Patch
 
-Minimal changes to `llama.cpp/examples/server/server.cpp`:
+Minimal changes to `llama.cpp/tools/server/main.cpp` (the server entry point):
+
+The entire `main.cpp` is replaced with:
 
 ```cpp
-// Add at the very top of main(), before any model loading:
+#include "ocip_hardening.h"
 
-#include <sys/ptrace.h>
-#include <sys/types.h>
-#include <sys/resource.h>
-#include <unistd.h>
-#include <cstdlib>
+int llama_server(int argc, char ** argv);
 
-// --- OCIP Hardening ---
-static void ocip_harden() {
-    // 1. Deny debugger attachment (permanent, survives for process lifetime)
-    if (ptrace(PT_DENY_ATTACH, 0, NULL, 0) == -1) {
-        // EPERM means already set — that's fine
-        if (errno != EPERM) {
-            fprintf(stderr, "OCIP: ptrace(PT_DENY_ATTACH) failed\n");
-            exit(1);
-        }
-    }
-
-    // 2. Disable core dumps (no memory written to disk)
-    struct rlimit rl = {0, 0};
-    setrlimit(RLIMIT_CORE, &rl);
-
-    // 3. Verify SIP is enabled (optional but recommended)
-    // This is a runtime check — if SIP is off, refuse to serve
-    FILE* fp = popen("/usr/bin/csrutil status", "r");
-    if (fp) {
-        char buf[256];
-        if (fgets(buf, sizeof(buf), fp)) {
-            if (strstr(buf, "enabled") == NULL) {
-                fprintf(stderr, "OCIP: SIP is not enabled. Refusing to serve.\n");
-                pclose(fp);
-                exit(1);
-            }
-        }
-        pclose(fp);
-    }
-
-    fprintf(stderr, "OCIP: Hardening active (PT_DENY_ATTACH + no core dumps + SIP verified)\n");
+int main(int argc, char ** argv) {
+    if (ocip_harden() != 0) { return 1; }
+    return llama_server(argc, argv);
 }
-// --- End OCIP Hardening ---
+```
 
-// Then in main():
-int main(int argc, char** argv) {
-    ocip_harden();  // <-- Add this as the FIRST line
-    // ... rest of existing main() ...
-}
+The `ocip_hardening.c` and `ocip_hardening.h` files are copied into
+`tools/server/` and contain the actual hardening logic (see
+`provider-hardened/hardening.c` for the full source):
+
+- `ptrace(PT_DENY_ATTACH)` -- blocks all debuggers permanently
+- `setrlimit(RLIMIT_CORE, 0)` -- disables core dumps
+- `csrutil status` check -- refuses to run if SIP is off
+
+Also add `ocip_hardening.c` to the CMakeLists.txt `add_executable` line:
+
+```cmake
+add_executable(${TARGET} main.cpp ocip_hardening.c)
 ```
 
 **Additionally, modify the server to listen on Unix socket instead of TCP:**

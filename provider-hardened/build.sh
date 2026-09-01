@@ -28,30 +28,34 @@ fi
 echo "[2/5] Applying hardening..."
 
 # Copy hardening source into the llama.cpp tree
-cp "$SCRIPT_DIR/hardening.c" "$LLAMA_DIR/examples/server/ocip_hardening.c"
-cp "$SCRIPT_DIR/hardening.h" "$LLAMA_DIR/examples/server/ocip_hardening.h"
+cp "$SCRIPT_DIR/hardening.c" "$LLAMA_DIR/tools/server/ocip_hardening.c"
+cp "$SCRIPT_DIR/hardening.h" "$LLAMA_DIR/tools/server/ocip_hardening.h"
+# Fix the include path for the llama.cpp tree
+sed -i '' 's/#include "hardening.h"/#include "ocip_hardening.h"/' "$LLAMA_DIR/tools/server/ocip_hardening.c"
 
 # Patch the server's main.cpp to call ocip_harden() at startup
-# (Idempotent — only patches if not already patched)
-SERVER_MAIN="$LLAMA_DIR/examples/server/server.cpp"
+# (Idempotent -- only patches if not already patched)
+SERVER_MAIN="$LLAMA_DIR/tools/server/main.cpp"
 if ! grep -q "ocip_harden" "$SERVER_MAIN"; then
-    # Add include at top
-    sed -i '' '1i\
-#include "ocip_hardening.h"\
-' "$SERVER_MAIN"
+    cat > "$SERVER_MAIN" << 'MAINEOF'
+#include "ocip_hardening.h"
 
-    # Add ocip_harden() call as first line of main()
-    sed -i '' 's/int main(int argc, char \*\* argv) {/int main(int argc, char ** argv) {\n    if (ocip_harden() != 0) { return 1; }/' "$SERVER_MAIN"
+int llama_server(int argc, char ** argv);
 
-    echo "  Patched server.cpp with OCIP hardening"
+int main(int argc, char ** argv) {
+    if (ocip_harden() != 0) { return 1; }
+    return llama_server(argc, argv);
+}
+MAINEOF
+    echo "  Patched main.cpp with OCIP hardening"
 else
     echo "  Already patched"
 fi
 
 # Add hardening.c to the CMakeLists for the server target
-SERVER_CMAKE="$LLAMA_DIR/examples/server/CMakeLists.txt"
+SERVER_CMAKE="$LLAMA_DIR/tools/server/CMakeLists.txt"
 if ! grep -q "ocip_hardening" "$SERVER_CMAKE"; then
-    sed -i '' 's/server.cpp/server.cpp ocip_hardening.c/' "$SERVER_CMAKE"
+    sed -i '' 's/add_executable(${TARGET} main.cpp)/add_executable(${TARGET} main.cpp ocip_hardening.c)/' "$SERVER_CMAKE"
     echo "  Added hardening.c to CMakeLists"
 fi
 

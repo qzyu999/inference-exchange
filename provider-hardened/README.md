@@ -1,39 +1,93 @@
-# Hardened Inference Server (Apple Silicon)
+# Hardened Inference Server
 
-A security-hardened build of llama.cpp's `llama-server` for OCIP providers.
+Security-hardened llama.cpp server for OCIP providers on Apple Silicon.
 
-Requires a macOS kernel exploit ($500k+) or physical attack to observe prompts.
+Requires a macOS kernel exploit (~$500k) or physical attack to observe prompts.
 Full Metal GPU acceleration. No vendor lock-in.
 
-## Quick Start (on Apple Silicon Mac)
+## Two Paths
+
+### POC (no Apple Developer ID needed)
+
+For testing on your own machine. Ad-hoc signing gives you PT_DENY_ATTACH +
+Hardened Runtime. Won't run on other machines.
 
 ```bash
-# 1. Build the hardened server
-./build.sh
+# Build
+chmod +x build-poc.sh
+./build-poc.sh
 
-# 2. Start it (listens on Unix socket)
-./run.sh --model ~/.cache/huggingface/models/your-model.gguf
+# Run (standalone, no coordinator)
+./ocip-llama-server --model ~/path/to/model.gguf --port 8081 -ngl -1
 
-# 3. In another terminal, start the OCIP agent
-python -m inference_exchange.provider \
-    --name "my-hardened-mac" \
-    --trust hardened \
-    --inference-socket /tmp/ocip-inference.sock
+# Verify hardening
+./verify-poc.sh
+
+# Run with coordinator
+./run-poc.sh --model ~/path/to/model.gguf --coordinator ws://localhost:8000/ws/provider
 ```
 
-## What It Does
+See **M3-GUIDE.md** for detailed instructions on a company M3 laptop.
 
-- Adds `PT_DENY_ATTACH` (blocks all debuggers, even from root)
-- Builds with Hardened Runtime (blocks external memory reading)
-- Disables core dumps (no memory written to disk)
-- Verifies SIP at startup (refuses to run if SIP is off)
-- Listens on Unix socket only (not TCP — immune to tcpdump)
-- Full Metal GPU support (same speed as stock llama.cpp)
+### Production (requires $99/yr Apple Developer ID)
+
+For distribution to other providers. Properly signed + notarized.
+
+```bash
+# Set your Developer ID
+export SIGN_IDENTITY="Developer ID Application: Your Name (TEAMID)"
+
+# Build + sign
+./build.sh
+
+# Notarize (so it runs on other machines without Gatekeeper complaints)
+xcrun notarytool submit ./ocip-llama-server \
+  --apple-id your@email.com \
+  --password app-specific-password \
+  --team-id TEAMID \
+  --wait
+```
+
+## What's Protected
+
+| Attack vector | Blocked | Mechanism |
+|---|---|---|
+| lldb / debugger | ✅ | PT_DENY_ATTACH |
+| Memory read (Mach API) | ✅ | Hardened Runtime |
+| dtrace / Instruments | ✅ | SIP |
+| Core dump analysis | ✅ | RLIMIT_CORE=0 |
+| Network sniffing | ✅ | All traffic encrypted (OCIP) |
+| Binary replacement | ✅ | Code signature + SIP |
+| Dylib injection | ✅ | Hardened Runtime |
+| Kernel 0-day | ❌ | ~$500k exploit required |
+| Physical probe | ❌ | Infeasible on Apple Silicon SoC |
 
 ## Requirements
 
-- Apple Silicon Mac (M1+)
-- macOS 14+ (Sonoma)
-- Xcode Command Line Tools (`xcode-select --install`)
-- Apple Developer ID for code signing ($99/year)
-- CMake (`brew install cmake`)
+| | POC | Production |
+|---|---|---|
+| Apple Silicon (M1+) | ✅ | ✅ |
+| macOS 14+ | ✅ | ✅ |
+| Xcode CLT | ✅ | ✅ |
+| cmake | ✅ | ✅ |
+| Apple Developer ID | ❌ | ✅ ($99/yr) |
+| Notarization | ❌ | ✅ |
+| Works on other Macs | ❌ | ✅ |
+
+## Files
+
+```
+provider-hardened/
+├── M3-GUIDE.md          Step-by-step for M3 company laptop
+├── README.md            This file
+├── build-poc.sh         POC build (no Developer ID)
+├── build.sh             Production build (Developer ID)
+├── run-poc.sh           Start server + OCIP agent
+├── verify-poc.sh        Verify hardening works (no sudo)
+├── verify.sh            Full verification (some tests need sudo)
+├── hardening.c          C module: PT_DENY_ATTACH, core dump, SIP check
+├── hardening.h          Header for hardening module
+├── hardening_windows.c  Windows equivalent (separate)
+├── entitlements.plist   Entitlements for codesigning
+└── llama.cpp/           (created by build script, gitignored)
+```

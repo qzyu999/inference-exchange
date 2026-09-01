@@ -50,3 +50,7 @@ web/dist/
 
 # Pytest
 .pytest_cache/
+
+# Hardened build artifacts
+provider-hardened/llama.cpp/
+provider-hardened/ocip-llama-server
