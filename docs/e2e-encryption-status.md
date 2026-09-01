@@ -57,65 +57,17 @@ But for a full confidentiality claim, the response path needs encryption too.
 
 ## Full E2E Design (Future)
 
-To encrypt the response path while maintaining OpenAI SDK compatibility:
+See [provider-architecture.md](provider-architecture.md) for the complete design.
 
-### Option A: TLS-only Response Security
+The short version: Option C from first-principles analysis. Both the agent
+and inference server run inside a hardened boundary. The agent encrypts
+response tokens to the consumer's public key before they leave the
+hardened boundary. The coordinator relays opaque blobs. Neither the
+coordinator nor the provider operator sees plaintext.
 
-The consumer-to-coordinator connection uses HTTPS (TLS). The
-coordinator-to-provider connection uses WSS (TLS). Each hop is encrypted
-in transit, but the coordinator can read at the junction.
-
-This is what most "encrypted" API services do. It's honest about the
-threat model: you trust the coordinator with your responses but not with
-your prompts.
-
-### Option B: Consumer-Side Decryption (Full E2E)
-
-```
-Consumer SDK ────encrypted────▶ Coordinator ────encrypted────▶ Provider
-  (decrypts response)              │ (opaque relay)               │
-                                   │ cannot read                  │
-                                   │ request or response          │
-                                   │                              │
-                                   │◀──encrypted tokens───────────│
-  (decrypts)◀──encrypted───────────│                              │
-```
-
-Flow:
-1. Consumer generates an X25519 keypair (per-session or per-request)
-2. Consumer sends its public key in the request header
-3. Coordinator forwards consumer's public key to the provider (inside the encrypted request)
-4. Provider encrypts each token to the consumer's public key
-5. Coordinator relays the opaque encrypted chunks (cannot read them)
-6. Consumer SDK decrypts each chunk locally
-
-Tradeoffs:
-- Breaks raw OpenAI SDK compatibility (needs a wrapper that decrypts)
-- Billing must use declared token counts (coordinator can't verify)
-- Higher latency (encrypt/decrypt per token)
-- Consumer needs crypto dependency (nacl)
-
-### Option C: Symmetric Session Key (Hybrid)
-
-1. Consumer generates a random AES-256 key per request
-2. Consumer encrypts the session key to the provider's public key (included in request)
-3. Provider decrypts the session key
-4. Provider encrypts each token with AES-GCM using the session key
-5. Coordinator relays opaque encrypted chunks
-6. Consumer decrypts with its session key
-
-Lower per-token overhead than Option B (AES-GCM vs NaCl Box), but
-same tradeoff: breaks raw SDK compatibility.
-
-### Recommendation
-
-For MVP / initial product launch: **Option A** (TLS-only). Be honest in
-docs that the coordinator sees responses but not prompts. This matches
-what OpenRouter, Together AI, and every other inference API proxy does.
-
-For differentiated product / enterprise: **Option C** (symmetric session key).
-Build an IE SDK wrapper that handles key exchange and decryption transparently.
-The wrapper looks like the OpenAI SDK to the application code.
+Consumer-side decryption is handled by the IE SDK, which wraps the
+OpenAI SDK interface. Consumers who don't need response encryption use
+the standard OpenAI SDK (prompts are still encrypted).
 
 ## Current OCIP Confidence Levels vs Encryption
 
