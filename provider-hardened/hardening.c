@@ -16,15 +16,21 @@
  * - No memory can be read externally without a kernel exploit
  */
 
+/* Include our own header. Build scripts copy this as ocip_hardening.c
+ * into llama.cpp's tree and rename the header to ocip_hardening.h.
+ * The sed in build-poc.sh handles the include path. */
+#include "hardening.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
+
+#ifdef __APPLE__
+
 #include <sys/types.h>
 #include <sys/ptrace.h>
 #include <sys/resource.h>
-
-#ifdef __APPLE__
 
 static int check_sip_enabled(void) {
     FILE *fp = popen("/usr/bin/csrutil status 2>&1", "r");
