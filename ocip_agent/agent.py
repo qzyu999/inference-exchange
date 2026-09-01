@@ -98,10 +98,17 @@ class InferenceServerManager:
                     r = await client.get(f"{self.base_url}/health", timeout=2)
                     if r.status_code == 200:
                         self._healthy = True
-                        # Fetch identity
-                        r2 = await client.get(f"{self.base_url}/identity", timeout=5)
-                        if r2.status_code == 200:
-                            self._identity = r2.json()
+                        # Fetch identity (custom OCIP endpoint, may not exist on stock llama-server)
+                        try:
+                            r2 = await client.get(f"{self.base_url}/identity", timeout=5)
+                            if r2.status_code == 200:
+                                self._identity = r2.json()
+                        except Exception:
+                            pass
+                        if self._identity is None:
+                            # Fallback: derive identity from model path
+                            model_name = Path(self._model_path).stem if self._model_path else "unknown"
+                            self._identity = {"name": model_name, "source": "filename"}
                         logger.info(f"Inference server healthy (model: {self._identity.get('name', '?')})")
                         self._restart_count = 0  # Reset backoff on success
                         return
