@@ -115,13 +115,15 @@ else
 fi
 
 # --- Step 4: Build ---
-echo "[4/5] Building with Metal GPU support..."
+echo "[4/5] Building with Metal GPU support (static, no external dylibs)..."
 NCPU=$(sysctl -n hw.ncpu)
 
 cmake -B "$LLAMA_DIR/build" -S "$LLAMA_DIR" \
     -DCMAKE_BUILD_TYPE=Release \
     -DGGML_METAL=ON \
     -DLLAMA_CURL=OFF \
+    -DBUILD_SHARED_LIBS=OFF \
+    -DOPENSSL_ROOT_DIR=/nonexistent \
     -DCMAKE_OSX_ARCHITECTURES="arm64" \
     2>&1 | tail -5
 
