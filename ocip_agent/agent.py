@@ -107,7 +107,7 @@ class InferenceServerManager:
                             pass
                         if self._identity is None:
                             # Fallback: derive identity from model path
-                            model_name = Path(self._model_path).stem if self._model_path else "unknown"
+                            model_name = Path(self.model_path).stem if self.model_path else "unknown"
                             self._identity = {"name": model_name, "source": "filename"}
                         logger.info(f"Inference server healthy (model: {self._identity.get('name', '?')})")
                         self._restart_count = 0  # Reset backoff on success
