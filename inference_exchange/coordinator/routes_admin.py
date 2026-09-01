@@ -1,14 +1,16 @@
-"""Admin endpoints — system state dump for the dashboard."""
+"""Admin endpoints — system state dump, provider token management."""
 
 import time
 
 from fastapi import APIRouter, Request
+from pydantic import BaseModel
 
 from .dependencies import (
     _request_traces,
     get_auth,
     get_billing,
     get_hub,
+    get_store,
 )
 
 router = APIRouter()
@@ -118,3 +120,22 @@ async def get_admin_state(request: Request):
         },
         "traces": list(reversed(_request_traces[-20:])),
     }
+
+
+class CreateProviderTokenRequest(BaseModel):
+    name: str = "Provider"
+
+
+@router.post("/v1/admin/provider-tokens")
+async def create_provider_token(request: CreateProviderTokenRequest):
+    """Create a new provider auth token. The token is shown once."""
+    store = get_store()
+    raw_token = store.create_provider_token(request.name)
+    return {"token": raw_token, "name": request.name}
+
+
+@router.get("/v1/admin/provider-tokens")
+async def list_provider_tokens():
+    """List all provider tokens (without the raw token values)."""
+    store = get_store()
+    return {"tokens": store.list_provider_tokens()}

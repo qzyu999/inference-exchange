@@ -19,7 +19,7 @@ from inference_exchange.shared.protocol import (
     RegisterMessage,
 )
 
-from .dependencies import set_auth, set_billing, set_event_bus, set_hub, set_reputation, set_tps_tracker
+from .dependencies import set_auth, set_billing, set_event_bus, set_hub, set_reputation, set_store, set_tps_tracker
 from .routes_admin import router as admin_router
 from .routes_auth import router as auth_router
 from .routes_exchange import router as exchange_router
@@ -209,6 +209,7 @@ def create_app() -> FastAPI:
     set_tps_tracker(tps_tracker)
     set_reputation(reputation)
     set_event_bus(event_bus)
+    set_store(store)
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -240,6 +241,22 @@ def create_app() -> FastAPI:
     async def provider_websocket(ws: WebSocket):
         await ws.accept()
         provider_id: str | None = None
+
+        # Authenticate provider via token (query param or first-message field)
+        token = ws.query_params.get("token", "")
+        if token:
+            token_info = store.validate_provider_token(token)
+            if not token_info:
+                await ws.close(code=4003, reason="Invalid provider token")
+                return
+            logger.info(f"Provider authenticated: {token_info['name']} ({token_info['token_id']})")
+        else:
+            # Allow unauthenticated in dev mode (no tokens exist yet)
+            token_count = len(store.list_provider_tokens())
+            if token_count > 0:
+                await ws.close(code=4003, reason="Provider token required. Create one via POST /v1/admin/provider-tokens")
+                return
+            # No tokens created yet -- open access (dev mode)
 
         try:
             # First message must be a registration

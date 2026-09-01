@@ -103,3 +103,19 @@ def get_reputation_tracker() -> ReputationTracker:
 def get_event_bus() -> EventBus | None:
     """Return the event bus, or None if not yet initialized."""
     return _event_bus
+
+
+# --- Store singleton ---
+
+_store = None
+
+
+def set_store(store):
+    global _store
+    _store = store
+
+
+def get_store():
+    if _store is None:
+        raise RuntimeError("Store not initialized")
+    return _store

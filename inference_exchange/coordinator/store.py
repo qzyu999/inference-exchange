@@ -70,6 +70,15 @@ CREATE TABLE IF NOT EXISTS provider_history (
     disconnected_at REAL,
     requests_served INTEGER NOT NULL DEFAULT 0
 );
+
+CREATE TABLE IF NOT EXISTS provider_tokens (
+    token_hash TEXT PRIMARY KEY,
+    token_id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    created_at REAL NOT NULL,
+    last_used_at REAL,
+    connections INTEGER NOT NULL DEFAULT 0
+);
 """
 
 MICRO_PER_DOLLAR = 1_000_000
@@ -288,3 +297,43 @@ class Store:
             (time.time(), provider_id),
         )
         self._conn.commit()
+
+    # --- Provider tokens ---
+
+    PROVIDER_TOKEN_PREFIX = "pt-ie-"
+
+    def create_provider_token(self, name: str = "Provider") -> str:
+        """Create a provider auth token. Returns the raw token (shown once)."""
+        raw = self.PROVIDER_TOKEN_PREFIX + secrets.token_hex(16)
+        token_hash = hashlib.sha256(raw.encode()).hexdigest()
+        token_id = token_hash[:8]
+        self._conn.execute(
+            "INSERT INTO provider_tokens (token_hash, token_id, name, created_at) VALUES (?, ?, ?, ?)",
+            (token_hash, token_id, name, time.time()),
+        )
+        self._conn.commit()
+        logger.info(f"Provider token created: {raw[:12]}... ({name})")
+        return raw
+
+    def validate_provider_token(self, raw_token: str) -> dict | None:
+        """Validate a provider token. Returns metadata or None."""
+        if not raw_token or not raw_token.startswith(self.PROVIDER_TOKEN_PREFIX):
+            return None
+        token_hash = hashlib.sha256(raw_token.encode()).hexdigest()
+        row = self._conn.execute(
+            "SELECT * FROM provider_tokens WHERE token_hash = ?", (token_hash,)
+        ).fetchone()
+        if row:
+            self._conn.execute(
+                "UPDATE provider_tokens SET last_used_at = ?, connections = connections + 1 WHERE token_hash = ?",
+                (time.time(), token_hash),
+            )
+            self._conn.commit()
+            return dict(row)
+        return None
+
+    def list_provider_tokens(self) -> list[dict]:
+        rows = self._conn.execute(
+            "SELECT token_id, name, created_at, last_used_at, connections FROM provider_tokens"
+        ).fetchall()
+        return [dict(r) for r in rows]
