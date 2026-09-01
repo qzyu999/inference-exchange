@@ -190,11 +190,13 @@ class OCIPAgent:
         price_output: float = 0.15,
         trust_level: str = "hardened",
         n_gpu_layers: int = -1,
+        provider_token: str = "",
     ):
         self.coordinator_url = coordinator_url
         self.provider_name = provider_name
         self.price_output = price_output
         self.trust_level = trust_level
+        self.provider_token = provider_token
 
         # Encryption
         self._keypair = KeyPair()
@@ -267,7 +269,13 @@ class OCIPAgent:
         """Connect to coordinator and handle the message loop."""
         logger.info(f"Connecting to coordinator: {self.coordinator_url}")
 
-        async with websockets.connect(self.coordinator_url) as ws:
+        # Build WS URL with token if provided
+        ws_url = self.coordinator_url
+        if self.provider_token:
+            sep = "&" if "?" in ws_url else "?"
+            ws_url = f"{ws_url}{sep}token={self.provider_token}"
+
+        async with websockets.connect(ws_url) as ws:
             logger.info("Connected to coordinator")
 
             # Register
@@ -437,6 +445,7 @@ def main():
     parser.add_argument("--price-output", type=float, default=0.15)
     parser.add_argument("--trust", default="hardened")
     parser.add_argument("--n-gpu-layers", type=int, default=-1)
+    parser.add_argument("--token", default="", help="Provider auth token (pt-ie-...)")
     args = parser.parse_args()
 
     logger.info("=" * 60)
@@ -445,6 +454,7 @@ def main():
     logger.info(f"  Inference port:  {args.port} (localhost only)")
     logger.info(f"  Trust level:     {args.trust}")
     logger.info(f"  Model:           {args.model or '(auto-detect)'}")
+    logger.info(f"  Auth:            {'token' if args.token else 'none (dev mode)'}")
     logger.info("=" * 60)
 
     agent = OCIPAgent(
@@ -455,6 +465,7 @@ def main():
         price_output=args.price_output,
         trust_level=args.trust,
         n_gpu_layers=args.n_gpu_layers,
+        provider_token=args.token,
     )
 
     try:
