@@ -61,6 +61,7 @@ class ChatCompletionRequest(BaseModel):
     ocip_min_confidence: str = "open"  # open | contained | hardened | confidential
     ocip_max_price: float | None = None  # Max $/Mtok output (None = no limit)
     ocip_session_id: str | None = None  # Session ID for cache affinity
+    ocip_consumer_public_key: str | None = None  # X25519 public key for response encryption
 
 
 class ModelInfo(BaseModel):
@@ -170,8 +171,11 @@ async def chat_completions(request: ChatCompletionRequest, raw_request: Request)
 
         # Re-encrypt if needed (the initial inference_req was built with plaintext)
         if provider.encryption_public_key:
+            encrypt_payload = {"messages": messages_plain}
+            if request.ocip_consumer_public_key:
+                encrypt_payload["consumer_public_key"] = request.ocip_consumer_public_key
             encrypted_body = encrypt_json(
-                {"messages": messages_plain},
+                encrypt_payload,
                 provider.encryption_public_key,
             ).to_dict()
             inference_req = InferenceRequest(
@@ -281,8 +285,12 @@ async def chat_completions(request: ChatCompletionRequest, raw_request: Request)
 
     if provider.encryption_public_key:
         # OCIP E2E: encrypt messages to provider's key
+        # Include consumer's public key so provider can encrypt responses back
+        encrypt_payload = {"messages": messages_plain}
+        if request.ocip_consumer_public_key:
+            encrypt_payload["consumer_public_key"] = request.ocip_consumer_public_key
         encrypted_body = encrypt_json(
-            {"messages": messages_plain},
+            encrypt_payload,
             provider.encryption_public_key,
         ).to_dict()
         logger.info(f"[{request_id[:8]}] 🔐 Request encrypted to provider")
@@ -397,11 +405,14 @@ async def _stream_response(
                     "choices": [
                         {
                             "index": 0,
-                            "delta": {"content": msg.token},
+                            "delta": {"content": msg.token} if msg.token else {},
                             "finish_reason": msg.finish_reason,
                         }
                     ],
                 }
+                # Pass through encrypted token if present (full E2E mode)
+                if msg.encrypted_token:
+                    chunk["ocip_encrypted_token"] = msg.encrypted_token
                 yield f"data: {json.dumps(chunk)}\n\n"
 
                 if msg.finish_reason:

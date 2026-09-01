@@ -26,6 +26,7 @@ from inference_exchange.shared.crypto import (
     KeyPair,
     EncryptedPayload,
     decrypt_json,
+    encrypt_to_recipient,
 )
 from inference_exchange.shared.protocol import (
     HeartbeatMessage,
@@ -314,18 +315,23 @@ class OCIPAgent:
                 self._active_requests.clear()
 
     async def _handle_request(self, ws, req: InferenceRequest):
-        """Decrypt → forward to server (streaming) → encrypt response back."""
+        """Decrypt -> forward to server (streaming) -> encrypt response back."""
         start = time.time()
         tokens = 0
         request_id = req.request_id
 
         try:
-            # Step 1: Decrypt
+            # Step 1: Decrypt request
+            consumer_public_key = None
             if req.encrypted_body:
                 payload = EncryptedPayload.from_dict(req.encrypted_body)
                 decrypted = decrypt_json(payload, self._keypair.private_key)
                 messages = decrypted["messages"]
-                logger.info(f"[{request_id[:8]}] 🔐 Decrypted")
+                consumer_public_key = decrypted.get("consumer_public_key")
+                logger.info(
+                    f"[{request_id[:8]}] 🔐 Decrypted"
+                    f"{' (response E2E)' if consumer_public_key else ''}"
+                )
             elif req.messages:
                 messages = req.messages
             else:
@@ -344,7 +350,7 @@ class OCIPAgent:
                     },
                     timeout=120,
                 ) as response:
-                    # Step 3: Relay each token as it arrives
+                    # Step 3: Relay each token, encrypting if consumer provided a key
                     async for line in response.aiter_lines():
                         if not line.startswith("data: "):
                             continue
@@ -361,10 +367,19 @@ class OCIPAgent:
                             )
                             if content:
                                 tokens += 1
-                                chunk = InferenceResponseChunk(
-                                    request_id=request_id,
-                                    token=content,
-                                )
+                                if consumer_public_key:
+                                    # Full E2E: encrypt token to consumer's key
+                                    enc = encrypt_to_recipient(content, consumer_public_key)
+                                    chunk = InferenceResponseChunk(
+                                        request_id=request_id,
+                                        token="",  # empty plaintext
+                                        encrypted_token=enc.to_dict(),
+                                    )
+                                else:
+                                    chunk = InferenceResponseChunk(
+                                        request_id=request_id,
+                                        token=content,
+                                    )
                                 await ws.send(chunk.model_dump_json())
                         except json.JSONDecodeError:
                             continue
