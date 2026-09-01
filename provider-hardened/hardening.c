@@ -16,10 +16,18 @@
  * - No memory can be read externally without a kernel exploit
  */
 
-/* Include our own header. Build scripts copy this as ocip_hardening.c
- * into llama.cpp's tree and rename the header to ocip_hardening.h.
- * The sed in build-poc.sh handles the include path. */
-#include "hardening.h"
+/* Include our own header. When copied into llama.cpp tree by build scripts,
+ * both files are renamed with ocip_ prefix. When building standalone, the
+ * header is hardening.h. We check for both names. */
+#ifdef __has_include
+#  if __has_include("ocip_hardening.h")
+#    include "ocip_hardening.h"
+#  else
+#    include "hardening.h"
+#  endif
+#else
+#  include "hardening.h"
+#endif
 
 #include <stdio.h>
 #include <stdlib.h>
