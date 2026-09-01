@@ -82,7 +82,8 @@ class HeartbeatMessage(BaseModel):
 class InferenceResponseChunk(BaseModel):
     type: str = MessageType.INFERENCE_RESPONSE
     request_id: str
-    token: str  # The generated token text
+    token: str = ""  # Plaintext token (when not E2E response encryption)
+    encrypted_token: dict | None = None  # OCIP encrypted token (when E2E response)
     finish_reason: str | None = None  # "stop", "length", or None if still generating
 
 
