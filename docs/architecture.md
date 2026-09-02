@@ -1,329 +1,170 @@
-# Inference Exchange — System Architecture
+# Inference Exchange -- System Architecture
 
-## What's Running Right Now
-
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                        Your Machine (localhost)                              │
-│                                                                             │
-│  ┌─────────────────────────────────────────────────────────────────────┐   │
-│  │  Coordinator Process (python -m inference_exchange.coordinator)      │   │
-│  │  Port 8000 — FastAPI + Uvicorn                                      │   │
-│  │                                                                      │   │
-│  │  ┌──────────────┐  ┌───────────────┐  ┌──────────────────────────┐ │   │
-│  │  │  Web UI       │  │  Consumer API  │  │  Provider Hub            │ │   │
-│  │  │  (static HTML)│  │  /v1/chat/...  │  │  /ws/provider            │ │   │
-│  │  │  GET /        │  │  /v1/models    │  │                          │ │   │
-│  │  │              │  │  /health       │  │  • WebSocket manager     │ │   │
-│  │  └──────────────┘  └───────┬───────┘  │  • Provider registry     │ │   │
-│  │                            │           │  • Request routing        │ │   │
-│  │                            │           │  • Response queue fan-out │ │   │
-│  │                            │           └────────────┬─────────────┘ │   │
-│  │                            │                        │                │   │
-│  └────────────────────────────┼────────────────────────┼────────────────┘   │
-│                               │                        │                     │
-│                               │  Inference Request     │  WebSocket           │
-│                               │  (JSON over WS)        │  (persistent)        │
-│                               │                        │                     │
-│  ┌────────────────────────────┼────────────────────────┼────────────────┐   │
-│  │  Provider Process (python -m inference_exchange.provider)             │   │
-│  │                                                                      │   │
-│  │  ┌──────────────────┐  ┌──────────────────┐  ┌──────────────────┐  │   │
-│  │  │  Agent            │  │  Inference Engine │  │  Model (GGUF)    │  │   │
-│  │  │                   │  │                   │  │                   │  │   │
-│  │  │  • WS client      │  │  • llama-cpp-py   │  │  Qwen2.5 0.5B   │  │   │
-│  │  │  • Reconnect      │  │  • Chat templates │  │  Q4_K_M          │  │   │
-│  │  │  • Heartbeats     │  │  • Token stream   │  │  ~400 MB         │  │   │
-│  │  │  • Route messages │  │  • CPU inference  │  │                   │  │   │
-│  │  └──────────────────┘  └──────────────────┘  └──────────────────┘  │   │
-│  │                                                                      │   │
-│  └──────────────────────────────────────────────────────────────────────┘   │
-│                                                                             │
-└─────────────────────────────────────────────────────────────────────────────┘
-```
-
-## Request Flow (Streaming)
+## Current Architecture
 
 ```
- Browser / curl / OpenAI SDK
-         │
-         │  POST /v1/chat/completions
-         │  {"model":"default", "messages":[...], "stream":true}
-         │
-         ▼
-┌─────────────────────┐
-│   FastAPI Router     │
-│   (api.py)           │
-│                      │
-│ 1. Parse request     │
-│ 2. Select provider   │──────── score = (1 - load) × (1 + tps/100)
-│ 3. Create response Q │
-│ 4. Send to provider  │
-│ 5. Stream from Q     │
-└─────────┬───────────┘
-          │
-          │  WebSocket frame (JSON)
-          │  {type: "inference_request", request_id: "...", messages: [...]}
-          │
-          ▼
-┌─────────────────────┐
-│   Provider Agent     │
-│   (agent.py)         │
-│                      │
-│ 1. Receive request   │
-│ 2. Run inference     │──── llama-cpp-python (in thread pool)
-│ 3. For each token:   │
-│    send chunk back   │
-│ 4. Send "done"       │
-└─────────┬───────────┘
-          │
-          │  WebSocket frames (JSON)
-          │  {type: "inference_response", request_id: "...", token: "Hello"}
-          │  {type: "inference_response", request_id: "...", token: " world"}
-          │  {type: "inference_done", request_id: "...", tokens_generated: 42}
-          │
-          ▼
-┌─────────────────────┐
-│   Response Queue     │
-│   (asyncio.Queue)    │
-│                      │
-│   Chunks are read    │
-│   by the SSE         │
-│   generator in       │
-│   api.py             │
-└─────────┬───────────┘
-          │
-          │  Server-Sent Events (SSE)
-          │  data: {"choices":[{"delta":{"content":"Hello"}}]}
-          │  data: {"choices":[{"delta":{"content":" world"}}]}
-          │  data: [DONE]
-          │
-          ▼
-    Browser / SDK
-    (renders streaming text)
+  Consumer (Browser / SDK / curl)
+       |
+       | POST /v1/chat/completions (HTTPS in prod)
+       v
+  +----------------------------------------------------------+
+  |  Coordinator (FastAPI + Uvicorn, port 8000)               |
+  |                                                           |
+  |  routes_inference.py  - chat completions (OpenAI-compat)  |
+  |  routes_exchange.py   - marketplace data (depth, pricing) |
+  |  routes_auth.py       - API key management                |
+  |  routes_admin.py      - admin state + provider tokens     |
+  |  provider_hub.py      - WebSocket manager, routing        |
+  |  matching/            - formal scoring engine (GreedyStrategy) |
+  |  store.py             - SQLite persistence (billing, keys)|
+  |  reputation.py        - provider reputation (EMA)         |
+  |  tps_tracker.py       - TPS measurement + anomaly detect  |
+  |  event_bus.py         - real-time WebSocket event feed    |
+  |  rate_limiter.py      - per-key token bucket              |
+  |  audit_log.py         - append-only hash-chained log      |
+  |  model_registry.py    - HuggingFace hash verification     |
+  +-----------------------------+-----------------------------+
+                                |
+                                | WebSocket (E2E encrypted)
+                                v
+  +----------------------------------------------------------+
+  |  Provider Machine                                         |
+  |                                                           |
+  |  +-------------------------+  +--------------------------+|
+  |  | OCIP Agent (Python)     |  | Inference Engine         ||
+  |  | ocip_agent/agent.py     |  | (llama-server, hardened) ||
+  |  |                         |  |                          ||
+  |  | - WS to coordinator     |  | - Loads GGUF model       ||
+  |  | - X25519 decrypt/encrypt|  | - Metal/CUDA inference   ||
+  |  | - Model identity (GGUF) |  | - PT_DENY_ATTACH         ||
+  |  | - Attestation response  |  | - Hardened Runtime       ||
+  |  | - Token auth            |  | - Localhost only         ||
+  |  +------------+------------+  +------------+-------------+|
+  |               |                            |              |
+  |               +--- HTTP localhost:9999 ----+              |
+  +----------------------------------------------------------+
 ```
 
-## Component Interaction
+## Request Flow
 
 ```
-┌────────────────────────────────────────────────────────────────┐
-│                      COORDINATOR                                │
-│                                                                 │
-│  ┌─────────┐     ┌──────────────┐     ┌───────────────────┐  │
-│  │ api.py  │────▶│ provider_hub │────▶│ ConnectedProvider  │  │
-│  │         │     │   .py        │     │                    │  │
-│  │ Routes: │     │              │     │ • provider_id      │  │
-│  │ • POST  │     │ • register   │     │ • name             │  │
-│  │   /v1/* │     │ • disconnect │     │ • ws (WebSocket)   │  │
-│  │ • GET   │     │ • select     │     │ • capabilities     │  │
-│  │   /v1/* │     │ • route msg  │     │ • active_requests  │  │
-│  │         │◀────│ • queue mgmt │     │ • load_factor      │  │
-│  └─────────┘     └──────────────┘     │ • score_for_req()  │  │
-│                                        └───────────────────┘  │
-│                                                                 │
-│  ┌─────────┐                                                   │
-│  │ static/ │  Serves index.html (chat UI) at GET /             │
-│  │index.html│                                                   │
-│  └─────────┘                                                   │
-└────────────────────────────────────────────────────────────────┘
-         ▲                                    │
-         │ HTTP (SSE stream)                  │ WebSocket (JSON frames)
-         │                                    ▼
-┌─────────────┐                    ┌────────────────────────────┐
-│  Consumer   │                    │         PROVIDER            │
-│             │                    │                             │
-│ • Browser   │                    │  ┌─────────┐  ┌─────────┐ │
-│ • curl      │                    │  │ agent.py│  │inference│ │
-│ • OpenAI SDK│                    │  │         │  │  .py    │ │
-│ • Any HTTP  │                    │  │ • WS    │  │         │ │
-│   client    │                    │  │   loop  │──▶│ • Llama │ │
-│             │                    │  │ • HB    │  │   model │ │
-│             │                    │  │ • Tasks │◀──│ • Stream│ │
-│             │                    │  └─────────┘  └─────────┘ │
-└─────────────┘                    │                             │
-                                   │  Model file:                │
-                                   │  ~/.inference-exchange/     │
-                                   │    models/Qwen2.5-0.5B-    │
-                                   │    Instruct-Q4_K_M.gguf    │
-                                   └────────────────────────────┘
+Consumer sends: POST /v1/chat/completions
+  |
+  v
+1. Auth: resolve consumer_id from API key (SHA-256 hash lookup)
+2. Rate limit: token bucket check (30 req/min per key)
+3. Match: GreedyStrategy scores all providers
+   - Weights by preference (cheapest/fastest/most_secure/balanced)
+   - Hard constraints: model, min_confidence, max_price
+   - Soft: price, speed, trust, load, reputation, session affinity
+4. If no provider: queue (50 depth, 30s timeout, FIFO dispatch)
+5. Encrypt: X25519 encrypt messages to provider's public key
+   - Include consumer_public_key for response E2E (IE SDK mode)
+6. Send: WebSocket frame to provider
+7. Provider agent: decrypt, forward to localhost inference engine
+8. Engine: generate tokens, stream back over localhost
+9. Agent: encrypt each token to consumer key (if provided), send via WS
+10. Coordinator: relay to consumer as SSE (OpenAI format)
+11. Bill: charge consumer, credit provider (90/10 split)
+12. Record: TPS, reputation, audit log, event bus
 ```
 
-## Protocol Messages (OCIP Wire Format)
-
-```
-                Provider → Coordinator
-                ═══════════════════════
-
-┌─────────────────────────────────────────────────────────┐
-│ REGISTER (first message after WS connect)               │
-│                                                         │
-│ {                                                       │
-│   "type": "register",                                   │
-│   "provider_name": "local-provider",                    │
-│   "capabilities": {                                     │
-│     "models": ["Qwen2.5 0.5B Instruct", "default"],    │
-│     "max_concurrent": 2,                                │
-│     "trust_level": "open",                              │
-│     "hardware": "intel-amd64",                          │
-│     "memory_gb": 0,                                     │
-│     "measured_tps": 0                                   │
-│   }                                                     │
-│ }                                                       │
-└─────────────────────────────────────────────────────────┘
-
-┌─────────────────────────────────────────────────────────┐
-│ HEARTBEAT (every 10 seconds)                            │
-│                                                         │
-│ {                                                       │
-│   "type": "heartbeat",                                  │
-│   "active_requests": 1,                                 │
-│   "loaded_models": ["Qwen2.5 0.5B Instruct"],          │
-│   "memory_used_gb": 0.4,                                │
-│   "cpu_percent": 45.2                                   │
-│ }                                                       │
-└─────────────────────────────────────────────────────────┘
-
-┌─────────────────────────────────────────────────────────┐
-│ INFERENCE_RESPONSE (one per token generated)            │
-│                                                         │
-│ { "type": "inference_response",                         │
-│   "request_id": "042e42df-...",                         │
-│   "token": "Hello",                                     │
-│   "finish_reason": null }                               │
-└─────────────────────────────────────────────────────────┘
-
-┌─────────────────────────────────────────────────────────┐
-│ INFERENCE_DONE (after last token)                       │
-│                                                         │
-│ { "type": "inference_done",                             │
-│   "request_id": "042e42df-...",                         │
-│   "tokens_generated": 42,                               │
-│   "time_seconds": 3.2 }                                 │
-└─────────────────────────────────────────────────────────┘
-
-
-                Coordinator → Provider
-                ═══════════════════════
-
-┌─────────────────────────────────────────────────────────┐
-│ INFERENCE_REQUEST                                       │
-│                                                         │
-│ { "type": "inference_request",                          │
-│   "request_id": "042e42df-...",                         │
-│   "model": "default",                                   │
-│   "messages": [                                         │
-│     {"role": "user", "content": "What is 2+2?"}        │
-│   ],                                                    │
-│   "max_tokens": 1024,                                   │
-│   "temperature": 0.7,                                   │
-│   "stream": true }                                      │
-└─────────────────────────────────────────────────────────┘
-
-┌─────────────────────────────────────────────────────────┐
-│ CANCEL_REQUEST                                          │
-│                                                         │
-│ { "type": "cancel_request",                             │
-│   "request_id": "042e42df-..." }                        │
-└─────────────────────────────────────────────────────────┘
-```
-
-## Provider Selection (Routing)
-
-```
-Consumer Request arrives: model="default"
-
-    ┌───────────────────────────────────────────────┐
-    │          Provider Registry                     │
-    │                                                │
-    │  Provider A                                    │
-    │    models: [Qwen2.5, default]                  │
-    │    load: 0/2 = 0.0                             │
-    │    tps: 25.0                                   │
-    │    score = (1 - 0.0) × (1 + 25/100) = 1.25  ◄── SELECTED
-    │                                                │
-    │  Provider B  (future)                          │
-    │    models: [Llama-3-8B, default]               │
-    │    load: 1/2 = 0.5                             │
-    │    tps: 40.0                                   │
-    │    score = (1 - 0.5) × (1 + 40/100) = 0.70    │
-    │                                                │
-    │  Provider C  (future)                          │
-    │    models: [Mistral-7B]  ← no "default"        │
-    │    score = -1  (can't serve this model)         │
-    │                                                │
-    └───────────────────────────────────────────────┘
-```
-
-## Future: Production Deployment
-
-```
-                                ┌──────────────────────┐
-                                │   CloudFront CDN     │
-    Consumers ─── HTTPS ───────▶│   (React SPA)        │
-                                └──────────────────────┘
-
-                                ┌──────────────────────┐
-    Consumers ─── HTTPS ───────▶│   ALB                │
-    (API)                       │   (TLS termination)  │
-                                └──────────┬───────────┘
-                                           │
-                          ┌────────────────┼────────────────┐
-                          ▼                ▼                 ▼
-                   ┌────────────┐  ┌────────────┐   ┌────────────┐
-                   │Coordinator │  │Coordinator │   │Coordinator │
-                   │  Task 1    │  │  Task 2    │   │  Task 3    │
-                   └─────┬──────┘  └─────┬──────┘   └─────┬──────┘
-                         │               │                 │
-                         ▼               ▼                 ▼
-                   ┌─────────────────────────────────────────────┐
-                   │              Redis (ElastiCache)             │
-                   │  • Provider state (shared across tasks)      │
-                   │  • Active request tracking                   │
-                   │  • Pub/sub for WS fan-out                    │
-                   └─────────────────────────────────────────────┘
-                   ┌─────────────────────────────────────────────┐
-                   │              PostgreSQL (RDS)                │
-                   │  • Users, API keys, billing                  │
-                   │  • Provider profiles, attestation            │
-                   │  • Request history, audit log                │
-                   └─────────────────────────────────────────────┘
-
-    ════════════════════════════════════════════════════════════════
-                          Internet / WebSocket
-    ════════════════════════════════════════════════════════════════
-
-     ┌──────────┐    ┌──────────┐    ┌──────────┐    ┌──────────┐
-     │Mac Mini  │    │Linux Box │    │Ryzen Pro │    │Mac Studio│
-     │M4 Pro    │    │+ RTX 4090│    │SEV-SNP   │    │M2 Ultra  │
-     │          │    │          │    │          │    │          │
-     │ Provider │    │ Provider │    │ Provider │    │ Provider │
-     │ Agent    │    │ Agent    │    │ Agent    │    │ Agent    │
-     │          │    │          │    │          │    │          │
-     │Trust:    │    │Trust:    │    │Trust:    │    │Trust:    │
-     │HARDENED  │    │CONTAINED │    │CONFID.   │    │HARDENED  │
-     └──────────┘    └──────────┘    └──────────┘    └──────────┘
-```
-
-## File → Responsibility Map
+## File Map
 
 ```
 inference_exchange/
-│
-├── coordinator/
-│   ├── main.py           Creates FastAPI app, mounts routes + WS + static
-│   ├── api.py            Consumer-facing OpenAI-compatible endpoints
-│   ├── provider_hub.py   WebSocket connection manager + provider scoring
-│   └── static/
-│       └── index.html    Chat web UI (single-page, no build step)
-│
-├── provider/
-│   ├── main.py           Provider entrypoint (find model, start agent)
-│   ├── agent.py          WebSocket client loop + inference task dispatch
-│   └── inference.py      llama-cpp-python wrapper (load model, stream tokens)
-│
-├── shared/
-│   └── protocol.py       OCIP message types (Pydantic models)
-│
-├── config.py             Configuration (ports, model paths, defaults)
-└── cli.py                CLI tools (download-model, list-models)
+  coordinator/
+    main.py              - FastAPI app, WS endpoints, lifespan
+    dependencies.py      - Global singletons (hub, billing, auth, etc.)
+    routes_inference.py  - POST /v1/chat/completions
+    routes_exchange.py   - GET /v1/exchange/* (stats, providers, depth, pricing)
+    routes_auth.py       - API key CRUD
+    routes_admin.py      - Admin state dump, provider token management
+    provider_hub.py      - Provider registry, select_provider (matching engine)
+    store.py             - SQLite (accounts, keys, billing, provider history)
+    audit_log.py         - Append-only JSONL with hash chaining
+    event_bus.py         - Pub/sub for real-time WebSocket events
+    rate_limiter.py      - Per-key token bucket
+    reputation.py        - EMA-based provider reputation
+    tps_tracker.py       - TPS measurement + hardware lookup
+    model_registry.py    - HuggingFace model hash verification
+    matching/
+      models.py          - InferenceOrder, ProviderOffer, MatchResult
+      strategy.py        - GreedyStrategy, BatchAuctionStrategy, compute_score
+      engine.py          - MatchingEngine orchestrator (batch mode)
+    auth_memory.py       - In-memory auth (legacy, used by tests)
+    billing_memory.py    - In-memory billing (legacy, used by tests)
+    static/              - Old static HTML dashboard (legacy)
+
+  provider/
+    main.py              - Simple provider entry point
+    agent.py             - Simple single-process agent (deprecated)
+    inference.py         - llama-cpp-python wrapper
+    model_identity.py    - GGUF metadata reader + SHA-256 hash
+
+  shared/
+    protocol.py          - OCIP wire format (Pydantic models)
+    crypto.py            - X25519 + XSalsa20-Poly1305 encryption
+    errors.py            - Structured OCIP error types
+
+  config.py              - CoordinatorConfig, ProviderConfig
+  ie_sdk.py              - Consumer SDK with E2E response decryption
+
+ocip_agent/
+  agent.py               - Production agent: lifecycle, crypto, streaming, attestation
+
+ocip_server/
+  server.py              - Isolated inference server (Python, for testing)
+
+provider-hardened/
+  hardening.c/.h         - PT_DENY_ATTACH + core dump disable + SIP check
+  build-poc.sh           - Build hardened llama-server
+  build-agent.sh         - Build hardened agent (PyInstaller + codesign)
+  run-poc.sh             - Start hardened provider (server + agent)
+  verify-poc.sh          - Verify hardening (debugger blocked, etc.)
+  entitlements.plist     - Codesign entitlements (no get-task-allow)
+  M3-GUIDE.md            - Step-by-step for Apple Silicon
+
+web/
+  src/
+    main.tsx             - React router (8 routes)
+    components/Layout.tsx - Nav bar, connection status
+    pages/Landing.tsx    - Hero, features, trust levels, pricing
+    pages/Exchange.tsx   - Depth chart, provider ladder, trade ticker
+    pages/Chat.tsx       - Streaming chat with preferences
+    pages/Models.tsx     - Model search (HuggingFace + exchange)
+    pages/Providers.tsx  - Provider cards, setup CTA
+    pages/Billing.tsx    - Balance, transactions
+    pages/Keys.tsx       - API key management + quick start
+    pages/Admin.tsx      - System state, traces, telemetry
+    lib/api.ts           - Typed API client (SWR)
+    lib/useWebSocket.ts  - WS hook + coordinator status
+
+tests/                   - 290+ tests (17 files)
+docs/                    - 16 documentation files
 ```
+
+## Persistence
+
+- **SQLite** (`~/.inference-exchange/exchange.db`): accounts, API keys,
+  billing transactions, provider history, provider tokens
+- **Audit log** (`~/.inference-exchange/audit.jsonl`): append-only,
+  hash-chained, records billing + attestation + connect/disconnect
+- **In-memory**: provider connections, response queues, session affinity,
+  rate limit counters, reputation EMA, TPS EMA
+
+## Security Layers
+
+| Layer | Mechanism |
+|-------|-----------|
+| Transport encryption | X25519 per-request (forward secrecy) |
+| Response encryption | X25519 to consumer key (IE SDK mode) |
+| Process hardening | PT_DENY_ATTACH + Hardened Runtime (macOS) |
+| Model verification | GGUF metadata + SHA-256 vs HuggingFace |
+| Provider auth | Token-based WebSocket authentication |
+| Consumer auth | API keys (SHA-256 hashed in SQLite) |
+| Attestation | Periodic challenge with hardening evidence |
+| Audit | Hash-chained append-only log |
+| Rate limiting | Per-key token bucket (30 req/min) |
+
+See [threat-model.md](threat-model.md) for the full attack surface analysis.
