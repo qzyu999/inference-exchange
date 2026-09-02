@@ -40,6 +40,7 @@ from inference_exchange.shared.protocol import (
     RegisterMessage,
     TrustLevel,
 )
+from inference_exchange.provider.model_identity import get_model_identity
 
 logging.basicConfig(
     level=logging.INFO,
@@ -240,6 +241,14 @@ class OCIPAgent:
             n_gpu_layers=n_gpu_layers,
         )
 
+        # Read model identity from GGUF file directly (name, hash, architecture)
+        try:
+            self._model_identity = get_model_identity(self._model_path)
+            logger.info(f"Model: {self._model_identity['name']} ({self._model_identity['architecture']}, {self._model_identity['quantization']})")
+        except Exception as e:
+            logger.warning(f"Could not read GGUF metadata: {e}")
+            self._model_identity = {"name": Path(self._model_path).stem, "file_hash": ""}
+
         # Request tracking (for cancellation)
         self._active_requests: dict[str, asyncio.Task] = {}
         self._running = False
@@ -332,7 +341,7 @@ class OCIPAgent:
 
             # Register
             identity = self._server.identity
-            model_name = identity.get("name", "unknown")
+            model_name = self._model_identity.get("name", identity.get("name", "unknown"))
             reg = RegisterMessage(
                 provider_name=self.provider_name,
                 capabilities=ProviderCapabilities(
@@ -345,6 +354,7 @@ class OCIPAgent:
                     price_per_mtok_output=self.price_output,
                 ),
                 encryption_public_key=self._keypair.public_key_b64,
+                model_identity=self._model_identity,
             )
             await ws.send(reg.model_dump_json())
             logger.info(f"Registered: {self.provider_name} (model={model_name}, slots={self.max_concurrent})")
