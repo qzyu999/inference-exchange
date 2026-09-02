@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import useSWR from 'swr'
+import { useSearchParams } from 'react-router-dom'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { api } from '../lib/api'
@@ -20,29 +21,42 @@ const PREFERENCES = [
   { value: 'most_secure', label: 'Most Secure', icon: '🔒' },
 ]
 
+const TRUST_LEVELS = [
+  { value: 'open', label: 'Any', desc: 'No minimum' },
+  { value: 'contained', label: 'L1+', desc: 'Encrypted' },
+  { value: 'hardened', label: 'L2+', desc: 'Hardened' },
+  { value: 'confidential', label: 'L3', desc: 'Confidential' },
+]
+
 export function Chat() {
+  const [searchParams] = useSearchParams()
   const [messages, setMessages] = useState<Message[]>(() => {
     try { const saved = localStorage.getItem('ie_chat_history'); return saved ? JSON.parse(saved) : [] } catch { return [] }
   })
   const [input, setInput] = useState('')
   const [streaming, setStreaming] = useState(false)
-  const [model, setModel] = useState('')
+  const [model, setModel] = useState(() => searchParams.get('model') || '')
   const [preference, setPreference] = useState('balanced')
+  const [minTrust, setMinTrust] = useState('open')
+  const [maxPrice, setMaxPrice] = useState('')
+  const [showAdvanced, setShowAdvanced] = useState(false)
   const [apiKey, setApiKey] = useState(() => localStorage.getItem('ie_api_key') || '')
   const scrollRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const abortRef = useRef<AbortController | null>(null)
 
   const { data: modelsData } = useSWR('models', api.models)
+  const { data: pricing } = useSWR('pricing', api.pricing, { refreshInterval: 10000 })
   const { data: health } = useSWR('health', api.health)
 
   useEffect(() => { if (!model && modelsData?.data?.length) setModel(modelsData.data[0].id) }, [modelsData, model])
   useEffect(() => { if (!apiKey && health?.default_api_key) { setApiKey(health.default_api_key); localStorage.setItem('ie_api_key', health.default_api_key) } }, [health, apiKey])
   useEffect(() => { scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight }) }, [messages])
-  // Persist chat history
   useEffect(() => { if (messages.length > 0) localStorage.setItem('ie_chat_history', JSON.stringify(messages)) }, [messages])
-  // Refocus input after streaming ends
   useEffect(() => { if (!streaming) inputRef.current?.focus() }, [streaming])
+
+  // Get pricing for selected model
+  const modelPrice = pricing?.pricing?.find(p => p.model === model || model === 'default')
 
   async function send() {
     const text = input.trim()
@@ -57,10 +71,19 @@ export function Chat() {
     abortRef.current = controller
 
     try {
+      const body: any = {
+        model: model || 'default',
+        messages: updated.map(m => ({ role: m.role, content: m.content })),
+        stream: true,
+        ocip_preference: preference,
+        ocip_min_confidence: minTrust,
+      }
+      if (maxPrice) body.ocip_max_price = parseFloat(maxPrice)
+
       const resp = await fetch('/v1/chat/completions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
-        body: JSON.stringify({ model: model || undefined, messages: updated.map(m => ({ role: m.role, content: m.content })), stream: true, ocip_preference: preference }),
+        body: JSON.stringify(body),
         signal: controller.signal,
       })
       if (!resp.ok) {
@@ -94,20 +117,64 @@ export function Chat() {
   return (
     <div className="flex flex-col h-[calc(100vh-100px)]">
       {/* Controls */}
-      <div className="flex items-center gap-2 pb-4 border-b border-gray-200/60 flex-wrap">
-        <select value={model} onChange={e => setModel(e.target.value)} className="px-3 py-2 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/30 focus:border-amber-400">
-          {modelsData?.data?.map(m => <option key={m.id} value={m.id}>{m.id}</option>)}
-          {(!modelsData?.data || modelsData.data.length === 0) && <option value="">No models</option>}
-        </select>
-        <div className="flex bg-gray-100 rounded-xl p-0.5">
-          {PREFERENCES.map(p => (
-            <button key={p.value} onClick={() => setPreference(p.value)} className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${preference === p.value ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
-              {p.icon} {p.label}
-            </button>
-          ))}
+      <div className="pb-4 border-b border-gray-200/60 space-y-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* Model selector */}
+          <div className="flex items-center gap-2">
+            <select value={model} onChange={e => setModel(e.target.value)} className="px-3 py-2 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/30 focus:border-amber-400">
+              <option value="default">Any model (default)</option>
+              {modelsData?.data?.map(m => <option key={m.id} value={m.id}>{m.id}</option>)}
+            </select>
+            {modelPrice && (
+              <span className="text-xs text-gray-400">
+                ${modelPrice.output.toFixed(2)}/Mtok
+                {modelPrice.providers_available > 0 && ` from ${modelPrice.providers_available} provider${modelPrice.providers_available !== 1 ? 's' : ''}`}
+              </span>
+            )}
+          </div>
+
+          {/* Preference pills */}
+          <div className="flex bg-gray-100 rounded-xl p-0.5">
+            {PREFERENCES.map(p => (
+              <button key={p.value} onClick={() => setPreference(p.value)} className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${preference === p.value ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+                {p.icon} {p.label}
+              </button>
+            ))}
+          </div>
+
+          <div className="flex-1" />
+
+          <button onClick={() => setShowAdvanced(!showAdvanced)} className="text-xs text-gray-400 hover:text-gray-600">
+            {showAdvanced ? 'Hide' : 'Advanced'}
+          </button>
+          <button onClick={() => { setMessages([]); localStorage.removeItem('ie_chat_history') }} className="text-xs text-gray-400 hover:text-gray-600">Clear</button>
         </div>
-        <div className="flex-1" />
-        <button onClick={() => { setMessages([]); localStorage.removeItem('ie_chat_history') }} className="px-3 py-1.5 text-xs text-gray-400 hover:text-gray-600 transition-colors">Clear</button>
+
+        {/* Advanced controls */}
+        {showAdvanced && (
+          <div className="flex items-center gap-4 text-xs">
+            <div className="flex items-center gap-2">
+              <span className="text-gray-400">Min trust:</span>
+              <div className="flex bg-gray-100 rounded-lg p-0.5">
+                {TRUST_LEVELS.map(t => (
+                  <button key={t.value} onClick={() => setMinTrust(t.value)} className={`px-2 py-1 rounded-md transition-colors ${minTrust === t.value ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500'}`} title={t.desc}>
+                    {t.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-gray-400">Max price:</span>
+              <input type="number" value={maxPrice} onChange={e => setMaxPrice(e.target.value)} placeholder="$/Mtok" step="0.01" min="0"
+                className="w-20 px-2 py-1 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-amber-500/30" />
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-gray-400">API key:</span>
+              <input type="password" value={apiKey} onChange={e => { setApiKey(e.target.value); localStorage.setItem('ie_api_key', e.target.value) }}
+                placeholder="sk-ie-..." className="w-32 px-2 py-1 border border-gray-200 rounded-lg text-xs font-mono focus:outline-none focus:ring-1 focus:ring-amber-500/30" />
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Messages */}
@@ -118,7 +185,10 @@ export function Chat() {
               <span className="text-white text-2xl font-bold">IE</span>
             </div>
             <div className="text-gray-500 font-medium">Send a message to start</div>
-            <div className="text-xs text-gray-400 mt-1">Routed to the best available provider on the exchange</div>
+            <div className="text-xs text-gray-400 mt-1">
+              {model && model !== 'default' ? `Using ${model}` : 'Routed to the best available provider'}
+              {preference !== 'balanced' && ` (${preference})`}
+            </div>
           </div>
         )}
         {messages.map((m, i) => (
@@ -161,7 +231,7 @@ export function Chat() {
             type="text" value={input} onChange={e => setInput(e.target.value)}
             ref={inputRef}
             onKeyDown={e => e.key === 'Enter' && !e.shiftKey && send()}
-            placeholder="Type a message..."
+            placeholder={model && model !== 'default' ? `Message ${model}...` : 'Type a message...'}
             disabled={streaming}
             className="flex-1 px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/30 focus:border-amber-400 placeholder:text-gray-300"
           />
