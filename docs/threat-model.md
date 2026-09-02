@@ -197,17 +197,16 @@ Agent ──HTTP──> Inference Engine (localhost:9999)
 
 ## Critical Gaps (Must Fix Before Alpha)
 
-### GAP 1: Agent Not Hardened (HIGH)
+### GAP 1: Agent Not Hardened -- CLOSED
 
-**Attack:** Provider operator attaches debugger to the Python OCIP agent,
-reads decrypted prompts and responses from memory.
+**Status:** Fixed. The agent is now frozen with PyInstaller (onedir mode)
+and codesigned with Hardened Runtime. Verified on M3 with macOS Sequoia.
 
-**Impact:** Complete break of L2 privacy claim. Provider sees everything.
+The build script: `provider-hardened/build-agent.sh`
+The binary: `provider-hardened/ie-agent/ie-agent`
 
-**Fix:** Freeze the agent with PyInstaller, codesign with Hardened Runtime,
-add PT_DENY_ATTACH. Ship as part of the hardened package.
-
-**Difficulty:** Medium -- PyInstaller + codesign is well-understood.
+Both the agent and inference server are now inside the hardened boundary.
+Provider operator cannot read either process's memory.
 
 ### GAP 2: No TLS (HIGH for production, LOW for private alpha)
 
@@ -221,16 +220,14 @@ E2E-encrypted content.
 
 **Difficulty:** Low -- standard deployment concern, not a code change.
 
-### GAP 3: No WebSocket Authentication (MEDIUM)
+### GAP 3: No WebSocket Authentication -- CLOSED
 
-**Attack:** Anyone can connect a fake provider, register, and receive
-encrypted requests. They can't decrypt them (no private key for E2E
-requests), but they can waste queue slots and see metadata.
+**Status:** Fixed. Provider tokens (`pt-ie-...`) are required when any
+token exists in the database. Tokens are hashed (SHA-256) in SQLite.
+The coordinator rejects unauthenticated WebSocket connections with code 4003.
 
-**Fix:** Provider registration requires a signed token (API key or
-device-code auth flow).
-
-**Difficulty:** Medium -- needs a provider auth flow.
+Admin creates tokens: `POST /v1/admin/provider-tokens`
+Agent passes token: `--token pt-ie-...` (sent as query param on WS connect)
 
 ### GAP 4: Attestation Is Weak (MEDIUM)
 
@@ -318,16 +315,16 @@ These claims are backed by implemented code and tested:
 
 | Risk | Likelihood | Impact | Priority |
 |---|---|---|---|
-| Provider reads prompts (unhardened agent) | High (any L0/L1 provider) | High (privacy breach) | P0 |
+| Provider reads prompts (unhardened agent) | ~~High~~ CLOSED | High (privacy breach) | ~~P0~~ DONE |
 | Network sniffing (no TLS) | Medium (depends on network) | High (keys + metadata) | P0 for prod, P2 for private alpha |
-| Fake provider connects | Low (needs coordinator URL) | Low (can't decrypt E2E) | P1 |
+| Fake provider connects | ~~Low~~ CLOSED | Low (can't decrypt E2E) | ~~P1~~ DONE |
 | Weak attestation | Medium | Medium (wrong trust routing) | P1 |
 | Coordinator billing manipulation | Low (we control it) | High (financial) | P2 |
 | SQLite corruption | Low | Medium (data loss) | P2 |
 
 ## Recommended Pre-Alpha Hardening Order
 
-1. **Harden the agent** (PyInstaller + codesign) -- closes GAP 1, the P0 risk
+1. ~~**Harden the agent**~~ DONE (PyInstaller onedir + codesign)
 2. **Add provider WS auth** -- closes GAP 3, prevents unauthorized providers
 3. **Write this threat model** -- you're reading it
 4. **Deploy with TLS** -- closes GAP 2 when going public

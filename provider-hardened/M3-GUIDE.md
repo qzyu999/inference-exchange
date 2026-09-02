@@ -254,6 +254,48 @@ curl http://localhost:8000/v1/chat/completions \
 
 ---
 
+## Phase 6: Hardened Agent Binary (Full L2)
+
+The OCIP agent normally runs as plain Python, which a provider operator
+could debug. This phase freezes it into a standalone binary with
+Hardened Runtime -- same protection as the inference server.
+
+Uses `--onedir` mode (not `--onefile`) because macOS Sequoia's strict
+dylib signature checking breaks `--onefile` extraction. The result is
+a directory instead of a single file, but the security is identical.
+
+```bash
+cd ~/Desktop/ie/inference-exchange
+source .venv/bin/activate
+
+# Build (takes ~15 seconds)
+chmod +x provider-hardened/build-agent.sh
+./provider-hardened/build-agent.sh
+```
+
+**Run the hardened agent binary (instead of `python ocip_agent/agent.py`):**
+
+```bash
+./provider-hardened/ie-agent/ie-agent \
+    --name "m3-hardened" \
+    --price-output 0.10 \
+    --trust hardened \
+    --coordinator ws://<coordinator-ip>:8000/ws/provider \
+    --model /path/to/model.gguf
+```
+
+**Verify it can't be debugged:**
+
+```bash
+lldb -p $(pgrep ie-agent) -o quit
+# Should show "no target" -- debugger blocked
+```
+
+Now both processes are hardened. The provider operator cannot observe
+either one's memory. This is full OCIP Level 2.
+
+---
+
 ## Summary: What Each Phase Proves
 
 | Phase | What it proves | Time |
@@ -263,6 +305,7 @@ curl http://localhost:8000/v1/chat/completions \
 | 3 -- PT_DENY_ATTACH | Debuggers blocked, inference unaffected | ~1 min |
 | 4 -- Static + codesign | Hardened Runtime active, kernel protections | ~5 min |
 | 5 -- Full E2E | Two-process arch + coordinator + routing | ~10 min |
+| 6 -- Hardened agent | Agent binary frozen + codesigned, both processes protected | ~2 min |
 
 **For production (not on company laptop):**
 - Phase 6: real Apple Developer ID ($99/yr) for proper codesigning
@@ -302,3 +345,18 @@ was blocked -- that's the success case.
 **Model download blocked by corporate proxy:**
 Download on phone, AirDrop to Mac. Or use Ollama models already
 on disk at `~/.ollama/models/blobs/`.
+
+**PyInstaller `--onefile` fails with "different Team IDs":**
+macOS Sequoia is strict about dylib signatures in `--onefile` mode
+(extracts to temp dir at runtime). Use `--onedir` instead -- the
+`build-agent.sh` script handles this.
+
+**`ModuleNotFoundError: No module named '_cffi_backend'`:**
+Add `--hidden-import _cffi_backend` to the PyInstaller command.
+The `build-agent.sh` script includes this.
+
+**Agent shows "Provider token required":**
+The coordinator has provider tokens in its database. Either create
+a token (`POST /v1/admin/provider-tokens`) and pass it with `--token`,
+or delete `~/.inference-exchange/exchange.db` on the coordinator
+machine and restart (resets to dev mode with no auth).
