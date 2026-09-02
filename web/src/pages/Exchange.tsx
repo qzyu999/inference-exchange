@@ -3,14 +3,11 @@ import { api, Provider, DepthLevel } from '../lib/api'
 import { useEffect, useRef, useState } from 'react'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts'
 
-// --- Dark trading terminal components ---
-
-function StatCard({ label, value, sub, color = 'text-white' }: { label: string; value: string | number; sub?: string; color?: string }) {
+function StatPill({ value, label, color = 'text-gray-900' }: { value: string | number; label: string; color?: string }) {
   return (
-    <div className="bg-gray-800 rounded px-4 py-3 border border-gray-700">
-      <div className="text-[10px] text-gray-500 uppercase tracking-widest">{label}</div>
-      <div className={`text-xl font-bold font-mono ${color}`}>{value}</div>
-      {sub && <div className="text-[10px] text-gray-500">{sub}</div>}
+    <div className="bg-white rounded-xl px-5 py-4 border border-gray-200/60 shadow-sm">
+      <div className={`text-2xl font-bold ${color}`}>{value}</div>
+      <div className="text-xs text-gray-400 mt-0.5">{label}</div>
     </div>
   )
 }
@@ -20,28 +17,20 @@ function DepthChart({ asks }: { asks: DepthLevel[] }) {
     price: `$${d.price.toFixed(2)}`,
     available: d.available_slots,
     total: d.total_slots,
-    providers: d.providers,
-    tps: d.avg_throughput,
   }))
-
   return (
-    <div className="h-48">
+    <div className="h-44">
       <ResponsiveContainer width="100%" height="100%">
         <BarChart data={data} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
-          <XAxis dataKey="price" tick={{ fill: '#9ca3af', fontSize: 11 }} />
-          <YAxis tick={{ fill: '#9ca3af', fontSize: 11 }} />
+          <XAxis dataKey="price" tick={{ fill: '#9ca3af', fontSize: 11 }} axisLine={false} tickLine={false} />
+          <YAxis tick={{ fill: '#9ca3af', fontSize: 11 }} axisLine={false} tickLine={false} />
           <Tooltip
-            contentStyle={{ backgroundColor: '#1f2937', border: '1px solid #374151', borderRadius: 6, fontSize: 12 }}
-            labelStyle={{ color: '#e5e7eb' }}
-            itemStyle={{ color: '#34d399' }}
-            formatter={(val: any, name: any) =>
-              name === 'available' ? [`${val} slots`, 'Available'] : [`${val}`, name]
-            }
+            contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: 12, fontSize: 12, boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}
           />
-          <Bar dataKey="total" fill="#374151" radius={[4, 4, 0, 0]} />
-          <Bar dataKey="available" radius={[4, 4, 0, 0]}>
+          <Bar dataKey="total" fill="#f3f4f6" radius={[6, 6, 0, 0]} />
+          <Bar dataKey="available" radius={[6, 6, 0, 0]}>
             {data.map((_, i) => (
-              <Cell key={i} fill={i === 0 ? '#10b981' : '#059669'} />
+              <Cell key={i} fill={i === 0 ? '#f59e0b' : '#d97706'} />
             ))}
           </Bar>
         </BarChart>
@@ -50,65 +39,48 @@ function DepthChart({ asks }: { asks: DepthLevel[] }) {
   )
 }
 
-function ProviderLadder({ providers }: { providers: Provider[] }) {
-  const sorted = [...providers].sort((a, b) => a.price_output - b.price_output)
+function ProviderRow({ p }: { p: Provider }) {
+  const loadPct = p.load * 100
   return (
-    <div className="space-y-1">
-      {sorted.map(p => {
-        const loadPct = (p.load * 100)
-        const statusDot = p.status === 'active' ? 'bg-green-500' : p.status === 'degraded' ? 'bg-yellow-500' : 'bg-red-500'
-        return (
-          <div key={p.id} className="flex items-center gap-2 text-xs font-mono py-1.5 px-2 rounded bg-gray-800/50 hover:bg-gray-700/50 border border-gray-700/50">
-            <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${statusDot}`} />
-            <span className="text-gray-300 truncate w-24">{p.name || p.id.slice(0, 10)}</span>
-            <span className="text-green-400 w-16 text-right">${p.price_output.toFixed(2)}</span>
-            <span className="text-gray-500 w-14 text-right">{p.measured_tps.toFixed(1)} t/s</span>
-            <div className="flex-1 mx-1">
-              <div className="h-1.5 bg-gray-700 rounded-full overflow-hidden">
-                <div
-                  className={`h-full rounded-full ${loadPct > 80 ? 'bg-red-500' : loadPct > 50 ? 'bg-yellow-500' : 'bg-green-500'}`}
-                  style={{ width: `${Math.max(2, loadPct)}%` }}
-                />
-              </div>
-            </div>
-            <span className="text-gray-500 w-8 text-right">{loadPct.toFixed(0)}%</span>
-            <span className={`w-5 text-center ${p.encrypted ? 'text-green-400' : 'text-gray-600'}`}>
-              {p.encrypted ? '🔒' : ''}
-            </span>
-            <span className="text-[10px] text-gray-600 w-8">{p.trust_level.slice(0, 4)}</span>
-          </div>
-        )
-      })}
+    <div className="flex items-center gap-3 py-3 px-4 rounded-xl hover:bg-gray-50 transition-colors">
+      <span className={`w-2 h-2 rounded-full shrink-0 ${
+        p.status === 'active' ? 'bg-emerald-500' : p.status === 'degraded' ? 'bg-amber-500' : 'bg-red-400'
+      }`} />
+      <span className="font-medium text-gray-900 w-32 truncate text-sm">{p.name || p.id.slice(0, 12)}</span>
+      <span className="text-xs text-gray-400 w-20 truncate">{p.models[0] || '—'}</span>
+      <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
+        p.trust_level === 'hardened' ? 'bg-amber-50 text-amber-600' :
+        p.trust_level === 'confidential' ? 'bg-emerald-50 text-emerald-600' :
+        p.trust_level === 'contained' ? 'bg-blue-50 text-blue-600' :
+        'bg-gray-100 text-gray-500'
+      }`}>{p.trust_level}</span>
+      <span className="text-sm font-semibold text-gray-900 w-16 text-right">${p.price_output.toFixed(2)}</span>
+      <span className="text-xs text-gray-400 w-14 text-right">{p.measured_tps.toFixed(1)} t/s</span>
+      <div className="flex-1 max-w-[80px]">
+        <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+          <div className={`h-full rounded-full transition-all ${
+            loadPct > 80 ? 'bg-red-400' : loadPct > 50 ? 'bg-amber-400' : 'bg-emerald-400'
+          }`} style={{ width: `${Math.max(3, loadPct)}%` }} />
+        </div>
+      </div>
+      {p.encrypted && <span className="text-emerald-500 text-xs">E2E</span>}
     </div>
   )
 }
 
-function TradeTicker({ trades }: { trades: Array<{ request_id: string; model: string; status: string; selected_provider?: string; selected_price?: number; encrypted?: boolean; preference?: string; timestamp: number }> }) {
+function TradeRow({ t }: { t: { request_id: string; status: string; model: string; selected_provider?: string; selected_price?: number; preference?: string; timestamp: number } }) {
+  const time = new Date(t.timestamp * 1000).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+  const ok = t.status === 'completed' || t.status === 'matched' || t.status === 'matched_from_queue'
   return (
-    <div className="space-y-0.5 font-mono text-xs">
-      {trades.length === 0 && <div className="text-gray-600 py-4 text-center">No trades yet</div>}
-      {trades.map(t => (
-        <div key={t.request_id} className="flex items-center gap-2 py-1 px-2 rounded hover:bg-gray-800/50">
-          <span className="text-gray-600 w-16">{new Date(t.timestamp * 1000).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>
-          <span className={`w-2 h-2 rounded-full ${t.status === 'completed' || t.status === 'matched' || t.status === 'matched_from_queue' ? 'bg-green-500' : 'bg-red-500'}`} />
-          <span className="text-gray-300 w-10 truncate">{t.model === 'default' ? 'DEF' : t.model.slice(0, 8)}</span>
-          {t.selected_price != null && (
-            <span className="text-green-400 w-14 text-right">${t.selected_price.toFixed(2)}</span>
-          )}
-          {t.selected_provider && (
-            <span className="text-gray-500 truncate flex-1">{t.selected_provider.length > 12 ? t.selected_provider.slice(0, 12) : t.selected_provider}</span>
-          )}
-          {t.encrypted && <span className="text-green-400">E2E</span>}
-          {t.preference && t.preference !== 'balanced' && (
-            <span className={`text-[10px] px-1 rounded ${
-              t.preference === 'cheapest' ? 'bg-yellow-900/50 text-yellow-400' :
-              t.preference === 'fastest' ? 'bg-blue-900/50 text-blue-400' :
-              t.preference === 'most_secure' ? 'bg-purple-900/50 text-purple-400' :
-              'bg-gray-800 text-gray-400'
-            }`}>{t.preference.slice(0, 5).toUpperCase()}</span>
-          )}
-        </div>
-      ))}
+    <div className="flex items-center gap-3 py-2 text-sm">
+      <span className="text-xs text-gray-400 font-mono w-16">{time}</span>
+      <span className={`w-1.5 h-1.5 rounded-full ${ok ? 'bg-emerald-500' : 'bg-red-400'}`} />
+      <span className="text-gray-700 w-16 truncate text-xs">{t.model === 'default' ? 'default' : t.model.slice(0, 12)}</span>
+      {t.selected_price != null && <span className="font-semibold text-gray-900 text-xs">${t.selected_price.toFixed(2)}</span>}
+      {t.selected_provider && <span className="text-gray-400 text-xs truncate flex-1">{t.selected_provider.slice(0, 14)}</span>}
+      {t.preference && t.preference !== 'balanced' && (
+        <span className="text-[10px] font-medium text-gray-400">{t.preference}</span>
+      )}
     </div>
   )
 }
@@ -118,162 +90,117 @@ function LiveFeed() {
   const scrollRef = useRef<HTMLDivElement>(null)
 
   const { data: recent } = useSWR('recentEvents', api.recentEvents)
-  useEffect(() => {
-    if (recent?.events) setEvents(recent.events.slice(-50))
-  }, [recent])
+  useEffect(() => { if (recent?.events) setEvents(recent.events.slice(-40)) }, [recent])
 
   useEffect(() => {
     const proto = window.location.protocol === 'https:' ? 'wss' : 'ws'
     const ws = new WebSocket(`${proto}://${window.location.host}/ws/events`)
-    ws.onmessage = (e) => {
-      try {
-        const ev = JSON.parse(e.data)
-        setEvents(prev => [...prev.slice(-99), ev])
-      } catch { /* */ }
-    }
+    ws.onmessage = (e) => { try { setEvents(prev => [...prev.slice(-79), JSON.parse(e.data)]) } catch {} }
     return () => ws.close()
   }, [])
 
-  useEffect(() => {
-    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight })
-  }, [events])
+  useEffect(() => { scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight }) }, [events])
 
-  const typeColors: Record<string, string> = {
-    match: 'text-green-400',
-    billing: 'text-yellow-400',
-    provider_connect: 'text-blue-400',
-    provider_disconnect: 'text-red-400',
-    attestation: 'text-purple-400',
+  const colors: Record<string, string> = {
+    match: 'text-emerald-500', billing: 'text-amber-500', provider_connect: 'text-blue-500',
+    provider_disconnect: 'text-red-400', attestation: 'text-purple-500',
   }
 
   return (
-    <div ref={scrollRef} className="h-52 overflow-y-auto font-mono text-[11px] space-y-0.5 pr-1">
-      {events.length === 0 && <div className="text-gray-600 py-8 text-center">Waiting for events...</div>}
+    <div ref={scrollRef} className="h-48 overflow-y-auto text-xs space-y-0.5">
+      {events.length === 0 && <div className="text-gray-300 py-8 text-center">Waiting for activity...</div>}
       {events.map((ev, i) => (
-        <div key={i} className="flex gap-2 py-0.5">
-          <span className="text-gray-600 shrink-0">{new Date(ev.timestamp * 1000).toLocaleTimeString()}</span>
-          <span className={`shrink-0 ${typeColors[ev.type] || 'text-gray-500'}`}>{ev.type}</span>
-          {ev.provider && <span className="text-gray-500">{ev.provider}</span>}
-          {ev.model && <span className="text-gray-500">{ev.model}</span>}
-          {ev.cost_usd != null && <span className="text-yellow-400">${ev.cost_usd.toFixed(6)}</span>}
-          {ev.status && <span className={ev.status === 'passed' ? 'text-green-400' : 'text-red-400'}>{ev.status}</span>}
+        <div key={i} className="flex gap-2 py-0.5 text-gray-500">
+          <span className="text-gray-300 shrink-0">{new Date(ev.timestamp * 1000).toLocaleTimeString()}</span>
+          <span className={colors[ev.type] || 'text-gray-400'}>{ev.type}</span>
+          {ev.provider && <span>{ev.provider}</span>}
+          {ev.model && <span>{ev.model}</span>}
+          {ev.cost_usd != null && <span className="text-amber-500">${ev.cost_usd.toFixed(6)}</span>}
         </div>
       ))}
     </div>
   )
 }
 
-// --- Main Exchange page ---
-
 export function Exchange() {
   const { data: stats } = useSWR('stats', api.stats, { refreshInterval: 3000 })
   const { data: provData } = useSWR('providers', api.providers, { refreshInterval: 3000 })
   const { data: depthData } = useSWR('depth', api.depth, { refreshInterval: 5000 })
   const { data: traceData } = useSWR('traces', api.traces, { refreshInterval: 3000 })
-  const { data: pricing } = useSWR('pricing', api.pricing, { refreshInterval: 10000 })
 
   const providers = provData?.providers || []
   const traces = traceData?.traces || []
-  const recentTrades = [...traces].reverse().slice(0, 20)
-  const bestPrice = pricing?.pricing?.[0]
+  const recentTrades = [...traces].reverse().slice(0, 15)
 
   return (
-    <div className="bg-gray-900 -mx-6 -mt-6 px-6 pt-5 pb-8 min-h-[calc(100vh-56px)] text-gray-200">
-      {/* Header bar */}
-      <div className="flex items-center justify-between mb-5">
-        <div className="flex items-center gap-3">
-          <h1 className="text-xl font-bold text-white">Inference Exchange</h1>
-          <span className="text-[10px] bg-green-900/50 text-green-400 px-2 py-0.5 rounded-full border border-green-800">LIVE</span>
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Exchange</h1>
+          <p className="text-sm text-gray-400 mt-0.5">Live marketplace activity</p>
         </div>
-        {stats && (
-          <div className="flex gap-4 text-xs font-mono text-gray-400">
-            <span><strong className="text-green-400">{stats.providers_online}</strong> nodes</span>
-            <span><strong className="text-white">{stats.models_available}</strong> models</span>
-            <span><strong className="text-white">{stats.total_requests.toLocaleString()}</strong> fills</span>
-            <span className="text-green-400"><strong>${stats.total_volume_usd.toFixed(4)}</strong> vol</span>
-          </div>
-        )}
+        <div className="flex items-center gap-2">
+          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+          <span className="text-xs text-gray-400">Real-time</span>
+        </div>
       </div>
 
-      {/* Stats row */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-5">
-        <StatCard
-          label="Best Ask"
-          value={bestPrice ? `$${bestPrice.output.toFixed(2)}` : '--'}
-          sub={bestPrice ? `${bestPrice.providers_available} provider${bestPrice.providers_available !== 1 ? 's' : ''}` : undefined}
-          color="text-green-400"
-        />
-        <StatCard
-          label="Providers"
-          value={stats?.providers_online ?? '--'}
-          sub={`${providers.filter(p => p.encrypted).length} encrypted`}
-        />
-        <StatCard
-          label="Capacity"
-          value={depthData ? `${depthData.available_capacity}/${depthData.total_capacity}` : '--'}
-          sub="slots avail/total"
-        />
-        <StatCard
-          label="Total Fills"
-          value={stats?.total_requests.toLocaleString() ?? '--'}
-        />
-        <StatCard
-          label="Volume"
-          value={stats ? `$${stats.total_volume_usd.toFixed(4)}` : '--'}
-          sub={stats ? `${stats.total_tokens.toLocaleString()} tokens` : undefined}
-          color="text-green-400"
-        />
-      </div>
+      {/* Stats */}
+      {stats && (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <StatPill value={stats.providers_online} label="Providers online" />
+          <StatPill value={depthData ? `${depthData.available_capacity}/${depthData.total_capacity}` : '--'} label="Capacity (avail/total)" />
+          <StatPill value={stats.total_requests.toLocaleString()} label="Total fills" />
+          <StatPill value={`$${stats.total_volume_usd.toFixed(4)}`} label="Volume" color="text-amber-600" />
+        </div>
+      )}
 
-      {/* Main grid: Depth + Providers left, Trades + Feed right */}
+      {/* Main grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {/* Left: Depth chart + Provider ladder (2 cols) */}
+        {/* Depth + Providers */}
         <div className="lg:col-span-2 space-y-4">
-          {/* Depth chart */}
-          <div className="bg-gray-800/50 rounded-lg border border-gray-700 p-4">
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-widest">Order Depth</h2>
-              <span className="text-[10px] text-gray-600">capacity by price level</span>
-            </div>
+          <div className="bg-white rounded-2xl border border-gray-200/60 shadow-sm p-5">
+            <h2 className="text-sm font-semibold text-gray-900 mb-4">Order Depth</h2>
             {depthData?.asks && depthData.asks.length > 0 ? (
               <DepthChart asks={depthData.asks} />
             ) : (
-              <div className="h-48 flex items-center justify-center text-gray-600 text-sm">No depth data</div>
+              <div className="h-44 flex items-center justify-center text-gray-300 text-sm">Connect a provider to see depth</div>
             )}
           </div>
 
-          {/* Provider ladder */}
-          <div className="bg-gray-800/50 rounded-lg border border-gray-700 p-4">
+          <div className="bg-white rounded-2xl border border-gray-200/60 shadow-sm p-5">
             <div className="flex items-center justify-between mb-3">
-              <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-widest">Provider Ladder</h2>
-              <span className="text-[10px] text-gray-600">{providers.length} node{providers.length !== 1 ? 's' : ''} sorted by price</span>
+              <h2 className="text-sm font-semibold text-gray-900">Providers</h2>
+              <span className="text-xs text-gray-400">{providers.length} online</span>
             </div>
             {providers.length > 0 ? (
-              <ProviderLadder providers={providers} />
+              <div className="space-y-0.5">
+                {providers.sort((a, b) => a.price_output - b.price_output).map(p => <ProviderRow key={p.id} p={p} />)}
+              </div>
             ) : (
-              <div className="py-8 text-center text-gray-600 text-sm">No providers connected</div>
+              <div className="py-8 text-center text-gray-300 text-sm">No providers connected</div>
             )}
           </div>
         </div>
 
-        {/* Right: Trade ticker + Live feed (1 col) */}
+        {/* Trades + Feed */}
         <div className="space-y-4">
-          {/* Recent trades */}
-          <div className="bg-gray-800/50 rounded-lg border border-gray-700 p-4">
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-widest">Recent Fills</h2>
-              <span className="text-[10px] text-gray-600">last {recentTrades.length}</span>
-            </div>
-            <div className="max-h-64 overflow-y-auto">
-              <TradeTicker trades={recentTrades} />
+          <div className="bg-white rounded-2xl border border-gray-200/60 shadow-sm p-5">
+            <h2 className="text-sm font-semibold text-gray-900 mb-3">Recent Fills</h2>
+            <div className="max-h-72 overflow-y-auto">
+              {recentTrades.length > 0 ? (
+                recentTrades.map(t => <TradeRow key={t.request_id} t={t} />)
+              ) : (
+                <div className="py-8 text-center text-gray-300 text-sm">No trades yet</div>
+              )}
             </div>
           </div>
 
-          {/* Live event feed */}
-          <div className="bg-gray-800/50 rounded-lg border border-gray-700 p-4">
+          <div className="bg-white rounded-2xl border border-gray-200/60 shadow-sm p-5">
             <div className="flex items-center justify-between mb-3">
-              <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-widest">Live Feed</h2>
-              <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+              <h2 className="text-sm font-semibold text-gray-900">Live Feed</h2>
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
             </div>
             <LiveFeed />
           </div>
