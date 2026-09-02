@@ -28,6 +28,7 @@ export function Chat() {
   const [preference, setPreference] = useState('balanced')
   const [apiKey, setApiKey] = useState(() => localStorage.getItem('ie_api_key') || '')
   const scrollRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
   const abortRef = useRef<AbortController | null>(null)
 
   const { data: modelsData } = useSWR('models', api.models)
@@ -36,6 +37,8 @@ export function Chat() {
   useEffect(() => { if (!model && modelsData?.data?.length) setModel(modelsData.data[0].id) }, [modelsData, model])
   useEffect(() => { if (!apiKey && health?.default_api_key) { setApiKey(health.default_api_key); localStorage.setItem('ie_api_key', health.default_api_key) } }, [health, apiKey])
   useEffect(() => { scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight }) }, [messages])
+  // Refocus input after streaming ends
+  useEffect(() => { if (!streaming) inputRef.current?.focus() }, [streaming])
 
   async function send() {
     const text = input.trim()
@@ -146,6 +149,7 @@ export function Chat() {
         <div className="flex gap-2">
           <input
             type="text" value={input} onChange={e => setInput(e.target.value)}
+            ref={inputRef}
             onKeyDown={e => e.key === 'Enter' && !e.shiftKey && send()}
             placeholder="Type a message..."
             disabled={streaming}
