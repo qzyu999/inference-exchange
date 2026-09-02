@@ -130,7 +130,13 @@ class AttestationResponse(BaseModel):
     """Provider → Coordinator: response to an attestation challenge."""
     type: str = MessageType.ATTESTATION_RESPONSE
     nonce: str  # Echoed nonce from the challenge
-    sip_enabled: bool = False  # System Integrity Protection enabled
-    secure_boot: bool = False  # Secure boot enabled
-    hardware_attestation: bool = False  # Hardware-level attestation available
-    os_version: str = ""  # OS version string
+    sip_enabled: bool = False
+    secure_boot: bool = False
+    hardware_attestation: bool = False
+    os_version: str = ""
+    # Hardening evidence (new)
+    agent_binary_hash: str = ""  # SHA-256 of the running agent binary
+    server_binary_hash: str = ""  # SHA-256 of the inference server binary
+    hardened_runtime: bool = False  # codesign --options runtime active
+    pt_deny_attach: bool = False  # ptrace(PT_DENY_ATTACH) called
+    platform: str = ""  # "darwin-arm64", "linux-x86_64", etc.

@@ -119,3 +119,17 @@ def get_store():
     if _store is None:
         raise RuntimeError("Store not initialized")
     return _store
+
+
+# --- Audit log singleton ---
+
+_audit_log = None
+
+
+def set_audit_log(audit_log):
+    global _audit_log
+    _audit_log = audit_log
+
+
+def get_audit_log():
+    return _audit_log

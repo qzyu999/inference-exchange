@@ -19,7 +19,8 @@ from inference_exchange.shared.protocol import (
     RegisterMessage,
 )
 
-from .dependencies import set_auth, set_billing, set_event_bus, set_hub, set_reputation, set_store, set_tps_tracker
+from .dependencies import set_auth, set_billing, set_event_bus, set_hub, set_reputation, set_store, set_tps_tracker, set_audit_log
+from .audit_log import AuditLog
 from .routes_admin import router as admin_router
 from .routes_auth import router as auth_router
 from .routes_exchange import router as exchange_router
@@ -211,6 +212,9 @@ def create_app() -> FastAPI:
     set_event_bus(event_bus)
     set_store(store)
 
+    audit_log = AuditLog()
+    set_audit_log(audit_log)
+
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         # Start attestation challenge background task
@@ -322,6 +326,19 @@ def create_app() -> FastAPI:
                             "provider_id": provider_id,
                             "status": p.attestation_status,
                         })
+                        # Audit log
+                        resp = AttestationResponse(**data)
+                        audit_log.log_attestation(
+                            provider_id=provider_id,
+                            provider_name=p.name,
+                            status=p.attestation_status,
+                            sip_enabled=resp.sip_enabled,
+                            hardened_runtime=resp.hardened_runtime,
+                            pt_deny_attach=resp.pt_deny_attach,
+                            agent_hash=resp.agent_binary_hash,
+                            server_hash=resp.server_binary_hash,
+                            platform=resp.platform,
+                        )
 
                 elif msg_type in (
                     MessageType.INFERENCE_RESPONSE,
