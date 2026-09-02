@@ -53,10 +53,10 @@ class InferenceOrder:
     preference: RoutingPreference = RoutingPreference.BALANCED
     min_throughput_tps: float = 0  # Preferred minimum tok/s (soft)
 
-    # Metadata
-    estimated_tokens: int = 100  # Estimated output tokens (for capacity planning)
+    estimated_tokens: int = 100
     submitted_at: float = field(default_factory=time.time)
-    timeout_seconds: float = 120.0  # Max time in queue before 503
+    timeout_seconds: float = 120.0
+    session_affinity_provider_id: str = ""  # Prefer this provider (cache benefit)
 
     @property
     def is_expired(self) -> bool:
@@ -65,31 +65,22 @@ class InferenceOrder:
 
 @dataclass
 class ProviderOffer:
-    """A provider's standing offer to serve inference — the 'sell' side.
+    """A provider's standing offer to serve inference — the 'sell' side."""
 
-    This represents current provider capacity. It's updated on every heartbeat
-    and when requests are assigned/completed.
-    """
-
-    # Identity
     provider_id: str
     provider_name: str
-
-    # What they offer
     models: list[str]
     price_per_mtok_input: float
     price_per_mtok_output: float
     confidence_level: ConfidenceLevel
-    measured_throughput_tps: float  # Observed tokens/sec
+    measured_throughput_tps: float
 
-    # Current state
-    total_slots: int  # max_concurrent
-    used_slots: int = 0  # Currently in-flight requests
-    encrypted: bool = False  # Supports E2E encryption
-
-    # Hardware context (for scoring)
+    total_slots: int
+    used_slots: int = 0
+    encrypted: bool = False
     hardware: str = "unknown"
     memory_gb: float = 0
+    reputation_score: float = 1.0  # [0, 1] from ReputationTracker
 
     @property
     def available_slots(self) -> int:

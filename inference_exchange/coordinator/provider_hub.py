@@ -50,45 +50,38 @@ class ConnectedProvider:
         return self.active_requests / self.capabilities.max_concurrent
 
     def score_for_request(self, model: str, preference: str = "balanced") -> float:
-        """Higher score = better candidate for serving this request."""
-        if model != "default" and model not in self.capabilities.models:
-            return -1  # Can't serve this model
+        """Score this provider for a request. Used for trace/display only."""
+        from .matching.models import ConfidenceLevel, InferenceOrder, ProviderOffer, RoutingPreference
+        from .matching.strategy import compute_score
 
-        if self.load_factor >= 1.0:
-            return -1  # At capacity
+        pref_map = {
+            "cheapest": RoutingPreference.CHEAPEST,
+            "fastest": RoutingPreference.FASTEST,
+            "most_secure": RoutingPreference.MOST_SECURE,
+            "balanced": RoutingPreference.BALANCED,
+        }
+        conf_map = {"open": ConfidenceLevel.OPEN, "contained": ConfidenceLevel.CONTAINED,
+                     "hardened": ConfidenceLevel.HARDENED, "confidential": ConfidenceLevel.CONFIDENTIAL}
 
-        # Weights based on consumer preference
-        if preference == "cheapest":
-            w_price, w_speed, w_trust, w_load = 0.8, 0.05, 0.05, 0.1
-        elif preference == "fastest":
-            w_price, w_speed, w_trust, w_load = 0.05, 0.8, 0.05, 0.1
-        elif preference == "most_secure":
-            w_price, w_speed, w_trust, w_load = 0.05, 0.05, 0.8, 0.1
-        else:  # balanced
-            w_price, w_speed, w_trust, w_load = 0.3, 0.3, 0.2, 0.2
-
-        # Price score: cheaper → higher (0 to 1)
-        price = self.capabilities.price_per_mtok_output
-        price_score = 1.0 / (1.0 + price)
-
-        # Speed score: faster → higher (0 to ~1)
-        tps = self.capabilities.measured_tps
-        speed_score = tps / (10.0 + tps)
-
-        # Trust score: higher confidence → higher (0 to 1)
-        trust_map = {"open": 0, "contained": 0.25, "hardened": 0.5, "confidential": 0.75}
-        trust_score = trust_map.get(self.capabilities.trust_level.value, 0)
-
-        # Load score: less loaded → higher
-        load_score = 1.0 - self.load_factor
-
-        score = (
-            w_price * price_score
-            + w_speed * speed_score
-            + w_trust * trust_score
-            + w_load * load_score
+        order = InferenceOrder(
+            order_id="trace", consumer_id="",
+            model=model,
+            preference=pref_map.get(preference, RoutingPreference.BALANCED),
         )
-        return score
+        offer = ProviderOffer(
+            provider_id=self.provider_id,
+            provider_name=self.name,
+            models=self.capabilities.models,
+            price_per_mtok_input=self.capabilities.price_per_mtok_input,
+            price_per_mtok_output=self.capabilities.price_per_mtok_output,
+            confidence_level=conf_map.get(self.capabilities.trust_level.value, ConfidenceLevel.OPEN),
+            measured_throughput_tps=self.capabilities.measured_tps,
+            total_slots=self.capabilities.max_concurrent,
+            used_slots=self.active_requests,
+            encrypted=bool(self.encryption_public_key),
+            hardware=self.capabilities.hardware,
+        )
+        return compute_score(order, offer)
 
 
 @dataclass
@@ -198,68 +191,69 @@ class ProviderHub:
         session_id: str | None = None,
         reputation_fn=None,
     ) -> ConnectedProvider | None:
-        """Pick the best available provider for a request with consumer preferences.
+        """Pick the best provider using the formal matching engine."""
+        from .matching.models import ConfidenceLevel, InferenceOrder, ProviderOffer, RoutingPreference
+        from .matching.strategy import GreedyStrategy, compute_score
 
-        Args:
-            model: Required model name
-            preference: Routing preference (cheapest/fastest/most_secure/balanced)
-            min_confidence: Minimum trust level
-            max_price: Max $/Mtok output
-            session_id: If provided, prefer the provider that last served this session (cache affinity)
-            reputation_fn: Callable(provider_id) → float [0,1] reputation score
-        """
-        # Map confidence strings to numeric values for comparison
-        confidence_map = {"open": 0, "contained": 1, "hardened": 2, "confidential": 3}
-        min_conf_val = confidence_map.get(min_confidence, 0)
+        # Map string preference to enum
+        pref_map = {
+            "cheapest": RoutingPreference.CHEAPEST,
+            "fastest": RoutingPreference.FASTEST,
+            "most_secure": RoutingPreference.MOST_SECURE,
+            "balanced": RoutingPreference.BALANCED,
+        }
+        conf_map = {"open": ConfidenceLevel.OPEN, "contained": ConfidenceLevel.CONTAINED,
+                     "hardened": ConfidenceLevel.HARDENED, "confidential": ConfidenceLevel.CONFIDENTIAL}
 
-        # Session affinity: check if we have a previous provider for this session
-        session_provider: ConnectedProvider | None = None
+        # Resolve session affinity
+        affinity_pid = ""
         if session_id and session_id in self._session_affinity:
-            pid = self._session_affinity[session_id]
-            if pid in self._providers:
-                candidate = self._providers[pid]
-                # Verify it's still eligible
-                score = candidate.score_for_request(model, preference)
-                conf = confidence_map.get(candidate.capabilities.trust_level.value, 0)
-                price_ok = max_price is None or candidate.capabilities.price_per_mtok_output <= max_price
-                if score > 0 and conf >= min_conf_val and price_ok:
-                    session_provider = candidate
+            affinity_pid = self._session_affinity[session_id]
 
-        # If session affinity found a valid provider, prefer it (cache benefit)
-        if session_provider:
-            return session_provider
+        # Build order
+        order = InferenceOrder(
+            order_id="select",
+            consumer_id="",
+            model=model,
+            max_price_per_mtok=max_price if max_price is not None else float("inf"),
+            min_confidence=conf_map.get(min_confidence, ConfidenceLevel.OPEN),
+            preference=pref_map.get(preference, RoutingPreference.BALANCED),
+            session_affinity_provider_id=affinity_pid,
+        )
 
-        best: ConnectedProvider | None = None
-        best_score = -1.0
+        # Build offers from connected providers
+        offers = []
+        for p in self._providers.values():
+            rep = reputation_fn(p.provider_id) if reputation_fn else 1.0
+            trust_str = p.capabilities.trust_level.value
+            offers.append(ProviderOffer(
+                provider_id=p.provider_id,
+                provider_name=p.name,
+                models=p.capabilities.models,
+                price_per_mtok_input=p.capabilities.price_per_mtok_input,
+                price_per_mtok_output=p.capabilities.price_per_mtok_output,
+                confidence_level=conf_map.get(trust_str, ConfidenceLevel.OPEN),
+                measured_throughput_tps=p.capabilities.measured_tps,
+                total_slots=p.capabilities.max_concurrent,
+                used_slots=p.active_requests,
+                encrypted=bool(p.encryption_public_key),
+                hardware=p.capabilities.hardware,
+                reputation_score=rep,
+            ))
 
-        for provider in self._providers.values():
-            score = provider.score_for_request(model, preference)
-            if score < 0:
-                continue
+        # Run greedy match
+        strategy = GreedyStrategy()
+        matches, _ = strategy.match([order], offers)
 
-            # Hard constraint: minimum confidence level
-            provider_conf = confidence_map.get(provider.capabilities.trust_level.value, 0)
-            if provider_conf < min_conf_val:
-                continue
+        if matches:
+            winner_id = matches[0].provider_id
+            if winner_id in self._providers:
+                # Record session affinity
+                if session_id:
+                    self._session_affinity[session_id] = winner_id
+                return self._providers[winner_id]
 
-            # Hard constraint: max price
-            if max_price is not None and provider.capabilities.price_per_mtok_output > max_price:
-                continue
-
-            # Factor in reputation (if available)
-            if reputation_fn:
-                rep_score = reputation_fn(provider.provider_id)
-                score *= (0.5 + 0.5 * rep_score)  # Reputation scales score 50%-100%
-
-            if score > best_score:
-                best_score = score
-                best = provider
-
-        # Record session affinity for next request
-        if best and session_id:
-            self._session_affinity[session_id] = best.provider_id
-
-        return best
+        return None
 
     def create_response_queue(self, request_id: str) -> asyncio.Queue:
         """Create a queue for streaming response chunks back to the consumer."""

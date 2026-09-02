@@ -67,28 +67,24 @@ def compute_score(order: InferenceOrder, offer: ProviderOffer) -> float:
 
     Returns -1 if the pair is ineligible (hard constraint violated).
     Otherwise returns a positive score (higher = better match).
+    Includes reputation scaling and session affinity bonus.
     """
-    # --- Hard constraints (any failure = ineligible) ---
+    # --- Hard constraints ---
 
-    # Model must match (or order accepts "default")
     if order.model != "default" and order.model not in offer.models:
         return -1
 
-    # Price must be within budget
     if offer.price_per_mtok_output > order.max_price_per_mtok:
         return -1
 
-    # Security must meet minimum
     if offer.confidence_level.value < order.min_confidence.value:
         return -1
 
-    # Provider must have capacity
     if not offer.is_available:
         return -1
 
     # --- Soft scoring ---
 
-    # Determine weights based on consumer preference
     if order.preference == RoutingPreference.CHEAPEST:
         w_price, w_speed, w_trust, w_load = 0.6, 0.15, 0.1, 0.15
     elif order.preference == RoutingPreference.FASTEST:
@@ -98,27 +94,24 @@ def compute_score(order: InferenceOrder, offer: ProviderOffer) -> float:
     else:  # BALANCED
         w_price, w_speed, w_trust, w_load = 0.35, 0.25, 0.2, 0.2
 
-    # Price score: lower price → higher score. Normalized to [0, 1].
-    # At $0/Mtok → 1.0, at $5/Mtok → ~0.17
     price_score = 1.0 / (1.0 + offer.price_per_mtok_output)
-
-    # Speed score: higher throughput → higher score. Normalized.
-    # 0 tok/s → 0.0, 100 tok/s → 0.91, 200 tok/s → 0.95
     speed_score = offer.measured_throughput_tps / (10.0 + offer.measured_throughput_tps)
-
-    # Trust score: higher confidence → higher score. Normalized to [0, 1].
     trust_score = offer.confidence_level.value / 4.0
-
-    # Load score: lower load → higher score.
     load_score = 1.0 - offer.load_factor
 
-    # Composite
     score = (
         w_price * price_score
         + w_speed * speed_score
         + w_trust * trust_score
         + w_load * load_score
     )
+
+    # Reputation: scales score between 50%-100%
+    score *= (0.5 + 0.5 * offer.reputation_score)
+
+    # Session affinity: 20% bonus if this provider served the same session before
+    if order.session_affinity_provider_id == offer.provider_id:
+        score *= 1.2
 
     return score
 
