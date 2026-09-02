@@ -1,159 +1,138 @@
-# Inference Exchange — Roadmap & Status
+# Inference Exchange -- Roadmap & Status
 
-## Current State — 290+ tests, modular codebase, spec-aligned
+## Current State -- 307 tests, hardened E2E, cross-machine proven
 
 ### Core Infrastructure ✅
-- **Coordinator** — FastAPI, modular routes (auth, exchange, inference, admin)
-- **Provider Agent** — WebSocket client, inference via llama-cpp-python
-- **OCIP Agent** — Two-process architecture (agent + isolated inference server)
-- **Protocol** — OCIP wire format with versioning, REGISTERED confirmation
-- **Persistence** — SQLite (accounts, API keys, billing — survives restarts)
-- **Structured Errors** — OCIP-typed errors (NoProviderAvailable, ProviderTimeout, etc.)
-
-### Matching Engine ✅
-- Multi-dimensional scoring: price × speed × trust × load × reputation
-- Consumer preference routing: cheapest / fastest / most_secure / balanced
-- Session affinity (cache benefit for repeat conversations)
-- Request queuing with FIFO dispatch (50 depth, 30s timeout)
-- Request retry on provider failure
-- Full decision traces per request
+- Coordinator -- FastAPI, 5 route modules, SQLite persistence
+- OCIP Agent -- two-process architecture (agent + hardened inference server)
+- Matching engine -- formal GreedyStrategy wired into live routing
+- Protocol -- OCIP wire format with versioning, REGISTERED confirmation
+- Structured OCIP error types
+- Audit log (append-only, hash-chained)
 
 ### Security & Privacy ✅
-- E2E encryption (X25519 + XSalsa20-Poly1305, per-request forward secrecy)
-- Attestation challenge-response protocol (5-minute intervals)
-- HF model hash verification (SHA-256 against HuggingFace)
-- Hardening plans for macOS, Windows, Linux (documented)
-- Hardening C modules written (macOS PT_DENY_ATTACH, Windows mitigations)
+- E2E request encryption (X25519, per-request forward secrecy)
+- E2E response encryption (consumer keypair via IE SDK)
+- Hardened llama-server (PT_DENY_ATTACH + Hardened Runtime, verified M2 Max)
+- Hardened agent binary (PyInstaller + codesign, onedir mode)
+- Attestation with hardening evidence (SIP, runtime, binary hashes)
+- Provider WebSocket auth (token-based)
+- Model identity from GGUF metadata + SHA-256 hash verification vs HuggingFace
 - OCIP confidence levels (L0-L3)
+- Formal threat model (5 attack surfaces, 5 gaps -- 4 closed)
+
+### Matching & Routing ✅
+- GreedyStrategy + BatchAuctionStrategy (formal module)
+- Multi-dimensional scoring: price, speed, trust, load
+- Consumer preferences: cheapest / fastest / most_secure / balanced
+- Reputation scaling (EMA, 50-100% score modifier)
+- Session affinity (20% bonus, LRU-bounded)
+- Request queuing (50 depth, 30s timeout, FIFO dispatch)
+- Request retry on provider failure
 
 ### Billing & Economics ✅
-- Per-request billing (input + output tokens, proportional pricing)
-- Provider earnings (90/10 split, platform fee)
-- Multi-tenant API keys with isolated balances
-- Rate limiting (30 req/min per key, token bucket)
-- Financial invariants verified (290+ tests, no money lost)
-- Billing/caching economics fully documented
+- Per-token billing (input + output, proportional pricing)
+- 90/10 provider/platform split
+- Multi-tenant API keys (SHA-256 hashed, SQLite)
+- Rate limiting (30 req/min token bucket)
+- Financial invariants property-tested (1000 random events)
 
-### Observability ✅
-- Consumer dashboard + Admin control plane
-- Real-time WebSocket event feed (match, billing, connect/disconnect, attestation)
-- TPS performance tracking (EMA + hardware lookup table)
-- Provider reputation (EMA, degradation detection)
-- Decision traces, telemetry, model discovery
+### React Frontend ✅ (8 pages)
+- Landing -- privacy-first hero, trust levels, features, live pricing
+- Exchange -- depth chart, provider ladder, trade ticker, live feed
+- Chat -- streaming SSE, model/preference selectors, markdown, persistence
+- Models -- HuggingFace search + exchange catalog with pricing
+- Providers -- cards with trust badges, load bars, reputation, setup CTA
+- Billing -- balance cards, transaction history, pricing explainer
+- API Keys -- key management + quick start (curl, Python, TypeScript)
+- Admin -- system state, TPS, reputation, decision traces, telemetry
+- Apple-clean design (amber brand, rounded cards, frosted nav)
+- IE favicon + proper meta tags
 
 ### Testing ✅
-- 290+ tests across 17 test files
-- Financial invariant property tests (1000 random events, books balance)
-- Store.py (SQLite) fully tested including persistence across restarts
-- TPS tracker fully tested (EMA, hardware lookup, anomaly detection)
-- Crypto (encrypt/decrypt roundtrip, forward secrecy, wrong key)
-- Session affinity, disconnect handling, event bus, rate limiter, matching
-- OpenAI SDK compatibility proven
+- 307 tests across 19 files
+- GGUF metadata parser tests (model identity)
+- Hash-chained audit log tests (tamper detection)
+- Financial invariant property tests
+- SQLite persistence tests
+- Matching engine tests
+- Crypto roundtrip + forward secrecy tests
 
-### React Frontend ✅
-- Full SPA: Landing, Exchange, Chat, Models, Providers, Admin pages
-- Typed API client (SWR for data fetching, auto-refresh)
-- Streaming chat with SSE (model picker, preference selector, cancel)
-- Exchange "trading floor" — order depth, live providers, real-time WebSocket feed
-- Model search (HuggingFace integration + exchange catalog)
-- Provider cards (status, trust, TPS, reputation, hardware)
-- Admin dashboard (accounts, TPS, reputation, decision traces, raw state)
-- Tailwind CSS, Vite build (227KB JS + 17KB CSS production bundle)
-- Vite proxy config for local dev (no CORS issues)
-
-### Documentation ✅ (12 docs)
-- OCIP Protocol Spec (7 documents)
-- Architecture, billing economics, consumer integration guide
+### Documentation ✅ (16 docs)
+- Architecture (current file map, request flow, security layers)
+- Threat model (attack surfaces, gaps, risk matrix)
+- Provider architecture (multi-engine, hardening levels, E2E design)
+- E2E encryption status (both paths encrypted)
+- System design (POC vs production deployment)
+- M3 hardening guide (6 phases, tested)
+- Billing/caching economics, consumer integration, OCIP agent architecture
 - Platform hardening plans (macOS, Windows, Linux)
-- Agent architecture, project review, roadmap, system design
+- Product spec, roadmap
 
 ---
 
 ## Completed Phases
 
-### Phase 1: Refactoring ✅
-- ~~Split api.py (1133 lines) into 5 modules~~ ✅
-- ~~Remove dead code (billing.py → billing_memory.py, auth.py → auth_memory.py)~~ ✅
-- ~~Fix prompt_tokens:10 bug~~ ✅
-- ~~Fix API key plaintext logging~~ ✅
-- ~~Deprecate provider/agent.py~~ ✅
-- ~~Align ConfidenceLevel~~ ✅
+### Phase 1: Core + Refactoring ✅
+- Split api.py into 5 route modules
+- SQLite persistence (replaces in-memory)
+- OCIP spec alignment (protocol version, REGISTERED, structured errors)
 
-### Phase 2: Spec Alignment ✅
-- ~~Add protocol_version to RegisterMessage~~ ✅
-- ~~Implement REGISTERED confirmation message~~ ✅
-- ~~Structured OCIP error types~~ ✅
-- ~~Encryption key endpoint~~ ✅
+### Phase 2: Security ✅
+- E2E request encryption (X25519)
+- E2E response encryption (consumer keypair)
+- Hardened llama-server (PT_DENY_ATTACH + Hardened Runtime)
+- Hardened agent binary (PyInstaller onedir + codesign)
+- Provider WebSocket auth (token-based)
+- Attestation with hardening evidence
+- Model identity (GGUF metadata + SHA-256 vs HuggingFace)
+- Formal threat model
 
-### Phase 2.5: Test Gap Filling ✅
-- ~~Store.py (SQLite persistence) tests~~ ✅ (41 tests)
-- ~~TPS tracker tests~~ ✅ (46 tests)
+### Phase 3: Matching Engine ✅
+- Wired formal matching module into live routing
+- Replaced inline scoring with GreedyStrategy
+- Added reputation and session affinity to scoring
 
-### Phase 3: React Frontend ✅
-- ~~React SPA with Vite + TypeScript + Tailwind~~ ✅
-- ~~Landing page with live stats~~ ✅
-- ~~Exchange page with depth, providers, traces, WebSocket event feed~~ ✅
-- ~~Chat page with streaming SSE + model/preference selectors~~ ✅
-- ~~Models page with HuggingFace search~~ ✅
-- ~~Providers page with reputation + TPS cards~~ ✅
-- ~~Admin page with accounts, traces, telemetry, raw state~~ ✅
+### Phase 4: React Frontend ✅
+- 8-page SPA (Vite + React + TypeScript + Tailwind)
+- Apple-clean redesign (amber brand, consistent cards)
+- Chat persistence, typing indicator, auto-refocus
+
+### Phase 5: Cross-Machine POC ✅
+- Intel MBP (coordinator) <-> M2 Max (hardened provider) over WiFi
+- Full E2E: encrypted prompt -> routing -> hardened inference -> encrypted response
+- IE SDK verified (consumer-side decryption)
+
+### Phase 6: Codebase Cleanup ✅
+- Architecture doc rewritten
+- Dead code removed (hardened_client.py)
+- Dependency types fixed (protocol interfaces)
+- Session affinity LRU-bounded
+- /health API key gated
+- Admin dashboard weights corrected
+- 307 tests (17 new for model identity + audit log)
 
 ---
 
 ## Next Steps
 
-### Deployment Phases (see docs/system-design.md for full detail)
+### Pre-Deploy (code work, no infra needed)
+1. **User accounts** (OAuth/email signup) -- consumer + provider identity
+2. **Provider self-service** -- `ie-provider login` device-code flow
+3. **Consumer SDK polish** -- retry, timeouts, async, error handling
+4. **Multi-provider testing** -- 2+ providers with different models/prices
 
-**Phase A: Local POC (current)**
-- Vite dev server (:3000) proxies to coordinator (:8000)
-- SQLite, in-process state, localhost-only
-- Docker optional (demo with 3 providers)
+### Deploy
+5. **Cloud coordinator** (Fly.io + TLS) -- public URL, anyone can test
+6. **CDN for React SPA** (Cloudflare Pages) -- fast static hosting
+7. **TLS everywhere** -- HTTPS/WSS, closes threat model GAP 2
 
-**Phase B: Single-Node Deploy**
-- `vite build` → static SPA on CDN (Cloudflare Pages)
-- Coordinator on a single VM (Fly.io / Railway) with TLS via Caddy
-- SQLite in WAL mode (still OK for <100 concurrent)
-- Providers connect remotely over WSS
-
-**Phase C: Horizontally Scaled**
-- PostgreSQL replaces SQLite (distributed ACID for billing)
-- Redis for provider registry, session affinity, rate limits
-- N coordinator containers behind ALB, sticky WS sessions
-- Separate domains: `console.inference.exchange` (CDN), `api.inference.exchange` (ALB)
-
-**Phase D: Full Production**
-- Stripe (real deposits + provider payouts)
-- OAuth user accounts
-- Monitoring (Datadog / Prometheus)
-- Hardware attestation verification
-- Geographic routing
-
-### Software (no special hardware needed)
-1. **Wire matching/ module into live system** — replace provider_hub's inline scoring with the formal matching engine
-2. **Provider pip package** — `pip install ie-provider && ie-provider start`
-3. **Single-node deploy** — Fly.io/Railway with Caddy reverse proxy, SPA on CDN
-
-### Requires Specific Hardware
-4. **Apple Silicon hardened build** — compile llama.cpp with hardening, codesign, test on M1+
-5. **Stripe integration** — real money deposits + provider payouts
-6. **Remote provider demo** — ngrok/Tailscale, provider on different machine
-
-### Ecosystem
-7. **AMD SEV-SNP Level 3** — hardware-encrypted inference
-8. **Linux KVM + VFIO** — full GPU passthrough with hypervisor isolation
-9. **Tool configuration guides** — Cursor, Continue, Aider, LangChain
-10. **Federation** — multiple coordinators sharing provider fleet
+### Post-Deploy (product growth)
+8. **Stripe integration** -- real deposits + provider payouts
+9. **Apple App Attest** -- hardware-backed attestation
+10. **Multi-coordinator federation** -- HA, geographic routing
 
 ---
-
-## Codebase Stats
-
-- **~5,500 lines** Python source (40+ files, modular)
-- **~1,200 lines** TypeScript/React (7 pages + API client + layout)
-- **~3,000 lines** tests (17 files, 290+ tests)
-- **~4,000 lines** documentation (12 docs)
-- **~1,000 lines** OCIP spec (7 documents)
-- **Total: ~14,700 lines** across both repos
 
 ## Repos
 - **inference-exchange**: https://github.com/qzyu999/inference-exchange (MIT)
