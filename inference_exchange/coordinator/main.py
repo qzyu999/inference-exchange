@@ -7,7 +7,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 import uvicorn
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.staticfiles import StaticFiles
 
 from inference_exchange.config import CoordinatorConfig
@@ -383,14 +383,16 @@ def create_app() -> FastAPI:
 
     # Health / info endpoints
     @app.get("/health")
-    async def health():
-        return {
+    async def health(raw_request: Request):
+        result = {
             "status": "ok",
             "providers": hub.provider_count,
             "models": hub.available_models,
-            "default_api_key": auth.default_key,
-            "db": str(store._db_path),
         }
+        # Only include API key when requested (for the web frontend auto-fill)
+        if raw_request.query_params.get("include_key") == "1":
+            result["default_api_key"] = auth.default_key
+        return result
 
     # Serve web UI at root
     app.mount("/", StaticFiles(directory=str(STATIC_DIR), html=True), name="static")

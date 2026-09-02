@@ -126,7 +126,7 @@ export interface TPSEntry {
 // --- API functions ---
 
 export const api = {
-  health: () => get<HealthResponse>('/health'),
+  health: () => get<HealthResponse>('/health?include_key=1'),
   stats: () => get<ExchangeStats>('/v1/exchange/stats'),
   providers: () => get<{ providers: Provider[] }>('/v1/exchange/providers'),
   pricing: () => get<{ pricing: PricingEntry[] }>('/v1/exchange/pricing'),

@@ -112,8 +112,9 @@ class ProviderHub:
         # Maps request_id → asyncio.Queue for streaming responses back to consumer
         self._response_queues: dict[str, asyncio.Queue] = {}
         self._next_provider_id = 0
-        # Session affinity: session_id → provider_id (for cache preference)
+        # Session affinity: session_id -> provider_id (LRU, max 1000 entries)
         self._session_affinity: dict[str, str] = {}
+        self._SESSION_AFFINITY_MAX = 1000
         # Maps request_id → provider_id (for disconnect cleanup)
         self._request_to_provider: dict[str, str] = {}
         # Pending request queue: requests waiting for a provider to free up
@@ -248,9 +249,13 @@ class ProviderHub:
         if matches:
             winner_id = matches[0].provider_id
             if winner_id in self._providers:
-                # Record session affinity
+                # Record session affinity (with LRU eviction)
                 if session_id:
                     self._session_affinity[session_id] = winner_id
+                    if len(self._session_affinity) > self._SESSION_AFFINITY_MAX:
+                        # Remove oldest entry (first key in dict, insertion-ordered)
+                        oldest = next(iter(self._session_affinity))
+                        del self._session_affinity[oldest]
                 return self._providers[winner_id]
 
         return None
