@@ -21,7 +21,9 @@ const PREFERENCES = [
 ]
 
 export function Chat() {
-  const [messages, setMessages] = useState<Message[]>([])
+  const [messages, setMessages] = useState<Message[]>(() => {
+    try { const saved = localStorage.getItem('ie_chat_history'); return saved ? JSON.parse(saved) : [] } catch { return [] }
+  })
   const [input, setInput] = useState('')
   const [streaming, setStreaming] = useState(false)
   const [model, setModel] = useState('')
@@ -37,6 +39,8 @@ export function Chat() {
   useEffect(() => { if (!model && modelsData?.data?.length) setModel(modelsData.data[0].id) }, [modelsData, model])
   useEffect(() => { if (!apiKey && health?.default_api_key) { setApiKey(health.default_api_key); localStorage.setItem('ie_api_key', health.default_api_key) } }, [health, apiKey])
   useEffect(() => { scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight }) }, [messages])
+  // Persist chat history
+  useEffect(() => { if (messages.length > 0) localStorage.setItem('ie_chat_history', JSON.stringify(messages)) }, [messages])
   // Refocus input after streaming ends
   useEffect(() => { if (!streaming) inputRef.current?.focus() }, [streaming])
 
@@ -103,7 +107,7 @@ export function Chat() {
           ))}
         </div>
         <div className="flex-1" />
-        <button onClick={() => setMessages([])} className="px-3 py-1.5 text-xs text-gray-400 hover:text-gray-600 transition-colors">Clear</button>
+        <button onClick={() => { setMessages([]); localStorage.removeItem('ie_chat_history') }} className="px-3 py-1.5 text-xs text-gray-400 hover:text-gray-600 transition-colors">Clear</button>
       </div>
 
       {/* Messages */}
@@ -128,7 +132,13 @@ export function Chat() {
                 <div className="whitespace-pre-wrap text-sm">{m.content || '...'}</div>
               ) : (
                 <div className="text-sm prose prose-sm max-w-none prose-p:my-1 prose-pre:bg-gray-50 prose-pre:border prose-pre:border-gray-200 prose-pre:text-gray-800 prose-code:text-amber-600 prose-code:bg-amber-50 prose-code:px-1 prose-code:rounded prose-code:before:content-none prose-code:after:content-none">
-                  {m.content ? <ReactMarkdown remarkPlugins={[remarkGfm]}>{m.content}</ReactMarkdown> : <span className="text-gray-300">...</span>}
+                  {m.content ? <ReactMarkdown remarkPlugins={[remarkGfm]}>{m.content}</ReactMarkdown> : (
+                    <span className="inline-flex gap-1">
+                      <span className="w-1.5 h-1.5 bg-gray-300 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                      <span className="w-1.5 h-1.5 bg-gray-300 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                      <span className="w-1.5 h-1.5 bg-gray-300 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                    </span>
+                  )}
                 </div>
               )}
               {m.role === 'assistant' && (m.model || m.tokens != null || m.cost_usd != null) && (
