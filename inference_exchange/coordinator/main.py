@@ -8,6 +8,7 @@ from pathlib import Path
 
 import uvicorn
 from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from inference_exchange.config import CoordinatorConfig
@@ -234,6 +235,15 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
 
+    # CORS: allow same-origin + configured origins
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["http://localhost:3000", "http://localhost:8000"],
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
     # Mount consumer API routers
     app.include_router(auth_router)
     app.include_router(exchange_router)
@@ -241,6 +251,9 @@ def create_app() -> FastAPI:
     app.include_router(inference_router)
 
     # Provider WebSocket endpoint
+    WS_MAX_MESSAGE_SIZE = 1_000_000  # 1MB max per WS message
+    WS_IDLE_TIMEOUT = 300  # 5 min idle = disconnect
+
     @app.websocket("/ws/provider")
     async def provider_websocket(ws: WebSocket):
         await ws.accept()
@@ -308,6 +321,9 @@ def create_app() -> FastAPI:
             # Main message loop
             while True:
                 raw = await ws.receive_text()
+                if len(raw) > WS_MAX_MESSAGE_SIZE:
+                    logger.warning(f"Provider {provider_id}: message too large ({len(raw)} bytes)")
+                    continue
                 data = json.loads(raw)
                 msg_type = data.get("type")
 
