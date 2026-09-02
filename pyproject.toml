@@ -33,7 +33,7 @@ dev = [
 ]
 
 [tool.setuptools.packages.find]
-include = ["inference_exchange*"]
+include = ["inference_exchange*", "ocip_agent*", "ocip_server*"]
 
 [tool.ruff]
 line-length = 100

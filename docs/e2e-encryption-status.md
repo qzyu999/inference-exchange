@@ -2,28 +2,26 @@
 
 ## What Works Now
 
+Both request and response paths are encrypted when using the IE SDK.
+
 ```
-Consumer ────HTTP/SSE────▶ Coordinator ────WS (encrypted)────▶ Provider
-  (plaintext)                  │                                   │
-                               │ encrypts request                  │ decrypts request
-                               │ using provider's                  │ using private key
-                               │ X25519 public key                 │
-                               │                                   │
-                               │◀───WS (PLAINTEXT tokens)──────────│
-  (plaintext)◀──SSE────────────│                                   │
+Consumer (IE SDK)        Coordinator              Provider
+  encrypts prompt ------> opaque relay --------> agent decrypts
+  decrypts response <---- opaque relay <-------- agent encrypts response
 ```
 
 **Request path (consumer prompt -> provider): ENCRYPTED**
 - Coordinator encrypts messages using the provider's X25519 public key
 - Fresh ephemeral keypair per request (forward secrecy)
 - Provider decrypts with its private key
-- Coordinator never has the provider's private key -- it cannot decrypt what it encrypts
 - Algorithm: X25519 ECDH + XSalsa20-Poly1305 (NaCl Box)
 
-**Response path (provider tokens -> consumer): PLAINTEXT**
-- Provider streams tokens back as plain JSON over WebSocket
-- Coordinator reads tokens to assemble OpenAI-format SSE stream
-- Coordinator can read every generated token
+**Response path (provider tokens -> consumer): ENCRYPTED (IE SDK mode)**
+- When consumer sends `ocip_consumer_public_key`, the agent encrypts
+  each response token to the consumer's key before sending
+- Coordinator relays opaque blobs (cannot decrypt)
+- Consumer IE SDK decrypts locally
+- Standard OpenAI SDK mode: responses are plaintext (backward compatible)
 
 ## Why the Response Path Is Not Encrypted
 

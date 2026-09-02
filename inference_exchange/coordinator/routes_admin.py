@@ -59,16 +59,17 @@ async def get_admin_state(request: Request):
             "seconds_since_heartbeat": int(time.time() - p.last_heartbeat),
         })
 
-    # Matching engine config
+    # Matching engine config (must match matching/strategy.py compute_score)
     matching_config = {
         "strategy": "GreedyStrategy",
         "scoring_weights": {
-            "cheapest": {"price": 0.8, "speed": 0.05, "trust": 0.05, "load": 0.1},
-            "fastest": {"price": 0.05, "speed": 0.8, "trust": 0.05, "load": 0.1},
-            "most_secure": {"price": 0.05, "speed": 0.05, "trust": 0.8, "load": 0.1},
-            "balanced": {"price": 0.3, "speed": 0.3, "trust": 0.2, "load": 0.2},
+            "cheapest": {"price": 0.6, "speed": 0.15, "trust": 0.1, "load": 0.15},
+            "fastest": {"price": 0.1, "speed": 0.6, "trust": 0.1, "load": 0.2},
+            "most_secure": {"price": 0.1, "speed": 0.1, "trust": 0.6, "load": 0.2},
+            "balanced": {"price": 0.35, "speed": 0.25, "trust": 0.2, "load": 0.2},
         },
-        "scoring_formula": "score = w_price × (1/(1+price)) + w_speed × (tps/(10+tps)) + w_trust × trust_val + w_load × (1-load)",
+        "scoring_formula": "score = w_price * 1/(1+price) + w_speed * tps/(10+tps) + w_trust * level/4 + w_load * (1-load)",
+        "modifiers": "reputation: score *= (0.5 + 0.5 * rep), session_affinity: score *= 1.2",
     }
 
     # Protocol stats
