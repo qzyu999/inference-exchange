@@ -425,19 +425,46 @@ class ProviderHub:
         provider = self._providers[provider_id]
         response = AttestationResponse(**data)
 
-        if provider.pending_challenge_nonce and response.nonce == provider.pending_challenge_nonce:
-            provider.attestation_status = "passed"
-            provider.last_attestation = time.time()
-            provider.pending_challenge_nonce = None
-            logger.info(
-                f"Attestation passed: {provider.name} "
-                f"(SIP={response.sip_enabled}, secure_boot={response.secure_boot})"
-            )
-        else:
+        if not (provider.pending_challenge_nonce and response.nonce == provider.pending_challenge_nonce):
             provider.attestation_status = "degraded"
             logger.warning(
                 f"Attestation FAILED for {provider.name}: nonce mismatch "
                 f"(expected={provider.pending_challenge_nonce}, got={response.nonce})"
+            )
+            return
+
+        provider.pending_challenge_nonce = None
+        provider.last_attestation = time.time()
+
+        # Evaluate hardening evidence
+        trust_claim = provider.capabilities.trust_level.value
+        issues = []
+
+        if trust_claim in ("hardened", "confidential"):
+            if not response.sip_enabled:
+                issues.append("SIP disabled")
+            if not response.hardened_runtime:
+                issues.append("no Hardened Runtime")
+            if not response.pt_deny_attach:
+                issues.append("no PT_DENY_ATTACH")
+            if not response.agent_binary_hash:
+                issues.append("agent not frozen (no binary hash)")
+
+        if issues:
+            provider.attestation_status = "degraded"
+            logger.warning(
+                f"Attestation DEGRADED for {provider.name}: "
+                f"claims {trust_claim} but: {', '.join(issues)}"
+            )
+        else:
+            provider.attestation_status = "passed"
+            logger.info(
+                f"Attestation passed: {provider.name} "
+                f"(SIP={response.sip_enabled}, runtime={response.hardened_runtime}, "
+                f"pt_deny={response.pt_deny_attach}, "
+                f"agent_hash={response.agent_binary_hash[:12] or 'n/a'}, "
+                f"server_hash={response.server_binary_hash[:12] or 'n/a'}, "
+                f"platform={response.platform})"
             )
 
     def check_attestation_timeouts(self, timeout_seconds: float = 30.0):

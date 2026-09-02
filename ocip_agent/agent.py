@@ -29,6 +29,7 @@ from inference_exchange.shared.crypto import (
     encrypt_to_recipient,
 )
 from inference_exchange.shared.protocol import (
+    AttestationResponse,
     HeartbeatMessage,
     InferenceDone,
     InferenceError,
@@ -315,6 +316,9 @@ class OCIPAgent:
                             self._active_requests[rid].cancel()
                             del self._active_requests[rid]
                             logger.info(f"[{rid[:8]}] Cancelled")
+
+                    elif msg_type == MessageType.ATTESTATION_CHALLENGE:
+                        await self._handle_attestation(ws, data)
             finally:
                 heartbeat_task.cancel()
                 # Cancel all in-flight requests
@@ -432,6 +436,93 @@ class OCIPAgent:
                 break
             except Exception:
                 break
+
+    async def _handle_attestation(self, ws, data: dict):
+        """Respond to an attestation challenge with system hardening evidence."""
+        import hashlib
+        import platform
+
+        nonce = data.get("nonce", "")
+        logger.info(f"Attestation challenge received (nonce={nonce[:8]}...)")
+
+        # Gather evidence
+        sip_enabled = False
+        hardened_runtime = False
+        pt_deny = False
+        agent_hash = ""
+        server_hash = ""
+
+        # Check SIP (macOS)
+        if sys.platform == "darwin":
+            try:
+                result = subprocess.run(
+                    ["/usr/bin/csrutil", "status"],
+                    capture_output=True, text=True, timeout=5,
+                )
+                sip_enabled = "enabled" in result.stdout
+            except Exception:
+                pass
+
+        # Hash the running agent binary (if frozen by PyInstaller)
+        if getattr(sys, 'frozen', False):
+            try:
+                agent_path = sys.executable
+                h = hashlib.sha256()
+                with open(agent_path, "rb") as f:
+                    for chunk in iter(lambda: f.read(8192), b""):
+                        h.update(chunk)
+                agent_hash = h.hexdigest()
+                pt_deny = True  # Frozen binaries have PT_DENY_ATTACH in the hardening module
+
+                # Check Hardened Runtime via codesign
+                result = subprocess.run(
+                    ["codesign", "-dv", agent_path],
+                    capture_output=True, text=True, timeout=5,
+                )
+                hardened_runtime = "runtime" in result.stderr
+            except Exception:
+                pass
+
+        # Hash the inference server binary
+        try:
+            # Find the server process and its binary path
+            result = subprocess.run(
+                ["pgrep", "-f", "llama-server|ie-llama-server"],
+                capture_output=True, text=True, timeout=5,
+            )
+            if result.stdout.strip():
+                server_pid = result.stdout.strip().split()[0]
+                # Get binary path from PID (macOS)
+                if sys.platform == "darwin":
+                    ps_result = subprocess.run(
+                        ["ps", "-p", server_pid, "-o", "comm="],
+                        capture_output=True, text=True, timeout=5,
+                    )
+                    server_path = ps_result.stdout.strip()
+                    if server_path and os.path.isfile(server_path):
+                        h = hashlib.sha256()
+                        with open(server_path, "rb") as f:
+                            for chunk in iter(lambda: f.read(8192), b""):
+                                h.update(chunk)
+                        server_hash = h.hexdigest()
+        except Exception:
+            pass
+
+        response = AttestationResponse(
+            nonce=nonce,
+            sip_enabled=sip_enabled,
+            hardened_runtime=hardened_runtime,
+            pt_deny_attach=pt_deny,
+            agent_binary_hash=agent_hash,
+            server_binary_hash=server_hash,
+            platform=f"{sys.platform}-{platform.machine()}",
+            os_version=platform.platform(),
+        )
+        await ws.send(response.model_dump_json())
+        logger.info(
+            f"Attestation response sent (SIP={sip_enabled}, "
+            f"runtime={hardened_runtime}, agent_hash={agent_hash[:12] or 'none'})"
+        )
 
 
 def main():

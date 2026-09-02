@@ -229,34 +229,38 @@ The coordinator rejects unauthenticated WebSocket connections with code 4003.
 Admin creates tokens: `POST /v1/admin/provider-tokens`
 Agent passes token: `--token pt-ie-...` (sent as query param on WS connect)
 
-### GAP 4: Attestation Is Weak (MEDIUM)
+### GAP 4: Attestation Is Weak -- IMPROVED
 
-**Attack:** Provider claims trust_level="hardened" but actually runs unhardened.
-The nonce-echo attestation doesn't verify anything about the provider's
-security posture -- it just proves the WS connection is alive.
+**Previous state:** Nonce-echo only. No verification of hardening.
 
-**Impact:** Consumer requests routed to "hardened" providers that aren't
-actually hardened.
+**Current state:** Agent now responds with actual hardening evidence:
+- SIP status (checked via csrutil)
+- Hardened Runtime (checked via codesign)
+- PT_DENY_ATTACH (inferred from frozen binary status)
+- SHA-256 hash of agent and server binaries
+- Platform and OS version
 
-**Fix (short term):** Coordinator-initiated checks (request codesign info,
-check for known hardened binary hashes). Not foolproof but raises the bar.
+The coordinator cross-references the response against the provider's
+claimed trust level. A provider claiming "hardened" without SIP, Hardened
+Runtime, or a frozen binary gets marked "degraded" and deprioritized
+by the routing engine.
 
-**Fix (long term):** Apple App Attest or Secure Enclave key attestation.
-Provider proves its binary is signed and running with Hardened Runtime via
-a hardware-backed cryptographic proof.
+**Remaining limitation:** This is still self-reported. A sophisticated
+attacker could fake the response. True hardware-backed attestation
+(Apple App Attest, Secure Enclave key binding) would require the
+Apple Developer Program and Secure Enclave integration -- future work.
 
-**Difficulty:** Short term: Medium. Long term: Hard (requires Apple Developer
-Program + Secure Enclave integration).
+### GAP 5: No External Audit Log -- CLOSED
 
-### GAP 5: No External Audit Log (LOW)
+**Status:** Fixed. Append-only JSONL audit log at
+`~/.inference-exchange/audit.jsonl`. Each entry is hash-chained
+(each line includes the SHA-256 of the previous line) for tamper
+detection. Records billing events, attestation results, and
+provider connect/disconnect.
 
-**Attack:** Coordinator operator modifies billing records. No way to prove
-the original transactions.
-
-**Fix:** Append-only audit log with signed entries (or publish hashes to a
-public ledger).
-
-**Difficulty:** Medium.
+The hash chain means: if the coordinator operator deletes or modifies
+any line, the chain breaks and the tampering is detectable by anyone
+who has a copy of the log (or even just the final hash).
 
 ## What IS Secure (Validated Claims)
 
@@ -318,14 +322,15 @@ These claims are backed by implemented code and tested:
 | Provider reads prompts (unhardened agent) | ~~High~~ CLOSED | High (privacy breach) | ~~P0~~ DONE |
 | Network sniffing (no TLS) | Medium (depends on network) | High (keys + metadata) | P0 for prod, P2 for private alpha |
 | Fake provider connects | ~~Low~~ CLOSED | Low (can't decrypt E2E) | ~~P1~~ DONE |
-| Weak attestation | Medium | Medium (wrong trust routing) | P1 |
+| Weak attestation | Medium | Medium (wrong trust routing) | P1 -- IMPROVED |
 | Coordinator billing manipulation | Low (we control it) | High (financial) | P2 |
 | SQLite corruption | Low | Medium (data loss) | P2 |
 
 ## Recommended Pre-Alpha Hardening Order
 
 1. ~~**Harden the agent**~~ DONE (PyInstaller onedir + codesign)
-2. **Add provider WS auth** -- closes GAP 3, prevents unauthorized providers
-3. **Write this threat model** -- you're reading it
+2. ~~**Add provider WS auth**~~ DONE (token-based)
+3. ~~**Write this threat model**~~ you're reading it
 4. **Deploy with TLS** -- closes GAP 2 when going public
-5. **Strengthen attestation** -- closes GAP 4 over time
+5. ~~**Strengthen attestation**~~ DONE (hardening evidence + cross-validation)
+6. ~~**Audit log**~~ DONE (append-only hash-chained JSONL)
