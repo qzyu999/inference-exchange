@@ -13,6 +13,7 @@ import { Billing } from './pages/Billing'
 import { Keys } from './pages/Keys'
 import { Login } from './pages/Login'
 import { Admin } from './pages/Admin'
+import { NotFound } from './pages/NotFound'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
@@ -29,6 +30,7 @@ createRoot(document.getElementById('root')!).render(
             <Route path="/keys" element={<Keys />} />
             <Route path="/login" element={<Login />} />
             <Route path="/admin" element={<Admin />} />
+            <Route path="*" element={<NotFound />} />
           </Route>
         </Routes>
       </AuthProvider>

@@ -9,7 +9,6 @@ from inference_exchange.coordinator.matching import (
     BatchAuctionStrategy,
     GreedyStrategy,
     InferenceOrder,
-    MatchingEngine,
     ProviderOffer,
     RoutingPreference,
 )
@@ -304,66 +303,5 @@ class TestBatchAuctionStrategy:
         assert len(delta_matches) <= 2
 
 
-class TestMatchingEngine:
-    def test_greedy_engine(self):
-        """Engine with greedy strategy matches immediately."""
-        engine = MatchingEngine(strategy=GreedyStrategy())
-        engine.update_offers(make_offers())
-
-        result = engine.submit_order(InferenceOrder(
-            order_id="req-1",
-            consumer_id="c1",
-            model="llama-3-8b",
-            preference=RoutingPreference.CHEAPEST,
-        ))
-
-        assert result is not None
-        assert result.provider_id == "alpha"  # Best composite score
-        assert engine.total_matches == 1
-
-    def test_batch_engine(self):
-        """Engine with batch strategy queues then matches on cycle."""
-        engine = MatchingEngine(strategy=BatchAuctionStrategy())
-        engine.update_offers(make_offers())
-
-        # Submit doesn't return result in batch mode
-        result = engine.submit_order(InferenceOrder(
-            order_id="req-1",
-            consumer_id="c1",
-            model="llama-3-8b",
-            preference=RoutingPreference.CHEAPEST,
-        ))
-        assert result is None
-        assert engine.pending_orders == 1
-
-        # Manually trigger cycle
-        matches, failures = engine.run_batch_cycle()
-        assert len(matches) == 1
-        assert matches[0].provider_id == "alpha"  # Best composite score
-        assert engine.pending_orders == 0
-
-    def test_strategy_swap(self):
-        """Can swap strategy at runtime."""
-        engine = MatchingEngine(strategy=GreedyStrategy())
-        assert engine.strategy_name == "GreedyStrategy"
-
-        engine.set_strategy(BatchAuctionStrategy())
-        assert engine.strategy_name == "BatchAuctionStrategy"
-
-    def test_stats(self):
-        """Engine tracks stats correctly."""
-        engine = MatchingEngine(strategy=GreedyStrategy())
-        engine.update_offers(make_offers())
-
-        engine.submit_order(InferenceOrder(
-            order_id="req-1", consumer_id="c1", model="llama-3-8b",
-        ))
-        engine.submit_order(InferenceOrder(
-            order_id="req-2", consumer_id="c1", model="nonexistent",
-        ))
-
-        stats = engine.stats()
-        assert stats["total_orders"] == 2
-        assert stats["total_matches"] == 1
-        assert stats["total_failures"] == 1
-        assert stats["match_rate"] == 0.5
+# MatchingEngine class was removed (dead code). Tests for GreedyStrategy
+# and BatchAuctionStrategy above cover the same functionality.
