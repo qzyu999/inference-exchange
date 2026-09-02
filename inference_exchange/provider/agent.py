@@ -1,10 +1,17 @@
 """DEPRECATED: Use ocip_agent/agent.py instead.
 
-This is the simple single-process provider agent. The production
-implementation is in ocip_agent/agent.py which manages a separate
-inference server process with health monitoring and lifecycle management.
+This is the simple single-process provider agent that runs inference
+in-process via llama-cpp-python. It does NOT support:
+- Two-process architecture (hardened server isolation)
+- Response encryption (consumer keypair)
+- GGUF metadata-based model identity
+- Attestation with hardening evidence
+- Provider token authentication
 
-Kept for backward compatibility and simple testing.
+Use this only for quick local testing. For production, use:
+  python ocip_agent/agent.py --name my-node --coordinator ws://...
+
+Kept for backward compatibility and the docker-compose demo.
 """
 
 import asyncio
