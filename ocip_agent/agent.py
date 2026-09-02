@@ -66,6 +66,20 @@ class InferenceServerManager:
         self._healthy = False
         self._identity: dict | None = None
 
+    @staticmethod
+    def _clean_model_name(path: str) -> str:
+        """Extract a readable model name from a file path.
+
+        Handles Ollama blob paths (sha256-...) by returning a generic name,
+        and normal GGUF filenames by cleaning them up.
+        """
+        stem = Path(path).stem
+        # Ollama blob: sha256-87048bcd... -> just say "ollama-model"
+        if stem.startswith("sha256-"):
+            return "ollama-model"
+        # Normal GGUF: Qwen2.5-0.5B-Instruct-Q4_K_M -> keep as-is
+        return stem
+
     async def start(self):
         """Start the inference server process."""
         if self._process and self._process.poll() is None:
@@ -108,8 +122,21 @@ class InferenceServerManager:
                         except Exception:
                             pass
                         if self._identity is None:
-                            # Fallback: derive identity from model path
-                            model_name = Path(self.model_path).stem if self.model_path else "unknown"
+                            # Try /v1/models (stock llama-server supports this)
+                            try:
+                                r3 = await client.get(f"{self.base_url}/v1/models", timeout=5)
+                                if r3.status_code == 200:
+                                    models_data = r3.json()
+                                    model_list = models_data.get("data", [])
+                                    if model_list:
+                                        model_id = model_list[0].get("id", "")
+                                        if model_id:
+                                            self._identity = {"name": model_id, "source": "v1/models"}
+                            except Exception:
+                                pass
+                        if self._identity is None:
+                            # Final fallback: clean up the model path
+                            model_name = self._clean_model_name(self.model_path) if self.model_path else "unknown"
                             self._identity = {"name": model_name, "source": "filename"}
                         logger.info(f"Inference server healthy (model: {self._identity.get('name', '?')})")
                         self._restart_count = 0  # Reset backoff on success
@@ -192,12 +219,14 @@ class OCIPAgent:
         trust_level: str = "hardened",
         n_gpu_layers: int = -1,
         provider_token: str = "",
+        max_concurrent: int = 2,
     ):
         self.coordinator_url = coordinator_url
         self.provider_name = provider_name
         self.price_output = price_output
         self.trust_level = trust_level
         self.provider_token = provider_token
+        self.max_concurrent = max_concurrent
 
         # Encryption
         self._keypair = KeyPair()
@@ -223,6 +252,28 @@ class OCIPAgent:
             if gguf_files:
                 return str(gguf_files[0])
         raise FileNotFoundError("No model found. Run: python -m inference_exchange download-model")
+
+    @staticmethod
+    def _detect_hardware() -> str:
+        """Detect hardware description for registration."""
+        import platform
+        machine = platform.machine()  # arm64, x86_64
+        system = platform.system().lower()  # darwin, linux, windows
+        if system == "darwin" and machine == "arm64":
+            # Try to get specific Apple chip
+            try:
+                import subprocess
+                result = subprocess.run(
+                    ["sysctl", "-n", "machdep.cpu.brand_string"],
+                    capture_output=True, text=True, timeout=3,
+                )
+                chip = result.stdout.strip()
+                if chip:
+                    return chip.replace("Apple ", "apple-").lower().replace(" ", "-")
+            except Exception:
+                pass
+            return "apple-silicon"
+        return f"{system}-{machine}"
 
     async def run(self):
         """Main entrypoint: start server, connect to coordinator, handle requests."""
@@ -281,13 +332,14 @@ class OCIPAgent:
 
             # Register
             identity = self._server.identity
+            model_name = identity.get("name", "unknown")
             reg = RegisterMessage(
                 provider_name=self.provider_name,
                 capabilities=ProviderCapabilities(
-                    models=[identity.get("name", "unknown"), "default"],
-                    max_concurrent=2,
+                    models=[model_name],
+                    max_concurrent=self.max_concurrent,
                     trust_level=TrustLevel(self.trust_level),
-                    hardware="ocip-hardened",
+                    hardware=self._detect_hardware(),
                     measured_tps=0,
                     price_per_mtok_input=0.05,
                     price_per_mtok_output=self.price_output,
@@ -295,7 +347,7 @@ class OCIPAgent:
                 encryption_public_key=self._keypair.public_key_b64,
             )
             await ws.send(reg.model_dump_json())
-            logger.info(f"Registered: {self.provider_name} (model={identity.get('name', '?')})")
+            logger.info(f"Registered: {self.provider_name} (model={model_name}, slots={self.max_concurrent})")
 
             # Heartbeat + message loop
             heartbeat_task = asyncio.create_task(self._heartbeat_loop(ws))
@@ -537,6 +589,7 @@ def main():
     parser.add_argument("--trust", default="hardened")
     parser.add_argument("--n-gpu-layers", type=int, default=-1)
     parser.add_argument("--token", default="", help="Provider auth token (pt-ie-...)")
+    parser.add_argument("--max-concurrent", type=int, default=2, help="Max concurrent requests")
     args = parser.parse_args()
 
     logger.info("=" * 60)
@@ -545,6 +598,7 @@ def main():
     logger.info(f"  Inference port:  {args.port} (localhost only)")
     logger.info(f"  Trust level:     {args.trust}")
     logger.info(f"  Model:           {args.model or '(auto-detect)'}")
+    logger.info(f"  Max concurrent:  {args.max_concurrent}")
     logger.info(f"  Auth:            {'token' if args.token else 'none (dev mode)'}")
     logger.info("=" * 60)
 
@@ -557,6 +611,7 @@ def main():
         trust_level=args.trust,
         n_gpu_layers=args.n_gpu_layers,
         provider_token=args.token,
+        max_concurrent=args.max_concurrent,
     )
 
     try:
