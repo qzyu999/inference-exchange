@@ -13,9 +13,15 @@ from .dependencies import get_auth, get_billing, get_store
 
 router = APIRouter()
 
-# JWT secret (generated at import time, changes on restart -- fine for alpha)
+# JWT secret: use env var if set, otherwise generate (and warn)
+import os as _os
 import secrets as _secrets
-_JWT_SECRET = _secrets.token_hex(32)
+_JWT_SECRET = _os.environ.get("IE_JWT_SECRET", "")
+if not _JWT_SECRET:
+    _JWT_SECRET = _secrets.token_hex(32)
+    # Only warn in non-test environments
+    import logging as _log
+    _log.getLogger(__name__).warning("IE_JWT_SECRET not set — JWT tokens will not survive restarts. Set IE_JWT_SECRET env var for production.")
 
 
 # --- JWT helpers (minimal, no external dependency) ---

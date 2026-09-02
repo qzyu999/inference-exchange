@@ -88,7 +88,19 @@ export function Chat() {
       })
       if (!resp.ok) {
         const err = await resp.text()
-        setMessages(prev => { const c = [...prev]; c[c.length - 1] = { role: 'assistant', content: `Error: ${resp.status} - ${err}` }; return c })
+        let friendlyError = `Error: ${resp.status}`
+        try {
+          const parsed = JSON.parse(err)
+          if (parsed.detail?.message) friendlyError = parsed.detail.message
+          else if (parsed.error?.message) friendlyError = parsed.error.message
+          else if (parsed.detail) friendlyError = typeof parsed.detail === 'string' ? parsed.detail : JSON.stringify(parsed.detail)
+        } catch {
+          if (resp.status === 503) friendlyError = 'No providers available right now. Try again in a moment.'
+          else if (resp.status === 429) friendlyError = 'Rate limit reached. Please wait a moment.'
+          else if (resp.status === 401) friendlyError = 'Invalid API key. Check your key in Advanced settings.'
+          else friendlyError = `Server error (${resp.status}). The coordinator may be overloaded.`
+        }
+        setMessages(prev => { const c = [...prev]; c[c.length - 1] = { role: 'assistant', content: friendlyError }; return c })
         setStreaming(false); return
       }
       const reader = resp.body?.getReader()

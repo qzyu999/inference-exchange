@@ -1,8 +1,14 @@
-"""Admin endpoints — system state dump, provider token management."""
+"""Admin endpoints -- system state dump, provider token management.
+
+Admin endpoints require either:
+- No users in the system (dev mode)
+- A logged-in user with role='admin' (production)
+"""
 
 import time
 
 from fastapi import APIRouter, Request
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from .dependencies import (
@@ -12,6 +18,7 @@ from .dependencies import (
     get_hub,
     get_store,
 )
+from .routes_auth import resolve_user_from_request
 
 router = APIRouter()
 
@@ -19,6 +26,13 @@ router = APIRouter()
 @router.get("/v1/admin/state")
 async def get_admin_state(request: Request):
     """Full system state dump for the admin dashboard."""
+    # In dev mode (no users), allow. In prod, require admin role.
+    store = get_store()
+    user = resolve_user_from_request(request)
+    has_users = bool(store._conn.execute("SELECT 1 FROM users LIMIT 1").fetchone())
+    if has_users and (not user or user.get("role") != "admin"):
+        return JSONResponse({"error": "Admin access required"}, status_code=403)
+
     hub = get_hub()
     billing = get_billing()
     auth = get_auth()
