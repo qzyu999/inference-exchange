@@ -79,6 +79,16 @@ CREATE TABLE IF NOT EXISTS provider_tokens (
     last_used_at REAL,
     connections INTEGER NOT NULL DEFAULT 0
 );
+
+CREATE TABLE IF NOT EXISTS users (
+    user_id TEXT PRIMARY KEY,
+    email TEXT UNIQUE NOT NULL,
+    password_hash TEXT NOT NULL,
+    name TEXT NOT NULL DEFAULT '',
+    role TEXT NOT NULL DEFAULT 'consumer',
+    created_at REAL NOT NULL,
+    last_login_at REAL
+);
 """
 
 MICRO_PER_DOLLAR = 1_000_000
@@ -337,3 +347,110 @@ class Store:
             "SELECT token_id, name, created_at, last_used_at, connections FROM provider_tokens"
         ).fetchall()
         return [dict(r) for r in rows]
+
+
+    # --- User accounts ---
+
+    def create_user(self, email: str, password: str, name: str = "") -> dict:
+        """Create a user with email/password. Returns user dict.
+
+        Also creates a billing account and a default API key for the user.
+        Raises ValueError if email already exists.
+        """
+        import hashlib as _h
+
+        user_id = f"user-{secrets.token_hex(4)}"
+        # Hash password with salt (SHA-256 + salt, sufficient for alpha)
+        salt = secrets.token_hex(16)
+        pw_hash = _h.sha256(f"{salt}:{password}".encode()).hexdigest()
+        password_hash = f"{salt}:{pw_hash}"
+
+        try:
+            self._conn.execute(
+                "INSERT INTO users (user_id, email, password_hash, name, created_at) VALUES (?, ?, ?, ?, ?)",
+                (user_id, email.lower().strip(), password_hash, name or email.split("@")[0], time.time()),
+            )
+        except sqlite3.IntegrityError:
+            raise ValueError(f"Email already registered: {email}")
+
+        # Create billing account for this user
+        consumer_id = user_id  # user_id IS the consumer_id
+        self._conn.execute(
+            "INSERT INTO accounts (account_id, name, balance_micro, created_at) VALUES (?, ?, ?, ?)",
+            (consumer_id, name or email.split("@")[0], 10 * MICRO_PER_DOLLAR, time.time()),
+        )
+
+        # Create a default API key for this user
+        raw_key = KEY_PREFIX + secrets.token_hex(16)
+        key_hash = hashlib.sha256(raw_key.encode()).hexdigest()
+        key_id = key_hash[:8]
+        self._conn.execute(
+            "INSERT INTO api_keys (key_hash, key_id, consumer_id, name, created_at) VALUES (?, ?, ?, ?, ?)",
+            (key_hash, key_id, consumer_id, "Default Key", time.time()),
+        )
+        self._conn.commit()
+
+        logger.info(f"User created: {email} -> {user_id}")
+        return {
+            "user_id": user_id,
+            "email": email.lower().strip(),
+            "name": name or email.split("@")[0],
+            "api_key": raw_key,
+        }
+
+    def authenticate_user(self, email: str, password: str) -> dict | None:
+        """Authenticate by email + password. Returns user dict or None."""
+        import hashlib as _h
+
+        row = self._conn.execute(
+            "SELECT * FROM users WHERE email = ?", (email.lower().strip(),)
+        ).fetchone()
+        if not row:
+            return None
+
+        stored = row["password_hash"]
+        salt, expected_hash = stored.split(":", 1)
+        actual_hash = _h.sha256(f"{salt}:{password}".encode()).hexdigest()
+        if actual_hash != expected_hash:
+            return None
+
+        # Update last login
+        self._conn.execute(
+            "UPDATE users SET last_login_at = ? WHERE user_id = ?",
+            (time.time(), row["user_id"]),
+        )
+        self._conn.commit()
+
+        return {
+            "user_id": row["user_id"],
+            "email": row["email"],
+            "name": row["name"],
+            "role": row["role"],
+        }
+
+    def get_user(self, user_id: str) -> dict | None:
+        row = self._conn.execute(
+            "SELECT user_id, email, name, role, created_at FROM users WHERE user_id = ?",
+            (user_id,)
+        ).fetchone()
+        return dict(row) if row else None
+
+    def get_user_api_keys(self, user_id: str) -> list[dict]:
+        """Get all API keys belonging to a user."""
+        rows = self._conn.execute(
+            "SELECT key_id, name, created_at, last_used_at, requests_made FROM api_keys WHERE consumer_id = ?",
+            (user_id,)
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+    def create_api_key_for_user(self, user_id: str, name: str = "API Key") -> str:
+        """Create a new API key tied to an existing user's account. Returns raw key."""
+        raw = KEY_PREFIX + secrets.token_hex(16)
+        key_hash = hashlib.sha256(raw.encode()).hexdigest()
+        key_id = key_hash[:8]
+        self._conn.execute(
+            "INSERT INTO api_keys (key_hash, key_id, consumer_id, name, created_at) VALUES (?, ?, ?, ?, ?)",
+            (key_hash, key_id, user_id, name, time.time()),
+        )
+        self._conn.commit()
+        return raw
