@@ -1,5 +1,6 @@
 import { Link, Outlet, useLocation } from 'react-router-dom'
 import { useCoordinatorStatus } from '../lib/useWebSocket'
+import { useAuth } from '../lib/auth'
 
 const NAV = [
   { path: '/', label: 'Home' },
@@ -15,6 +16,7 @@ const NAV = [
 export function Layout() {
   const location = useLocation()
   const coordinatorOnline = useCoordinatorStatus()
+  const { user, logout } = useAuth()
 
   return (
     <div className="min-h-screen bg-[#fafafa]">
@@ -40,21 +42,36 @@ export function Layout() {
               </span>
             )}
           </div>
-          <nav className="flex gap-0.5">
-            {NAV.map(({ path, label }) => (
-              <Link
-                key={path}
-                to={path}
-                className={`px-3 py-1.5 rounded-lg text-[13px] font-medium transition-colors ${
-                  location.pathname === path
-                    ? 'bg-gray-900 text-white'
-                    : 'text-gray-500 hover:text-gray-900 hover:bg-gray-100'
-                }`}
-              >
-                {label}
+          <div className="flex items-center gap-2">
+            <nav className="flex gap-0.5 mr-3">
+              {NAV.map(({ path, label }) => (
+                <Link
+                  key={path}
+                  to={path}
+                  className={`px-3 py-1.5 rounded-lg text-[13px] font-medium transition-colors ${
+                    location.pathname === path
+                      ? 'bg-gray-900 text-white'
+                      : 'text-gray-500 hover:text-gray-900 hover:bg-gray-100'
+                  }`}
+                >
+                  {label}
+                </Link>
+              ))}
+            </nav>
+            {user ? (
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-gray-500">{user.email}</span>
+                <span className="text-xs font-medium text-emerald-600">${user.balance_usd.toFixed(2)}</span>
+                <button onClick={logout} className="text-xs text-gray-400 hover:text-gray-600 px-2 py-1 rounded-lg hover:bg-gray-100">
+                  Sign out
+                </button>
+              </div>
+            ) : (
+              <Link to="/login" className="px-3 py-1.5 bg-gray-900 text-white rounded-lg text-[13px] font-medium hover:bg-gray-800 transition-colors">
+                Sign in
               </Link>
-            ))}
-          </nav>
+            )}
+          </div>
         </div>
       </header>
       <main className="max-w-7xl mx-auto px-6 py-8">
