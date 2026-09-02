@@ -6,14 +6,37 @@ by main.py via the set_* functions.
 """
 
 import logging
+from typing import Any, Protocol
 
-from .auth_memory import AuthStore
-from .billing_memory import BillingLedger
 from .event_bus import EventBus
 from .provider_hub import ProviderHub
 from .rate_limiter import RateLimiter
 from .reputation import ReputationTracker
 from .tps_tracker import TPSTracker
+
+logger = logging.getLogger(__name__)
+
+
+class AuthLike(Protocol):
+    """Protocol for auth adapters (both memory and store-backed)."""
+    @property
+    def default_key(self) -> str: ...
+    def validate_key(self, raw_key: str) -> dict | None: ...
+    def resolve_consumer(self, authorization: str | None) -> str: ...
+    def list_keys(self) -> list[dict]: ...
+
+
+class BillingLike(Protocol):
+    """Protocol for billing adapters (both memory and store-backed)."""
+    PLATFORM_FEE_PERCENT: int
+    def charge_request(self, **kwargs: Any) -> Any: ...
+    def get_or_create_consumer(self, consumer_id: str, name: str) -> Any: ...
+    def get_or_create_provider(self, provider_id: str, name: str) -> Any: ...
+    @property
+    def recent_bills(self) -> list: ...
+    @property
+    def total_requests(self) -> int: ...
+    def summary(self) -> dict: ...
 
 logger = logging.getLogger(__name__)
 
@@ -32,8 +55,8 @@ def _add_trace(trace: dict):
 # --- Global singletons (injected from main.py at startup) ---
 
 _hub: ProviderHub | None = None
-_billing: BillingLedger | None = None
-_auth: AuthStore | None = None
+_billing: BillingLike | None = None
+_auth: AuthLike | None = None
 _tps: TPSTracker | None = None
 _reputation: ReputationTracker | None = None
 _event_bus: EventBus | None = None
@@ -45,12 +68,12 @@ def set_hub(hub: ProviderHub):
     _hub = hub
 
 
-def set_billing(billing: BillingLedger):
+def set_billing(billing: BillingLike):
     global _billing
     _billing = billing
 
 
-def set_auth(auth: AuthStore):
+def set_auth(auth: AuthLike):
     global _auth
     _auth = auth
 
@@ -76,13 +99,13 @@ def get_hub() -> ProviderHub:
     return _hub
 
 
-def get_billing() -> BillingLedger:
+def get_billing() -> BillingLike:
     if _billing is None:
         raise RuntimeError("BillingLedger not initialized")
     return _billing
 
 
-def get_auth() -> AuthStore:
+def get_auth() -> AuthLike:
     if _auth is None:
         raise RuntimeError("AuthStore not initialized")
     return _auth
