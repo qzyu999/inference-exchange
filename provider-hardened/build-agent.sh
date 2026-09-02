@@ -55,6 +55,7 @@ pyinstaller \
     --workpath "$SCRIPT_DIR/build-agent" \
     --specpath "$SCRIPT_DIR" \
     --clean \
+    --codesign-identity - \
     ocip_agent/agent.py
 
 echo "  Built: $OUTPUT"
