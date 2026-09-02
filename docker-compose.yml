@@ -1,5 +1,9 @@
 # Multi-provider demo + coordinator deployment
 #
+# NOTE: This uses the simple provider (inference_exchange.provider), not
+# the production OCIP agent (ocip_agent). For production with hardened
+# inference and E2E encryption, use the OCIP agent path directly.
+#
 # Start coordinator:   docker compose up coordinator
 # Start everything:    docker compose up
 # Scale providers:     docker compose up --scale provider-cheap=3
