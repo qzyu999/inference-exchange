@@ -295,26 +295,38 @@ async def search_models(q: str = ""):
 
 @router.get("/v1/exchange/market")
 async def get_market_data():
-    """Model-centric market view with reference pricing comparison."""
-    from .reference_pricing import get_reference_prices, compute_savings
+    """Model-centric market view with structured model info and reference pricing."""
+    from .reference_pricing import compute_savings
+    from .model_catalog import parse_model_info
 
     hub = get_hub()
-    billing = get_billing()
 
-    # Group providers by model
+    # Group providers by canonical model ID (family + size + variant)
     model_data: dict[str, dict] = {}
     for p in hub._providers.values():
-        for model in p.capabilities.models:
-            if model not in model_data:
-                model_data[model] = {
-                    "model": model,
+        for model_name in p.capabilities.models:
+            # Parse model info from the registered name
+            info = parse_model_info(model_name)
+            key = info["canonical_id"]
+
+            if key not in model_data:
+                model_data[key] = {
+                    "model": info["display_name"],
+                    "family": info["family_display"] or info["family"],
+                    "size": info["size"],
+                    "variant": info["variant"],
+                    "canonical_id": key,
                     "providers": [],
                     "cheapest_output": float("inf"),
                     "fastest_tps": 0,
                     "max_trust": "open",
                 }
-            md = model_data[model]
+            md = model_data[key]
             price = p.capabilities.price_per_mtok_output
+
+            # Get quantization from provider's model_identity if available
+            quant = info.get("quantization", "")
+
             md["providers"].append({
                 "id": p.provider_id,
                 "name": p.name,
@@ -326,6 +338,8 @@ async def get_market_data():
                 "load": round(p.load_factor, 2),
                 "hardware": p.capabilities.hardware,
                 "slots": f"{p.active_requests}/{p.capabilities.max_concurrent}",
+                "quantization": quant,
+                "original_model": model_name,
             })
             if price < md["cheapest_output"]:
                 md["cheapest_output"] = price
@@ -337,17 +351,15 @@ async def get_market_data():
             if prov > curr:
                 md["max_trust"] = p.capabilities.trust_level.value
 
-    # Add reference pricing comparison to each model
+    # Add reference pricing comparison
     result = []
-    for model, data in model_data.items():
-        savings = compute_savings(data["cheapest_output"], model)
+    for key, data in model_data.items():
+        savings = compute_savings(data["cheapest_output"], data["model"])
         data["reference_prices"] = savings["comparisons"]
         data["provider_count"] = len(data["providers"])
-        # Sort providers by price
         data["providers"].sort(key=lambda x: x["price_output"])
         result.append(data)
 
-    # Sort models by provider count (most served first)
     result.sort(key=lambda x: -x["provider_count"])
 
     return {
