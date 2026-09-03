@@ -405,10 +405,31 @@ def create_app() -> FastAPI:
             "providers": hub.provider_count,
             "models": hub.available_models,
         }
-        # Only include API key when requested (for the web frontend auto-fill)
         if raw_request.query_params.get("include_key") == "1":
             result["default_api_key"] = auth.default_key
         return result
+
+    @app.get("/readiness")
+    async def readiness():
+        """Readiness probe for orchestrators (Fly.io, k8s)."""
+        return {"ready": True, "providers": hub.provider_count}
+
+    # Alpha-only: reset balance (dummy money)
+    @app.post("/v1/auth/reset-balance")
+    async def reset_balance(raw_request: Request):
+        """Reset the authenticated user's balance to $10 (alpha only, dummy money)."""
+        from .routes_auth import resolve_user_from_request
+        user_info = resolve_user_from_request(raw_request)
+        if user_info:
+            consumer_id = user_info["user_id"]
+        else:
+            consumer_id = auth.resolve_consumer(raw_request.headers.get("authorization"))
+        store._conn.execute(
+            "UPDATE accounts SET balance_micro = ? WHERE account_id = ?",
+            (10 * 1_000_000, consumer_id),
+        )
+        store._conn.commit()
+        return {"ok": True, "balance_usd": 10.0, "note": "Balance reset to $10.00 (alpha dummy credits)"}
 
     # Serve web UI at root
     app.mount("/", StaticFiles(directory=str(STATIC_DIR), html=True), name="static")
@@ -420,7 +441,12 @@ def main():
     config = CoordinatorConfig()
     logger.info(f"Starting Inference Exchange coordinator on {config.host}:{config.port}")
     app = create_app()
-    uvicorn.run(app, host=config.host, port=config.port)
+    uvicorn.run(
+        app,
+        host=config.host,
+        port=config.port,
+        timeout_graceful_shutdown=10,  # 10s drain for in-flight requests
+    )
 
 
 if __name__ == "__main__":

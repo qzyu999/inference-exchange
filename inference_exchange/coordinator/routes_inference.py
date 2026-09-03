@@ -56,12 +56,27 @@ class ChatCompletionRequest(BaseModel):
     max_tokens: int = 1024
     temperature: float = 0.7
     stream: bool = True
-    # OCIP routing preferences (consumer controls)
-    ocip_preference: str = "balanced"  # cheapest | fastest | most_secure | balanced
-    ocip_min_confidence: str = "open"  # open | contained | hardened | confidential
-    ocip_max_price: float | None = None  # Max $/Mtok output (None = no limit)
-    ocip_session_id: str | None = None  # Session ID for cache affinity
-    ocip_consumer_public_key: str | None = None  # X25519 public key for response encryption
+    # OCIP routing preferences
+    ocip_preference: str = "balanced"
+    ocip_min_confidence: str = "open"
+    ocip_max_price: float | None = None
+    ocip_session_id: str | None = None
+    ocip_consumer_public_key: str | None = None
+
+    def validate_inputs(self) -> str | None:
+        """Return error message if invalid, None if OK."""
+        if not self.messages:
+            return "Messages cannot be empty"
+        if len(self.messages) > 100:
+            return "Too many messages (max 100)"
+        total_chars = sum(len(m.content) for m in self.messages)
+        if total_chars > 200_000:
+            return "Total message content too large (max 200k chars)"
+        if self.max_tokens < 1 or self.max_tokens > 32768:
+            return "max_tokens must be 1-32768"
+        if self.temperature < 0 or self.temperature > 2:
+            return "temperature must be 0-2"
+        return None
 
 
 class ModelInfo(BaseModel):
@@ -87,6 +102,12 @@ async def chat_completions(request: ChatCompletionRequest, raw_request: Request)
     """OpenAI-compatible chat completions endpoint."""
     hub = get_hub()
     auth = get_auth()
+
+    # Input validation
+    validation_error = request.validate_inputs()
+    if validation_error:
+        from fastapi.responses import JSONResponse
+        return JSONResponse({"error": {"message": validation_error, "type": "invalid_request"}}, status_code=400)
 
     # Resolve consumer identity from auth header or JWT
     from .routes_auth import resolve_user_from_request
