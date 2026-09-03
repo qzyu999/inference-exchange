@@ -157,8 +157,9 @@ Can this combination work on our exchange?
 | Engine | GGUF | SafeTensors | Ollama blob | Platform | Hardening possible? | Identity source |
 |---|---|---|---|---|---|---|
 | llama.cpp | YES | No | Yes (is GGUF) | All | macOS: Yes. Linux: VM | GGUF header |
-| MLX | No (needs conversion) | YES | No | macOS only | PyInstaller + codesign | config.json |
-| Ollama | YES (internal) | No | YES | All | No (not our binary) | Ollama API |
+| MLX (standalone) | No (needs conversion) | YES | No | macOS only | PyInstaller + codesign | config.json |
+| Ollama (stock binary) | YES (internal) | No | YES | All | No (pre-built, not ours) | Ollama API |
+| Ollama (built from source) | YES (internal) | No | YES | All | YES (same C patch as llama.cpp) | GGUF header + Ollama digest |
 | vLLM | No | YES | No | Linux + CUDA | In SEV-SNP VM | config.json |
 | TGI | No | YES | No | Linux + CUDA | In VM | config.json |
 
