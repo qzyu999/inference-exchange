@@ -37,6 +37,7 @@ class ConnectedProvider:
     active_requests: int = 0
     last_heartbeat: float = field(default_factory=time.time)
     model_verified: bool = False  # HF hash verification passed
+    model_identity: dict = field(default_factory=dict)  # GGUF metadata from provider
     attestation_status: str = "pending"  # pending | passed | degraded
     last_attestation: float = 0.0  # Timestamp of last successful attestation
     pending_challenge_nonce: str | None = None  # Nonce awaiting response

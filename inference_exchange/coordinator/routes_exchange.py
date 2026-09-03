@@ -324,8 +324,16 @@ async def get_market_data():
             md = model_data[key]
             price = p.capabilities.price_per_mtok_output
 
-            # Get quantization from provider's model_identity if available
+            # Get quantization and context from provider's model_identity
             quant = info.get("quantization", "")
+            ctx = 0
+            verified = False
+            if hasattr(p, 'model_identity') and p.model_identity:
+                mi = p.model_identity
+                if not quant and mi.get("quantization"):
+                    quant = mi["quantization"]
+                ctx = mi.get("context_length", 0)
+            verified = getattr(p, 'model_verified', False)
 
             md["providers"].append({
                 "id": p.provider_id,
@@ -339,6 +347,8 @@ async def get_market_data():
                 "hardware": p.capabilities.hardware,
                 "slots": f"{p.active_requests}/{p.capabilities.max_concurrent}",
                 "quantization": quant,
+                "context_length": ctx,
+                "verified": verified,
                 "original_model": model_name,
             })
             if price < md["cheapest_output"]:

@@ -13,6 +13,7 @@ interface MarketModel {
     id: string; name: string; price_output: number; price_input: number
     tps: number; trust: string; encrypted: boolean; load: number
     hardware: string; slots: string; quantization: string; original_model: string
+    context_length: number; verified: boolean
   }>
   cheapest_output: number
   fastest_tps: number
@@ -87,12 +88,20 @@ function ModelMarketCard({ m }: { m: MarketModel }) {
       <div className="px-5 py-3">
         <div className="text-[10px] text-gray-400 uppercase tracking-wider mb-2">Providers on exchange</div>
         {m.providers.map(p => (
-          <div key={p.id} className="flex items-center gap-2 py-2 border-b border-gray-50 last:border-0 text-sm">
+          <div key={p.id} className="flex items-center gap-2 py-2.5 border-b border-gray-50 last:border-0 text-sm">
             <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${p.load < 0.8 ? 'bg-emerald-500' : 'bg-amber-500'}`} />
-            <span className="text-gray-700 truncate w-20">{p.name}</span>
+            <div className="truncate w-20">
+              <span className="text-gray-700">{p.name}</span>
+              {p.verified && <span className="ml-1 text-[9px] text-blue-500" title="Model hash verified against HuggingFace">✓</span>}
+            </div>
             <span className="font-semibold text-gray-900 w-14 text-right">${p.price_output.toFixed(2)}</span>
             <span className="text-xs text-gray-400 w-12 text-right">{p.tps.toFixed(0)} t/s</span>
-            {p.quantization && <span className="text-[10px] font-mono text-gray-400 bg-gray-50 px-1 rounded">{p.quantization}</span>}
+            {p.quantization && (
+              <span className="text-[10px] font-mono text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200/50">{p.quantization}</span>
+            )}
+            {p.context_length > 0 && (
+              <span className="text-[10px] text-gray-400">{(p.context_length / 1024).toFixed(0)}k ctx</span>
+            )}
             <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full ${
               p.trust === 'hardened' ? 'bg-amber-50 text-amber-600' :
               p.trust === 'confidential' ? 'bg-emerald-50 text-emerald-600' :
