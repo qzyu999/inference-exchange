@@ -1,14 +1,19 @@
 import { useState } from 'react'
 import useSWR from 'swr'
+import { Link } from 'react-router-dom'
 import { api, post } from '../lib/api'
+import { useAuth } from '../lib/auth'
 
 export function Keys() {
-  const { data, mutate } = useSWR('keys', () => api.health())
+  const { user } = useAuth()
+  const { data, mutate } = useSWR('myKeys', api.myKeys)
+  const { data: health } = useSWR('health', api.health)
   const [newKeyName, setNewKeyName] = useState('')
   const [createdKey, setCreatedKey] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
 
-  const defaultKey = data?.default_api_key
+  const defaultKey = user?.api_key || health?.default_api_key
+  const userKeys = data?.keys || []
 
   async function createKey() {
     if (!newKeyName.trim()) return
@@ -34,6 +39,13 @@ export function Keys() {
         <h1 className="text-2xl font-bold text-gray-900">API Keys</h1>
         <p className="text-sm text-gray-400 mt-1">Manage your keys for the Inference Exchange API</p>
       </div>
+
+      {!user && (
+        <div className="bg-amber-50 rounded-2xl border border-amber-200/60 p-5 text-center">
+          <div className="text-sm text-amber-700 mb-2">Sign in to manage your own API keys</div>
+          <Link to="/login" className="text-sm font-medium text-amber-600 hover:text-amber-700">Sign in or create an account</Link>
+        </div>
+      )}
 
       {defaultKey && (
         <div className="bg-white rounded-2xl border border-gray-200/60 shadow-sm p-5">
@@ -66,6 +78,28 @@ export function Keys() {
               <button onClick={() => copyKey(createdKey)} className="px-3 py-2 bg-emerald-600 text-white rounded-lg text-sm hover:bg-emerald-700 shrink-0">{copied ? 'Done' : 'Copy'}</button>
             </div>
           </div>
+        )}
+      </div>
+
+      <div className="bg-white rounded-2xl border border-gray-200/60 shadow-sm p-5">
+        <div className="text-sm font-semibold text-gray-900 mb-4">Your Keys ({userKeys.length})</div>
+        {userKeys.length > 0 ? (
+          <div className="space-y-2">
+            {userKeys.map(k => (
+              <div key={k.key_id} className="flex items-center justify-between py-2 border-b border-gray-50 last:border-0 text-sm">
+                <div>
+                  <span className="font-medium text-gray-900">{k.name}</span>
+                  <span className="text-xs text-gray-400 ml-2 font-mono">{k.key_id}</span>
+                </div>
+                <div className="text-xs text-gray-400">
+                  {k.requests_made} requests
+                  {k.last_used_at && ` · last used ${new Date(k.last_used_at * 1000).toLocaleDateString()}`}
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="text-sm text-gray-300 text-center py-4">No keys yet</div>
         )}
       </div>
 

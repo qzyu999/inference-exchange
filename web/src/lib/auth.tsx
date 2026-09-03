@@ -9,6 +9,7 @@ interface User {
   requests_made: number
   tokens_consumed: number
   api_keys: number
+  api_key?: string  // stored from signup, used by Chat
 }
 
 interface AuthContext {
@@ -43,7 +44,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (r.ok) {
         const data = await r.json()
         if (data.user_id) {
-          setUser(data as User)
+          // Restore API key from localStorage if available
+          const savedKey = localStorage.getItem('ie_user_api_key')
+          setUser({ ...data, api_key: savedKey || undefined } as User)
         } else {
           setUser(null)
         }
@@ -58,6 +61,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   useEffect(() => { refresh() }, [refresh])
+
+  // Refresh balance periodically when logged in
+  useEffect(() => {
+    if (!user) return
+    const interval = setInterval(refresh, 15000)  // every 15s
+    return () => clearInterval(interval)
+  }, [user, refresh])
 
   const login = async (email: string, password: string) => {
     try {
@@ -89,6 +99,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const data = await r.json()
       if (r.ok) {
         await refresh()
+        // Store API key for use in Chat
+        if (data.api_key) {
+          localStorage.setItem('ie_user_api_key', data.api_key)
+          localStorage.setItem('ie_api_key', data.api_key)  // Also set for Chat page
+        }
         return { ok: true, api_key: data.api_key }
       }
       return { ok: false, error: data.error || 'Signup failed' }
