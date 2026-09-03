@@ -1,6 +1,20 @@
 import useSWR from 'swr'
-import { api, Provider } from '../lib/api'
+import { api } from '../lib/api'
 import { useEffect, useRef, useState } from 'react'
+
+// --- API type ---
+interface MarketModel {
+  model: string
+  providers: Array<{
+    id: string; name: string; price_output: number; price_input: number
+    tps: number; trust: string; encrypted: boolean; load: number; hardware: string; slots: string
+  }>
+  cheapest_output: number
+  fastest_tps: number
+  max_trust: string
+  provider_count: number
+  reference_prices: Array<{ provider: string; model: string; price_output: number; savings_pct: number; note: string }>
+}
 
 function formatVolume(usd: number): string {
   if (usd >= 1) return `$${usd.toFixed(2)}`
@@ -16,51 +30,74 @@ function LiveDot() {
   </span>
 }
 
-function ProviderCard({ p }: { p: Provider }) {
-  const loadPct = p.load * 100
+function ModelMarketCard({ m }: { m: MarketModel }) {
+  const bestSavings = m.reference_prices.reduce((max, r) => Math.max(max, r.savings_pct), 0)
   return (
-    <div className="bg-white rounded-2xl border border-gray-200/60 shadow-sm p-5 hover:shadow-md transition-all">
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-2">
-          <div className={`w-2 h-2 rounded-full ${p.status === 'active' ? 'bg-emerald-500' : 'bg-gray-300'}`} />
-          <span className="font-semibold text-gray-900">{p.name}</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${
-            p.trust_level === 'hardened' ? 'bg-amber-50 text-amber-600 border border-amber-200/50' :
-            p.trust_level === 'confidential' ? 'bg-emerald-50 text-emerald-600 border border-emerald-200/50' :
-            p.trust_level === 'contained' ? 'bg-blue-50 text-blue-600 border border-blue-200/50' :
-            'bg-gray-50 text-gray-500 border border-gray-200/50'
-          }`}>{p.trust_level}</span>
-          {p.encrypted && <span className="text-[10px] font-medium text-emerald-500 bg-emerald-50 px-1.5 py-0.5 rounded-full border border-emerald-200/50">E2E</span>}
-        </div>
-      </div>
-      <div className="grid grid-cols-3 gap-4">
-        <div>
-          <div className="text-[10px] text-gray-400 uppercase tracking-wider">Price</div>
-          <div className="text-lg font-bold text-gray-900 mt-0.5">${p.price_output.toFixed(2)}</div>
-          <div className="text-[10px] text-gray-400">per Mtok out</div>
-        </div>
-        <div>
-          <div className="text-[10px] text-gray-400 uppercase tracking-wider">Speed</div>
-          <div className="text-lg font-bold text-gray-900 mt-0.5">{p.measured_tps.toFixed(0)}</div>
-          <div className="text-[10px] text-gray-400">tokens/sec</div>
-        </div>
-        <div>
-          <div className="text-[10px] text-gray-400 uppercase tracking-wider">Load</div>
-          <div className="flex items-center gap-2 mt-1.5">
-            <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
-              <div className={`h-full rounded-full transition-all ${loadPct > 80 ? 'bg-red-400' : loadPct > 50 ? 'bg-amber-400' : 'bg-emerald-400'}`}
-                style={{ width: `${Math.max(4, loadPct)}%` }} />
-            </div>
-            <span className="text-xs text-gray-500 font-mono">{loadPct.toFixed(0)}%</span>
+    <div className="bg-white rounded-2xl border border-gray-200/60 shadow-sm overflow-hidden">
+      {/* Header */}
+      <div className="px-5 py-4 border-b border-gray-100">
+        <div className="flex items-center justify-between">
+          <div>
+            <div className="font-semibold text-gray-900">{m.model}</div>
+            <div className="text-xs text-gray-400 mt-0.5">{m.provider_count} provider{m.provider_count !== 1 ? 's' : ''}</div>
           </div>
-          <div className="text-[10px] text-gray-400 mt-0.5">{p.active_requests}/{p.max_concurrent} slots</div>
+          <div className="text-right">
+            <div className="text-2xl font-bold text-gray-900">${m.cheapest_output.toFixed(2)}</div>
+            <div className="text-[10px] text-gray-400">per Mtok output</div>
+          </div>
         </div>
+        {bestSavings > 0 && (
+          <div className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">
+            Up to {bestSavings}% less than centralized APIs
+          </div>
+        )}
       </div>
-      <div className="mt-3 pt-3 border-t border-gray-100 flex items-center justify-between text-xs text-gray-400">
-        <span>{p.models.join(', ')}</span>
-        <span>{p.hardware}</span>
+
+      {/* Reference pricing comparison */}
+      {m.reference_prices.length > 0 && (
+        <div className="px-5 py-3 bg-gray-50/50 border-b border-gray-100">
+          <div className="text-[10px] text-gray-400 uppercase tracking-wider mb-2">vs. centralized APIs</div>
+          <div className="space-y-1">
+            {m.reference_prices.slice(0, 3).map((ref, i) => (
+              <div key={i} className="flex items-center justify-between text-xs">
+                <span className="text-gray-500">{ref.provider} <span className="text-gray-400">({ref.model})</span></span>
+                <div className="flex items-center gap-2">
+                  <span className="text-gray-400 line-through">${ref.price_output.toFixed(2)}</span>
+                  {ref.savings_pct > 0 && <span className="text-emerald-600 font-medium">-{ref.savings_pct}%</span>}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Provider rows */}
+      <div className="px-5 py-3">
+        <div className="text-[10px] text-gray-400 uppercase tracking-wider mb-2">Providers on exchange</div>
+        {m.providers.map(p => (
+          <div key={p.id} className="flex items-center gap-2 py-2 border-b border-gray-50 last:border-0 text-sm">
+            <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${p.load < 0.8 ? 'bg-emerald-500' : 'bg-amber-500'}`} />
+            <span className="text-gray-700 truncate w-24">{p.name}</span>
+            <span className="font-semibold text-gray-900 w-14 text-right">${p.price_output.toFixed(2)}</span>
+            <span className="text-xs text-gray-400 w-12 text-right">{p.tps.toFixed(0)} t/s</span>
+            <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full ${
+              p.trust === 'hardened' ? 'bg-amber-50 text-amber-600' :
+              p.trust === 'confidential' ? 'bg-emerald-50 text-emerald-600' :
+              p.trust === 'contained' ? 'bg-blue-50 text-blue-600' :
+              'bg-gray-50 text-gray-400'
+            }`}>{p.trust}</span>
+            {p.encrypted && <span className="text-[10px] text-emerald-500">E2E</span>}
+            <span className="text-xs text-gray-400 ml-auto">{p.slots}</span>
+          </div>
+        ))}
+      </div>
+
+      {/* CTA */}
+      <div className="px-5 py-3 border-t border-gray-100">
+        <a href={`/chat?model=${encodeURIComponent(m.model)}`}
+          className="block text-center py-2.5 bg-gray-900 text-white rounded-xl text-xs font-medium hover:bg-gray-800 transition-colors">
+          Chat with this model
+        </a>
       </div>
     </div>
   )
@@ -150,10 +187,12 @@ export function Exchange() {
   const { data: provData } = useSWR('providers', api.providers, { refreshInterval: 3000 })
   const { data: depthData } = useSWR('depth', api.depth, { refreshInterval: 5000 })
   const { data: traceData } = useSWR('traces', api.traces, { refreshInterval: 3000 })
+  const { data: marketData } = useSWR('market', api.market, { refreshInterval: 5000 })
 
   const providers = provData?.providers || []
   const traces = traceData?.traces || []
   const recentTrades = [...traces].reverse().slice(0, 15)
+  const models = (marketData?.models || []) as MarketModel[]
 
   if (providers.length === 0 && !stats?.total_requests) {
     return (
@@ -200,15 +239,21 @@ export function Exchange() {
 
       {/* Main grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-        {/* Providers */}
+        {/* Models market view */}
         <div className="lg:col-span-2 space-y-4">
           <div className="flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-gray-900">Active Providers</h2>
-            <span className="text-xs text-gray-400">{providers.length} online</span>
+            <h2 className="text-sm font-semibold text-gray-900">Market by Model</h2>
+            <span className="text-xs text-gray-400">{models.length} model{models.length !== 1 ? 's' : ''} available</span>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {providers.sort((a, b) => a.price_output - b.price_output).map(p => <ProviderCard key={p.id} p={p} />)}
-          </div>
+          {models.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {models.map(m => <ModelMarketCard key={m.model} m={m} />)}
+            </div>
+          ) : (
+            <div className="bg-white rounded-2xl border border-gray-200/60 p-12 text-center text-gray-300 text-sm">
+              No models available yet
+            </div>
+          )}
         </div>
 
         {/* Sidebar: Trades + Feed */}
