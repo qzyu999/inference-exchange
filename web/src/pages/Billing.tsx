@@ -45,10 +45,15 @@ export function Billing() {
 
       <div className="bg-gradient-to-r from-amber-50 to-orange-50 rounded-2xl border border-amber-200/60 p-5 flex items-center justify-between">
         <div>
-          <div className="font-semibold text-gray-900">Add credits</div>
-          <div className="text-sm text-gray-500">Stripe integration coming soon. Credits are pre-loaded for the beta.</div>
+          <div className="font-semibold text-gray-900">Need more credits?</div>
+          <div className="text-sm text-gray-500">Alpha uses dummy money. Reset your balance anytime.</div>
         </div>
-        <button disabled className="px-4 py-2 bg-amber-200 text-amber-700 rounded-xl text-sm font-medium cursor-not-allowed opacity-60">Coming soon</button>
+        <button onClick={async () => {
+          await fetch('/v1/auth/reset-balance', { method: 'POST', credentials: 'include' })
+          window.location.reload()
+        }} className="px-4 py-2 bg-amber-500 text-white rounded-xl text-sm font-medium hover:bg-amber-600 transition-colors">
+          Reset to $10
+        </button>
       </div>
 
       <div className="bg-white rounded-2xl border border-gray-200/60 shadow-sm p-5">
