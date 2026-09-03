@@ -131,20 +131,37 @@ async def get_stats():
 
 
 @router.get("/v1/exchange/history")
-async def get_history():
-    """Recent transaction history."""
-    billing = get_billing()
+async def get_history(request: Request):
+    """Recent transaction history (filtered by authenticated user)."""
+    from .routes_auth import resolve_user_from_request
+    from .dependencies import get_store
+
+    store = get_store()
+    auth = get_auth()
+
+    # Determine consumer_id: JWT user > API key > default
+    user_info = resolve_user_from_request(request)
+    if user_info:
+        consumer_id = user_info["user_id"]
+    else:
+        consumer_id = auth.resolve_consumer(request.headers.get("authorization"))
+
+    # Fetch per-user transactions
+    rows = store._conn.execute(
+        "SELECT * FROM transactions WHERE consumer_id = ? ORDER BY timestamp DESC LIMIT 50",
+        (consumer_id,)
+    ).fetchall()
+
     return {
         "transactions": [
             {
-                "request_id": b.request_id[:8],
-                "model": b.model,
-                "tokens": b.input_tokens + b.output_tokens,
-                "cost_usd": round(b.cost_micro / 1_000_000, 6),
-                "provider_earned_usd": round(b.provider_earning_micro / 1_000_000, 6),
-                "timestamp": b.timestamp,
+                "request_id": dict(r)["request_id"][:8],
+                "model": dict(r)["model"],
+                "tokens": dict(r)["input_tokens"] + dict(r)["output_tokens"],
+                "cost_usd": round(dict(r)["cost_micro"] / 1_000_000, 6),
+                "timestamp": dict(r)["timestamp"],
             }
-            for b in billing.recent_bills[-20:]
+            for r in rows
         ]
     }
 

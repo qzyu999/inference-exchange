@@ -88,12 +88,28 @@ async def chat_completions(request: ChatCompletionRequest, raw_request: Request)
     hub = get_hub()
     auth = get_auth()
 
-    # Resolve consumer identity from auth header
-    consumer_id = auth.resolve_consumer(raw_request.headers.get("authorization"))
+    # Resolve consumer identity from auth header or JWT
+    from .routes_auth import resolve_user_from_request
+    user_info = resolve_user_from_request(raw_request)
+    if user_info:
+        consumer_id = user_info["user_id"]
+    else:
+        consumer_id = auth.resolve_consumer(raw_request.headers.get("authorization"))
 
     # Rate limit check
     if not _rate_limiter.allow(consumer_id):
         raise RateLimitExceeded()
+
+    # Balance check: reject if consumer has no credits
+    from .dependencies import get_store
+    store = get_store()
+    account = store.get_account(consumer_id)
+    if account and account["balance_micro"] <= 0:
+        from fastapi.responses import JSONResponse
+        return JSONResponse(
+            {"error": {"message": "Insufficient balance. Add credits to continue.", "type": "insufficient_balance"}},
+            status_code=402,
+        )
 
     # Pre-compute input token estimate for billing (used by both paths)
     messages_plain = [m.model_dump() for m in request.messages]

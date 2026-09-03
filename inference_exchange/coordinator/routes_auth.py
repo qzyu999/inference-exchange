@@ -13,6 +13,25 @@ from .dependencies import get_auth, get_billing, get_store
 
 router = APIRouter()
 
+# Rate limiter for auth endpoints (prevent brute-force)
+_auth_attempts: dict[str, list[float]] = {}
+_AUTH_RATE_LIMIT = 10  # max attempts per window
+_AUTH_RATE_WINDOW = 300  # 5 minute window
+
+
+def _check_auth_rate(ip: str) -> bool:
+    """Return True if request is allowed, False if rate-limited."""
+    import time
+    now = time.time()
+    attempts = _auth_attempts.get(ip, [])
+    # Remove old attempts
+    attempts = [t for t in attempts if now - t < _AUTH_RATE_WINDOW]
+    if len(attempts) >= _AUTH_RATE_LIMIT:
+        return False
+    attempts.append(now)
+    _auth_attempts[ip] = attempts
+    return True
+
 # JWT secret: use env var if set, otherwise generate (and warn)
 import os as _os
 import secrets as _secrets
@@ -93,8 +112,11 @@ class LoginRequest(BaseModel):
 
 
 @router.post("/v1/auth/signup")
-async def signup(req: SignupRequest):
+async def signup(req: SignupRequest, request: Request):
     """Create a new user account with email + password."""
+    if not _check_auth_rate(request.client.host if request.client else "unknown"):
+        return JSONResponse({"error": "Too many attempts. Try again in a few minutes."}, status_code=429)
+
     store = get_store()
 
     if len(req.password) < 6:
@@ -124,8 +146,11 @@ async def signup(req: SignupRequest):
 
 
 @router.post("/v1/auth/login")
-async def login(req: LoginRequest):
+async def login(req: LoginRequest, request: Request):
     """Login with email + password. Returns JWT in cookie."""
+    if not _check_auth_rate(request.client.host if request.client else "unknown"):
+        return JSONResponse({"error": "Too many attempts. Try again in a few minutes."}, status_code=429)
+
     store = get_store()
     user = store.authenticate_user(req.email, req.password)
     if not user:
