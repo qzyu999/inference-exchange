@@ -270,3 +270,251 @@ Based on this analysis, what actually matters for alpha:
 - vLLM engine adapter (SafeTensors + config.json identity)
 - Ollama engine adapter (manifest identity)
 - Per-engine identity verification with clear confidence levels
+
+## 8. L2+ Hardening Paths -- Every Major Permutation
+
+For each viable engine x platform x format combination, here is the exact
+path to L2 hardening AND cryptographic model verification.
+
+The two requirements for L2+ are:
+- **Hardening**: The provider operator CANNOT observe process memory (prompts, responses, keys)
+- **Model verification**: The coordinator CAN prove the model files are exactly what HuggingFace published
+
+---
+
+### Path 1: llama.cpp + GGUF + macOS Apple Silicon
+
+**Status: PROVEN (tested on M2 Max)**
+
+```
+Model source:  HuggingFace GGUF repo (e.g., TheBloke/Llama-3.1-8B-Instruct-GGUF)
+Download:      huggingface-hub CLI or direct URL
+Format:        Single .gguf file
+Identity:      Embedded in GGUF header (general.name, general.architecture, general.file_type)
+Verification:  SHA-256 of .gguf file vs HF published hash (one file = one hash)
+Quantization:  Embedded in GGUF as file_type (Q4_K_M, Q8_0, etc.)
+Context:       Embedded in GGUF ({arch}.context_length)
+
+Hardening:
+  1. Build llama-server from source with hardening.c (PT_DENY_ATTACH, RLIMIT_CORE=0, SIP check)
+  2. cmake -DBUILD_SHARED_LIBS=OFF -DGGML_METAL=ON -DOPENSSL_ROOT_DIR=/nonexistent
+  3. codesign --sign - --options runtime --entitlements entitlements.plist
+  4. Result: single static binary, Hardened Runtime, kernel blocks debuggers + memory reads
+
+Verification chain:
+  Agent reads GGUF header -> extracts name, arch, quant, ctx
+  Agent computes SHA-256 of entire .gguf file
+  Agent sends identity + hash to coordinator
+  Coordinator queries HF API for file hash
+  Hash match -> VERIFIED (identity is cryptographically bound to exact HF upload)
+
+What's guaranteed:
+  - Model is byte-for-byte identical to HF upload: YES
+  - Model name/arch/quant from embedded metadata: YES (can't forge without changing hash)
+  - Provider can't observe prompts/responses: YES (kernel 0-day required)
+  - Provider can't swap model after startup: YES (binary is hardened, can't inject code)
+```
+
+### Path 2: MLX + SafeTensors + macOS Apple Silicon
+
+**Status: DESIGNED (not yet built)**
+
+```
+Model source:  HuggingFace MLX repo (e.g., mlx-community/Meta-Llama-3.1-8B-Instruct-4bit)
+Download:      huggingface-hub CLI or mlx-lm download
+Format:        Directory of files: model.safetensors, config.json, tokenizer.json, etc.
+Identity:      config.json (model_type, hidden_size, num_layers, vocab_size, max_position_embeddings)
+Verification:  SHA-256 of EVERY file in directory vs HF published hashes (N files = N hashes)
+Quantization:  From repo name or config.json ("quantization_config" field) or explicit (4bit, 8bit)
+Context:       config.json (max_position_embeddings)
+
+Hardening:
+  1. Build MLX inference server as PyInstaller onedir bundle:
+     - Python + mlx + mlx-lm + our server code -> frozen binary
+     - PT_DENY_ATTACH via ctypes at startup (before model load):
+       import ctypes; libc = ctypes.CDLL('libc.dylib')
+       libc.ptrace(31, 0, 0, 0)  # PT_DENY_ATTACH = 31
+  2. Sign ALL .dylib and .so in the bundle directory (consistent ad-hoc identity)
+  3. codesign --sign - --options runtime --entitlements entitlements.plist on main binary
+  4. Result: frozen Python bundle, Hardened Runtime, kernel blocks debuggers + memory reads
+
+Verification chain:
+  Agent enumerates all files in model directory
+  Agent computes SHA-256 of each file (model.safetensors, config.json, tokenizer.json, ...)
+  Agent reads config.json for identity (model name, architecture, context length)
+  Agent sends {filename: hash} map + identity to coordinator
+  Coordinator queries HF API for each file's hash
+  ALL match -> VERIFIED (entire model directory is byte-for-byte identical to HF upload)
+  ANY mismatch -> UNVERIFIED (flagged, consumer sees warning)
+
+What's guaranteed:
+  - All model files identical to HF upload: YES (every file hashed)
+  - config.json can't be forged: YES (its hash is verified too)
+  - Provider can't observe prompts/responses: YES (PyInstaller + Hardened Runtime + PT_DENY_ATTACH)
+  - Provider can't swap model after startup: YES (hardened process)
+
+Note: MLX uses unified memory (CPU and GPU share the same RAM on Apple Silicon).
+The model weights, KV cache, and activations all live in the same address space.
+Hardened Runtime protects the entire process memory, including GPU-accessible regions.
+```
+
+### Path 3: llama.cpp + GGUF + Linux NVIDIA (KVM + VFIO)
+
+**Status: DESIGNED (not yet built)**
+
+```
+Model source:  HuggingFace GGUF repo
+Format:        Single .gguf file
+Verification:  Same as Path 1 (SHA-256 of single file)
+
+Hardening:
+  1. Build llama-server inside a minimal VM image (no SSH, no shell, read-only rootfs)
+  2. VM has VFIO passthrough for the NVIDIA GPU (full GPU access, host can't intercept)
+  3. llama-server listens on virtio-net socket (not TCP, invisible to host)
+  4. Host cannot read VM memory (KVM memory isolation)
+  5. Host cannot attach debugger to processes inside VM
+
+What's guaranteed:
+  - Model verified: YES (same GGUF hash chain)
+  - Provider can't observe prompts: YES (VM memory isolation)
+  - Provider can't swap model: YES (read-only rootfs in VM)
+  - GPU memory protected: PARTIAL (VFIO gives VM exclusive GPU access,
+    but host could theoretically read GPU BAR regions; full protection
+    needs GPU TEE like NVIDIA CC)
+
+Limitation: Host controls the hypervisor. A malicious host with kernel
+access could potentially read VM memory via /dev/mem or custom KVM patches.
+This is harder than userspace attacks but not impossible. True L3 requires
+hardware TEE (SEV-SNP).
+```
+
+### Path 4: vLLM + SafeTensors + Linux NVIDIA (SEV-SNP)
+
+**Status: DESIGNED (not yet built, requires AMD EPYC with SEV-SNP)**
+
+```
+Model source:  HuggingFace SafeTensors repo
+Format:        Directory (same as Path 2)
+Verification:  SHA-256 of every file vs HF (same as Path 2)
+
+Hardening:
+  1. vLLM runs inside AMD SEV-SNP confidential VM
+  2. ALL VM memory is encrypted by the CPU hardware (AES-128)
+  3. The hypervisor CANNOT read VM memory (hardware-enforced, not software)
+  4. GPU memory: requires NVIDIA Confidential Computing (H100+) for full protection
+  5. VM attestation: SEV-SNP produces a hardware-signed measurement of the VM
+
+What's guaranteed:
+  - Model verified: YES (hash chain)
+  - Provider can't observe prompts: YES (hardware memory encryption)
+  - Provider can't swap model: YES (VM measurement includes the model loader)
+  - Hypervisor can't read memory: YES (hardware-enforced, this is the whole point of SEV-SNP)
+  - GPU memory protected: Only with NVIDIA CC (H100 Confidential Computing mode)
+
+This is true L3. The CPU hardware itself enforces confidentiality.
+The provider has physical access to the machine but cannot read the VM's memory.
+```
+
+### Path 5: Ollama + GGUF (internal) + macOS Apple Silicon
+
+**Status: L1 MAXIMUM (cannot reach L2)**
+
+```
+Model source:  Ollama library (ollama pull llama3.1:8b)
+Format:        Ollama manages its own blob storage (GGUF internally)
+Verification:  PARTIAL
+  - GGUF metadata IS readable (Ollama stores standard GGUF)
+  - But Ollama may repackage/re-quantize the model
+  - File SHA-256 may NOT match HF's published hash
+  - Ollama has its own digest system, not directly HF-compatible
+
+Hardening:
+  - Ollama is a Go binary we don't build
+  - We cannot add PT_DENY_ATTACH to Ollama's process
+  - We cannot codesign it with Hardened Runtime
+  - The Ollama process is observable by the provider operator
+
+What's guaranteed:
+  - GGUF metadata readable: YES (name, arch, quant)
+  - Model matches HF upload: NO (Ollama's blob may differ)
+  - Provider can't observe: NO (Ollama is unhardened)
+
+Conclusion: Ollama is L1 maximum. Useful for open/contained workloads
+where the consumer doesn't need confidentiality.
+```
+
+### Path 6: MLX + SafeTensors + macOS Apple Silicon (via Ollama)
+
+**Status: L1 MAXIMUM**
+
+```
+Same limitations as Path 5. Ollama can run MLX models on Apple Silicon,
+but Ollama itself is unhardened and we can't modify it.
+If a provider uses Ollama as the engine, max trust is L1 regardless
+of the underlying model format.
+```
+
+### Path 7: Any engine + Any format + Any platform (self-quantized)
+
+**Status: L0 only (unverifiable model)**
+
+```
+A provider quantizes a model themselves (using llama-quantize, mlx-lm convert,
+AutoGPTQ, etc.). The resulting files have no published hash on HuggingFace.
+
+Verification: IMPOSSIBLE
+  - We can hash the files, but there's nothing to compare against
+  - The provider could have quantized any model and called it anything
+  - No cryptographic binding between the files and any trusted source
+
+Hardening: Possible (same as Path 1-4 depending on engine/platform)
+  - The process can be hardened
+  - But we can't verify WHAT model is running inside the hardened process
+
+Conclusion: Self-quantized models can be hardened (L2) but not verified.
+The consumer should see: "L2 Hardened, model identity UNVERIFIED"
+```
+
+---
+
+## 9. Summary: The L2+ Verification Matrix
+
+| # | Engine | Format | Platform | L2 Hardening | Model Verification | Status |
+|---|---|---|---|---|---|---|
+| 1 | llama.cpp | GGUF | macOS (Apple Silicon) | YES (PT_DENY_ATTACH + Hardened Runtime) | YES (single-file SHA-256 vs HF) | PROVEN |
+| 2 | MLX | SafeTensors | macOS (Apple Silicon) | YES (PyInstaller + PT_DENY_ATTACH via ctypes) | YES (all-file SHA-256 vs HF) | DESIGNED |
+| 3 | llama.cpp | GGUF | Linux + NVIDIA (KVM) | YES (VM isolation + VFIO) | YES (single-file SHA-256) | DESIGNED |
+| 4 | vLLM | SafeTensors | Linux + NVIDIA (SEV-SNP) | YES (hardware memory encryption) | YES (all-file SHA-256) | DESIGNED (needs AMD EPYC) |
+| 5 | Ollama | GGUF | Any | NO (can't harden third-party binary) | PARTIAL (GGUF metadata yes, hash no) | L1 MAX |
+| 6 | Any | Any | Any (self-quantized) | Depends on engine | NO (no HF hash to compare) | L2 but UNVERIFIED |
+
+**The viable L2+ paths with full verification are: 1, 2, 3, 4.**
+
+Path 1 is proven. Path 2 is the next priority (MLX on Apple Silicon).
+Paths 3 and 4 need Linux infrastructure.
+
+## 10. What the Consumer Sees
+
+For maximum transparency, each provider on the exchange should show:
+
+```
+Meta Llama 3.1 8B Instruct
+  Engine: MLX          Format: SafeTensors    Quant: 4-bit
+  Hardware: apple-m2-max    Context: 128k     Price: $0.10/Mtok
+  Trust: L2 Hardened   E2E: Yes
+  Verification: VERIFIED (12/12 files match HuggingFace)
+  Source: mlx-community/Meta-Llama-3.1-8B-Instruct-4bit
+```
+
+vs
+
+```
+Custom Llama 70B
+  Engine: Ollama       Format: GGUF           Quant: Q4_K_M
+  Hardware: apple-m4-pro    Context: 8k       Price: $0.05/Mtok
+  Trust: L1 Contained  E2E: Yes
+  Verification: UNVERIFIED (Ollama blob, hash not on HF)
+  Source: Self-managed
+```
+
+The consumer sees exactly what's verified and what isn't, and decides accordingly.
