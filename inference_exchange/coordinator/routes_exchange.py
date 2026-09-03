@@ -293,6 +293,70 @@ async def search_models(q: str = ""):
     return {"query": q, "models": results, "exchange_models": sorted(available_models)}
 
 
+@router.get("/v1/exchange/market")
+async def get_market_data():
+    """Model-centric market view with reference pricing comparison."""
+    from .reference_pricing import get_reference_prices, compute_savings
+
+    hub = get_hub()
+    billing = get_billing()
+
+    # Group providers by model
+    model_data: dict[str, dict] = {}
+    for p in hub._providers.values():
+        for model in p.capabilities.models:
+            if model not in model_data:
+                model_data[model] = {
+                    "model": model,
+                    "providers": [],
+                    "cheapest_output": float("inf"),
+                    "fastest_tps": 0,
+                    "max_trust": "open",
+                }
+            md = model_data[model]
+            price = p.capabilities.price_per_mtok_output
+            md["providers"].append({
+                "id": p.provider_id,
+                "name": p.name,
+                "price_output": price,
+                "price_input": p.capabilities.price_per_mtok_input,
+                "tps": p.capabilities.measured_tps,
+                "trust": p.capabilities.trust_level.value,
+                "encrypted": bool(p.encryption_public_key),
+                "load": round(p.load_factor, 2),
+                "hardware": p.capabilities.hardware,
+                "slots": f"{p.active_requests}/{p.capabilities.max_concurrent}",
+            })
+            if price < md["cheapest_output"]:
+                md["cheapest_output"] = price
+            if p.capabilities.measured_tps > md["fastest_tps"]:
+                md["fastest_tps"] = p.capabilities.measured_tps
+            trust_order = ["open", "contained", "hardened", "confidential"]
+            curr = trust_order.index(md["max_trust"]) if md["max_trust"] in trust_order else 0
+            prov = trust_order.index(p.capabilities.trust_level.value) if p.capabilities.trust_level.value in trust_order else 0
+            if prov > curr:
+                md["max_trust"] = p.capabilities.trust_level.value
+
+    # Add reference pricing comparison to each model
+    result = []
+    for model, data in model_data.items():
+        savings = compute_savings(data["cheapest_output"], model)
+        data["reference_prices"] = savings["comparisons"]
+        data["provider_count"] = len(data["providers"])
+        # Sort providers by price
+        data["providers"].sort(key=lambda x: x["price_output"])
+        result.append(data)
+
+    # Sort models by provider count (most served first)
+    result.sort(key=lambda x: -x["provider_count"])
+
+    return {
+        "models": result,
+        "total_providers": hub.provider_count,
+        "total_models": len(result),
+    }
+
+
 @router.get("/v1/exchange/provider-earnings")
 async def get_provider_earnings(request: Request):
     """Provider earnings summary. Query by provider_id or get all."""

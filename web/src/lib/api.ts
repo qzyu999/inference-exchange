@@ -144,5 +144,6 @@ export const api = {
   searchModels: (q: string) => get<{ models: Array<{ repo_id: string; downloads: number; available_on_exchange: boolean; provider_count: number }> }>(`/v1/exchange/models/search?q=${encodeURIComponent(q)}`),
   adminState: () => get<any>('/v1/admin/state'),
   recentEvents: () => get<{ events: Array<{ type: string; timestamp: number; [key: string]: any }> }>('/v1/exchange/events/recent'),
+  market: () => get<{ models: any[]; total_providers: number; total_models: number }>('/v1/exchange/market'),
   myKeys: () => get<{ keys: Array<{ key_id: string; name: string; created_at: number; last_used_at: number | null; requests_made: number }> }>('/v1/auth/keys'),
 }
