@@ -1,12 +1,12 @@
 /**
  * API client for the Inference Exchange coordinator.
- * All endpoints return JSON. Base URL configurable via env.
+ * All requests include credentials (JWT cookie) for authenticated endpoints.
  */
 
 const BASE = import.meta.env.VITE_API_BASE || ''
 
 async function get<T>(path: string): Promise<T> {
-  const r = await fetch(`${BASE}${path}`)
+  const r = await fetch(`${BASE}${path}`, { credentials: 'include' })
   if (!r.ok) throw new Error(`${r.status}: ${await r.text()}`)
   return r.json()
 }
@@ -15,6 +15,7 @@ export async function post<T>(path: string, body: unknown): Promise<T> {
   const r = await fetch(`${BASE}${path}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
     body: JSON.stringify(body),
   })
   if (!r.ok) throw new Error(`${r.status}: ${await r.text()}`)
@@ -27,7 +28,7 @@ export interface HealthResponse {
   status: string
   providers: number
   models: string[]
-  default_api_key: string
+  default_api_key?: string
 }
 
 export interface Provider {
@@ -73,7 +74,8 @@ export interface DepthLevel {
 }
 
 export interface Balance {
-  consumer_id: string
+  consumer_id?: string
+  user_id?: string
   balance_usd: number
   total_spent_usd: number
   requests_made: number
@@ -127,6 +129,7 @@ export interface TPSEntry {
 
 export const api = {
   health: () => get<HealthResponse>('/health?include_key=1'),
+  me: () => get<Balance>('/v1/auth/me'),
   stats: () => get<ExchangeStats>('/v1/exchange/stats'),
   providers: () => get<{ providers: Provider[] }>('/v1/exchange/providers'),
   pricing: () => get<{ pricing: PricingEntry[] }>('/v1/exchange/pricing'),
@@ -141,4 +144,5 @@ export const api = {
   searchModels: (q: string) => get<{ models: Array<{ repo_id: string; downloads: number; available_on_exchange: boolean; provider_count: number }> }>(`/v1/exchange/models/search?q=${encodeURIComponent(q)}`),
   adminState: () => get<any>('/v1/admin/state'),
   recentEvents: () => get<{ events: Array<{ type: string; timestamp: number; [key: string]: any }> }>('/v1/exchange/events/recent'),
+  myKeys: () => get<{ keys: Array<{ key_id: string; name: string; created_at: number; last_used_at: number | null; requests_made: number }> }>('/v1/auth/keys'),
 }

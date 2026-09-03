@@ -6,7 +6,7 @@ function formatDate(ts: number) {
 }
 
 export function Billing() {
-  const { data: balance, error: balErr } = useSWR('balance', api.balance, { refreshInterval: 5000 })
+  const { data: balance, error: balErr } = useSWR('me', api.me, { refreshInterval: 5000 })
   const { data: history } = useSWR('history', api.history, { refreshInterval: 10000 })
 
   return (

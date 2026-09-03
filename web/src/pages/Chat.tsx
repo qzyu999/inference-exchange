@@ -4,6 +4,7 @@ import { useSearchParams } from 'react-router-dom'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { api } from '../lib/api'
+import { useAuth } from '../lib/auth'
 
 interface Message {
   role: 'user' | 'assistant'
@@ -45,13 +46,23 @@ export function Chat() {
   const inputRef = useRef<HTMLInputElement>(null)
   const abortRef = useRef<AbortController | null>(null)
 
+  const { user } = useAuth()
   const { data: modelsData } = useSWR('models', api.models)
   const { data: pricing } = useSWR('pricing', api.pricing, { refreshInterval: 10000 })
   const { data: health } = useSWR('health', api.health)
 
-  useEffect(() => { if (!model && modelsData?.data?.length) setModel(modelsData.data[0].id) }, [modelsData, model])
-  useEffect(() => { if (!apiKey && health?.default_api_key) { setApiKey(health.default_api_key); localStorage.setItem('ie_api_key', health.default_api_key) } }, [health, apiKey])
+  // Auto-set API key: user's key > health default > localStorage
+  useEffect(() => {
+    if (user?.api_key && !apiKey) {
+      setApiKey(user.api_key)
+      localStorage.setItem('ie_api_key', user.api_key)
+    } else if (!apiKey && health?.default_api_key) {
+      setApiKey(health.default_api_key)
+      localStorage.setItem('ie_api_key', health.default_api_key)
+    }
+  }, [user, health, apiKey])
   useEffect(() => { scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight }) }, [messages])
+  useEffect(() => { if (!model && modelsData?.data?.length) setModel(modelsData.data[0].id) }, [modelsData, model])
   useEffect(() => { if (messages.length > 0) localStorage.setItem('ie_chat_history', JSON.stringify(messages)) }, [messages])
   useEffect(() => { if (!streaming) inputRef.current?.focus() }, [streaming])
 
@@ -83,6 +94,7 @@ export function Chat() {
       const resp = await fetch('/v1/chat/completions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+        credentials: 'include',
         body: JSON.stringify(body),
         signal: controller.signal,
       })
