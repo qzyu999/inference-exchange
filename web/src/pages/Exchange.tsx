@@ -194,7 +194,7 @@ export function Exchange() {
   const recentTrades = [...traces].reverse().slice(0, 15)
   const models = (marketData?.models || []) as MarketModel[]
 
-  if (providers.length === 0 && !stats?.total_requests) {
+  if (provData && providers.length === 0 && models.length === 0) {
     return (
       <div>
         <div className="flex items-center justify-between mb-8">
