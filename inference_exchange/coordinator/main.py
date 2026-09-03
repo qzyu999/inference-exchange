@@ -236,13 +236,35 @@ def create_app() -> FastAPI:
     )
 
     # CORS: allow same-origin + configured origins
+    ALLOWED_ORIGINS = {"http://localhost:3000", "http://localhost:8000"}
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["http://localhost:3000", "http://localhost:8000"],
+        allow_origins=list(ALLOWED_ORIGINS),
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+    # CSRF protection: on state-changing requests with cookies, verify Origin
+    from starlette.middleware.base import BaseHTTPMiddleware
+    from starlette.responses import JSONResponse as StarletteJSONResponse
+
+    class CSRFMiddleware(BaseHTTPMiddleware):
+        async def dispatch(self, request, call_next):
+            if request.method in ("POST", "PUT", "DELETE", "PATCH"):
+                # Only check if the request uses cookie auth (has ie_session cookie)
+                if "ie_session" in request.cookies:
+                    origin = request.headers.get("origin", "")
+                    referer = request.headers.get("referer", "")
+                    # Allow if origin matches, or referer starts with allowed origin, or no origin (same-origin)
+                    if origin and origin not in ALLOWED_ORIGINS:
+                        if not any(referer.startswith(o) for o in ALLOWED_ORIGINS):
+                            return StarletteJSONResponse(
+                                {"error": "CSRF check failed"}, status_code=403
+                            )
+            return await call_next(request)
+
+    app.add_middleware(CSRFMiddleware)
 
     # Mount consumer API routers
     app.include_router(auth_router)
@@ -320,7 +342,11 @@ def create_app() -> FastAPI:
 
             # Main message loop
             while True:
-                raw = await ws.receive_text()
+                try:
+                    raw = await asyncio.wait_for(ws.receive_text(), timeout=WS_IDLE_TIMEOUT)
+                except asyncio.TimeoutError:
+                    logger.warning(f"Provider {provider_id}: idle timeout ({WS_IDLE_TIMEOUT}s), disconnecting")
+                    break
                 if len(raw) > WS_MAX_MESSAGE_SIZE:
                     logger.warning(f"Provider {provider_id}: message too large ({len(raw)} bytes)")
                     continue

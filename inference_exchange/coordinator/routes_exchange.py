@@ -94,9 +94,18 @@ async def get_pricing():
 @router.get("/v1/exchange/balance")
 async def get_balance(request: Request):
     """Get consumer account balance."""
+    from .routes_auth import resolve_user_from_request
+
     auth = get_auth()
     billing = get_billing()
-    consumer_id = auth.resolve_consumer(request.headers.get("authorization"))
+
+    # Use JWT user if available
+    user_info = resolve_user_from_request(request)
+    if user_info:
+        consumer_id = user_info["user_id"]
+    else:
+        consumer_id = auth.resolve_consumer(request.headers.get("authorization"))
+
     account = billing.get_or_create_consumer(consumer_id)
     if isinstance(account, dict):
         return {
@@ -282,6 +291,45 @@ async def search_models(q: str = ""):
         )
 
     return {"query": q, "models": results, "exchange_models": sorted(available_models)}
+
+
+@router.get("/v1/exchange/provider-earnings")
+async def get_provider_earnings(request: Request):
+    """Provider earnings summary. Query by provider_id or get all."""
+    from .dependencies import get_store
+    store = get_store()
+
+    provider_id = request.query_params.get("provider_id", "")
+
+    if provider_id:
+        # Single provider earnings
+        account = store.get_account(provider_id)
+        if not account:
+            return {"provider_id": provider_id, "earnings_usd": 0, "requests_served": 0}
+
+        # Count requests served by this provider
+        row = store._conn.execute(
+            "SELECT COUNT(*) as cnt, COALESCE(SUM(provider_earning_micro), 0) as total FROM transactions WHERE provider_id = ?",
+            (provider_id,)
+        ).fetchone()
+
+        return {
+            "provider_id": provider_id,
+            "earnings_usd": round(row["total"] / 1_000_000, 6),
+            "balance_usd": round(account["balance_micro"] / 1_000_000, 6),
+            "requests_served": row["cnt"],
+        }
+
+    # All providers with earnings
+    rows = store._conn.execute(
+        "SELECT provider_id, COUNT(*) as requests, SUM(provider_earning_micro) as total FROM transactions GROUP BY provider_id ORDER BY total DESC"
+    ).fetchall()
+    return {
+        "providers": [
+            {"provider_id": dict(r)["provider_id"], "earnings_usd": round(dict(r)["total"] / 1_000_000, 6), "requests_served": dict(r)["requests"]}
+            for r in rows
+        ]
+    }
 
 
 @router.get("/v1/exchange/telemetry")
