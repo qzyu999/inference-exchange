@@ -13,7 +13,7 @@ interface MarketModel {
   fastest_tps: number
   max_trust: string
   provider_count: number
-  reference_prices: Array<{ provider: string; model: string; price_output: number; savings_pct: number; note: string }>
+  reference_prices: Array<{ provider: string; model: string; price_output: number; diff_pct: number; cheaper: boolean }>
 }
 
 function formatVolume(usd: number): string {
@@ -31,7 +31,7 @@ function LiveDot() {
 }
 
 function ModelMarketCard({ m }: { m: MarketModel }) {
-  const bestSavings = m.reference_prices.reduce((max, r) => Math.max(max, r.savings_pct), 0)
+  const cheaperCount = m.reference_prices.filter(r => r.cheaper).length
   return (
     <div className="bg-white rounded-2xl border border-gray-200/60 shadow-sm overflow-hidden">
       {/* Header */}
@@ -46,28 +46,30 @@ function ModelMarketCard({ m }: { m: MarketModel }) {
             <div className="text-[10px] text-gray-400">per Mtok output</div>
           </div>
         </div>
-        {bestSavings > 0 && (
-          <div className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">
-            Up to {bestSavings}% less than centralized APIs
-          </div>
-        )}
       </div>
 
-      {/* Reference pricing comparison */}
+      {/* Reference pricing comparison -- honest, shows all */}
       {m.reference_prices.length > 0 && (
         <div className="px-5 py-3 bg-gray-50/50 border-b border-gray-100">
-          <div className="text-[10px] text-gray-400 uppercase tracking-wider mb-2">vs. centralized APIs</div>
-          <div className="space-y-1">
-            {m.reference_prices.slice(0, 3).map((ref, i) => (
+          <div className="text-[10px] text-gray-400 uppercase tracking-wider mb-2">Market comparison</div>
+          <div className="space-y-1.5">
+            {m.reference_prices.slice(0, 5).map((ref, i) => (
               <div key={i} className="flex items-center justify-between text-xs">
-                <span className="text-gray-500">{ref.provider} <span className="text-gray-400">({ref.model})</span></span>
+                <span className="text-gray-600">{ref.provider} <span className="text-gray-400">{ref.model}</span></span>
                 <div className="flex items-center gap-2">
-                  <span className="text-gray-400 line-through">${ref.price_output.toFixed(2)}</span>
-                  {ref.savings_pct > 0 && <span className="text-emerald-600 font-medium">-{ref.savings_pct}%</span>}
+                  <span className="text-gray-500">${ref.price_output.toFixed(2)}</span>
+                  <span className={`font-medium ${ref.cheaper ? 'text-emerald-600' : 'text-red-500'}`}>
+                    {ref.cheaper ? `-${ref.diff_pct}%` : `+${Math.abs(ref.diff_pct)}%`}
+                  </span>
                 </div>
               </div>
             ))}
           </div>
+          {cheaperCount > 0 && (
+            <div className="text-[10px] text-gray-400 mt-2">
+              Cheaper than {cheaperCount} of {m.reference_prices.length} reference providers
+            </div>
+          )}
         </div>
       )}
 

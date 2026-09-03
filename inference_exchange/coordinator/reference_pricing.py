@@ -119,19 +119,18 @@ def get_reference_prices(model_name: str) -> list[dict]:
 
 
 def compute_savings(exchange_price: float, model_name: str) -> dict:
-    """Compute savings vs reference providers."""
+    """Compute honest comparison vs reference providers. Shows ALL prices, not just favorable ones."""
     refs = get_reference_prices(model_name)
     comparisons = []
     for ref in refs:
         ref_output = ref["output"]
         if ref_output > 0 and exchange_price > 0:
-            pct_savings = round((1 - exchange_price / ref_output) * 100)
+            pct_diff = round((1 - exchange_price / ref_output) * 100)
             comparisons.append({
                 "provider": ref["provider"],
                 "model": ref["model"],
-                "price_output": ref_output,
-                "savings_pct": max(0, pct_savings),
+                "price_output": round(ref_output, 4),
+                "diff_pct": pct_diff,  # positive = we're cheaper, negative = they're cheaper
+                "cheaper": pct_diff > 0,
             })
-    # Only show refs where exchange is cheaper
-    comparisons = [c for c in comparisons if c["savings_pct"] > 0]
     return {"comparisons": comparisons, "exchange_price": exchange_price}
