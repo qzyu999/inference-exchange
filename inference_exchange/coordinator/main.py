@@ -320,6 +320,7 @@ def create_app() -> FastAPI:
             model_verified = verify_model_hash(model_registry, reg)
             if provider_id in hub._providers:
                 hub._providers[provider_id].model_verified = model_verified
+                hub._providers[provider_id].model_identity = reg.model_identity or {}
 
             # Create billing account + log connection
             billing.get_or_create_provider(provider_id, reg.provider_name)
