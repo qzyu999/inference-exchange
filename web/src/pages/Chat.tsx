@@ -31,8 +31,12 @@ const TRUST_LEVELS = [
 
 export function Chat() {
   const [searchParams] = useSearchParams()
+  const { user } = useAuth()
+
+  // Chat history keyed by user to avoid cross-user leakage
+  const chatKey = user ? `ie_chat_${user.user_id}` : 'ie_chat_anon'
   const [messages, setMessages] = useState<Message[]>(() => {
-    try { const saved = localStorage.getItem('ie_chat_history'); return saved ? JSON.parse(saved) : [] } catch { return [] }
+    try { const saved = localStorage.getItem(chatKey); return saved ? JSON.parse(saved) : [] } catch { return [] }
   })
   const [input, setInput] = useState('')
   const [streaming, setStreaming] = useState(false)
@@ -46,7 +50,6 @@ export function Chat() {
   const inputRef = useRef<HTMLInputElement>(null)
   const abortRef = useRef<AbortController | null>(null)
 
-  const { user } = useAuth()
   const { data: modelsData } = useSWR('models', api.models)
   const { data: pricing } = useSWR('pricing', api.pricing, { refreshInterval: 10000 })
   const { data: health } = useSWR('health', api.health)
@@ -63,7 +66,7 @@ export function Chat() {
   }, [user, health, apiKey])
   useEffect(() => { scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight }) }, [messages])
   useEffect(() => { if (!model && modelsData?.data?.length) setModel(modelsData.data[0].id) }, [modelsData, model])
-  useEffect(() => { if (messages.length > 0) localStorage.setItem('ie_chat_history', JSON.stringify(messages)) }, [messages])
+  useEffect(() => { if (messages.length > 0) localStorage.setItem(chatKey, JSON.stringify(messages)) }, [messages, chatKey])
   useEffect(() => { if (!streaming) inputRef.current?.focus() }, [streaming])
 
   // Get pricing for selected model
@@ -110,6 +113,7 @@ export function Chat() {
           if (resp.status === 503) friendlyError = 'No providers available right now. Try again in a moment.'
           else if (resp.status === 429) friendlyError = 'Rate limit reached. Please wait a moment.'
           else if (resp.status === 401) friendlyError = 'Invalid API key. Check your key in Advanced settings.'
+          else if (resp.status === 402) friendlyError = 'Insufficient balance. Your free credits have been used up.'
           else friendlyError = `Server error (${resp.status}). The coordinator may be overloaded.`
         }
         setMessages(prev => { const c = [...prev]; c[c.length - 1] = { role: 'assistant', content: friendlyError }; return c })
@@ -171,7 +175,7 @@ export function Chat() {
           <button onClick={() => setShowAdvanced(!showAdvanced)} className="text-xs text-gray-400 hover:text-gray-600">
             {showAdvanced ? 'Hide' : 'Advanced'}
           </button>
-          <button onClick={() => { setMessages([]); localStorage.removeItem('ie_chat_history') }} className="text-xs text-gray-400 hover:text-gray-600">Clear</button>
+          <button onClick={() => { setMessages([]); localStorage.removeItem(chatKey) }} className="text-xs text-gray-400 hover:text-gray-600">Clear</button>
         </div>
 
         {/* Advanced controls */}
