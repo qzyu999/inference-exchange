@@ -415,48 +415,131 @@ This is true L3. The CPU hardware itself enforces confidentiality.
 The provider has physical access to the machine but cannot read the VM's memory.
 ```
 
-### Path 5: Ollama + GGUF (internal) + macOS Apple Silicon
+### Path 5: Ollama (stock binary) + GGUF + Any platform
 
-**Status: L1 MAXIMUM (cannot reach L2)**
+**Status: L1 MAXIMUM (stock Ollama binary cannot be hardened)**
 
 ```
-Model source:  Ollama library (ollama pull llama3.1:8b)
-Format:        Ollama manages its own blob storage (GGUF internally)
-Verification:  PARTIAL
-  - GGUF metadata IS readable (Ollama stores standard GGUF)
-  - But Ollama may repackage/re-quantize the model
-  - File SHA-256 may NOT match HF's published hash
-  - Ollama has its own digest system, not directly HF-compatible
+When using the pre-built Ollama binary from ollama.com:
+- We did not compile it, cannot add PT_DENY_ATTACH
+- Cannot codesign with Hardened Runtime (not our binary)
+- The Ollama process is observable by the provider operator
+- Model identity: GGUF metadata IS readable (Ollama stores standard GGUF)
+- Model verification: PARTIAL (blob filename IS the SHA-256, but can't
+  easily cross-reference against HF because Ollama's registry is separate)
 
-Hardening:
-  - Ollama is a Go binary we don't build
-  - We cannot add PT_DENY_ATTACH to Ollama's process
-  - We cannot codesign it with Hardened Runtime
-  - The Ollama process is observable by the provider operator
+Conclusion: Stock Ollama is L1 maximum.
+```
+
+### Path 6: Ollama (built from source, hardened) + GGUF + macOS Apple Silicon
+
+**Status: DESIGNED (viable, Ollama is open source and buildable)**
+
+```
+Model source:  Ollama library (ollama pull llama3.1:8b) or HuggingFace via import
+Download:      ollama pull (from Ollama registry) or ollama import (from GGUF file)
+Format:        GGUF blobs stored as sha256-<hash> files in ~/.ollama/models/blobs/
+Identity:      GGUF header metadata (general.name, general.architecture, general.file_type)
+Verification:  Blob filename IS the SHA-256 hash of the file contents.
+               For Ollama-pulled models: verify against Ollama manifest (published digests).
+               For HF-sourced GGUF imported into Ollama: verify against HF published hash.
+Context:       Embedded in GGUF ({arch}.context_length)
+
+Build from source:
+  Ollama is Go + C++ (embeds llama.cpp). Fully buildable:
+  1. Clone ollama repo
+  2. Apply PT_DENY_ATTACH patch to the C++ runner code (llama/server/ directory)
+     - Same hardening.c approach as our llama.cpp patch
+     - Ollama's C++ runner is effectively llama-server with Ollama's Go orchestration
+  3. cmake -B build -DBUILD_SHARED_LIBS=OFF . && cmake --build build
+  4. go build . (links against the hardened C++ runner)
+  5. codesign --sign - --options runtime --entitlements entitlements.plist ./ollama
+  6. Result: hardened Ollama binary with PT_DENY_ATTACH + Hardened Runtime
+
+Verification chain:
+  Agent reads GGUF metadata from the blob file
+  Blob filename = sha256-<hash> (the filename IS the hash, built into Ollama's design)
+  Agent verifies: SHA-256(blob_file_contents) == filename hash
+  Agent sends hash + identity to coordinator
+  Coordinator checks against Ollama registry manifest OR HuggingFace
+  Hash match -> VERIFIED
 
 What's guaranteed:
-  - GGUF metadata readable: YES (name, arch, quant)
-  - Model matches HF upload: NO (Ollama's blob may differ)
-  - Provider can't observe: NO (Ollama is unhardened)
+  - Model is byte-for-byte the published blob: YES (filename is the hash)
+  - GGUF metadata (name, arch, quant) verified: YES (embedded, hash-bound)
+  - Provider can't observe prompts/responses: YES (hardened binary, kernel 0-day required)
+  - Provider can't swap model at runtime: YES (hardened binary)
+  - Multi-model support: YES (Ollama natively handles multiple models, hot-swapping)
 
-Conclusion: Ollama is L1 maximum. Useful for open/contained workloads
-where the consumer doesn't need confidentiality.
+Advantages over Path 1 (plain llama.cpp):
+  - Ollama handles model download, storage, and management
+  - Ollama supports model hot-swapping (load different models on demand)
+  - Ollama has a built-in model registry with versioned digests
+  - Ollama's API is already widely adopted
+  - One binary manages everything (no separate server + agent dance)
+
+This is potentially the best production path for Apple Silicon providers.
 ```
 
-### Path 6: MLX + SafeTensors + macOS Apple Silicon (via Ollama)
+### Path 7: MLX + SafeTensors + macOS Apple Silicon (via Ollama)
 
-**Status: L1 MAXIMUM**
+**Status: DESIGNED (Ollama has MLX backend)**
 
 ```
-Same limitations as Path 5. Ollama can run MLX models on Apple Silicon,
-but Ollama itself is unhardened and we can't modify it.
-If a provider uses Ollama as the engine, max trust is L1 regardless
-of the underlying model format.
+Ollama supports MLX as a backend on Apple Silicon (MLX_VERSION file in repo).
+When built from source with our hardening patch, this gives us:
+
+  - MLX-speed inference (native Metal optimization)
+  - Ollama model management (pull, switch, serve)
+  - Hardened process (PT_DENY_ATTACH + Hardened Runtime)
+
+For MLX models in Ollama:
+  - Ollama converts/manages MLX weights internally
+  - Model identity from Ollama manifest + GGUF metadata (Ollama may store as GGUF even for MLX)
+  - Verification via Ollama registry digest
+
+This is the same as Path 6 but using Ollama's MLX backend for faster Apple Silicon inference.
+Same hardening, same verification chain.
 ```
 
-### Path 7: Any engine + Any format + Any platform (self-quantized)
+### Path 8: MLX (standalone) + SafeTensors + macOS Apple Silicon
 
-**Status: L0 only (unverifiable model)**
+**Status: DESIGNED (not yet built)**
+
+```
+Model source:  HuggingFace MLX repo (e.g., mlx-community/Meta-Llama-3.1-8B-Instruct-4bit)
+Download:      huggingface-hub CLI or mlx-lm download
+Format:        Directory of files: model.safetensors, config.json, tokenizer.json, etc.
+Identity:      config.json (model_type, hidden_size, num_layers, max_position_embeddings)
+Verification:  SHA-256 of EVERY file in directory vs HF published hashes
+Quantization:  From config.json quantization_config or repo name (4bit, 8bit)
+Context:       config.json (max_position_embeddings)
+
+Hardening:
+  1. Build MLX inference server as PyInstaller onedir bundle
+  2. PT_DENY_ATTACH via ctypes at startup:
+     import ctypes; libc = ctypes.CDLL('libc.dylib')
+     libc.ptrace(31, 0, 0, 0)
+  3. Sign all .dylib/.so in the bundle
+  4. codesign --options runtime on main binary
+
+Verification chain:
+  Agent enumerates all files in model directory
+  Agent computes SHA-256 of each file
+  Agent reads config.json for identity
+  Agent sends {filename: hash} map + identity to coordinator
+  Coordinator verifies each hash against HF API
+  ALL match -> VERIFIED
+
+What's guaranteed:
+  - All model files identical to HF upload: YES
+  - config.json can't be forged: YES (its hash is verified)
+  - Provider can't observe: YES (PyInstaller + Hardened Runtime)
+```
+
+### Path 9: Any engine + Any format + Any platform (self-quantized)
+
+**Status: L0-L2 (hardening possible, model UNVERIFIABLE)**
 
 ```
 A provider quantizes a model themselves (using llama-quantize, mlx-lm convert,
@@ -477,21 +560,30 @@ The consumer should see: "L2 Hardened, model identity UNVERIFIED"
 
 ---
 
-## 9. Summary: The L2+ Verification Matrix
+## 11. Summary: The L2+ Verification Matrix
 
 | # | Engine | Format | Platform | L2 Hardening | Model Verification | Status |
 |---|---|---|---|---|---|---|
-| 1 | llama.cpp | GGUF | macOS (Apple Silicon) | YES (PT_DENY_ATTACH + Hardened Runtime) | YES (single-file SHA-256 vs HF) | PROVEN |
-| 2 | MLX | SafeTensors | macOS (Apple Silicon) | YES (PyInstaller + PT_DENY_ATTACH via ctypes) | YES (all-file SHA-256 vs HF) | DESIGNED |
+| 1 | llama.cpp | GGUF | macOS Silicon | YES (PT_DENY_ATTACH + Hardened Runtime) | YES (single-file SHA-256 vs HF) | **PROVEN** |
+| 2 | MLX (standalone) | SafeTensors | macOS Silicon | YES (PyInstaller + PT_DENY_ATTACH ctypes) | YES (all-file SHA-256 vs HF) | DESIGNED |
 | 3 | llama.cpp | GGUF | Linux + NVIDIA (KVM) | YES (VM isolation + VFIO) | YES (single-file SHA-256) | DESIGNED |
-| 4 | vLLM | SafeTensors | Linux + NVIDIA (SEV-SNP) | YES (hardware memory encryption) | YES (all-file SHA-256) | DESIGNED (needs AMD EPYC) |
-| 5 | Ollama | GGUF | Any | NO (can't harden third-party binary) | PARTIAL (GGUF metadata yes, hash no) | L1 MAX |
-| 6 | Any | Any | Any (self-quantized) | Depends on engine | NO (no HF hash to compare) | L2 but UNVERIFIED |
+| 4 | vLLM | SafeTensors | Linux + NVIDIA (SEV-SNP) | YES (hardware memory encryption) | YES (all-file SHA-256) | DESIGNED |
+| 5 | Ollama (stock) | GGUF | Any | NO | PARTIAL | L1 MAX |
+| 6 | Ollama (from source) | GGUF | macOS Silicon | YES (PT_DENY_ATTACH in C++ runner) | YES (blob filename = SHA-256) | **DESIGNED (HIGH PRIORITY)** |
+| 7 | Ollama (MLX backend) | GGUF/MLX | macOS Silicon | YES (same as Path 6) | YES (same as Path 6) | DESIGNED |
+| 8 | MLX (standalone) | SafeTensors | macOS Silicon | YES (PyInstaller + ctypes) | YES (all-file SHA-256 vs HF) | DESIGNED |
+| 9 | Any (self-quantized) | Any | Any | Depends on engine | NO (no published hash) | UNVERIFIABLE |
 
-**The viable L2+ paths with full verification are: 1, 2, 3, 4.**
+**5 viable L2+ paths with full verification: 1, 2, 3, 4, 6 (and 7, 8 as variants).**
 
-Path 1 is proven. Path 2 is the next priority (MLX on Apple Silicon).
-Paths 3 and 4 need Linux infrastructure.
+Path 1 is proven. Path 6 (hardened Ollama from source) is the recommended next
+build target because:
+- Ollama handles model download, management, and hot-swapping out of the box
+- Ollama is already the most-used local inference tool (huge provider adoption)
+- Building from source is straightforward (cmake + go build)
+- The hardening patch is the same C approach we already proved
+- Ollama's blob storage uses SHA-256 filenames (verification is built in)
+- Ollama supports both llama.cpp AND MLX backends, covering Paths 6 and 7
 
 ## 10. What the Consumer Sees
 
