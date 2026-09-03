@@ -5,9 +5,14 @@ import { useEffect, useRef, useState } from 'react'
 // --- API type ---
 interface MarketModel {
   model: string
+  family: string
+  size: string
+  variant: string
+  canonical_id: string
   providers: Array<{
     id: string; name: string; price_output: number; price_input: number
-    tps: number; trust: string; encrypted: boolean; load: number; hardware: string; slots: string
+    tps: number; trust: string; encrypted: boolean; load: number
+    hardware: string; slots: string; quantization: string; original_model: string
   }>
   cheapest_output: number
   fastest_tps: number
@@ -39,7 +44,12 @@ function ModelMarketCard({ m }: { m: MarketModel }) {
         <div className="flex items-center justify-between">
           <div>
             <div className="font-semibold text-gray-900">{m.model}</div>
-            <div className="text-xs text-gray-400 mt-0.5">{m.provider_count} provider{m.provider_count !== 1 ? 's' : ''}</div>
+            <div className="text-xs text-gray-400 mt-0.5">
+              {m.family && <span>{m.family}</span>}
+              {m.size && <span> {m.size}</span>}
+              {m.variant && <span> {m.variant}</span>}
+              {' '}{m.provider_count} provider{m.provider_count !== 1 ? 's' : ''}
+            </div>
           </div>
           <div className="text-right">
             <div className="text-2xl font-bold text-gray-900">${m.cheapest_output.toFixed(2)}</div>
@@ -79,9 +89,10 @@ function ModelMarketCard({ m }: { m: MarketModel }) {
         {m.providers.map(p => (
           <div key={p.id} className="flex items-center gap-2 py-2 border-b border-gray-50 last:border-0 text-sm">
             <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${p.load < 0.8 ? 'bg-emerald-500' : 'bg-amber-500'}`} />
-            <span className="text-gray-700 truncate w-24">{p.name}</span>
+            <span className="text-gray-700 truncate w-20">{p.name}</span>
             <span className="font-semibold text-gray-900 w-14 text-right">${p.price_output.toFixed(2)}</span>
             <span className="text-xs text-gray-400 w-12 text-right">{p.tps.toFixed(0)} t/s</span>
+            {p.quantization && <span className="text-[10px] font-mono text-gray-400 bg-gray-50 px-1 rounded">{p.quantization}</span>}
             <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full ${
               p.trust === 'hardened' ? 'bg-amber-50 text-amber-600' :
               p.trust === 'confidential' ? 'bg-emerald-50 text-emerald-600' :
