@@ -47,7 +47,7 @@ class InferenceOrder:
     # Hard constraints (must be satisfied or no match)
     model: str  # Required model (or "default" = any)
     max_price_per_mtok: float = float("inf")  # Max acceptable $/Mtok output
-    min_confidence: ConfidenceLevel = ConfidenceLevel.OPEN
+    min_confidence: ConfidenceLevel = ConfidenceLevel.HARDENED
 
     # Soft preferences (influence scoring, not eligibility)
     preference: RoutingPreference = RoutingPreference.BALANCED
