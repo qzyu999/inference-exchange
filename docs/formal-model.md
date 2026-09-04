@@ -465,10 +465,12 @@ compete, greedy matching is suboptimal:
 - Optimal: assign $d_1 \to p_2$, $d_2 \to p_1$ → both served.
 
 **Proposition 5 (Greedy Suboptimality).** For $n > 1$ competing demands,
-greedy matching can fail to serve demands that the optimal assignment
-would serve. The welfare loss is bounded: greedy total cost is at most
-$\frac{n}{n-k}$ of optimal, where $k$ is the number of demands that
-greedy fails to match that optimal would have matched.
+greedy matching is not globally optimal. It can fail to serve demands
+that an optimal assignment would serve.
+
+The preceding example is a constructive proof. $\square$
+
+This motivates batch strategies when provider contention is common.
 
 **Mechanism choice (Solution Hierarchy):**
 
