@@ -1,8 +1,12 @@
 # Formal Model — Inference Exchange from First Principles
 
-A mathematical specification of a market for stateful model-execution
-capacity. Tokens are the metering unit; the scarce assets are compute
-slots, KV state, model residency, latency, and trust.
+A mathematical specification of an open market for inference capacity.
+Tokens are the metering unit; the scarce assets are compute slots, model
+residency, KV state, latency, and trust.
+
+The fundamental tradeable unit is the **inference request**. Session
+affinity (KV cache reuse) and capacity reservations are optional
+optimization layers — the marketplace works without them.
 
 Every statement is categorized as one of:
 - **Axiom**: physical or mathematical fact we assume without proof
@@ -99,18 +103,21 @@ computed it. This is the physical basis for session affinity.
 
 ## 1. Definitions
 
-### 1.1 The Three Primitives
+### 1.1 Primitives and Layers
 
-**Definition 1 (Inference Request).** A single invocation of an autoregressive
-model:
+The system has one fundamental primitive and two optional optimization layers.
+
+**Definition 1 (Inference Request — fundamental primitive).** A single
+invocation of an autoregressive model:
 
 $$r = (m, \mathbf{x}_{\text{in}}, n_{\text{max}}, \theta)$$
 
-where $m$ is the model, $\mathbf{x}_{\text{in}}$ is the input token sequence,
-$n_{\text{max}}$ is the output cap, $\theta$ is sampling configuration.
+The request is the atomic tradeable unit. The marketplace exists even if
+sessions and reservations don't — a stateless request router is the base
+product.
 
-**Definition 2 (Session).** An ordered sequence of inference requests sharing
-conversational context:
+**Definition 2 (Session — optional state).** An ordered sequence of requests
+sharing conversational context:
 
 $$S = (r_1, r_2, \ldots, r_K)$$
 
@@ -118,14 +125,65 @@ where request $r_k$ includes accumulated context:
 
 $$\mathbf{x}_{\text{in}}^{(k)} = \text{sys} \| \text{turn}_1 \| \cdots \| \text{turn}_{k-1} \| \text{new}_k$$
 
-**Definition 3 (Stateful Execution Lease).** A time-bounded reservation of:
+A session creates an *affinity* to a provider (the one holding the KV cache),
+but does NOT require a dedicated provider. One provider serves many sessions
+concurrently:
 
-$$\Lambda = (S,\; p_j,\; m,\; \ell,\; \pi,\; \Delta t)$$
+$$\text{Provider } p_j: \{S_1, S_2, \ldots, S_N\} \quad (N \gg 1 \text{ typical})$$
 
-The lease binds a session to a specific provider. The valuable thing being
-reserved is not just compute capacity, but the composite:
+**Definition 3 (Session Affinity — optional optimization).** When session
+$S_i$ has state on provider $p_j$, the affinity value is the economic
+benefit of reusing that state vs. switching providers:
 
-$$\boxed{\text{compute slots} + \text{model residency} + \text{KV state} + \text{network locality} + \text{trust environment}}$$
+$$A(S_i, p_j) = V_{\text{cache-reuse}} - V_{\text{cache-reuse-on-best-alternative}}$$
+
+If $A > 0$, prefer $p_j$ for the next request in $S_i$. If $A \leq 0$
+(another provider is cheaper enough to justify re-prefill), switch.
+
+Affinity is a *soft preference*, not an exclusive binding. The provider
+is not "owned" by the session.
+
+**Definition 4 (Reservation — optional premium product).** A time-bounded
+guarantee of capacity:
+
+$$R = (p_j, m, s_{\text{reserved}}, \Delta t, \pi^{\text{reservation}})$$
+
+Reservations are a distinct product from on-demand routing. They guarantee
+a slot is available, preventing queue-wait. They are economically meaningful
+only when capacity is scarce or the consumer needs SLA guarantees.
+
+Most consumers use on-demand routing (no reservation). Reservations are
+for enterprise/latency-critical use cases.
+
+### 1.2 The Three-Layer Architecture
+
+```mermaid
+graph TD
+    subgraph "Layer 1: Stateless Routing (base product)"
+        R1["Request"] --> M1["Market: min E[C_ij]"]
+        M1 --> P1["Best available provider"]
+    end
+
+    subgraph "Layer 2: Session Affinity (optimization)"
+        R2["Request with session_id"] --> CHECK{"Provider has<br/>useful KV state?"}
+        CHECK -->|"Yes, and cost-effective"| STAY["Route to incumbent<br/>(skip prefill)"]
+        CHECK -->|"No, or cheaper to switch"| M1
+    end
+
+    subgraph "Layer 3: Reservation (premium product)"
+        R3["Reserved session"] --> SLOT["Guaranteed slot<br/>(no queue wait)"]
+        SLOT --> STAY2["Route to reserved provider"]
+    end
+```
+
+| Layer | What it does | Who needs it | Provider relationship |
+|---|---|---|---|
+| 1. Stateless routing | Best-effort, per-request | Everyone (default) | Many-to-many |
+| 2. Session affinity | Soft preference for cached provider | Multi-turn conversations | Many sessions per provider |
+| 3. Reservation | Guaranteed capacity | Enterprise / SLA | Slot reservation, not provider dedication |
+
+The marketplace works at Layer 1. Layers 2 and 3 are strictly additive
+optimizations that improve economics and latency but are not required.
 
 **Definition 4 (Cached Prefix).** The longest common prefix between the
 session's current context and the provider's KV cache:
@@ -433,12 +491,12 @@ Without cache, every token is prefilled every turn:
 
 $$C_{\text{no-cache}} = \pi^{\text{prefill}} \cdot \left[\frac{\bar{n} + \bar{o}}{2}K^2 + O(K)\right] + \pi^{\text{decode}} \cdot K\bar{o}$$
 
-With a lease (same provider, all cache hits — only $\bar{n}$ new tokens per turn):
+With session affinity (same provider, all cache hits — only $\bar{n}$ new tokens per turn):
 
 $$C_{\text{lease}} = \pi^{\text{prefill}} \cdot K\bar{n} + \pi^{\text{cache}} \cdot \left[\frac{\bar{n} + \bar{o}}{2}K^2 - K\bar{n} + O(K)\right] + \pi^{\text{decode}} \cdot K\bar{o}$$
 
-**Proposition 4 (Lease Savings).** With exact token accounting (no $O(K)$
-terms), the total cached tokens across $K$ turns of a leased session are:
+**Proposition 4 (Affinity Savings).** With exact token accounting (no $O(K)$
+terms), the total cached tokens across $K$ turns with session affinity are:
 
 $$N_{\text{cached}} = (\bar{n} + \bar{o})\frac{K(K-1)}{2} + (K-1)|\text{sys}|$$
 
@@ -465,37 +523,41 @@ approximately 74% of total input costs.
 
 **Important caveat:** This assumes the lease provider's prices equal the
 alternative's. If the leased provider charges more per token, savings may
-be offset — this is the stay-vs-migrate condition (§6.2).
+be offset — this is the stay-vs-switch condition (§6.2).
 
 ---
 
-## 6. The Session Assignment Problem
+## 6. The Routing Problem
 
-### 6.1 The Core Optimization
+The routing problem has three layers, corresponding to the three-layer
+architecture (§1.2). Layer 1 is always active. Layers 2-3 activate when
+a session exists or a reservation is held.
 
-**Mechanism choice.** For demand $d_i$, select:
+### 6.1 Layer 1: Stateless Market Routing (the base product)
 
-$$\boxed{j^* = \arg\min_j\; E[C_{ij}(S, H)]}$$
+**Mechanism choice.** For demand $d_i$ without useful session state, select:
 
-subject to $E(d_i, a_j) = 1$ (feasibility).
+$$\boxed{j^* = \arg\min_{j \in E(d_i)}\; E[C_{ij}]}$$
+
+This is pure cost-minimization over eligible providers. No session state,
+no affinity, no reservation. This is the OpenRouter-equivalent behavior
+and works for all single-turn requests and the first turn of any session.
 
 The preference $\rho_i$ determines the objective through $\lambda_i$:
 
 | $\rho$ | Objective | $\lambda_i$ |
 |---|---|---|
-| cheapest | $\min E[C_{\text{tokens}}]$ | 0 |
-| fastest | $\min E[C_{\text{tokens}}] + \lambda \cdot E[\text{TTFT}]$ | high |
-| secure | $\min E[C_{\text{tokens}}]$ s.t. $\ell_j \geq L_3$ if possible | 0 |
+| cheapest | $\min C_{\text{tokens}}$ | 0 |
+| fastest | $\min C_{\text{tokens}} + \lambda \cdot E[\text{TTFT}]$ | high |
+| secure | $\min C_{\text{tokens}}$ s.t. $\ell_j \geq L_3$ if possible | 0 |
 | balanced | $\min E[C_{ij}]$ (full cost function) | moderate |
 
-### 6.2 Stay vs. Migrate Decision
+### 6.2 Layer 2: Session Affinity (optimization)
 
-**Definition 8.** When a lease $\Lambda(S_i, p_j)$ exists and a new request
-$r_k$ arrives, the coordinator evaluates:
+When a session $S_i$ has previous state on provider $p_j$ (KV cache), the
+coordinator evaluates whether to stay or switch:
 
-$$\Delta C = E[C_{ij'}^{\text{migrate}}] - E[C_{ij}^{\text{stay}}]$$
-
-for the best alternative $j' \neq j$.
+$$\Delta C = E[C_{ij'}^{\text{switch}}] - E[C_{ij}^{\text{stay}}]$$
 
 $$\boxed{\text{Stay on } p_j \iff \Delta C > 0}$$
 
@@ -503,26 +565,42 @@ where:
 
 $$E[C_{ij}^{\text{stay}}] = n_{\text{fresh}} \cdot \pi_j^{\text{prefill}} + n_{\text{cached}} \cdot \pi_j^{\text{cache}} + \hat{n}_{\text{out}} \cdot \pi_j^{\text{decode}} + \lambda_i \cdot \text{TTFT}_j^{\text{cached}}$$
 
-$$E[C_{ij'}^{\text{migrate}}] = n_{\text{in}} \cdot \pi_{j'}^{\text{prefill}} + \hat{n}_{\text{out}} \cdot \pi_{j'}^{\text{decode}} + \lambda_i \cdot \text{TTFT}_{j'}^{\text{full}} + V_{\text{lost-cache}}$$
+$$E[C_{ij'}^{\text{switch}}] = n_{\text{in}} \cdot \pi_{j'}^{\text{prefill}} + \hat{n}_{\text{out}} \cdot \pi_{j'}^{\text{decode}} + \lambda_i \cdot \text{TTFT}_{j'}^{\text{full}}$$
 
-This gives a mathematically meaningful switching boundary. The incumbent
-provider has an economic advantage from owning the cached state. A
-challenger must overcome that advantage.
+Note: $V_{\text{lost-cache}}$ is implicit — switching means paying full
+prefill cost instead of cached cost. The $\Delta C$ already captures this.
+
+**Crucially, the provider is not dedicated.** Provider $p_j$ simultaneously
+serves hundreds of sessions. Session affinity is a routing preference, not
+a capacity reservation. If $p_j$ is full, the request falls through to
+Layer 1 (stateless routing with full prefill cost).
 
 ```mermaid
 flowchart TD
-    REQ["Request r_k, session S_i"] --> LEASE{"Lease Λ(S_i) exists?"}
-    LEASE -->|"Yes"| AVAIL{"Provider available + eligible?"}
-    AVAIL -->|"Yes"| MIGRATE{"Any j' with<br/>C_migrate < C_stay?"}
-    MIGRATE -->|"No (stay)"| DISPATCH_CACHED["Dispatch to Λ.p_j<br/>O(1) — cached prefix"]
-    MIGRATE -->|"Yes (migrate)"| NEW_LEASE["Migrate lease to p_j'<br/>cache miss — full prefill"]
-    AVAIL -->|"No (offline/full)"| MATCH["Match engine: find best p_j'"]
-    LEASE -->|"No"| MATCH
-    MATCH --> CREATE["Create/update Λ(S_i, p_j*)"]
-    CREATE --> DISPATCH_FRESH["Dispatch to p_j*<br/>full prefill"]
+    REQ["Request r_k"] --> SESSION{"Session S_i has<br/>state on some p_j?"}
+    SESSION -->|"No"| L1["Layer 1: Stateless market match"]
+    SESSION -->|"Yes"| AVAIL{"p_j available?"}
+    AVAIL -->|"No (full/offline)"| L1
+    AVAIL -->|"Yes"| COMPARE{"Stay cheaper<br/>than switch?"}
+    COMPARE -->|"Yes"| STAY["Route to p_j (cache hit)"]
+    COMPARE -->|"No"| L1
+    L1 --> BEST["Route to best eligible provider"]
 ```
 
-### 6.3 Batch Assignment (Multiple Consumers Competing)
+### 6.3 Layer 3: Reservation (premium product)
+
+**Mechanism choice.** For consumers who need guaranteed capacity:
+
+$$R = (p_j, m, s_{\text{reserved}}, \Delta t, \pi^{\text{reservation}})$$
+
+A reservation holds a slot on $p_j$ for duration $\Delta t$. The consumer
+pays $\pi^{\text{reservation}} \cdot \Delta t$ regardless of usage. Requests
+within the reservation skip the queue and the matching engine entirely.
+
+This is a **different product** from on-demand routing. Most consumers
+never use reservations. They exist for enterprise SLA guarantees.
+
+### 6.4 Batch Assignment (Multiple Consumers Competing)
 
 When multiple demands arrive simultaneously for scarce provider capacity,
 the system must allocate fairly and efficiently.
@@ -839,8 +917,11 @@ $\forall j: sk_j^p \notin \text{memory}(\mathcal{X})$
 **S4 (Capacity Bound):**
 $|\text{active}(p_j)| \leq s_j^{\text{total}}$
 
-**S5 (Lease Exclusivity):**
-$|\{\Lambda : \Lambda.S = S_i \land \text{active}(\Lambda)\}| \leq 1$
+**S5 (Session Affinity Consistency):**
+At most one provider holds active affinity for a given session at a time.
+If $p_j$ has KV state for $S_i$, and the coordinator routes $S_i$ to $p_{j'}$,
+the affinity record updates atomically. (The old provider may still hold
+stale KV cache until eviction, but the routing table points to the new one.)
 
 **S6 (Cache Billing Consistency):**
 Tokens billed at $\pi^{\text{cache}}$ only when the provider reports
@@ -856,12 +937,14 @@ $\max(\tau_{\text{match}}, \delta_{\text{batch}})$.
 rejected (no eligible provider), or timed out — within $\delta_i$. No demand
 remains in an indeterminate state.
 
-**L3 (Lease Expiry):** Idle leases expire within TTL. No unbounded resource hold.
+**L3 (Affinity Expiry):** Session affinity records expire when the provider
+evicts the KV cache (idle timeout, LRU, restart). No unbounded state.
 
-**L4 (Migration):** If a leased provider disconnects AND there exists at least
-one eligible replacement with free capacity, the lease migrates within
-$2 \times \text{heartbeat\_interval}$. If no eligible replacement exists,
-the consumer receives an explicit failure notification within the same bound.
+**L4 (Affinity Failover):** If a provider holding session affinity disconnects
+AND there exists at least one eligible replacement with free capacity, the
+session's next request routes to the replacement within one matching cycle.
+If no eligible replacement exists, the consumer receives an explicit failure
+notification.
 
 ### Fairness
 
@@ -875,28 +958,32 @@ the consumer receives an explicit failure notification within the same bound.
 
 | Formal Concept | Current Code | Status |
 |---|---|---|
-| Three primitives (request, session, lease) | Only requests | **Major gap** |
+| Inference request as fundamental primitive | Implemented (per-request routing) | ✅ Aligned |
+| Session affinity (Layer 2) | Flat 20% affinity bonus in scoring | ⚠️ Should be cost-based stay-vs-switch |
+| Reservation (Layer 3) | Not implemented | Gap (future premium product) |
 | Four-rate pricing | Two-rate ($\pi^{\text{in}}, \pi^{\text{out}}$) | Gap |
-| Cached prefix $P(S, p_j)$ | Flat 20% affinity bonus | Gap |
+| Cached prefix $P(S, p_j)$ | Not tracked by coordinator | Gap |
 | Expected cost objective $E[C_{ij}]$ | Weighted score heuristic | Gap |
-| Stay-vs-migrate decision | Not implemented | Gap |
+| Stay-vs-switch decision | Not implemented | Gap |
 | Provider cache state in heartbeat | `active_requests`, `loaded_models` only | Gap |
 | TTFT measurement + statistical verification | Not implemented | Gap |
 | Beta reputation | EMA ($\alpha = 0.1$) | Gap |
-| Forward secrecy | Not achieved (ephemeral-static, not ephemeral-ephemeral) | Gap |
+| Forward secrecy | Not achieved (ephemeral-static) | Gap |
 | `ocip_min_confidence` default = $L_2$ | `"hardened"` | ✅ Fixed |
 | Key isolation | Provider key never sent to coordinator | ✅ Holds |
 | Billing conservation | Property-based tested | ✅ Verified |
 | Capacity bound | `select_provider` checks slots | ✅ Holds |
+| One provider serves many sessions | Implicit (no session tracking) | ✅ Natural |
 
 ### Implementation Priority
 
-1. **Lease Manager** — session → provider binding with TTL, O(1) dispatch
-2. **Provider heartbeat: cache prefix state** — which sessions, which prefix length
-3. **Four-rate billing** — add $\pi^{\text{cache}}$ and $\pi^{\text{reservation}}$
-4. **Cost-based matching** — replace heuristic scoring with $\min E[C_{ij}]$
-5. **Stay-vs-migrate** — compare incumbent cost vs. challenger cost
+1. **Session tracking** — coordinator tracks session → provider affinity
+2. **Provider heartbeat: cache state** — which sessions, prefix lengths
+3. **Cost-based routing** — replace heuristic scoring with $\min E[C_{ij}]$
+4. **Stay-vs-switch** — compare incumbent cost vs. challenger at Layer 2
+5. **Four-rate billing** — add $\pi^{\text{cache}}$ and $\pi^{\text{reservation}}$
 6. **TTFT measurement** — statistical cache verification
 7. **Beta reputation** — replace EMA
 8. **Session ID in Chat UI** — wire through full stack
-9. **Forward-secret protocol** — upgrade to Noise/HPKE ephemeral-ephemeral
+9. **Reservation product** — Layer 3 (future, enterprise)
+10. **Forward-secret protocol** — Noise/HPKE ephemeral-ephemeral
