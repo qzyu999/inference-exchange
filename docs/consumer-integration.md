@@ -147,14 +147,15 @@ client = OpenAI(
 | API format | OpenAI ✅ | OpenAI ✅ | OpenAI ✅ | OpenAI ✅ |
 | Backend | Centralized (OpenAI, Anthropic, etc.) | Their own GPUs | Their own LPUs | Decentralized provider fleet |
 | Models | 200+ (all providers) | 100+ (open-weight) | 10+ (fast) | Community-contributed |
-| Privacy | Provider sees prompts | They see prompts | They see prompts | E2E encrypted (optional) |
+| Privacy | Provider sees prompts | They see prompts | They see prompts | L2 Hardened by default (provider can't read prompts); E2E encryption available |
 | Self-hosting | ❌ | ❌ | ❌ | ✅ (run your own node) |
 | Pricing | Markup over provider | Per-token | Per-token | Market-driven (providers compete) |
 | Lock-in | None (standard API) | None | None | None |
 
 **Key differentiator:** IE is the only one where:
 - Providers are decentralized (anyone can run a node)
-- Prompts can be E2E encrypted (provider can't read them)
+- L2 Hardened is the default — providers cannot read your prompts out of the box
+- Prompts can be E2E encrypted for full confidentiality (IE SDK)
 - You can self-route to your own hardware for free
 - Pricing is market-driven (providers set their own rates)
 
@@ -242,6 +243,8 @@ GET  /v1/models              — list available models
   "messages": [...],
   "ocip_preference": "cheapest",         // routing: cheapest | fastest | most_secure
   "ocip_min_confidence": "contained",    // minimum trust: open | contained | hardened | confidential
+                                         //   default: "hardened" (L2) — provider cannot read prompts
+                                         //   set to "open" to include all providers (cheaper, but NO privacy)
   "ocip_max_price": 0.30,               // max $/Mtok output
   "ocip_session_id": "chat-abc123"       // session affinity (cache benefit)
 }

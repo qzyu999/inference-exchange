@@ -13,6 +13,7 @@ interface Message {
   cost_usd?: number
   tokens?: number
   encrypted?: boolean
+  trust_level?: string
 }
 
 const PREFERENCES = [
@@ -23,10 +24,10 @@ const PREFERENCES = [
 ]
 
 const TRUST_LEVELS = [
-  { value: 'open', label: 'Any', desc: 'No minimum' },
-  { value: 'contained', label: 'L1+', desc: 'Encrypted' },
-  { value: 'hardened', label: 'L2+', desc: 'Hardened' },
-  { value: 'confidential', label: 'L3', desc: 'Confidential' },
+  { value: 'open', label: 'Any', desc: 'No privacy — provider can read prompts' },
+  { value: 'contained', label: 'L1+', desc: 'Encrypted in transit' },
+  { value: 'hardened', label: 'L2+', desc: 'Hardened — provider cannot read prompts' },
+  { value: 'confidential', label: 'L3', desc: 'Hardware TEE isolation' },
 ]
 
 export function Chat() {
@@ -42,7 +43,7 @@ export function Chat() {
   const [streaming, setStreaming] = useState(false)
   const [model, setModel] = useState(() => searchParams.get('model') || '')
   const [preference, setPreference] = useState('balanced')
-  const [minTrust, setMinTrust] = useState('open')
+  const [minTrust, setMinTrust] = useState('hardened')
   const [maxPrice, setMaxPrice] = useState('')
   const [showAdvanced, setShowAdvanced] = useState(false)
   const [apiKey, setApiKey] = useState(() => localStorage.getItem('ie_api_key') || '')
@@ -170,6 +171,18 @@ export function Chat() {
             ))}
           </div>
 
+          {/* Trust level - always visible, not hidden in Advanced */}
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs text-gray-400">Privacy:</span>
+            <div className="flex bg-gray-100 rounded-xl p-0.5">
+              {TRUST_LEVELS.map(t => (
+                <button key={t.value} onClick={() => setMinTrust(t.value)} className={`px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors ${minTrust === t.value ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`} title={t.desc}>
+                  {t.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
           <div className="flex-1" />
 
           <button onClick={() => setShowAdvanced(!showAdvanced)} className="text-xs text-gray-400 hover:text-gray-600">
@@ -178,19 +191,24 @@ export function Chat() {
           <button onClick={() => { setMessages([]); localStorage.removeItem(chatKey) }} className="text-xs text-gray-400 hover:text-gray-600">Clear</button>
         </div>
 
+        {/* Privacy downgrade warning */}
+        {(minTrust === 'open' || minTrust === 'contained') && (
+          <div className="flex items-center gap-2 px-3 py-2 bg-amber-50 border border-amber-200/60 rounded-xl text-xs text-amber-700">
+            <span>⚠️</span>
+            <span>
+              {minTrust === 'open'
+                ? 'L0 providers can see your prompts and responses. No privacy protection.'
+                : 'L1 providers have basic isolation only. Prompts are encrypted in transit but the provider process can access them.'}
+            </span>
+            <button onClick={() => setMinTrust('hardened')} className="ml-auto text-amber-600 font-medium hover:text-amber-800 shrink-0">
+              Use L2 instead
+            </button>
+          </div>
+        )}
+
         {/* Advanced controls */}
         {showAdvanced && (
           <div className="flex items-center gap-4 text-xs">
-            <div className="flex items-center gap-2">
-              <span className="text-gray-400">Min trust:</span>
-              <div className="flex bg-gray-100 rounded-lg p-0.5">
-                {TRUST_LEVELS.map(t => (
-                  <button key={t.value} onClick={() => setMinTrust(t.value)} className={`px-2 py-1 rounded-md transition-colors ${minTrust === t.value ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500'}`} title={t.desc}>
-                    {t.label}
-                  </button>
-                ))}
-              </div>
-            </div>
             <div className="flex items-center gap-2">
               <span className="text-gray-400">Max price:</span>
               <input type="number" value={maxPrice} onChange={e => setMaxPrice(e.target.value)} placeholder="$/Mtok" step="0.01" min="0"
@@ -244,6 +262,7 @@ export function Chat() {
                   {m.model && <span>{m.model}</span>}
                   {m.tokens != null && <span>{m.tokens} tok</span>}
                   {m.cost_usd != null && <span>${m.cost_usd.toFixed(6)}</span>}
+                  {m.trust_level && <span className={m.trust_level === 'hardened' || m.trust_level === 'confidential' ? 'text-amber-500' : 'text-gray-400'}>{m.trust_level}</span>}
                   {m.encrypted && <span className="text-emerald-500">E2E</span>}
                 </div>
               )}

@@ -38,9 +38,10 @@ Before sending a single request, a consumer needs answers to:
 **Journey A: "I just want to chat"**
 1. Land on homepage -> click "Start a conversation"
 2. Chat page opens with "Any model (default)" selected
-3. Type a message, get a response
-4. See the model used, cost, and speed in message metadata
-5. No decisions needed -- the exchange picked the best available
+3. Privacy badge shows "L2 Hardened" (the default)
+4. Type a message, get a response
+5. See the model used, cost, speed, and trust level in message metadata
+6. No decisions needed -- private by default
 
 **Journey B: "I want a specific model"**
 1. Browse Models page -> search "llama 3.1"
@@ -48,12 +49,17 @@ Before sending a single request, a consumer needs answers to:
 3. Click "Chat with this model" -> Chat opens with model pre-selected
 4. Advanced: set preference (cheapest/fastest/most secure)
 
-**Journey C: "I need privacy"**
-1. Browse Exchange -> filter by trust level L2+
-2. See only hardened providers with verification badges
-3. Select model -> Chat with min_trust=hardened
-4. Use IE SDK for response encryption (full E2E)
-5. See "E2E" badge on every message confirming encryption
+**Journey C: "I need maximum privacy"**
+1. Default already provides L2 Hardened (provider can't read prompts)
+2. For stronger: use IE SDK for response encryption (full E2E)
+3. See "E2E" badge on every message confirming encryption
+4. For L3 Confidential (hardware TEE): filter by L3 on Exchange page
+
+**Journey E: "I want the cheapest possible, privacy doesn't matter"**
+1. Click the trust level selector -> choose "L0 Open (any provider)"
+2. See explicit warning: "L0 providers CAN see your prompts and responses"
+3. Acknowledge the warning -> get access to all providers including L0
+4. Cheaper and more available, but no privacy guarantee
 
 **Journey D: "I'm building an app"**
 1. Sign up -> get API key with $10 credit
@@ -65,8 +71,14 @@ Before sending a single request, a consumer needs answers to:
 
 - **Default to simple.** The Chat page should work with zero configuration.
   Model=default, preference=balanced. One text box, one send button.
-- **Progressive disclosure.** Advanced controls (trust level, max price,
-  quantization filter) are hidden until the consumer asks for them.
+- **Privacy by default.** The exchange defaults to L2 Hardened providers,
+  meaning provider operators cannot read your prompts. Consumers who want
+  access to L0/L1 providers (cheaper, more available, but the provider CAN
+  see your prompts) must explicitly opt down. The privacy implication is
+  stated clearly at the point of choice: "This provider can read your prompts."
+- **Progressive disclosure for non-privacy controls.** Advanced controls
+  (max price, quantization filter, verified-only) are hidden until the
+  consumer asks for them. Trust level is NOT hidden — it's always visible.
 - **Every metric explained.** Hover on any badge/number and see what it
   means. "L2 Hardened" -> tooltip: "This provider's process is protected by
   kernel-level security. A macOS kernel exploit ($500k+) is required to
@@ -75,6 +87,8 @@ Before sending a single request, a consumer needs answers to:
   Show it for power users but also show "4-bit quantization (fast, good quality)".
 - **Honest about limitations.** If a model is unverified, say so. If a
   provider is L0 (no privacy), say "this provider CAN see your prompts."
+  If a consumer lowers their trust level below L2, show a clear warning
+  explaining what they're giving up.
 
 ## 2. The Provider Experience
 
@@ -256,7 +270,7 @@ Actions:
 | Pricing model | Per-token (input + output) | Industry standard, fair to both sides |
 | Platform fee | 10% | Low enough to attract providers, enough to sustain platform |
 | Default credits | $10 free on signup | Low barrier to try, enough for ~100 requests |
-| Trust default | L0 (any provider) | Simplest for beginners, opt-in to privacy |
+| Trust default | L2 Hardened | Privacy by default — consumers must explicitly opt down to L0/L1 |
 | Model default | "default" (any available) | Works even with one provider |
 | Preference default | Balanced | Fair middle ground |
 | API compatibility | OpenAI SDK format | Zero migration cost for consumers |

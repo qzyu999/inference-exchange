@@ -12,7 +12,7 @@ Unspecified parameters get defaults.
 |---|---|---|---|
 | model | string | "default" | Which model to use |
 | preference | enum | "balanced" | Optimization target |
-| min_confidence | enum | "open" | Minimum trust level |
+| min_confidence | enum | "hardened" | Minimum trust level |
 | max_price | float | infinity | Max $/Mtok output |
 | min_tps | float | 0 | Minimum tokens/sec |
 | quantization | string | any | Preferred quantization |
@@ -25,10 +25,11 @@ Unspecified parameters get defaults.
 
 | Pattern | What they specify | Everything else |
 |---|---|---|
-| "Just chat" | Nothing | All defaults |
+| "Just chat" | Nothing | All defaults (L2 hardened minimum) |
 | "Use this model" | model | Defaults |
-| "Cheap inference" | preference=cheapest | Defaults |
-| "Private inference" | min_confidence=hardened, encrypted_only=true | Defaults |
+| "Cheap inference" | preference=cheapest | Defaults (still L2 minimum) |
+| "Cheap, any provider" | preference=cheapest, min_confidence=open | Explicitly opts out of privacy |
+| "Private inference" | min_confidence=hardened, encrypted_only=true | Defaults already provide L2 |
 | "Specific model, cheap" | model + preference=cheapest | Defaults |
 | "High quality, verified" | model + quantization=Q8_0 + verified_only=true | Defaults |
 | "SDK integration" | model + max_price | Defaults |
@@ -139,18 +140,21 @@ UI: "The cheapest provider charges $0.10/Mtok. Your limit is $0.05.
 [Increase limit] [Remove limit]"
 ```
 
-**Trust too high:**
+**No hardened providers available (default trust constraint):**
 ```
-Trigger: All providers below min_confidence
+Trigger: No providers at or above min_confidence (default: hardened/L2)
 Response: 503 with body:
 {
   "error": "No L2+ hardened provider available for this model",
   "available_levels": ["open", "contained"],
-  "suggestion": "Lower trust requirement to L1 or try later"
+  "suggestion": "Lower trust requirement to L1 or try later",
+  "privacy_warning": "L0/L1 providers CAN read your prompts"
 }
 
 UI: "No hardened providers are online for this model.
-Available: L0 Open, L1 Contained. [Accept L1] [Wait]"
+Available: L0 Open, L1 Contained.
+⚠️ These providers can see your prompts.
+[Accept L1 (provider can see prompts)] [Wait for L2+]"
 ```
 
 **All at capacity:**
@@ -247,14 +251,15 @@ What happens for every combination of specified/unspecified parameters:
 
 | model | preference | trust | price | What happens |
 |---|---|---|---|---|
-| default | default | default | default | Best overall provider by balanced scoring |
-| specific | default | default | default | Best provider for that model |
-| default | cheapest | default | default | Cheapest provider across all models |
-| default | default | hardened | default | Best hardened provider, any model |
+| default | default | default | default | Best L2+ provider by balanced scoring |
+| specific | default | default | default | Best L2+ provider for that model |
+| default | cheapest | default | default | Cheapest L2+ provider across all models |
+| default | cheapest | open | default | Cheapest provider (any trust level, consumer opted down) |
+| default | default | hardened | default | Same as default (L2 is the default) |
 | specific | cheapest | hardened | $0.20 | Cheapest hardened provider for that model under $0.20 |
 | specific | default | default | default | If unavailable: suggest family alternatives |
 | default | most_secure | confidential | default | If no L3 provider: suggest L2, explain difference |
-| specific | fastest | default | $0.10 | Fastest under $0.10, fail if none exist at that price |
+| specific | fastest | default | $0.10 | Fastest L2+ under $0.10, fail if none exist at that price |
 
 ## 5. Queue Behavior
 

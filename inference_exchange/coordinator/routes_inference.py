@@ -58,7 +58,7 @@ class ChatCompletionRequest(BaseModel):
     stream: bool = True
     # OCIP routing preferences
     ocip_preference: str = "balanced"
-    ocip_min_confidence: str = "open"
+    ocip_min_confidence: str = "hardened"
     ocip_max_price: float | None = None
     ocip_session_id: str | None = None
     ocip_consumer_public_key: str | None = None
