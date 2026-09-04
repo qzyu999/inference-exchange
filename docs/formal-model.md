@@ -61,19 +61,31 @@ exports $\text{sk}$ provides a *trust anchor*. The binding between a physical
 device and a public key $\text{pk}$ is verifiable only if the manufacturer
 signs a certificate chain $\text{Cert}(\text{pk}, \text{device\_id})$.
 
-**Axiom 4 (Impossibility of Trusted Third Parties).** Any centralized
-coordinator that can observe plaintext represents a single point of
-compromise. Security claims depending on honest coordinator behavior are
-operational assumptions, not cryptographic guarantees.
+**Axiom 4 (Coordinator Trust Boundary).** Any centralized coordinator that
+can observe plaintext represents a single point of compromise. Security
+claims depending on honest coordinator behavior are operational assumptions,
+not cryptographic guarantees.
 
 **Axiom 5 (State Locality).** The KV cache produced during prefill of
-$n$ tokens occupies $O(n \cdot d_h \cdot L)$ bytes (hidden dim × layers).
-Transferring this between machines costs $O(n \cdot d_h \cdot L / B_{\text{net}})$
+$n$ tokens occupies:
+
+$$M_{\text{KV}} = \frac{2 \cdot n \cdot L \cdot h_{\text{KV}} \cdot d_h \cdot b_{\text{KV}}}{8} \text{ bytes}$$
+
+where $L$ = layers, $h_{\text{KV}}$ = number of KV heads (NOT attention heads),
+$d_h$ = head dimension, $b_{\text{KV}}$ = KV cache precision in bits. The
+factor of 2 accounts for both K and V tensors.
+
+For GQA/MQA models (Llama 3.x, Qwen 2.5, etc.), $h_{\text{KV}}$ can be
+4-8× smaller than $h_{\text{attn}}$, making KV cache substantially smaller
+than a naive $O(n \cdot d_{\text{hidden}} \cdot L)$ estimate. This directly
+affects cache economics: GQA models are cheaper to keep cached.
+
+Transferring $M_{\text{KV}}$ between machines costs $M_{\text{KV}} / B_{\text{net}}$
 seconds. For large contexts on typical networks, transfer time exceeds
 recomputation time.
 
-**Consequence of Axiom 5:** KV cache state is economically bound to the
-machine that computed it. This is the physical basis for session affinity.
+**Consequence:** KV cache state is economically bound to the machine that
+computed it. This is the physical basis for session affinity.
 
 ---
 
@@ -130,15 +142,29 @@ meters usage, relays encrypted traffic.
 
 ### 1.3 Trust Levels
 
-**Definition 5.** $\mathcal{L} = \{L_0, L_1, L_2, L_3\}$ with total ordering
-$L_0 < L_1 < L_2 < L_3$.
+**Definition 5.** Trust levels $\mathcal{L} = \{L_0, L_1, L_2, L_3\}$ are
+ordered by the security guarantees the provider environment offers across
+three dimensions: **Confidentiality** (C), **Integrity** (I), and
+**Availability** (A).
 
-| Level | Adversary Capabilities (provider operator) |
-|---|---|
-| $L_0$ | $\{\text{read\_mem}, \text{attach\_dbg}, \text{inject\_code}, \text{replace\_bin}\}$ |
-| $L_1$ | $\text{Adv}_{L_0} \setminus \{\text{read\_network}\}$ |
-| $L_2$ | $\{\text{kill\_proc}, \text{observe\_resource\_usage}\}$ |
-| $L_3$ | $\{\text{power\_off}, \text{DoS}\}$ |
+| Level | Confidentiality | Integrity | Availability | What the operator CAN do |
+|---|---|---|---|---|
+| $L_0$ | None | None | Full control | Read memory, debug, inject code, replace binaries |
+| $L_1$ | Transport only | None | Full control | Everything at L0 except observe network traffic |
+| $L_2$ | Process-level | Process-level | Can kill process | Kill/restart process, observe resource usage (CPU/RAM/GPU) |
+| $L_3$ | Hardware-level | Hardware-level | Can power off | Physical denial of service only |
+
+The ordering $L_0 < L_1 < L_2 < L_3$ reflects **monotonically increasing
+confidentiality guarantees**, which is the primary dimension for inference
+privacy. Note that L2 is not strictly "more of everything" than L1 — L1
+operators retain more control over process internals. The ordering is
+justified because for the exchange's core use case (protecting prompt
+confidentiality), L2's anti-debug/anti-inspection guarantees are strictly
+stronger than L1's transport-only encryption.
+
+For consumers, the trust level answers one question: "Can the provider
+operator read my prompts?" L0: yes. L1: in transit no, in memory yes.
+L2: requires kernel exploit. L3: requires physical hardware attack.
 
 **Proposition 1 (Monotonicity of Privacy).** $\ell' > \ell \implies \mathcal{P}_{\ell'} \subseteq \mathcal{P}_{\ell}$.
 Higher trust strictly reduces the eligible provider set.
@@ -174,15 +200,33 @@ where:
 |---|---|---|---|
 | $\pi^{\text{prefill}}$ | Fresh input tokens | Compute (superlinear in context) | per token |
 | $\pi^{\text{decode}}$ | Output tokens | Memory bandwidth (sequential reads) | per token |
-| $\pi^{\text{cache}}$ | Cached prefix tokens | Memory occupancy (holding KV state) | per token |
+| $\pi^{\text{cache}}$ | Cached prefix tokens | Memory occupancy (holding KV state) | per token (derived) |
 | $\pi^{\text{reservation}}$ | Holding a slot for a session | Opportunity cost of blocked capacity | per second |
 
 **Economic convention:** $\pi^{\text{cache}} \leq \pi^{\text{prefill}}$.
 The provider should charge less for cached tokens because they do less work.
 But this is a market convention, not a physical law — providers set their
-own rates. The actual cost of holding KV cache depends on memory scarcity:
-on a 16GB machine where KV competes with model weights for unified memory,
-cache occupancy is expensive. On a 192GB machine, it's nearly free.
+own rates.
+
+**Note on cache cost economics:** The physical cost of holding KV cache is
+fundamentally a memory-time product:
+
+$$C_{\text{KV}} = M_{\text{KV}} \cdot \Delta t \cdot \pi_{\text{mem}}$$
+
+where $M_{\text{KV}} = 2 n L h_{\text{KV}} d_h b_{\text{KV}} / 8$ bytes
+($n$ = cached tokens, $L$ = layers, $h_{\text{KV}}$ = number of KV heads,
+$d_h$ = head dimension, $b_{\text{KV}}$ = KV precision in bits). The factor
+of 2 accounts for both K and V tensors.
+
+For GQA/MQA models (e.g., Llama 3.x), $h_{\text{KV}} \ll h_{\text{attn}}$,
+making KV cache substantially smaller than a naive hidden-dimension estimate.
+This matters to the exchange: GQA models are cheaper to keep cached.
+
+The per-token cache rate $\pi^{\text{cache}}$ exposed to consumers is a
+derived market price. Underneath, the provider's rational cache price
+depends on memory scarcity: on a 16GB machine where KV competes with model
+weights for unified memory, cache occupancy is expensive. On a 192GB
+machine, it's nearly free. This creates natural price differentiation.
 
 **Mechanism choice:** The reservation rate $\pi^{\text{reservation}}$ is
 a **time-based charge** ($/second), not a per-token charge. This is
@@ -219,6 +263,13 @@ economically efficient. For the MVP, flat pricing is sufficient.
 memory-bandwidth roofline for decode throughput is:
 
 $$T_j^{\text{roofline}} = \frac{B_j}{2 P_m b / 8}$$
+
+The factor of 2 accounts for the empirical observation that effective
+memory bandwidth utilization on current hardware typically reaches ~50%
+of theoretical peak due to access patterns, bank conflicts, and
+controller overhead. Some implementations achieve better utilization.
+The idealized bound without the factor is $B_j / (P_m b / 8)$; the
+table uses the 2× factor as a conservative practical estimate.
 
 This is an *estimate* — not a hard ceiling. Batching amortizes weight
 reads across concurrent requests; speculative decoding produces multiple
@@ -309,7 +360,7 @@ where $\alpha = 0.10$.
 **Definition 7.** The expected economic cost of assigning demand $d_i$
 to provider $p_j$ over the expected remaining session horizon $H$:
 
-$$\boxed{E[C_{ij}] = C_{\text{tokens}} + C_{\text{latency}} + C_{\text{migration}} + C_{\text{failure}} + C_{\text{reservation}}}$$
+$$\boxed{E[C_{ij}] = C_{\text{tokens}} + C_{\text{latency}} + C_{\text{disruption}} + C_{\text{reservation}}}$$
 
 where:
 
@@ -320,14 +371,17 @@ $$C_{\text{latency}} = \lambda_i \cdot E[\text{TTFT}_j(d_i)]$$
 where $\lambda_i$ is the consumer's implicit value-of-time (derived from $\rho_i$;
 $\lambda = 0$ for cheapest, high for fastest).
 
-$$C_{\text{migration}} = P(\text{provider fails during session}) \cdot V_{\text{lost-cache}}$$
+$$C_{\text{disruption}} = \hat{\theta}_j \cdot \left(C_{\text{retry}} + V_{\text{lost-cache}}\right)$$
 
-where $V_{\text{lost-cache}} = n_{\text{cached}} \cdot (\pi^{\text{prefill}} - \pi^{\text{cache}}) + n_{\text{cached}} / T^{\text{prefill}} \cdot \lambda_i$
-is the economic value of the cached prefix (re-prefill cost + re-prefill latency cost).
+This models disruption as a **single event class** with probability
+$\hat{\theta}_j$ (from §8). When a provider fails, both consequences occur
+together: the request must be retried AND the cached state is lost. There
+is no double-counting because retry and cache loss are consequences of the
+same failure event, not independent events.
 
-$$C_{\text{failure}} = P(\text{request failure}) \cdot C_{\text{retry}}$$
+$$C_{\text{retry}} = E[C_{i,j'}] + \tau_{\text{rematch}} \cdot \lambda_i$$
 
-derived from reputation (§8).
+$$V_{\text{lost-cache}} = n_{\text{cached}} \cdot (\pi^{\text{prefill}} - \pi^{\text{cache}}) + \frac{n_{\text{cached}}}{T^{\text{prefill}}} \cdot \lambda_i$$
 
 $$C_{\text{reservation}} = \pi_j^{\text{reservation}} \cdot E[\Delta t_{\text{idle}}]$$
 
@@ -340,45 +394,51 @@ minutes), it can dominate.
 ### 5.4 Session Cost Over K Turns
 
 **Proposition 3 (Quadratic Growth Without Cache).** For a $K$-turn session
-with constant new-message size $\bar{n}$ and constant output $\bar{o}$,
-total input tokens grow quadratically:
+with constant new-message size $\bar{n}$, constant model output $\bar{o}$,
+and system prompt length $|\text{sys}|$, the input token count at turn $k$ is:
 
-$$N_{\text{in}}^{\text{total}} = \sum_{k=1}^{K} n_{\text{in}}^{(k)} = \bar{n} \cdot \frac{K(K+1)}{2} + O(K)$$
+$$n_{\text{in}}^{(k)} = |\text{sys}| + k\bar{n} + (k-1)\bar{o}$$
 
-*Proof:* $n_{\text{in}}^{(k)} = k\bar{n} + (k-1)\bar{o} + |\text{sys}|$.
-Summing: $\sum k\bar{n} = \bar{n} K(K+1)/2$. $\square$
+Total input tokens across all turns:
+
+$$N_{\text{in}}^{\text{total}} = \sum_{k=1}^{K} n_{\text{in}}^{(k)} = K|\text{sys}| + (\bar{n} + \bar{o})\frac{K(K-1)}{2} + K\bar{n}$$
+
+The leading-order term is:
+
+$$N_{\text{in}}^{\text{total}} = \frac{\bar{n} + \bar{o}}{2}K^2 + O(K)$$
+
+*Proof:* $\sum_{k=1}^{K} k = K(K+1)/2$. The $k\bar{n}$ terms sum to
+$\bar{n}K(K+1)/2$ and the $(k-1)\bar{o}$ terms sum to $\bar{o}K(K-1)/2$.
+Combining: $\bar{n}K(K+1)/2 + \bar{o}K(K-1)/2 = (\bar{n}+\bar{o})K(K-1)/2 + K\bar{n}$. $\square$
+
+**Crucially, previous model outputs are also part of subsequent context.**
+The $\bar{o}$ terms contribute equally to the quadratic growth. A model
+that produces long outputs (large $\bar{o}$) makes cache reuse even
+more valuable.
 
 Without cache, every token is prefilled every turn:
 
-$$C_{\text{no-cache}} = \pi^{\text{prefill}} \cdot \frac{K(K+1)}{2}\bar{n} + \pi^{\text{decode}} \cdot K\bar{o}$$
+$$C_{\text{no-cache}} = \pi^{\text{prefill}} \cdot \left[\frac{\bar{n} + \bar{o}}{2}K^2 + O(K)\right] + \pi^{\text{decode}} \cdot K\bar{o}$$
 
-With a lease (same provider, all cache hits):
+With a lease (same provider, all cache hits — only $\bar{n}$ new tokens per turn):
 
-$$C_{\text{lease}} = \pi^{\text{prefill}} \cdot K\bar{n} + \pi^{\text{cache}} \cdot \frac{K(K-1)}{2}\bar{n} + \pi^{\text{decode}} \cdot K\bar{o}$$
+$$C_{\text{lease}} = \pi^{\text{prefill}} \cdot K\bar{n} + \pi^{\text{cache}} \cdot \left[\frac{\bar{n} + \bar{o}}{2}K^2 - K\bar{n} + O(K)\right] + \pi^{\text{decode}} \cdot K\bar{o}$$
 
-**Proposition 4 (Lease Savings Condition).** The lease is cheaper iff:
+**Proposition 4 (Lease Savings).** The savings from a lease vs. no-cache are:
 
-$$\pi^{\text{cache}} < \pi^{\text{prefill}} \cdot \frac{K-1}{K-1} = \pi^{\text{prefill}}$$
-
-Wait — that's always true by the convention $\pi^{\text{cache}} \leq \pi^{\text{prefill}}$.
-More precisely, the savings are:
-
-$$\Delta C = C_{\text{no-cache}} - C_{\text{lease}} = (\pi^{\text{prefill}} - \pi^{\text{cache}}) \cdot \frac{K(K-1)}{2}\bar{n}$$
+$$\Delta C = C_{\text{no-cache}} - C_{\text{lease}} = (\pi^{\text{prefill}} - \pi^{\text{cache}}) \cdot \left[\frac{\bar{n} + \bar{o}}{2}K^2 - K\bar{n} + O(K)\right]$$
 
 This is positive iff $\pi^{\text{cache}} < \pi^{\text{prefill}}$, i.e., iff
 the cache discount is nonzero. The savings grow as $O(K^2)$.
 
-For $K = 10$, $\pi^{\text{cache}} = 0.1 \cdot \pi^{\text{prefill}}$:
-
-$$\Delta C = 0.9 \cdot \pi^{\text{prefill}} \cdot 45\bar{n}$$
-
-Versus total no-cache cost of $55 \cdot \pi^{\text{prefill}} \cdot \bar{n}$,
-so the lease saves $\approx 73\%$ of input costs.
+For $K = 10$, $\bar{n} = \bar{o} = 100$ tokens, $\pi^{\text{cache}} = 0.1 \cdot \pi^{\text{prefill}}$:
+the lease saves approximately 74% of total input costs.
 
 **Important caveat:** This assumes the lease provider's prices are the
 same as the alternative's. If the leased provider charges significantly
 more per token, the savings may be offset. The decision boundary is
-where $C_{\text{lease}}(p_j) = C_{\text{no-cache}}(p_{j'})$.
+where $C_{\text{lease}}(p_j) = C_{\text{no-cache}}(p_{j'})$, which is
+the stay-vs-migrate condition from §6.2.
 
 ---
 
@@ -492,13 +552,20 @@ $$\pi^{\text{clearing}} = \inf\{\pi : S(\pi) \geq D(\pi)\}$$
 where $S(\pi)$ is aggregate supply (slots offered at or below $\pi$) and
 $D(\pi)$ is aggregate demand (requests willing to pay at least $\pi$).
 
-This is the **double auction** mechanism from market microstructure theory.
-Properties:
-- **Efficient:** maximizes total surplus (consumer value - provider cost)
-- **Incentive-compatible** (under Vickrey-Clarke-Groves variant): truthful
-  bidding is a dominant strategy
-- **Price discovery:** the clearing price reveals the market's valuation
-  of inference capacity
+This is a **double auction** mechanism from market microstructure theory.
+
+A uniform clearing-price double auction provides **price discovery** and
+can improve **allocative efficiency** (capacity goes to consumers who
+value it most). However, a simple uniform-price clearing rule is NOT
+generally dominant-strategy truthful — participants may have incentives
+to shade their bids. Achieving both efficiency and incentive-compatibility
+simultaneously requires more sophisticated mechanism design (e.g.,
+VCG-based mechanisms, which introduce budget-balance complications).
+
+For the exchange, the practical benefit of a clearing price is price
+discovery and fair allocation, not theoretical incentive-compatibility.
+Truthful bidding is approximately optimal when individual participants
+are small relative to the market.
 
 For the MVP, the greedy/most-constrained-first heuristic is sufficient.
 The batch auction becomes valuable when the market has enough volume that
@@ -708,14 +775,20 @@ a cached prefix AND TTFT evidence is consistent with cache hit.
 
 ### Liveness
 
-**L1 (Progress):** Eligible demands match within $\max(\tau_{\text{match}}, \delta_{\text{batch}})$.
+**L1 (Progress):** If $\exists a_j$ with $E(d_i, a_j) = 1$ and $s_j^{\text{free}} > 0$,
+then $d_i$ will either be matched or explicitly queued within
+$\max(\tau_{\text{match}}, \delta_{\text{batch}})$.
 
-**L2 (Timeout):** All demands resolve within $\delta$.
+**L2 (Timeout):** Every demand $d_i$ resolves — either matched, explicitly
+rejected (no eligible provider), or timed out — within $\delta_i$. No demand
+remains in an indeterminate state.
 
-**L3 (Lease Expiry):** Idle leases expire within TTL.
+**L3 (Lease Expiry):** Idle leases expire within TTL. No unbounded resource hold.
 
-**L4 (Migration):** Leased provider disconnects → lease migrates within
-$2 \times \text{heartbeat\_interval}$.
+**L4 (Migration):** If a leased provider disconnects AND there exists at least
+one eligible replacement with free capacity, the lease migrates within
+$2 \times \text{heartbeat\_interval}$. If no eligible replacement exists,
+the consumer receives an explicit failure notification within the same bound.
 
 ### Fairness
 
