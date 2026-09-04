@@ -19,13 +19,34 @@ Every statement is categorized as one of:
 distance $d$ over fiber has minimum one-way latency $\tau_{\min} = d / c_f$
 where $c_f \approx 2 \times 10^8$ m/s.
 
-**Axiom 1 (Compute Lower Bound).** Generating $n$ tokens from an autoregressive
-model of $P$ parameters at $b$-bit precision requires at minimum:
-- Decode (sequential): $\Omega(n \cdot P \cdot b / 8)$ bytes of memory transfer
-- Prefill (parallel): $\Omega(n_{\text{in}}^2 \cdot d_h)$ FLOPS for self-attention
-  over $n_{\text{in}}$ input tokens with hidden dimension $d_h$
+**Axiom 1 (Compute Lower Bound).**
 
-No software optimization eliminates these lower bounds.
+*Decode phase (sequential token generation):* Each decode step reads the
+full model weights from memory. The memory-bandwidth roofline for single-
+request decode throughput is:
+
+$$T_{\text{roofline}} = \frac{B}{2 P b / 8}$$
+
+where $B$ = memory bandwidth, $P$ = parameters, $b$ = bits per weight.
+This is an *estimate*, not a hard ceiling — speculative decoding, batched
+requests sharing weight reads, and implementation details (weight caching,
+prefetch) can push observed throughput above the single-request roofline.
+However, no implementation can avoid reading the weights at least once
+per decode step, so $\Omega(P \cdot b / 8)$ bytes per token is a true
+lower bound for a single forward pass.
+
+*Prefill phase (parallel input processing):* Dense self-attention over
+$n$ tokens requires $O(n^2 \cdot d_h)$ FLOPS per layer for the QK^T
+computation. This is the cost of *standard dense attention*. Modern
+implementations using FlashAttention, paged attention, chunked prefill,
+or sparse/sliding-window architectures achieve better constants or
+subquadratic scaling for specific architectures. The $O(n^2)$ bound
+applies to the dense attention component; actual prefill cost depends
+on the model architecture and attention implementation.
+
+The key consequence for the exchange: **prefill cost grows superlinearly
+with context length**, making cache reuse economically valuable regardless
+of the exact exponent.
 
 **Axiom 2 (Computational Hardness of Key Recovery).** For a symmetric cipher
 with $k$-bit keys, generic brute-force search requires $O(2^k)$ operations.
@@ -149,22 +170,32 @@ where:
 
 ### 2.2 The Four Rates
 
-| Rate | What it covers | Physical cost driver |
-|---|---|---|
-| $\pi^{\text{prefill}}$ | Fresh input tokens | Compute: $O(n^2)$ attention |
-| $\pi^{\text{decode}}$ | Output tokens | Memory bandwidth: sequential reads |
-| $\pi^{\text{cache}}$ | Cached prefix tokens | Memory occupancy: holding KV state |
-| $\pi^{\text{reservation}}$ | Holding a slot idle | Opportunity cost of blocked capacity |
+| Rate | What it covers | Physical cost driver | Billing unit |
+|---|---|---|---|
+| $\pi^{\text{prefill}}$ | Fresh input tokens | Compute (superlinear in context) | per token |
+| $\pi^{\text{decode}}$ | Output tokens | Memory bandwidth (sequential reads) | per token |
+| $\pi^{\text{cache}}$ | Cached prefix tokens | Memory occupancy (holding KV state) | per token |
+| $\pi^{\text{reservation}}$ | Holding a slot for a session | Opportunity cost of blocked capacity | per second |
 
 **Economic convention:** $\pi^{\text{cache}} \leq \pi^{\text{prefill}}$.
 The provider should charge less for cached tokens because they do less work.
 But this is a market convention, not a physical law — providers set their
-own rates.
+own rates. The actual cost of holding KV cache depends on memory scarcity:
+on a 16GB machine where KV competes with model weights for unified memory,
+cache occupancy is expensive. On a 192GB machine, it's nearly free.
 
-**Mechanism choice:** The reservation rate $\pi^{\text{reservation}}$ allows
-providers to charge for holding scarce capacity even when idle. This is
-important on small Apple Silicon machines where a single slot reservation
-blocks 100% of capacity.
+**Mechanism choice:** The reservation rate $\pi^{\text{reservation}}$ is
+a **time-based charge** ($/second), not a per-token charge. This is
+economically correct because reservation cost scales with *duration*,
+not with *token count*. A consumer holding a slot idle for 5 minutes
+between turns costs the provider 5 minutes of opportunity cost regardless
+of how many tokens were in the conversation.
+
+On small Apple Silicon machines (1-2 slots total), the reservation rate
+is significant — holding one slot blocks 50-100% of capacity. On large
+multi-GPU servers (32+ slots), reservation cost per slot is marginal.
+This creates natural price differentiation between dedicated small
+providers and high-capacity infrastructure.
 
 ### 2.3 Supply Curves (future evolution)
 
@@ -182,23 +213,28 @@ This reflects the real opportunity cost: the marginal session on a
 (lower throughput, higher latency). A supply curve makes the market
 economically efficient. For the MVP, flat pricing is sufficient.
 
-### 2.4 Throughput Ceilings
+### 2.4 Throughput Estimates
 
-**Proposition 2 (Decode Bound).** From Axiom 1:
+**Proposition 2 (Decode Roofline).** From Axiom 1, the single-request
+memory-bandwidth roofline for decode throughput is:
 
-$$T_j^{\text{decode}} \leq \frac{B_j}{2 P_m b / 8}$$
+$$T_j^{\text{roofline}} = \frac{B_j}{2 P_m b / 8}$$
 
-where $B_j$ = memory bandwidth, $P_m$ = model parameters, $b$ = quantization bits.
+This is an *estimate* — not a hard ceiling. Batching amortizes weight
+reads across concurrent requests; speculative decoding produces multiple
+tokens per forward pass. But it is a useful planning number for single-
+request workloads.
 
-| Hardware | Bandwidth | 7B Q4 ceiling | 32B Q4 ceiling |
+| Hardware | Bandwidth | 7B Q4 roofline | 32B Q4 roofline |
 |---|---|---|---|
 | M4 Pro | 250 GB/s | ~31.7 tok/s | ~6.9 tok/s |
 | M4 Max | 500 GB/s | ~63.5 tok/s | ~13.9 tok/s |
 | M2 Ultra | 800 GB/s | ~101.6 tok/s | ~22.2 tok/s |
 | RTX 4090 | 1008 GB/s | ~128.0 tok/s | ~28.0 tok/s |
 
-Observed TPS above these values indicates measurement error, speculative
-decoding, or batching effects.
+Observed single-request TPS substantially above the roofline warrants
+investigation. Multi-request batching or speculative decoding can
+legitimately exceed it.
 
 ---
 
@@ -224,9 +260,25 @@ where:
 
 **Definition 6 (Eligibility).** Provider $p_j$ is eligible for demand $d_i$ iff:
 
-$$E(d_i, a_j) = \begin{cases} 1 & \text{if } (m_i = \ast \lor m_i \in M_j) \\ & \land\ \pi_j^{\text{decode}} \leq \pi_i^{\max} \\ & \land\ \ell_j \geq \ell_i^{\min} \\ & \land\ s_j^{\text{free}} > 0 \\ & \land\ T_j^{\text{decode}} \geq T_i^{\min} \\ 0 & \text{otherwise} \end{cases}$$
+$$E(d_i, a_j) = \begin{cases} 1 & \text{if } (m_i = \ast \lor m_i \in M_j) \\ & \land\ \hat{C}(d_i, a_j) \leq \pi_i^{\max} \\ & \land\ \ell_j \geq \ell_i^{\min} \\ & \land\ s_j^{\text{free}} > 0 \\ & \land\ T_j^{\text{decode}} \geq T_i^{\min} \\ 0 & \text{otherwise} \end{cases}$$
 
-All predicates are $O(1)$ given precomputed model-set membership.
+where $\hat{C}(d_i, a_j)$ is the estimated per-request cost including all
+four rates:
+
+$$\hat{C}(d_i, a_j) = \hat{n}_{\text{fresh}} \cdot \pi_j^{\text{prefill}} + \hat{n}_{\text{cached}} \cdot \pi_j^{\text{cache}} + \hat{n}_{\text{out}} \cdot \pi_j^{\text{decode}} + \hat{t}_{\text{idle}} \cdot \pi_j^{\text{reservation}}$$
+
+The consumer's $\pi_i^{\max}$ is a **budget constraint on total expected
+request cost**, not just the decode rate. This prevents a provider with
+cheap decode but expensive prefill from passing the filter and then
+delivering a surprise bill.
+
+For the first request in a session ($n_{\text{cached}} = 0$), this
+simplifies to $\hat{n}_{\text{in}} \cdot \pi_j^{\text{prefill}} + \hat{n}_{\text{out}} \cdot \pi_j^{\text{decode}}$.
+For subsequent requests with a warm lease, the cached portion reduces
+the estimate.
+
+All predicates are $O(1)$ given precomputed model-set membership and
+estimated token counts.
 
 ---
 
@@ -277,7 +329,13 @@ $$C_{\text{failure}} = P(\text{request failure}) \cdot C_{\text{retry}}$$
 
 derived from reputation (§8).
 
-$$C_{\text{reservation}} = \pi_j^{\text{reservation}} \cdot E[\text{idle time}]$$
+$$C_{\text{reservation}} = \pi_j^{\text{reservation}} \cdot E[\Delta t_{\text{idle}}]$$
+
+where $\Delta t_{\text{idle}}$ is the expected idle time in seconds between
+requests in this session. This is a fixed cost per lease interval, not a
+per-token cost. For active conversations (messages every few seconds),
+this is negligible. For sessions with long pauses (user thinking for
+minutes), it can dominate.
 
 ### 5.4 Session Cost Over K Turns
 
@@ -377,22 +435,95 @@ flowchart TD
     CREATE --> DISPATCH_FRESH["Dispatch to p_j*<br/>full prefill"]
 ```
 
-### 6.3 Batch Assignment
+### 6.3 Batch Assignment (Multiple Consumers Competing)
 
-For multiple demands competing for scarce providers, solve:
+When multiple demands arrive simultaneously for scarce provider capacity,
+the system must allocate fairly and efficiently.
 
-$$\max_{\mu: D \to A \cup \{\bot\}} \sum_{d_i} -E[C_{i,\mu(i)}]$$
+**The multi-consumer problem.** Given demands $D = \{d_1, \ldots, d_n\}$
+and offers $A = \{a_1, \ldots, a_m\}$, find:
 
-subject to capacity constraints $|\{d_i : \mu(d_i) = a_j\}| \leq s_j^{\text{free}}$.
+$$\mu^* = \arg\min_{\mu: D \to A \cup \{\bot\}} \sum_{d_i \in D} E[C_{i,\mu(i)}]$$
 
-This is bipartite matching with capacitated nodes:
-- Greedy: $O(n \cdot m)$, optimal for $n = 1$
-- Most-constrained-first: $O(n \cdot m \log n)$, near-optimal
-- Hungarian: $O(n^3)$, globally optimal
+subject to:
+1. $\mu(d_i) \neq \bot \implies E(d_i, \mu(d_i)) = 1$ (feasibility)
+2. $|\{d_i : \mu(d_i) = a_j\}| \leq s_j^{\text{free}}$ (capacity)
+3. $\mu(d_i) = \bot$ means unmatched (queued or rejected)
+
+This is the **minimum-weight bipartite matching** problem with capacitated
+right-hand nodes.
+
+**Why this matters:** In the single-consumer case ($n = 1$), greedy is optimal
+— just pick the cheapest eligible provider. But when $n > 1$ consumers
+compete, greedy matching is suboptimal:
+
+*Example:* Two consumers, two providers (1 slot each).
+- $d_1$: wants model A, eligible for $\{p_1, p_2\}$
+- $d_2$: wants model A, eligible for $\{p_1\}$ only (due to trust constraint)
+- Greedy processes $d_1$ first, assigns $p_1$ (slightly better score).
+- $d_2$ can only use $p_1$, but $p_1$ is taken → $d_2$ fails.
+- Optimal: assign $d_1 \to p_2$, $d_2 \to p_1$ → both served.
 
 **Proposition 5 (Greedy Suboptimality).** For $n > 1$ competing demands,
-greedy matching can produce total cost up to $\frac{n-1}{n}$ worse than
-optimal. This motivates the batch strategy when provider/demand ratio $\to 1$.
+greedy matching can fail to serve demands that the optimal assignment
+would serve. The welfare loss is bounded: greedy total cost is at most
+$\frac{n}{n-k}$ of optimal, where $k$ is the number of demands that
+greedy fails to match that optimal would have matched.
+
+**Mechanism choice (Solution Hierarchy):**
+
+| Method | Complexity | Optimality | When to use |
+|---|---|---|---|
+| Greedy (FIFO) | $O(n \cdot m)$ | Optimal for $n = 1$ | Low volume, latency-critical |
+| Most-constrained-first | $O(n \cdot m \log n)$ | Near-optimal heuristic | Medium volume |
+| Hungarian / min-cost flow | $O(n^3)$ or $O(nm \log n)$ | Globally optimal | High contention |
+| Batch auction with clearing price | $O(n^2 m)$ | Optimal + incentive-compatible | Future: real market |
+
+**The batch auction (future mechanism):**
+
+In a true market, providers submit supply curves (§2.3) and consumers
+submit willingness-to-pay. The coordinator clears the market at a price
+where supply meets demand:
+
+$$\pi^{\text{clearing}} = \inf\{\pi : S(\pi) \geq D(\pi)\}$$
+
+where $S(\pi)$ is aggregate supply (slots offered at or below $\pi$) and
+$D(\pi)$ is aggregate demand (requests willing to pay at least $\pi$).
+
+This is the **double auction** mechanism from market microstructure theory.
+Properties:
+- **Efficient:** maximizes total surplus (consumer value - provider cost)
+- **Incentive-compatible** (under Vickrey-Clarke-Groves variant): truthful
+  bidding is a dominant strategy
+- **Price discovery:** the clearing price reveals the market's valuation
+  of inference capacity
+
+For the MVP, the greedy/most-constrained-first heuristic is sufficient.
+The batch auction becomes valuable when the market has enough volume that
+single-provider contention is common.
+
+```mermaid
+graph TD
+    subgraph "Market Clearing (future)"
+        D1["d₁: willing to pay $0.25/Mtok"] --> OB["Order Book"]
+        D2["d₂: willing to pay $0.15/Mtok"] --> OB
+        D3["d₃: willing to pay $0.10/Mtok"] --> OB
+        OB --> MC["Market Clearing<br/>π_clear = $0.13/Mtok"]
+        S1["p₁: offers at $0.08/Mtok"] --> OB
+        S2["p₂: offers at $0.12/Mtok"] --> OB
+        S3["p₃: offers at $0.20/Mtok"] --> OB
+        MC --> W1["d₁ → p₁ (pays $0.13, surplus $0.12)"]
+        MC --> W2["d₂ → p₂ (pays $0.13, surplus $0.02)"]
+        MC --> L1["d₃ rejected (budget $0.10 < clearing $0.13)"]
+        MC --> L2["p₃ idle (asks $0.20 > clearing $0.13)"]
+    end
+```
+
+This is where the exchange becomes fundamentally different from a router.
+A router picks the "best" provider per request. An exchange discovers the
+market-clearing price and allocates capacity to the consumers who value
+it most, while rewarding the providers who offer the most competitive
+capacity.
 
 ---
 
@@ -413,31 +544,49 @@ Crypto and matching are always negligible ($< 1$ms combined).
 
 ---
 
-## 8. Reputation
+## 8. Reputation and Failure Probability
 
-### 8.1 Bayesian Model
+### 8.1 Bayesian Failure Model
 
-**Mechanism choice.** Model provider success rate as:
+**Mechanism choice.** Each provider has an unknown true failure rate $\theta_j$.
+We model it with a Beta posterior:
 
-$$\sigma_j \sim \text{Beta}(1 + s_j, 1 + f_j)$$
+$$\theta_j \mid \text{data} \sim \text{Beta}(1 + f_j,\; 1 + s_j)$$
 
-where $s_j$ = successes, $f_j$ = failures.
+where $f_j$ = observed failures, $s_j$ = observed successes (note: failures
+first in the Beta parameterization because $\theta$ is the *failure* rate).
 
-For scoring, use the 5th-percentile lower bound (Wilson score):
+The expected failure probability is:
 
-$$\hat{\sigma}_j = \text{Beta.ppf}(0.05,\; 1 + s_j,\; 1 + f_j)$$
+$$\hat{\theta}_j = \frac{1 + f_j}{2 + s_j + f_j}$$
 
-| Provider | Record | $\hat{\sigma}$ | Interpretation |
+For pessimistic scoring (protect consumers from unreliable providers),
+use the 95th-percentile upper bound on the failure rate:
+
+$$\hat{\theta}_j^{\text{pessimistic}} = \text{Beta.ppf}(0.95,\; 1 + f_j,\; 1 + s_j)$$
+
+| Provider | Record | $\hat{\theta}^{\text{pessimistic}}$ | Interpretation |
 |---|---|---|---|
-| New (1/1) | 1 success | 0.05 | "Probably fine but we don't know" |
-| Proven (999/1000) | 999 successes | 0.997 | "Very reliable" |
-| Shaky (90/100) | 90 successes | 0.84 | "Usually OK, sometimes fails" |
+| New (1/1) | 0 failures | 0.95 | "Could easily fail — we don't know" |
+| Proven (1/1000) | 1 failure | 0.003 | "Very reliable" |
+| Shaky (10/100) | 10 failures | 0.16 | "Fails noticeably often" |
 
-### 8.2 Reputation in the Cost Function
+### 8.2 Failure Cost in the Objective
 
-$$C_{\text{failure}} = (1 - \hat{\sigma}_j) \cdot C_{\text{retry}}(d_i)$$
+The failure probability feeds directly into the expected cost:
 
-where $C_{\text{retry}}$ is the expected cost of re-matching and re-executing.
+$$C_{\text{failure}} = \hat{\theta}_j^{\text{pessimistic}} \cdot C_{\text{retry}}(d_i)$$
+
+where the retry cost is:
+
+$$C_{\text{retry}}(d_i) = E[C_{i,j'}] + \tau_{\text{rematch}} \cdot \lambda_i$$
+
+This is the expected cost of re-matching to another provider plus the
+latency penalty of the failed attempt. It cleanly separates:
+- The **probability** of failure: $\hat{\theta}_j$ (from the Beta posterior)
+- The **consequence** of failure: $C_{\text{retry}}$ (from the cost model)
+
+No mixing of reputation into arbitrary score normalization.
 
 ---
 
