@@ -79,9 +79,10 @@ Quantization reduces model size and increases speed at the cost of quality.
 
 | Engine | Language | Platforms | Formats | GPU | API | Hardening |
 |---|---|---|---|---|---|---|
-| llama.cpp | C++ | All | GGUF | Metal, CUDA, ROCm, Vulkan | /v1/chat/completions | Yes (compiled, PT_DENY_ATTACH) |
-| MLX / mlx-lm | Python+C++ | macOS only | SafeTensors | Metal (native) | /v1/chat/completions | Partial (Python: PyInstaller; C++ backend: unclear) |
-| Ollama | Go + llama.cpp | All | GGUF (internal) | Metal, CUDA | /v1/chat/completions | No (not our binary) |
+| llama.cpp | C++ | All | GGUF | Metal, CUDA, ROCm, Vulkan | /v1/chat/completions | Yes (compiled C, PT_DENY_ATTACH) |
+| MLX / mlx-lm | Python+C++ | macOS only | SafeTensors | Metal (native) | /v1/chat/completions | Yes (PyInstaller + PT_DENY_ATTACH via ctypes) |
+| Ollama (stock) | Go + C++ | All | GGUF (internal) | Metal, CUDA | /v1/chat/completions | No (pre-built binary) |
+| Ollama (from source) | Go + C++ | All | GGUF (internal) | Metal, CUDA | /v1/chat/completions | Yes (same C patch as llama.cpp) |
 | vLLM | Python + CUDA | Linux | SafeTensors | CUDA only | /v1/chat/completions | Yes (inside SEV-SNP VM) |
 | TGI | Rust + Python | Linux | SafeTensors | CUDA | /v1/chat/completions (compat) | Yes (inside VM) |
 | TabbyAPI | Python | Linux, Windows | GGUF, EXL2 | CUDA, ROCm | /v1/chat/completions | Partial |
@@ -119,20 +120,20 @@ Where providers get their models:
 
 ### 2.1 What can we verify vs what we trust?
 
-| Property | GGUF + llama.cpp | SafeTensors + MLX | SafeTensors + vLLM | Ollama | Self-quantized |
+| Property | GGUF + llama.cpp | SafeTensors + MLX | SafeTensors + vLLM | Ollama (from source) | Self-quantized |
 |---|---|---|---|---|---|
-| Model name | VERIFY (embedded in GGUF header) | TRUST (config.json, separate file) | TRUST (config.json) | TRUST (Ollama manifest) | TRUST (provider claims) |
-| Architecture | VERIFY (GGUF header) | TRUST (config.json) | TRUST (config.json) | TRUST (manifest) | TRUST |
-| Quantization | VERIFY (GGUF file_type) | INFER (from repo name/config) | INFER | UNKNOWN (Ollama internal) | TRUST |
-| Context length | VERIFY (GGUF header) | TRUST (config.json) | TRUST (config.json) | TRUST | TRUST |
-| File integrity | VERIFY (SHA-256 vs HF published hash) | VERIFY (SHA-256 vs HF) | VERIFY (SHA-256 vs HF) | PARTIAL (Ollama may repackage) | UNVERIFIABLE |
+| Model name | VERIFY (GGUF header) | VERIFY (config.json, hash-bound) | VERIFY (config.json, hash-bound) | VERIFY (GGUF header in blob) | TRUST (provider claims) |
+| Architecture | VERIFY (GGUF header) | VERIFY (config.json) | VERIFY (config.json) | VERIFY (GGUF header) | TRUST |
+| Quantization | VERIFY (GGUF file_type) | VERIFY (config.json) | VERIFY (config.json) | VERIFY (GGUF file_type) | TRUST |
+| Context length | VERIFY (GGUF header) | VERIFY (config.json) | VERIFY (config.json) | VERIFY (GGUF header) | TRUST |
+| File integrity | VERIFY (SHA-256 vs HF) | VERIFY (all-file SHA-256 vs HF) | VERIFY (all-file SHA-256 vs HF) | VERIFY (blob filename = SHA-256) | UNVERIFIABLE |
 | Model quality | UNVERIFIABLE | UNVERIFIABLE | UNVERIFIABLE | UNVERIFIABLE | UNVERIFIABLE |
 
 **Key insight:** GGUF is the only format where model identity is embedded IN
-the weight file and can be verified cryptographically. For all other formats,
-model identity is in accompanying metadata files that could theoretically be
-mismatched or forged (though the SHA-256 of the weight files still proves
-they match a specific HF upload).
+the weight file itself. SafeTensors/MLX formats rely on config.json which is
+a separate file -- but when ALL files (weights + config) are hash-verified
+against HuggingFace, the identity is equally trustworthy because the config
+can't be forged without breaking the hash chain.
 
 ### 2.2 What can we guarantee at each OCIP level?
 
@@ -214,15 +215,17 @@ For a provider to price themselves competitively:
 ### What we CANNOT honestly claim:
 
 1. "We guarantee the model running is exactly what the provider claims" --
-   FALSE for non-GGUF formats at L0/L1. The identity comes from metadata files
-   that are separate from the weights. A malicious provider could mismatch them.
+   Only TRUE when file hashes are verified against HuggingFace (Paths 1-4, 6-8).
+   FALSE for self-quantized models (Path 9) where no published hash exists.
 
 2. "All providers are equally secure" -- FALSE. L0 has zero protection. L1 has
    transit encryption only. L2 has kernel-level protection but only for specific
    engine/platform combos. L3 doesn't exist yet.
 
-3. "MLX providers have the same guarantees as llama.cpp providers" -- FALSE.
-   MLX is Python, harder to harden, and SafeTensors have no embedded metadata.
+3. "All engines provide identical guarantees" -- FALSE. GGUF embeds metadata
+   in the weight file (strongest). SafeTensors verify metadata via separate
+   config.json (verified when hashed with the weights). Stock Ollama binaries
+   cannot be hardened. Self-quantized models cannot be verified.
 
 4. "Quantization quality is verified" -- FALSE. We can verify WHAT quantization
    is used (from metadata), but not whether the quantization was done correctly.
@@ -261,10 +264,11 @@ Based on this analysis, what actually matters for alpha:
 - All reference pricing (honest, including when competitors are cheaper)
 
 ### Must NOT overstate:
-- Non-GGUF model identity should say "reported" not "verified"
-- Ollama models should note "metadata verified, file hash not verifiable"
+- SafeTensors identity is "verified" ONLY when all files are hash-checked against HF
+- Stock Ollama (not built from source) should note "unhardened, L1 max"
+- Ollama models from source with hash verification: "verified" is accurate
 - L0/L1 trust should clearly state "provider CAN observe your data"
-- Self-quantized models should note "not verified against any source"
+- Self-quantized models should note "model identity UNVERIFIED (no published hash)"
 
 ### For beta (engine-agnostic support):
 - MLX engine adapter (SafeTensors + config.json identity)
@@ -316,48 +320,9 @@ What's guaranteed:
   - Provider can't swap model after startup: YES (binary is hardened, can't inject code)
 ```
 
-### Path 2: MLX + SafeTensors + macOS Apple Silicon
+### Path 2: MLX (standalone) + SafeTensors + macOS Apple Silicon
 
-**Status: DESIGNED (not yet built)**
-
-```
-Model source:  HuggingFace MLX repo (e.g., mlx-community/Meta-Llama-3.1-8B-Instruct-4bit)
-Download:      huggingface-hub CLI or mlx-lm download
-Format:        Directory of files: model.safetensors, config.json, tokenizer.json, etc.
-Identity:      config.json (model_type, hidden_size, num_layers, vocab_size, max_position_embeddings)
-Verification:  SHA-256 of EVERY file in directory vs HF published hashes (N files = N hashes)
-Quantization:  From repo name or config.json ("quantization_config" field) or explicit (4bit, 8bit)
-Context:       config.json (max_position_embeddings)
-
-Hardening:
-  1. Build MLX inference server as PyInstaller onedir bundle:
-     - Python + mlx + mlx-lm + our server code -> frozen binary
-     - PT_DENY_ATTACH via ctypes at startup (before model load):
-       import ctypes; libc = ctypes.CDLL('libc.dylib')
-       libc.ptrace(31, 0, 0, 0)  # PT_DENY_ATTACH = 31
-  2. Sign ALL .dylib and .so in the bundle directory (consistent ad-hoc identity)
-  3. codesign --sign - --options runtime --entitlements entitlements.plist on main binary
-  4. Result: frozen Python bundle, Hardened Runtime, kernel blocks debuggers + memory reads
-
-Verification chain:
-  Agent enumerates all files in model directory
-  Agent computes SHA-256 of each file (model.safetensors, config.json, tokenizer.json, ...)
-  Agent reads config.json for identity (model name, architecture, context length)
-  Agent sends {filename: hash} map + identity to coordinator
-  Coordinator queries HF API for each file's hash
-  ALL match -> VERIFIED (entire model directory is byte-for-byte identical to HF upload)
-  ANY mismatch -> UNVERIFIED (flagged, consumer sees warning)
-
-What's guaranteed:
-  - All model files identical to HF upload: YES (every file hashed)
-  - config.json can't be forged: YES (its hash is verified too)
-  - Provider can't observe prompts/responses: YES (PyInstaller + Hardened Runtime + PT_DENY_ATTACH)
-  - Provider can't swap model after startup: YES (hardened process)
-
-Note: MLX uses unified memory (CPU and GPU share the same RAM on Apple Silicon).
-The model weights, KV cache, and activations all live in the same address space.
-Hardened Runtime protects the entire process memory, including GPU-accessible regions.
-```
+**(Same as Path 8 -- see Path 8 for full details)**
 
 ### Path 3: llama.cpp + GGUF + Linux NVIDIA (KVM + VFIO)
 
