@@ -44,9 +44,17 @@ subquadratic scaling for specific architectures. The $O(n^2)$ bound
 applies to the dense attention component; actual prefill cost depends
 on the model architecture and attention implementation.
 
-The key consequence for the exchange: **prefill cost grows superlinearly
-with context length**, making cache reuse economically valuable regardless
-of the exact exponent.
+The key consequence for the exchange: **for dense-attention models, marginal
+prefill cost generally increases with context length.** This makes cache
+reuse economically valuable. The exact scaling of $C_{\text{prefill}}(n)$ is
+model- and architecture-dependent, but the fundamental economic statement
+requires only:
+
+$$C_{\text{prefill}}(n_{\text{fresh}}) < C_{\text{prefill}}(n_{\text{full}}) \quad \text{whenever } n_{\text{fresh}} < n_{\text{full}}$$
+
+That is, prefilling fewer tokens costs less than prefilling more tokens.
+This holds for all practical architectures and is the basis for cache
+economics — not the specific $O(n^2)$ exponent.
 
 **Axiom 2 (Computational Hardness of Key Recovery).** For a symmetric cipher
 with $k$-bit keys, generic brute-force search requires $O(2^k)$ operations.
@@ -223,10 +231,15 @@ making KV cache substantially smaller than a naive hidden-dimension estimate.
 This matters to the exchange: GQA models are cheaper to keep cached.
 
 The per-token cache rate $\pi^{\text{cache}}$ exposed to consumers is a
-derived market price. Underneath, the provider's rational cache price
-depends on memory scarcity: on a 16GB machine where KV competes with model
-weights for unified memory, cache occupancy is expensive. On a 192GB
-machine, it's nearly free. This creates natural price differentiation.
+**derived market price** — a convenient billing abstraction over the
+underlying memory-time cost. The relationship is:
+
+$$\pi^{\text{cache}} = f(L, h_{\text{KV}}, d_h, b_{\text{KV}}, \Delta t, \text{memory scarcity}, \text{opportunity cost})$$
+
+In other words, $/cached-token is not the physical cost; it is a
+market-denominated projection of a GB-seconds cost. This distinction
+matters when comparing providers with different memory architectures
+(e.g., Apple Silicon unified memory vs. discrete GPU VRAM).
 
 **Mechanism choice:** The reservation rate $\pi^{\text{reservation}}$ is
 a **time-based charge** ($/second), not a per-token charge. This is
@@ -259,33 +272,33 @@ economically efficient. For the MVP, flat pricing is sufficient.
 
 ### 2.4 Throughput Estimates
 
-**Proposition 2 (Decode Roofline).** From Axiom 1, the single-request
-memory-bandwidth roofline for decode throughput is:
+**Proposition 2 (Decode Throughput Estimate).** The idealized single-request
+memory-bandwidth upper bound for decode throughput is:
 
-$$T_j^{\text{roofline}} = \frac{B_j}{2 P_m b / 8}$$
+$$T_{\text{max}} = \frac{B_j}{P_m b / 8} = \frac{8 B_j}{P_m b}$$
 
-The factor of 2 accounts for the empirical observation that effective
-memory bandwidth utilization on current hardware typically reaches ~50%
-of theoretical peak due to access patterns, bank conflicts, and
-controller overhead. Some implementations achieve better utilization.
-The idealized bound without the factor is $B_j / (P_m b / 8)$; the
-table uses the 2× factor as a conservative practical estimate.
+In practice, effective memory bandwidth utilization varies by hardware and
+implementation. Define an empirical utilization factor $\eta_j \in (0, 1]$:
 
-This is an *estimate* — not a hard ceiling. Batching amortizes weight
-reads across concurrent requests; speculative decoding produces multiple
-tokens per forward pass. But it is a useful planning number for single-
-request workloads.
+$$T_{\text{estimate}} = \eta_j \cdot \frac{8 B_j}{P_m b}$$
 
-| Hardware | Bandwidth | 7B Q4 roofline | 32B Q4 roofline |
-|---|---|---|---|
-| M4 Pro | 250 GB/s | ~31.7 tok/s | ~6.9 tok/s |
-| M4 Max | 500 GB/s | ~63.5 tok/s | ~13.9 tok/s |
-| M2 Ultra | 800 GB/s | ~101.6 tok/s | ~22.2 tok/s |
-| RTX 4090 | 1008 GB/s | ~128.0 tok/s | ~28.0 tok/s |
+Typical values of $\eta_j \approx 0.5$ on current hardware (due to access
+patterns, bank conflicts, controller overhead). Some implementations
+achieve higher utilization.
 
-Observed single-request TPS substantially above the roofline warrants
-investigation. Multi-request batching or speculative decoding can
-legitimately exceed it.
+The table below uses $\eta = 0.5$ as a conservative practical estimate:
+
+| Hardware | Bandwidth | $\eta$ | 7B Q4 estimate | 32B Q4 estimate |
+|---|---|---|---|---|
+| M4 Pro | 250 GB/s | 0.5 | ~31.7 tok/s | ~6.9 tok/s |
+| M4 Max | 500 GB/s | 0.5 | ~63.5 tok/s | ~13.9 tok/s |
+| M2 Ultra | 800 GB/s | 0.5 | ~101.6 tok/s | ~22.2 tok/s |
+| RTX 4090 | 1008 GB/s | 0.5 | ~128.0 tok/s | ~28.0 tok/s |
+
+These are single-request estimates. Multi-request batching amortizes weight
+reads and can exceed these numbers. Speculative decoding produces multiple
+tokens per forward pass. The numbers are useful for planning, not as hard
+limits.
 
 ---
 
@@ -424,21 +437,35 @@ With a lease (same provider, all cache hits — only $\bar{n}$ new tokens per tu
 
 $$C_{\text{lease}} = \pi^{\text{prefill}} \cdot K\bar{n} + \pi^{\text{cache}} \cdot \left[\frac{\bar{n} + \bar{o}}{2}K^2 - K\bar{n} + O(K)\right] + \pi^{\text{decode}} \cdot K\bar{o}$$
 
-**Proposition 4 (Lease Savings).** The savings from a lease vs. no-cache are:
+**Proposition 4 (Lease Savings).** With exact token accounting (no $O(K)$
+terms), the total cached tokens across $K$ turns of a leased session are:
 
-$$\Delta C = C_{\text{no-cache}} - C_{\text{lease}} = (\pi^{\text{prefill}} - \pi^{\text{cache}}) \cdot \left[\frac{\bar{n} + \bar{o}}{2}K^2 - K\bar{n} + O(K)\right]$$
+$$N_{\text{cached}} = (\bar{n} + \bar{o})\frac{K(K-1)}{2} + (K-1)|\text{sys}|$$
 
-This is positive iff $\pi^{\text{cache}} < \pi^{\text{prefill}}$, i.e., iff
-the cache discount is nonzero. The savings grow as $O(K^2)$.
+This counts: (a) all previously-seen user messages and model outputs that
+are prefix-cached, and (b) the system prompt cached from turn 2 onward.
 
-For $K = 10$, $\bar{n} = \bar{o} = 100$ tokens, $\pi^{\text{cache}} = 0.1 \cdot \pi^{\text{prefill}}$:
-the lease saves approximately 74% of total input costs.
+The exact savings are:
 
-**Important caveat:** This assumes the lease provider's prices are the
-same as the alternative's. If the leased provider charges significantly
-more per token, the savings may be offset. The decision boundary is
-where $C_{\text{lease}}(p_j) = C_{\text{no-cache}}(p_{j'})$, which is
-the stay-vs-migrate condition from §6.2.
+$$\boxed{\Delta C = (\pi^{\text{prefill}} - \pi^{\text{cache}}) \cdot \left[(\bar{n} + \bar{o})\frac{K(K-1)}{2} + (K-1)|\text{sys}|\right]}$$
+
+This is positive iff $\pi^{\text{cache}} < \pi^{\text{prefill}}$ (nonzero
+cache discount) and $K \geq 2$ (more than one turn). The savings grow
+quadratically with $K$.
+
+*Derivation:* Total input across all turns is
+$N_{\text{in}} = K|\text{sys}| + \bar{n}K(K+1)/2 + \bar{o}K(K-1)/2$.
+Total fresh tokens (what must be prefilled) is $|\text{sys}| + K\bar{n}$
+(system prompt on turn 1, plus $\bar{n}$ new tokens each turn).
+$N_{\text{cached}} = N_{\text{in}} - N_{\text{fresh}}$. $\square$
+
+For $K = 10$, $\bar{n} = \bar{o} = 100$, $|\text{sys}| = 200$,
+$\pi^{\text{cache}} = 0.1 \cdot \pi^{\text{prefill}}$: the lease saves
+approximately 74% of total input costs.
+
+**Important caveat:** This assumes the lease provider's prices equal the
+alternative's. If the leased provider charges more per token, savings may
+be offset — this is the stay-vs-migrate condition (§6.2).
 
 ---
 
@@ -600,16 +627,36 @@ capacity.
 
 ### 7.1 TTFT Decomposition
 
-$$\text{TTFT} = \underbrace{2\tau_{\text{net}}}_{\text{Axiom 0}} + \underbrace{\tau_{\text{match}}}_{\substack{O(1) \text{ lease hit} \\ O(nm) \text{ fresh}}} + \underbrace{\tau_{\text{crypto}}}_{< 0.1\text{ms}} + \underbrace{\frac{n_{\text{fresh}}}{T_j^{\text{prefill}}}}_{\text{Axiom 1: dominant}} + \underbrace{\frac{1}{T_j^{\text{decode}}}}_{\text{first token}}$$
+$$\text{TTFT} = T_{\text{network}} + T_{\text{queue}} + T_{\text{match}} + T_{\text{crypto}} + T_{\text{prefill}} + T_{\text{first-decode}}$$
 
-With a warm lease: $n_{\text{fresh}} \ll n_{\text{in}}$, so TTFT drops
-dramatically on subsequent turns.
+where:
+- $T_{\text{network}} \geq 2 \cdot d / c_f$ (Axiom 0, round-trip)
+- $T_{\text{queue}}$: time waiting for a free slot (0 if immediately available)
+- $T_{\text{match}}$: matching engine computation ($O(1)$ for lease hit, $O(nm)$ for fresh)
+- $T_{\text{crypto}}$: key exchange + encrypt/decrypt
+- $T_{\text{prefill}} \approx n_{\text{fresh}} / T_j^{\text{prefill}}$ (Axiom 1, approximate)
+- $T_{\text{first-decode}} \approx 1 / T_j^{\text{decode}}$
 
-### 7.2 What Dominates
+With a warm lease: $T_{\text{match}} \approx 0$, $T_{\text{queue}} = 0$ (reserved slot),
+and $n_{\text{fresh}} \ll n_{\text{in}}$, so TTFT drops dramatically on
+subsequent turns.
 
-For $n_{\text{fresh}} > 200$ tokens: prefill dominates.
-For $n_{\text{fresh}} < 50$ tokens: network RTT dominates (Axiom 0).
-Crypto and matching are always negligible ($< 1$ms combined).
+### 7.2 Empirical Observations on Dominance
+
+*The following are empirical observations, not mathematical consequences
+of the axioms. Actual dominance depends on hardware, model, network
+topology, provider load, and implementation.*
+
+- For moderate context ($n_{\text{fresh}} \gtrsim 200$ tokens) on typical
+  consumer hardware, $T_{\text{prefill}}$ tends to dominate.
+- For very short prompts ($n_{\text{fresh}} \lesssim 50$ tokens),
+  $T_{\text{network}}$ tends to dominate, especially for geographically
+  distant providers.
+- $T_{\text{crypto}}$ is typically sub-millisecond for a single X25519 +
+  XSalsa20 operation. Multi-step handshakes, attestation, or serialization
+  overhead can increase this.
+- $T_{\text{match}}$ and $T_{\text{first-decode}}$ are typically negligible
+  relative to the other terms.
 
 ---
 
@@ -715,9 +762,25 @@ request confidentiality (Axiom 4).
 
 ### 10.2 Response Encryption
 
-In IE SDK mode, provider encrypts each token to $pk_i^c$:
+In IE SDK mode, provider encrypts each token to $pk_i^c$.
+
+**Key derivation:** The shared secret from X25519 is not used directly as
+an AEAD key. It is processed through a KDF:
+
+$$K_{ji} = \text{KDF}(\text{X25519}(sk_j^p, pk_i^c))$$
+
+The current NaCl Box construction uses HSalsa20 as the internal KDF
+(this is implicit in libsodium's `crypto_box`).
+
+**Encryption per token:**
 
 $$\text{token}_k^{\text{enc}} = \text{XSalsa20-Poly1305}(K_{ji}, N_k, \text{token}_k)$$
+
+**Nonce uniqueness invariant:** $N_k \neq N_{k'}$ for all $k \neq k'$
+under the same key $K_{ji}$. Nonce reuse under the same key breaks
+XSalsa20-Poly1305 confidentiality. The implementation must use either a
+counter or random nonces with sufficient entropy (24-byte XSalsa20 nonces
+have negligible collision probability up to $\sim 2^{96}$ messages).
 
 Within a lease, $K_{ji}$ is computed once and reused (session key),
 avoiding per-token key exchange.
@@ -741,10 +804,20 @@ mode, and even then forward secrecy requires a protocol upgrade.
 | $L_2$ | Binary hash + hardening flags, cross-validated by TPS anomaly | Medium (statistical) |
 | $L_3$ | Hardware attestation signed by manufacturer CA (Axiom 3) | High (cryptographic) |
 
-**Proposition 6 (Attestation Soundness at L3).** A provider cannot claim
-$\ell_j = L_3$ without genuine TEE hardware, because the attestation report
-is signed by a key embedded in hardware (Axiom 3) and verified against the
-manufacturer's CA.
+**Proposition 6 (Conditional Attestation Soundness at L3).** If:
+- (a) the attestation key is protected by hardware (Axiom 3),
+- (b) the manufacturer CA is trusted and its certificate chain is verified,
+- (c) the attested measurement covers the boot state, firmware, runtime
+  environment, inference binary, model artifact, and key-release policy
+  relevant to confidentiality,
+
+then a valid L3 attestation provides cryptographic evidence that the provider
+is running the approved execution environment for the claimed model.
+
+Without condition (c), a genuine attestation key could sign a measurement
+of an environment that does not actually protect inference confidentiality.
+The attestation proves "genuine hardware signed this measurement," not
+automatically "inference ran confidentially."
 
 At $L_0$–$L_2$, attestation is a deterrent, not a cryptographic proof.
 
