@@ -93,11 +93,16 @@ than a naive $O(n \cdot d_{\text{hidden}} \cdot L)$ estimate. This directly
 affects cache economics: GQA models are cheaper to keep cached.
 
 Transferring $M_{\text{KV}}$ between machines costs $M_{\text{KV}} / B_{\text{net}}$
-seconds. For large contexts on typical networks, transfer time exceeds
-recomputation time.
+seconds at ideal throughput. For large contexts and sufficiently slow
+interconnects (typical internet connections between independent machines),
+transfer time can exceed recomputation time. On high-bandwidth interconnects
+(NVLink, InfiniBand within a cluster), state transfer may be cheaper than
+recomputation.
 
-**Consequence:** KV cache state is economically bound to the machine that
-computed it. This is the physical basis for session affinity.
+**Consequence:** For geographically distributed independent providers
+(the exchange's primary setting), KV cache state is economically bound
+to the machine that computed it. This is the physical basis for state
+locality.
 
 ---
 
@@ -131,26 +136,41 @@ concurrently:
 
 $$\text{Provider } p_j: \{S_1, S_2, \ldots, S_N\} \quad (N \gg 1 \text{ typical})$$
 
-**Definition 3 (Session Affinity — optional optimization).** When session
-$S_i$ has state on provider $p_j$, the affinity value is the economic
-benefit of reusing that state vs. switching providers:
+**Definition 3 (State Locality / Affinity — optional optimization).** Reusable
+state on a provider creates an economic preference for routing subsequent
+requests there. This state is NOT limited to conversational KV cache. It
+includes any prefix state the provider holds:
 
-$$A(S_i, p_j) = V_{\text{cache-reuse}} - V_{\text{cache-reuse-on-best-alternative}}$$
+- Conversational KV cache (multi-turn dialogue)
+- System prompt / instruction prefix (shared across requests)
+- RAG context prefix (document retrieval results)
+- Agent tool definitions
+- Shared document prefix (e.g., "analyze this codebase" context)
 
-If $A > 0$, prefer $p_j$ for the next request in $S_i$. If $A \leq 0$
-(another provider is cheaper enough to justify re-prefill), switch.
+When provider $p_j$ holds reusable state relevant to request $r$, the
+affinity value is the avoided-prefill saving:
+
+$$A(r, p_j) = C_{\text{prefill}}(n_{\text{full}}) - C_{\text{prefill}}(n_{\text{fresh}})$$
+
+If $A > 0$ and $p_j$ is available and competitive, prefer $p_j$.
+Otherwise, fall through to stateless routing (Layer 1).
 
 Affinity is a *soft preference*, not an exclusive binding. The provider
-is not "owned" by the session.
+is not "owned" by any session — it serves many concurrently.
 
 **Definition 4 (Reservation — optional premium product).** A time-bounded
 guarantee of capacity:
 
 $$R = (p_j, m, s_{\text{reserved}}, \Delta t, \pi^{\text{reservation}})$$
 
-Reservations are a distinct product from on-demand routing. They guarantee
-a slot is available, preventing queue-wait. They are economically meaningful
-only when capacity is scarce or the consumer needs SLA guarantees.
+Reservations are a distinct product from on-demand routing. Their value
+comes from two sources:
+
+$$\text{Reservation value} = V_{\text{capacity}} + V_{\text{SLA}}$$
+
+- $V_{\text{capacity}}$: guaranteed slot when capacity is scarce (no queue)
+- $V_{\text{SLA}}$: latency/availability guarantees (e.g., "p95 TTFT < 200ms
+  at 99.9% availability") — valuable even when capacity isn't globally scarce
 
 Most consumers use on-demand routing (no reservation). Reservations are
 for enterprise/latency-critical use cases.
@@ -164,9 +184,9 @@ graph TD
         M1 --> P1["Best available provider"]
     end
 
-    subgraph "Layer 2: Session Affinity (optimization)"
-        R2["Request with session_id"] --> CHECK{"Provider has<br/>useful KV state?"}
-        CHECK -->|"Yes, and cost-effective"| STAY["Route to incumbent<br/>(skip prefill)"]
+    subgraph "Layer 2: State Locality (optimization)"
+        R2["Request with reusable state"] --> CHECK{"Provider has<br/>useful prefix state?"}
+        CHECK -->|"Yes, and cost-effective"| STAY["Route to incumbent<br/>(skip re-prefill)"]
         CHECK -->|"No, or cheaper to switch"| M1
     end
 
@@ -179,7 +199,7 @@ graph TD
 | Layer | What it does | Who needs it | Provider relationship |
 |---|---|---|---|
 | 1. Stateless routing | Best-effort, per-request | Everyone (default) | Many-to-many |
-| 2. Session affinity | Soft preference for cached provider | Multi-turn conversations | Many sessions per provider |
+| 2. State locality | Soft preference for provider with reusable state | Multi-turn, shared prefix, RAG | Many sessions per provider |
 | 3. Reservation | Guaranteed capacity | Enterprise / SLA | Slot reservation, not provider dedication |
 
 The marketplace works at Layer 1. Layers 2 and 3 are strictly additive
@@ -525,6 +545,13 @@ approximately 74% of total input costs.
 alternative's. If the leased provider charges more per token, savings may
 be offset — this is the stay-vs-switch condition (§6.2).
 
+**Scope of quadratic claim:** The $O(K^2)$ growth assumes an untruncated
+accumulating-context model where every previous turn remains in the input.
+Production systems using context truncation, sliding windows, summarization,
+prompt compression, or retrieval-based approaches have different growth
+profiles. The proposition holds for the stated assumptions; it does not
+claim that every LLM session produces quadratic savings.
+
 ---
 
 ## 6. The Routing Problem
@@ -552,10 +579,11 @@ The preference $\rho_i$ determines the objective through $\lambda_i$:
 | secure | $\min C_{\text{tokens}}$ s.t. $\ell_j \geq L_3$ if possible | 0 |
 | balanced | $\min E[C_{ij}]$ (full cost function) | moderate |
 
-### 6.2 Layer 2: Session Affinity (optimization)
+### 6.2 Layer 2: State Locality (optimization)
 
-When a session $S_i$ has previous state on provider $p_j$ (KV cache), the
-coordinator evaluates whether to stay or switch:
+When a request has reusable state on provider $p_j$ (KV cache from a prior
+request with the same prefix), the coordinator evaluates whether to stay
+or switch:
 
 $$\Delta C = E[C_{ij'}^{\text{switch}}] - E[C_{ij}^{\text{stay}}]$$
 
@@ -571,16 +599,16 @@ Note: $V_{\text{lost-cache}}$ is implicit — switching means paying full
 prefill cost instead of cached cost. The $\Delta C$ already captures this.
 
 **Crucially, the provider is not dedicated.** Provider $p_j$ simultaneously
-serves hundreds of sessions. Session affinity is a routing preference, not
-a capacity reservation. If $p_j$ is full, the request falls through to
-Layer 1 (stateless routing with full prefill cost).
+serves hundreds of sessions and stateless requests. State locality is a
+routing preference, not a capacity reservation. If $p_j$ is full, the
+request falls through to Layer 1 (stateless routing with full prefill cost).
 
 ```mermaid
 flowchart TD
     REQ["Request r_k"] --> SESSION{"Session S_i has<br/>state on some p_j?"}
     SESSION -->|"No"| L1["Layer 1: Stateless market match"]
-    SESSION -->|"Yes"| AVAIL{"p_j available?"}
-    AVAIL -->|"No (full/offline)"| L1
+    SESSION -->|"Yes"| AVAIL{"p_j available<br/>and has free slot?"}
+    AVAIL -->|"No (full/offline)"| L1["Layer 1: Stateless routing<br/>(full prefill, possibly queue)"]
     AVAIL -->|"Yes"| COMPARE{"Stay cheaper<br/>than switch?"}
     COMPARE -->|"Yes"| STAY["Route to p_j (cache hit)"]
     COMPARE -->|"No"| L1
@@ -644,7 +672,7 @@ This motivates batch strategies when provider contention is common.
 | Greedy (FIFO) | $O(n \cdot m)$ | Optimal for $n = 1$ | Low volume, latency-critical |
 | Most-constrained-first | $O(n \cdot m \log n)$ | Near-optimal heuristic | Medium volume |
 | Hungarian / min-cost flow | $O(n^3)$ or $O(nm \log n)$ | Globally optimal | High contention |
-| Batch auction with clearing price | $O(n^2 m)$ | Optimal + incentive-compatible | Future: real market |
+| Batch auction with clearing price | $O(n^2 m)$ | Price discovery + efficiency | Future: capacity market |
 
 **The batch auction (future mechanism):**
 
@@ -699,6 +727,22 @@ market-clearing price and allocates capacity to the consumers who value
 it most, while rewarding the providers who offer the most competitive
 capacity.
 
+### 6.5 Product Stage Progression
+
+The formal model describes the full system. The implementation evolves
+through stages — the word "exchange" is earned, not assumed:
+
+| Stage | What it is | Mechanism | Status |
+|---|---|---|---|
+| 1. Multi-provider router | Route to cheapest/fastest eligible provider | $\arg\min E[C_{ij}]$ | Current |
+| 2. Market-aware router | Add state locality, reputation, cost-based matching | Stay-vs-switch, Beta reputation | Next |
+| 3. Capacity marketplace | Providers set dynamic prices, supply curves | Provider-side pricing optimization | Future |
+| 4. True exchange | Orders + bids/asks + clearing + price discovery | Double auction, welfare maximization | Future |
+
+The MVP is Stage 1. The formal model specifies Stages 1-4 so the
+architecture supports the full progression. Each stage is independently
+useful — you don't need Stage 4 to have a working product.
+
 ---
 
 ## 7. Latency Model
@@ -715,9 +759,11 @@ where:
 - $T_{\text{prefill}} \approx n_{\text{fresh}} / T_j^{\text{prefill}}$ (Axiom 1, approximate)
 - $T_{\text{first-decode}} \approx 1 / T_j^{\text{decode}}$
 
-With a warm lease: $T_{\text{match}} \approx 0$, $T_{\text{queue}} = 0$ (reserved slot),
-and $n_{\text{fresh}} \ll n_{\text{in}}$, so TTFT drops dramatically on
-subsequent turns.
+With state locality (Layer 2): $n_{\text{fresh}} \ll n_{\text{in}}$, so
+$T_{\text{prefill}}$ drops dramatically. However, $T_{\text{queue}}$ is NOT
+guaranteed to be zero — the provider may have the cached state but be
+temporarily at capacity. State locality reduces prefill cost; only an
+explicit reservation (Layer 3) guarantees $T_{\text{queue}} \approx 0$.
 
 ### 7.2 Empirical Observations on Dominance
 
