@@ -880,9 +880,25 @@ Truthful bidding means $b_i^{\max} = v_i(r)$.
 
 $$\alpha_j = (M_j, \ell_j, \pi_j^{\min}, s_j^{\text{available}})$$
 
-where $\pi_j^{\min}$ is the minimum price they'll accept. Truthful
-asking means $\pi_j^{\min} = c_j(r) / (1 - \alpha)$ (break-even after
-platform fee).
+where $\pi_j^{\min}$ is the minimum price they'll accept.
+
+In the simplest case, truthful asking means
+$\pi_j^{\min} = c_j(r) / (1 - \alpha)$ (single-request break-even after
+platform fee). But a provider's true reservation price depends on their
+full state, not just the marginal cost of one request:
+
+$$\pi_j^{\min} = f(c_j(r),\; \text{load}_j,\; \text{future demand},\; \text{KV occupancy},\; \text{batch state},\; \text{opportunity cost})$$
+
+A provider at 90% capacity has higher opportunity cost than one at 10%.
+A provider expecting a surge of demand in 5 minutes values their remaining
+slot more than one in a quiet period. This state-dependence means the
+economically correct provider-side object is a **supply function**:
+
+$$S_j(p \mid z_j) = \max\{q : c_j(q \mid z_j) \leq (1 - \alpha) \cdot p\}$$
+
+where $z_j$ is the provider's current state (load, cache, reservations,
+hardware). For the MVP, a scalar $\pi_j^{\min}$ is sufficient. For a
+mature exchange, state-dependent supply curves would improve efficiency.
 
 **Desirable mechanism properties:**
 
@@ -935,6 +951,72 @@ This is tractable and mirrors how electricity markets clear by zone/time.
   advantage (it observes all bids and asks)?
 - How should state locality interact with the auction (should incumbents
   get a bidding advantage)?
+
+### 6.7 The Commodity Space: What Is Being Traded?
+
+Inference is not a homogeneous commodity. A "token" on Provider A is not
+interchangeable with a "token" on Provider B — they differ in latency,
+throughput, trust, model version, and state. The exchange must define
+what constitutes a tradeable unit.
+
+**Definition 9 (Inference Commodity).** A unit of inference capacity is a
+vector:
+
+$$\kappa = (m, q, \ell, T^{\text{decode}}, T^{\text{prefill}}, \text{TTFT}_{\text{est}}, \text{state})$$
+
+where:
+- $m$: model identity (weights + quantization $q$)
+- $\ell$: trust level
+- $T^{\text{decode}}, T^{\text{prefill}}$: throughput capabilities
+- $\text{TTFT}_{\text{est}}$: estimated latency
+- $\text{state}$: available prefix state (if any)
+
+Two capacity units $\kappa_1, \kappa_2$ are **fungible** iff they agree on
+all dimensions that the consumer constrains. For a consumer who specifies
+only model and trust, any two providers serving that model at that trust
+level are interchangeable — their tokens are fungible.
+
+**Market segmentation.** The multidimensional commodity space naturally
+segments into sub-markets:
+
+$$\text{Market}_{m, \ell} = \{a_j : m \in M_j \land \ell_j \geq \ell\}$$
+
+Within each sub-market, providers compete on price and throughput. Across
+sub-markets, goods are not substitutable (a consumer needing L2 Llama 3
+cannot accept L0 Qwen 2.5).
+
+**Clearing operates per sub-market.** Each $(m, \ell)$ pair has its own
+supply-demand balance and potentially its own clearing price:
+
+$$\pi^{\text{clearing}}_{m, \ell} = \inf\{\pi : S_{m,\ell}(\pi) \geq D_{m,\ell}(\pi)\}$$
+
+This mirrors electricity markets (clearing by zone and time period) and
+spectrum auctions (clearing by band and region).
+
+**Consumer-side demand functions.** Similarly, a consumer's demand for
+inference depends on price:
+
+$$D_i(p) = \max\{q : v_i(q) \geq p\}$$
+
+At high prices, a consumer may reduce their request rate, switch to a
+cheaper model, or reduce context length. At low prices, they consume more.
+For the MVP, demand is treated as inelastic (the consumer wants one
+request and either pays or doesn't). For a mature exchange, elastic demand
+creates richer market dynamics.
+
+**The commodity hierarchy (from most to least fungible):**
+
+| Level | What's traded | Fungibility | Market type |
+|---|---|---|---|
+| Token | Generic output token for model $m$ at trust $\ell$ | High within sub-market | Commodity spot |
+| Prefill capacity | Processing $n$ input tokens at throughput $T$ | Medium (hardware-dependent) | Differentiated |
+| State locality | Reusing a specific cached prefix | Low (provider-specific) | Bilateral |
+| Reservation | Guaranteed capacity for $\Delta t$ seconds | Low (provider-specific) | Bilateral/contract |
+
+The exchange clears at the **token level** (most fungible) for the MVP.
+State locality and reservations are bilateral optimizations that don't
+require market clearing — they're negotiated between the consumer (via
+routing preferences) and the provider (via their capacity offer).
 
 ---
 
