@@ -402,10 +402,11 @@ where:
 
 **Definition 6 (Eligibility).** Provider $p_j$ is eligible for demand $d_i$ iff:
 
-$$E(d_i, a_j) = \begin{cases} 1 & \text{if } (m_i = \ast \lor m_i \in M_j) \\ & \land\ \hat{C}(d_i, a_j) \leq \pi_i^{\max} \\ & \land\ \ell_j \geq \ell_i^{\min} \\ & \land\ s_j^{\text{free}} > 0 \\ & \land\ T_j^{\text{decode}} \geq T_i^{\min} \\ 0 & \text{otherwise} \end{cases}$$
+$$E(d_i, a_j) = \begin{cases} 1 & \text{if } (m_i = \ast \lor m_i \in M_j) \\ & \land\ \hat{C}(d_i, a_j) \leq \pi_i^{\max} \\ & \land\ \ell_j \geq \ell_i^{\min} \\ & \land\ s_j^{\text{free}} > 0 \\ & \land\ T_j^{\text{decode}} \geq T_i^{\min} \\ & \land\ \widehat{\text{TTFT}}(d_i, a_j) \leq L_i^{\max} \\ 0 & \text{otherwise} \end{cases}$$
 
-where $\hat{C}(d_i, a_j)$ is the estimated per-request cost including all
-four rates:
+where $\hat{C}(d_i, a_j)$ is the estimated per-request cost and
+$\widehat{\text{TTFT}}(d_i, a_j)$ is the estimated time-to-first-token
+(from §7.1, including network RTT, queue wait, and prefill time).
 
 $$\hat{C}(d_i, a_j) = \hat{n}_{\text{fresh}} \cdot \pi_j^{\text{prefill}} + \hat{n}_{\text{cached}} \cdot \pi_j^{\text{cache}} + \hat{n}_{\text{out}} \cdot \pi_j^{\text{decode}} + \hat{t}_{\text{idle}} \cdot \pi_j^{\text{reservation}}$$
 
@@ -416,7 +417,7 @@ delivering a surprise bill.
 
 For the first request in a session ($n_{\text{cached}} = 0$), this
 simplifies to $\hat{n}_{\text{in}} \cdot \pi_j^{\text{prefill}} + \hat{n}_{\text{out}} \cdot \pi_j^{\text{decode}}$.
-For subsequent requests with a warm lease, the cached portion reduces
+For subsequent requests with state locality, the cached portion reduces
 the estimate.
 
 All predicates are $O(1)$ given precomputed model-set membership and
@@ -446,10 +447,86 @@ where $\alpha = 0.10$.
 
 **Invariant S1 (Conservation):** $C_{\text{consumer}} = C_{\text{provider}} + C_{\text{platform}}$.
 
-### 5.3 Expected Total Cost (the objective function)
+### 5.3 The Stateless Economic Core (cache = 0)
 
-**Definition 7.** The expected economic cost of assigning demand $d_i$
-to provider $p_j$ over the expected remaining session horizon $H$:
+The exchange's economic viability does NOT depend on caching. This section
+proves the market works with no session state, no affinity, no reservations
+— pure stateless request routing.
+
+**Provider supply.** Provider $p_j$ offers capacity at price $\pi_j$ with
+throughput $T_j$ and trust $\ell_j$. Their marginal cost of serving a
+request with $n_{\text{in}}$ input and $n_{\text{out}}$ output tokens is:
+
+$$c_j(r) = n_{\text{in}} \cdot c_j^{\text{prefill}} + n_{\text{out}} \cdot c_j^{\text{decode}} + c_j^{\text{overhead}}$$
+
+where $c_j^{\text{prefill}}$ and $c_j^{\text{decode}}$ are the provider's
+real costs (electricity, hardware amortization, opportunity cost of the
+slot). The provider sets prices $\pi_j > c_j$ to earn profit:
+
+$$\text{profit}_j(r) = C(r, p_j) - c_j(r) = (1 - \alpha) \cdot [\text{revenue}] - c_j(r)$$
+
+**Consumer demand.** Consumer $c_i$ has a **willingness to pay**
+$v_i(r)$ — the maximum they'd spend on this request. For the consumer,
+surplus is:
+
+$$\text{surplus}_i(r, p_j) = v_i(r) - C(r, p_j)$$
+
+**Market equilibrium (stateless).** A request is executed iff there
+exists an eligible provider with $C(r, p_j) \leq v_i(r)$ (consumer
+willing to pay) and $C(r, p_j) > c_j(r)$ (provider profitable). The
+coordinator's matching selects the provider that maximizes consumer surplus:
+
+$$j^* = \arg\min_{j \in E(d_i)} C(r, p_j)$$
+
+(which, for the consumer, maximizes $v_i - C$).
+
+**Social welfare.** The total welfare of a matched request is:
+
+$$W(r, p_j) = v_i(r) - c_j(r) = \text{consumer surplus} + \text{provider profit} + \text{platform fee}$$
+
+For multiple simultaneous requests, the welfare-maximizing assignment is:
+
+$$\mu^* = \arg\max_{\mu} \sum_i \left[v_i(\mu(i)) - c_{\mu(i)}(r_i)\right]$$
+
+subject to capacity constraints. This is the social planner's problem.
+The coordinator approximates it via cost minimization (which is equivalent
+when consumers have identical willingness-to-pay, and a good heuristic
+otherwise).
+
+**Proposition (Market Viability Without Cache).** The exchange creates
+value for both sides when:
+
+1. Heterogeneous providers exist (different prices, speeds, trust levels)
+2. Consumers have different preferences (some want cheap, some want fast,
+   some want private)
+3. The coordinator's matching is more efficient than the consumer
+   searching providers manually
+
+These conditions hold independently of caching. The exchange is a
+capacity market first; state locality is an optimization layer.
+
+```mermaid
+graph LR
+    subgraph "Stateless Economic Core"
+        P1["Provider A<br/>$0.08/Mtok, 30t/s, L2"] --> MKT["Market<br/>min E[C_ij]"]
+        P2["Provider B<br/>$0.15/Mtok, 60t/s, L2"] --> MKT
+        P3["Provider C<br/>$0.04/Mtok, 20t/s, L0"] --> MKT
+
+        D1["Consumer 1<br/>cheapest, L2"] --> MKT
+        D2["Consumer 2<br/>fastest, any"] --> MKT
+        D3["Consumer 3<br/>secure, L2+"] --> MKT
+
+        MKT --> R1["C1 → A (cheap + L2)"]
+        MKT --> R2["C2 → B (fast)"]
+        MKT --> R3["C3 → A (secure + L2)"]
+    end
+```
+
+### 5.4 Expected Total Cost (the full objective function)
+
+The stateless core uses $C_{\text{tokens}}$ only. The full objective adds
+latency valuation, disruption risk, and reservation cost for consumers
+who opt into Layers 2-3:
 
 $$\boxed{E[C_{ij}] = C_{\text{tokens}} + C_{\text{latency}} + C_{\text{disruption}} + C_{\text{reservation}}}$$
 
@@ -482,7 +559,7 @@ per-token cost. For active conversations (messages every few seconds),
 this is negligible. For sessions with long pauses (user thinking for
 minutes), it can dominate.
 
-### 5.4 Session Cost Over K Turns
+### 5.5 Session Cost Over K Turns (Layer 2 economics)
 
 **Proposition 3 (Quadratic Growth Without Cache).** For a $K$-turn session
 with constant new-message size $\bar{n}$, constant model output $\bar{o}$,
