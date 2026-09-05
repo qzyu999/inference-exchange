@@ -205,7 +205,7 @@ graph TD
 The marketplace works at Layer 1. Layers 2 and 3 are strictly additive
 optimizations that improve economics and latency but are not required.
 
-**Definition 4 (Cached Prefix).** The longest common prefix between the
+**Definition 5 (Cached Prefix).** The longest common prefix between the
 session's current context and the provider's KV cache:
 
 $$P(S, p_j) = \text{longest common prefix}(\mathbf{x}_{\text{in}}^{(k)},\; \text{cache}(p_j, S))$$
@@ -217,7 +217,7 @@ $$n_{\text{cached}} = |P(S, p_j)|, \qquad n_{\text{fresh}} = n_{\text{in}}^{(k)}
 This is the economically relevant quantity — not "how many tokens are cached"
 but "how many tokens of *this specific prefix* are cached."
 
-### 1.2 Participants
+### 1.3 Participants
 
 $$\mathcal{S} = \mathcal{C}\text{onsumers} \cup \mathcal{P}\text{roviders} \cup \{\mathcal{X}\}$$
 
@@ -226,9 +226,9 @@ A **provider** $p_j$ holds keypair $(sk_j^p, pk_j^p)$, publishes capacity offers
 The **coordinator** $\mathcal{X}$ matches demands to offers, manages leases,
 meters usage, relays encrypted traffic.
 
-### 1.3 Trust Levels
+### 1.4 Trust Levels
 
-**Definition 5.** Trust levels $\mathcal{L} = \{L_0, L_1, L_2, L_3\}$ are
+**Definition 6.** Trust levels $\mathcal{L} = \{L_0, L_1, L_2, L_3\}$ are
 ordered by the security guarantees the provider environment offers across
 three dimensions: **Confidentiality** (C), **Integrity** (I), and
 **Availability** (A).
@@ -400,7 +400,7 @@ where:
 
 ## 4. Feasibility Constraints
 
-**Definition 6 (Eligibility).** Provider $p_j$ is eligible for demand $d_i$ iff:
+**Definition 7 (Eligibility).** Provider $p_j$ is eligible for demand $d_i$ iff:
 
 $$E(d_i, a_j) = \begin{cases} 1 & \text{if } (m_i = \ast \lor m_i \in M_j) \\ & \land\ \hat{C}(d_i, a_j) \leq \pi_i^{\max} \\ & \land\ \ell_j \geq \ell_i^{\min} \\ & \land\ s_j^{\text{free}} > 0 \\ & \land\ T_j^{\text{decode}} \geq T_i^{\min} \\ & \land\ \widehat{\text{TTFT}}(d_i, a_j) \leq L_i^{\max} \\ 0 & \text{otherwise} \end{cases}$$
 
@@ -434,7 +434,7 @@ estimated token counts.
 $$C(r_k, p_j) = n_{\text{fresh}}^{(k)} \cdot \pi_j^{\text{prefill}} + n_{\text{cached}}^{(k)} \cdot \pi_j^{\text{cache}} + n_{\text{out}}^{(k)} \cdot \pi_j^{\text{decode}}$$
 
 where $n_{\text{fresh}} + n_{\text{cached}} = n_{\text{in}}$ and the
-cached count is $|P(S, p_j)|$ — the length of the common prefix (Definition 4),
+cached count is $|P(S, p_j)|$ — the length of the common prefix (Definition 5),
 not an arbitrary number reported by the provider.
 
 ### 5.2 Platform Fee
@@ -463,35 +463,57 @@ where $c_j^{\text{prefill}}$ and $c_j^{\text{decode}}$ are the provider's
 real costs (electricity, hardware amortization, opportunity cost of the
 slot). The provider sets prices $\pi_j > c_j$ to earn profit:
 
-$$\text{profit}_j(r) = C(r, p_j) - c_j(r) = (1 - \alpha) \cdot [\text{revenue}] - c_j(r)$$
+$$\Pi_j(r) = (1 - \alpha) \cdot C(r, p_j) - c_j(r)$$
 
-**Consumer demand.** Consumer $c_i$ has a **willingness to pay**
-$v_i(r)$ — the maximum they'd spend on this request. For the consumer,
-surplus is:
+The provider is profitable on request $r$ iff $\Pi_j(r) > 0$.
 
-$$\text{surplus}_i(r, p_j) = v_i(r) - C(r, p_j)$$
+**Consumer demand.** Consumer $c_i$ has two distinct economic quantities:
 
-**Market equilibrium (stateless).** A request is executed iff there
-exists an eligible provider with $C(r, p_j) \leq v_i(r)$ (consumer
-willing to pay) and $C(r, p_j) > c_j(r)$ (provider profitable). The
-coordinator's matching selects the provider that maximizes consumer surplus:
+- **Budget** $b_i = \pi_i^{\max}$ — a hard constraint on spending (what
+  they've set as their maximum). This is observable by the coordinator.
+- **Willingness to pay** $v_i(r)$ — the true economic value of the
+  request to the consumer. This is NOT observable by the coordinator
+  (it's internal to the consumer's decision-making).
 
-$$j^* = \arg\min_{j \in E(d_i)} C(r, p_j)$$
+In general $b_i \neq v_i$. A consumer may set a budget lower than their
+true willingness to pay (to save money) or higher (for convenience).
+The MVP router uses $b_i$ (the budget) for feasibility. A future
+auction mechanism would elicit $v_i$ through bidding.
 
-(which, for the consumer, maximizes $v_i - C$).
+Consumer surplus:
 
-**Social welfare.** The total welfare of a matched request is:
+$$\text{CS}_i(r, p_j) = v_i(r) - C(r, p_j)$$
 
-$$W(r, p_j) = v_i(r) - c_j(r) = \text{consumer surplus} + \text{provider profit} + \text{platform fee}$$
+**Routing objective vs. social welfare.** The coordinator solves two
+fundamentally different problems:
 
-For multiple simultaneous requests, the welfare-maximizing assignment is:
+*Routing objective (what the MVP does):*
 
-$$\mu^* = \arg\max_{\mu} \sum_i \left[v_i(\mu(i)) - c_{\mu(i)}(r_i)\right]$$
+$$\mu^{\text{route}} = \arg\min_{\mu} \sum_i E[C_{i,\mu(i)}]$$
 
-subject to capacity constraints. This is the social planner's problem.
-The coordinator approximates it via cost minimization (which is equivalent
-when consumers have identical willingness-to-pay, and a good heuristic
-otherwise).
+This minimizes total consumer cost. It requires only observable data
+(prices, capacity, trust, throughput). It does NOT maximize welfare
+because it doesn't know consumer valuations $v_i$.
+
+*Social planner's benchmark (the theoretical ideal):*
+
+$$\mu^{\text{SW}} = \arg\max_{\mu} \sum_i \left[v_i(\mu(i)) - c_{\mu(i)}(r_i)\right]$$
+
+This maximizes total welfare = consumer surplus + provider profit +
+platform fee. It requires knowing both consumer valuations AND provider
+costs, which the coordinator generally does not have.
+
+**When are they equivalent?** Cost minimization equals welfare maximization
+when all consumers have identical willingness-to-pay (homogeneous demand).
+For heterogeneous demand, cost minimization is an approximation — a good
+one when provider price differences dominate consumer valuation differences.
+
+**Social welfare decomposition.** For a matched pair $(i, j)$:
+
+$$W(r, p_j) = \underbrace{v_i(r) - C(r, p_j)}_{\text{consumer surplus}} + \underbrace{(1-\alpha) C(r, p_j) - c_j(r)}_{\text{provider profit}} + \underbrace{\alpha \cdot C(r, p_j)}_{\text{platform fee}}$$
+
+which simplifies to $W = v_i(r) - c_j(r)$: the gap between consumer
+value and provider cost. The platform fee is a transfer, not a welfare loss.
 
 **Proposition (Market Viability Without Cache).** The exchange creates
 value for both sides when:
