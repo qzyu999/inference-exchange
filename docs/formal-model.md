@@ -959,22 +959,39 @@ interchangeable with a "token" on Provider B — they differ in latency,
 throughput, trust, model version, and state. The exchange must define
 what constitutes a tradeable unit.
 
-**Definition 9 (Inference Commodity).** A unit of inference capacity is a
-vector:
+**Definition 9 (Inference Service Unit).** The exchange does not literally
+trade physical tokens. It trades **claims on inference capacity,
+denominated in expected token service.** A token is the accounting unit,
+not the underlying scarce resource.
 
-$$\kappa = (m, q, \ell, T^{\text{decode}}, T^{\text{prefill}}, \text{TTFT}_{\text{est}}, \text{state})$$
+The underlying scarce resource is time-varying compute/memory capacity
+capable of producing tokens. A service unit formally is:
+
+$$\chi = (m, q, \ell, \Delta t, Q^{\text{prefill}}, Q^{\text{decode}}, L^{\text{TTFT}})$$
 
 where:
-- $m$: model identity (weights + quantization $q$)
+- $m, q$: model identity and quantization
 - $\ell$: trust level
-- $T^{\text{decode}}, T^{\text{prefill}}$: throughput capabilities
-- $\text{TTFT}_{\text{est}}$: estimated latency
-- $\text{state}$: available prefix state (if any)
+- $\Delta t$: time window of service
+- $Q^{\text{prefill}}$: prefill token capacity within $\Delta t$
+- $Q^{\text{decode}}$: decode token capacity within $\Delta t$
+- $L^{\text{TTFT}}$: latency guarantee
 
-Two capacity units $\kappa_1, \kappa_2$ are **fungible** iff they agree on
-all dimensions that the consumer constrains. For a consumer who specifies
-only model and trust, any two providers serving that model at that trust
-level are interchangeable — their tokens are fungible.
+Note that prefill and decode are NOT interchangeable — a provider with
+enormous decode throughput but poor prefill is not equivalent to one with
+the reverse. A long-context request consumes large prefill capacity but
+little decode. A streaming chatbot does the opposite.
+
+**Definition 10 (Fungibility).** Two service units $\chi_1, \chi_2$ are
+**fungible for consumer $c_i$** iff they agree on all dimensions that $c_i$
+constrains:
+
+$$\chi_1 \sim_i \chi_2 \iff \forall k \in \text{constrained}(d_i): \chi_1[k] = \chi_2[k]$$
+
+For a consumer who specifies only model and trust, any two providers
+serving that model at that trust level offer fungible service — regardless
+of throughput differences. For a consumer with a TTFT constraint, only
+providers meeting that latency bound are fungible.
 
 **Market segmentation.** The multidimensional commodity space naturally
 segments into sub-markets:
@@ -990,11 +1007,13 @@ supply-demand balance and potentially its own clearing price:
 
 $$\pi^{\text{clearing}}_{m, \ell} = \inf\{\pi : S_{m,\ell}(\pi) \geq D_{m,\ell}(\pi)\}$$
 
-This mirrors electricity markets (clearing by zone and time period) and
+where $S_{m,\ell}(\pi)$ and $D_{m,\ell}(\pi)$ are measured in service
+units (token capacity at a given throughput), not raw token counts. This
+mirrors electricity markets (clearing by zone and time period) and
 spectrum auctions (clearing by band and region).
 
-**Consumer-side demand functions.** Similarly, a consumer's demand for
-inference depends on price:
+**Consumer-side demand functions.** A consumer's demand for inference
+depends on price:
 
 $$D_i(p) = \max\{q : v_i(q) \geq p\}$$
 
@@ -1008,12 +1027,21 @@ creates richer market dynamics.
 
 | Level | What's traded | Fungibility | Market type |
 |---|---|---|---|
-| Token | Generic output token for model $m$ at trust $\ell$ | High within sub-market | Commodity spot |
-| Prefill capacity | Processing $n$ input tokens at throughput $T$ | Medium (hardware-dependent) | Differentiated |
+| Decode capacity | Output token production for $(m, \ell)$ | High within sub-market | Commodity spot |
+| Prefill capacity | Input processing at throughput $T$ | Medium (hardware-dependent) | Differentiated |
 | State locality | Reusing a specific cached prefix | Low (provider-specific) | Bilateral |
 | Reservation | Guaranteed capacity for $\Delta t$ seconds | Low (provider-specific) | Bilateral/contract |
 
-The exchange clears at the **token level** (most fungible) for the MVP.
+**The role of each layer:**
+
+$$\boxed{\text{The exchange prices capacity.} \quad \text{The router allocates requests.} \quad \text{State locality modifies allocation cost.} \quad \text{Reservations sell future capacity.}}$$
+
+The exchange clears **claims on inference capacity** (denominated in tokens)
+for the MVP. The underlying resource is not homogeneous — 1000 tokens from
+a 100 tok/s provider and 1000 tokens from a 10 tok/s provider take very
+different wall-clock time — but within a sub-market filtered by consumer
+constraints, they are fungible *from the consumer's perspective*.
+
 State locality and reservations are bilateral optimizations that don't
 require market clearing — they're negotiated between the consumer (via
 routing preferences) and the provider (via their capacity offer).
