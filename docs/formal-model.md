@@ -982,23 +982,34 @@ enormous decode throughput but poor prefill is not equivalent to one with
 the reverse. A long-context request consumes large prefill capacity but
 little decode. A streaming chatbot does the opposite.
 
-**Definition 10 (Fungibility).** Two service units $\chi_1, \chi_2$ are
-**fungible for consumer $c_i$** iff both satisfy $c_i$'s constraints —
-not necessarily identical, but *indistinguishable from the consumer's
-perspective*:
+**Definition 10 (Feasible Substitutability).** Two service units
+$\chi_1, \chi_2$ are **feasible substitutes for consumer $c_i$** iff both
+satisfy $c_i$'s hard constraints:
 
-$$\chi_1 \sim_i \chi_2 \iff \forall k \in \text{constrained}(d_i): \chi_1[k] \text{ satisfies } d_i[k] \land \chi_2[k] \text{ satisfies } d_i[k]$$
+$$\chi_1 \equiv_i^F \chi_2 \iff \chi_1, \chi_2 \in \mathcal{F}_i$$
+
+where $\mathcal{F}_i = \{\chi : \chi \text{ satisfies all hard constraints of } d_i\}$.
 
 For threshold constraints (TTFT $\leq$ 500ms, throughput $\geq$ 100 tok/s),
-satisfaction means meeting the bound, not equality. A provider with 200ms
-TTFT and one with 400ms are both fungible for a consumer requiring $\leq$ 500ms,
-even though they differ. For exact constraints (model, trust level),
-satisfaction means equality.
+satisfaction means meeting the bound, not equality. A 200ms provider and a
+400ms provider are both feasible for a consumer requiring $\leq$ 500ms.
+For exact constraints (model, trust level), satisfaction means equality.
 
-More formally: $\chi_1 \sim_i \chi_2$ iff the consumer is indifferent
-between them — they produce the same utility:
+**Definition 10b (Utility Indifference).** Two feasible service units are
+**utility-indifferent** iff the consumer derives the same value from them:
 
-$$U_i(\chi_1) = U_i(\chi_2)$$
+$$\chi_1 \equiv_i^U \chi_2 \iff U_i(\chi_1) = U_i(\chi_2)$$
+
+These are distinct concepts. Feasible substitutability means "both
+acceptable." Utility indifference means "consumer doesn't care which."
+A 200ms provider and a 490ms provider may both be feasible ($\equiv^F$)
+but not indifferent ($\not\equiv^U$) if the consumer values lower latency.
+
+For the **exchange clearing mechanism**, feasible substitutability is
+sufficient — all providers in a sub-market that meet the consumer's
+constraints can compete. For **welfare analysis**, utility indifference
+matters — the welfare-optimal allocation accounts for consumer preferences
+among feasible alternatives.
 
 **Service outputs vs. capacity inputs.** An important distinction:
 
@@ -1012,60 +1023,72 @@ consumer receives); providers compete on the efficiency of their capacity
 utilization (how cheaply they can produce those outputs).
 
 **Definition 11 (Capacity Product — the cleared quantity).** The exchange
-clears a standardized **capacity product** per sub-market:
+clears a standardized, time-indexed **capacity product** per sub-market:
 
-$$\Phi_{m, \ell} = \text{one decode token of model } m \text{ at trust } \geq \ell$$
+$$\boxed{\Phi_{m, \ell, t} = \text{one decode token of model } m \text{ delivered during interval } t \text{ at trust } \geq \ell}$$
 
-This is the atomic unit that supply and demand are denominated in. It is
-a claim on output production, not on physical resources. The clearing
-equation operates on aggregate supply and demand of $\Phi$:
+This is the atomic unit of trade. It is a claim on output production in a
+specific time window, not on physical resources. The time index $t$
+discretizes the market into intervals (e.g., 1-minute or 5-minute windows),
+mirroring electricity markets where "1 MWh delivered in zone Z during
+hour H" is the cleared product.
 
-$$\pi^{\text{clearing}}_{m, \ell} = \inf\{\pi : S_{m,\ell}(\pi) \geq D_{m,\ell}(\pi)\}$$
+Provider $p_j$'s committed supply in interval $t$:
 
-where:
-- $S_{m,\ell}(\pi) = \sum_{j \in \text{Market}_{m,\ell}} s_j(\pi)$ is the
-  total decode tokens/second that providers are willing to supply at price $\leq \pi$
-- $D_{m,\ell}(\pi) = \sum_{i} d_i(\pi)$ is the total decode tokens/second
-  that consumers demand at price $\geq \pi$
+$$Q_{j,m,\ell,t}(\pi) = \text{max decode tokens } p_j \text{ will deliver at price } \leq \pi \text{ during } t$$
+
+Aggregate supply and demand:
+
+$$S_{m,\ell,t}(\pi) = \sum_{j \in \text{Market}_{m,\ell}} Q_{j,m,\ell,t}(\pi)$$
+
+$$D_{m,\ell,t}(\pi) = \sum_{i} Q_{i,m,\ell,t}(\pi)$$
+
+The clearing price:
+
+$$\pi^*_{m, \ell, t} = \inf\{\pi : S_{m,\ell,t}(\pi) \geq D_{m,\ell,t}(\pi)\}$$
 
 Prefill is priced separately (as a per-request cost component) because
 it is consumed in a different pattern — once per request rather than
-per output token. The clearing price $\pi^{\text{clearing}}$ applies to
-the decode rate; prefill pricing is part of the total request cost
-evaluated during routing.
+per output token. The clearing price $\pi^*$ applies to decode output;
+prefill pricing is part of the total request cost evaluated during routing.
 
-This mirrors electricity markets where the cleared product is "one MWh
-delivered in zone Z during hour H" — a standardized output claim, not a
-specification of which generator or fuel produced it.
+**The inference market structure.** The exchange is not a single commodity
+market. It is a collection of nested markets:
 
-**Market segmentation.** The multidimensional commodity space segments
-into sub-markets:
+| Market | Product | Clearing | Mechanism |
+|---|---|---|---|
+| **Primary: Decode capacity** | $\Phi_{m,\ell,t}$ | Per sub-market, per interval | Spot market (eventually auction) |
+| **Bilateral: Prefill** | Per-request prefill cost | Per request, during routing | Posted price + cost-based matching |
+| **Bilateral: State locality** | Avoided re-prefill | Per request, stay-vs-switch | Routing optimization |
+| **Forward: Reservation** | Guaranteed capacity | Per reservation contract | Bilateral negotiation |
+
+**The role of each layer:**
+
+$$\boxed{\text{The exchange prices decode capacity.} \quad \text{The router allocates requests (including prefill cost).}}$$
+$$\boxed{\text{State locality modifies allocation cost.} \quad \text{Reservations sell forward capacity.}}$$
+
+**Market segmentation.** The commodity space segments into sub-markets:
 
 $$\text{Market}_{m, \ell} = \{a_j : m \in M_j \land \ell_j \geq \ell\}$$
 
 Within each sub-market, providers compete on price and throughput. Across
 sub-markets, goods are not substitutable.
 
-**Consumer-side demand functions.** A consumer's demand for inference
-depends on price:
+**Consumer-side demand functions.** A consumer's demand depends on price:
 
 $$D_i(p) = \max\{q : v_i(q) \geq p\}$$
 
-For the MVP, demand is treated as inelastic (one request, pay or don't).
-For a mature exchange, elastic demand creates richer market dynamics.
+For the MVP, demand is inelastic (one request, pay or don't). For a mature
+exchange, elastic demand creates richer dynamics.
 
 **The commodity hierarchy (from most to least fungible):**
 
 | Level | What's traded | Fungibility | Market type |
 |---|---|---|---|
-| Decode capacity | Output token production for $(m, \ell)$ | High within sub-market | Commodity spot |
-| Prefill capacity | Input processing at throughput $T$ | Medium (hardware-dependent) | Differentiated |
+| Decode capacity | $\Phi_{m,\ell,t}$: output tokens for $(m, \ell)$ in interval $t$ | High within sub-market | Commodity spot |
+| Prefill capacity | Input processing at throughput $T$ | Medium (hardware-dependent) | Differentiated/bilateral |
 | State locality | Reusing a specific cached prefix | Low (provider-specific) | Bilateral |
-| Reservation | Guaranteed capacity for $\Delta t$ seconds | Low (provider-specific) | Bilateral/contract |
-
-**The role of each layer:**
-
-$$\boxed{\text{The exchange prices capacity.} \quad \text{The router allocates requests.} \quad \text{State locality modifies allocation cost.} \quad \text{Reservations sell future capacity.}}$$
+| Reservation | Guaranteed capacity for $\Delta t$ seconds | Low (provider-specific) | Forward contract |
 
 State locality and reservations are bilateral optimizations that don't
 require market clearing — they're negotiated between the consumer (via
