@@ -460,12 +460,17 @@ request with $n_{\text{in}}$ input and $n_{\text{out}}$ output tokens is:
 $$c_j(r) = n_{\text{in}} \cdot c_j^{\text{prefill}} + n_{\text{out}} \cdot c_j^{\text{decode}} + c_j^{\text{overhead}}$$
 
 where $c_j^{\text{prefill}}$ and $c_j^{\text{decode}}$ are the provider's
-real costs (electricity, hardware amortization, opportunity cost of the
-slot). The provider sets prices $\pi_j > c_j$ to earn profit:
+real per-token costs (electricity, hardware amortization, opportunity cost
+of the slot). The provider is profitable on request $r$ iff revenue exceeds
+cost at the request level:
 
-$$\Pi_j(r) = (1 - \alpha) \cdot C(r, p_j) - c_j(r)$$
+$$\Pi_j(r) = (1 - \alpha) \cdot C(r, p_j) - c_j(r) > 0$$
 
-The provider is profitable on request $r$ iff $\Pi_j(r) > 0$.
+A sufficient condition for profitability on any request is
+$\pi_j^{\text{prefill}} > c_j^{\text{prefill}}$ and
+$\pi_j^{\text{decode}} > c_j^{\text{decode}}$ and
+$c_j^{\text{overhead}} \approx 0$, but this is not necessary — a provider
+can subsidize one rate with the other.
 
 **Consumer demand.** Consumer $c_i$ has two distinct economic quantities:
 
@@ -503,10 +508,22 @@ This maximizes total welfare = consumer surplus + provider profit +
 platform fee. It requires knowing both consumer valuations AND provider
 costs, which the coordinator generally does not have.
 
-**When are they equivalent?** Cost minimization equals welfare maximization
-when all consumers have identical willingness-to-pay (homogeneous demand).
-For heterogeneous demand, cost minimization is an approximation — a good
-one when provider price differences dominate consumer valuation differences.
+**When does cost minimization approximate welfare maximization?**
+
+The routing objective ($\min \sum C_{ij}$) and the welfare objective
+($\max \sum [v_i - c_j]$) produce the same allocation when the
+price-based provider ordering preserves the welfare-based ordering. This
+holds exactly when:
+
+- All consumers have identical willingness-to-pay (homogeneous demand), OR
+- Provider prices $C(r, p_j)$ are monotonically related to provider costs
+  $c_j(r)$ — i.e., cheaper providers also have lower real costs
+
+In practice, neither condition holds perfectly, but cost minimization is
+a good approximation when price differences between providers are large
+relative to consumer valuation heterogeneity. The approximation degrades
+when providers have very different cost structures (e.g., a provider with
+high prices but low real cost due to hardware efficiency).
 
 **Social welfare decomposition.** For a matched pair $(i, j)$:
 
@@ -841,6 +858,83 @@ through stages — the word "exchange" is earned, not assumed:
 The MVP is Stage 1. The formal model specifies Stages 1-4 so the
 architecture supports the full progression. Each stage is independently
 useful — you don't need Stage 4 to have a working product.
+
+### 6.6 Mechanism Design Foundation (Stage 4 specification)
+
+This section specifies the formal requirements for a true exchange
+mechanism (Stage 4). It is not implemented — it defines what the
+implementation must eventually satisfy.
+
+**The mechanism design problem.** The coordinator must allocate scarce
+inference capacity among consumers with private valuations $v_i$ and
+providers with private costs $c_j$, where neither is directly observable.
+
+**Consumer bids.** Consumer $c_i$ submits a bid:
+
+$$\beta_i = (m_i, \ell_i^{\min}, b_i^{\max}, T_i^{\min}, L_i^{\max})$$
+
+where $b_i^{\max}$ is their maximum willingness to pay for this request.
+Truthful bidding means $b_i^{\max} = v_i(r)$.
+
+**Provider asks.** Provider $p_j$ submits an ask:
+
+$$\alpha_j = (M_j, \ell_j, \pi_j^{\min}, s_j^{\text{available}})$$
+
+where $\pi_j^{\min}$ is the minimum price they'll accept. Truthful
+asking means $\pi_j^{\min} = c_j(r) / (1 - \alpha)$ (break-even after
+platform fee).
+
+**Desirable mechanism properties:**
+
+| Property | Definition | Achievable? |
+|---|---|---|
+| **Individual Rationality (IR)** | No participant is worse off from participating: $\text{CS}_i \geq 0$ and $\Pi_j \geq 0$ | Yes (reject unprofitable matches) |
+| **Budget Balance (BB)** | Platform doesn't lose money: $\sum \alpha C \geq 0$ | Yes (platform fee $\alpha > 0$) |
+| **Allocative Efficiency (AE)** | Maximize $W = \sum [v_i - c_j]$ | Approximately, via cost minimization |
+| **Incentive Compatibility (IC)** | Truthful bidding/asking is optimal | Generally impossible with BB + AE (Myerson-Satterthwaite) |
+
+**Myerson-Satterthwaite constraint.** For bilateral trade with private
+valuations, no mechanism is simultaneously efficient, individually
+rational, budget-balanced, AND incentive-compatible. The exchange must
+sacrifice one:
+
+- **VCG mechanism:** Achieves AE + IR + IC but NOT BB (platform may run
+  a deficit). Impractical for a for-profit exchange.
+- **Uniform clearing price:** Achieves IR + BB (approximately) but NOT IC
+  (participants shade bids). Practical and widely used.
+- **Posted prices (current):** Providers post prices, consumers accept or
+  reject. Achieves IR + BB. AE depends on price competition. No bidding
+  means IC is not applicable.
+
+**Mechanism choice (recommended for Stage 4):** Uniform clearing price
+with posted asks and sealed bids. This is the standard mechanism for
+commodity exchanges (electricity markets, spectrum auctions). It provides:
+
+- Price discovery: the clearing price reveals the market's capacity valuation
+- Approximate efficiency: capacity goes to high-value consumers
+- Budget balance: platform extracts $\alpha$ from each match
+- Approximate IC: truthful bidding is approximately optimal when individual
+  participants are small relative to market volume
+
+**The multidimensional challenge.** Inference bids are not scalar prices.
+A consumer's demand includes model, latency, trust, and throughput
+dimensions. A provider's offer includes the same. The clearing price must
+operate in this multidimensional space:
+
+$$(\pi^{\text{clearing}}_{\text{prefill}},\; \pi^{\text{clearing}}_{\text{decode}}) \text{ per (model, trust level)}$$
+
+One approach: run independent clearing per (model, trust-level) pair,
+reducing the multidimensional problem to a family of scalar clearings.
+This is tractable and mirrors how electricity markets clear by zone/time.
+
+**Open questions for Stage 4:**
+- Should the platform use pay-as-bid or uniform-price clearing?
+- How should the platform handle the time dimension (capacity varies
+  by time of day as providers go online/offline)?
+- Can the platform credibly commit to not exploiting its information
+  advantage (it observes all bids and asks)?
+- How should state locality interact with the auction (should incumbents
+  get a bidding advantage)?
 
 ---
 
