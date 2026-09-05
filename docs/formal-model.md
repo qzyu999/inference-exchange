@@ -4,8 +4,13 @@ A mathematical specification of an open market for inference capacity.
 Tokens are the metering unit; the scarce assets are compute slots, model
 residency, KV state, latency, and trust.
 
-The fundamental tradeable unit is the **inference request**. Session
-affinity (KV cache reuse) and capacity reservations are optional
+Two distinct primitives:
+- The **inference request** is the fundamental execution primitive — what
+  the router dispatches and the provider executes.
+- The **capacity product** $\Phi_{m,\ell,t}$ is the fundamental exchange
+  commodity — what the market prices and clears (§6.7).
+
+Session affinity (state locality) and capacity reservations are optional
 optimization layers — the marketplace works without them.
 
 Every statement is categorized as one of:
@@ -112,14 +117,15 @@ locality.
 
 The system has one fundamental primitive and two optional optimization layers.
 
-**Definition 1 (Inference Request — fundamental primitive).** A single
+**Definition 1 (Inference Request — execution primitive).** A single
 invocation of an autoregressive model:
 
 $$r = (m, \mathbf{x}_{\text{in}}, n_{\text{max}}, \theta)$$
 
-The request is the atomic tradeable unit. The marketplace exists even if
-sessions and reservations don't — a stateless request router is the base
-product.
+The request is what the router dispatches and the provider executes. The
+marketplace's routing layer (§6.1) operates on requests. The exchange's
+pricing layer (§6.7) operates on the capacity product $\Phi_{m,\ell,t}$
+that requests consume.
 
 **Definition 2 (Session — optional state).** An ordered sequence of requests
 sharing conversational context:
