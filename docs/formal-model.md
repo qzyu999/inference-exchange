@@ -983,45 +983,76 @@ the reverse. A long-context request consumes large prefill capacity but
 little decode. A streaming chatbot does the opposite.
 
 **Definition 10 (Fungibility).** Two service units $\chi_1, \chi_2$ are
-**fungible for consumer $c_i$** iff they agree on all dimensions that $c_i$
-constrains:
+**fungible for consumer $c_i$** iff both satisfy $c_i$'s constraints —
+not necessarily identical, but *indistinguishable from the consumer's
+perspective*:
 
-$$\chi_1 \sim_i \chi_2 \iff \forall k \in \text{constrained}(d_i): \chi_1[k] = \chi_2[k]$$
+$$\chi_1 \sim_i \chi_2 \iff \forall k \in \text{constrained}(d_i): \chi_1[k] \text{ satisfies } d_i[k] \land \chi_2[k] \text{ satisfies } d_i[k]$$
 
-For a consumer who specifies only model and trust, any two providers
-serving that model at that trust level offer fungible service — regardless
-of throughput differences. For a consumer with a TTFT constraint, only
-providers meeting that latency bound are fungible.
+For threshold constraints (TTFT $\leq$ 500ms, throughput $\geq$ 100 tok/s),
+satisfaction means meeting the bound, not equality. A provider with 200ms
+TTFT and one with 400ms are both fungible for a consumer requiring $\leq$ 500ms,
+even though they differ. For exact constraints (model, trust level),
+satisfaction means equality.
 
-**Market segmentation.** The multidimensional commodity space naturally
-segments into sub-markets:
+More formally: $\chi_1 \sim_i \chi_2$ iff the consumer is indifferent
+between them — they produce the same utility:
+
+$$U_i(\chi_1) = U_i(\chi_2)$$
+
+**Service outputs vs. capacity inputs.** An important distinction:
+
+$$\boxed{\text{Service outputs can be fungible while the capacity used to produce them is not.}}$$
+
+1000 output tokens from a 100 tok/s provider and 1000 tokens from a
+10 tok/s provider are fungible *as output* (the consumer receives the same
+text). But they consume very different capacity: 10 seconds vs 100 seconds
+of provider resources. The exchange clears on service outputs (what the
+consumer receives); providers compete on the efficiency of their capacity
+utilization (how cheaply they can produce those outputs).
+
+**Definition 11 (Capacity Product — the cleared quantity).** The exchange
+clears a standardized **capacity product** per sub-market:
+
+$$\Phi_{m, \ell} = \text{one decode token of model } m \text{ at trust } \geq \ell$$
+
+This is the atomic unit that supply and demand are denominated in. It is
+a claim on output production, not on physical resources. The clearing
+equation operates on aggregate supply and demand of $\Phi$:
+
+$$\pi^{\text{clearing}}_{m, \ell} = \inf\{\pi : S_{m,\ell}(\pi) \geq D_{m,\ell}(\pi)\}$$
+
+where:
+- $S_{m,\ell}(\pi) = \sum_{j \in \text{Market}_{m,\ell}} s_j(\pi)$ is the
+  total decode tokens/second that providers are willing to supply at price $\leq \pi$
+- $D_{m,\ell}(\pi) = \sum_{i} d_i(\pi)$ is the total decode tokens/second
+  that consumers demand at price $\geq \pi$
+
+Prefill is priced separately (as a per-request cost component) because
+it is consumed in a different pattern — once per request rather than
+per output token. The clearing price $\pi^{\text{clearing}}$ applies to
+the decode rate; prefill pricing is part of the total request cost
+evaluated during routing.
+
+This mirrors electricity markets where the cleared product is "one MWh
+delivered in zone Z during hour H" — a standardized output claim, not a
+specification of which generator or fuel produced it.
+
+**Market segmentation.** The multidimensional commodity space segments
+into sub-markets:
 
 $$\text{Market}_{m, \ell} = \{a_j : m \in M_j \land \ell_j \geq \ell\}$$
 
 Within each sub-market, providers compete on price and throughput. Across
-sub-markets, goods are not substitutable (a consumer needing L2 Llama 3
-cannot accept L0 Qwen 2.5).
-
-**Clearing operates per sub-market.** Each $(m, \ell)$ pair has its own
-supply-demand balance and potentially its own clearing price:
-
-$$\pi^{\text{clearing}}_{m, \ell} = \inf\{\pi : S_{m,\ell}(\pi) \geq D_{m,\ell}(\pi)\}$$
-
-where $S_{m,\ell}(\pi)$ and $D_{m,\ell}(\pi)$ are measured in service
-units (token capacity at a given throughput), not raw token counts. This
-mirrors electricity markets (clearing by zone and time period) and
-spectrum auctions (clearing by band and region).
+sub-markets, goods are not substitutable.
 
 **Consumer-side demand functions.** A consumer's demand for inference
 depends on price:
 
 $$D_i(p) = \max\{q : v_i(q) \geq p\}$$
 
-At high prices, a consumer may reduce their request rate, switch to a
-cheaper model, or reduce context length. At low prices, they consume more.
-For the MVP, demand is treated as inelastic (the consumer wants one
-request and either pays or doesn't). For a mature exchange, elastic demand
-creates richer market dynamics.
+For the MVP, demand is treated as inelastic (one request, pay or don't).
+For a mature exchange, elastic demand creates richer market dynamics.
 
 **The commodity hierarchy (from most to least fungible):**
 
@@ -1035,12 +1066,6 @@ creates richer market dynamics.
 **The role of each layer:**
 
 $$\boxed{\text{The exchange prices capacity.} \quad \text{The router allocates requests.} \quad \text{State locality modifies allocation cost.} \quad \text{Reservations sell future capacity.}}$$
-
-The exchange clears **claims on inference capacity** (denominated in tokens)
-for the MVP. The underlying resource is not homogeneous — 1000 tokens from
-a 100 tok/s provider and 1000 tokens from a 10 tok/s provider take very
-different wall-clock time — but within a sub-market filtered by consumer
-constraints, they are fungible *from the consumer's perspective*.
 
 State locality and reservations are bilateral optimizations that don't
 require market clearing — they're negotiated between the consumer (via
