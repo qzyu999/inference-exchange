@@ -17,6 +17,8 @@ dependencies = [
     "pynacl>=1.5.0,<2",
     "huggingface-hub>=0.25.0,<1",
     "sse-starlette>=2.0.0,<3",
+    "cbor2>=5.6,<6",
+    "cryptography>=43,<47",
 ]
 
 [project.scripts]
