@@ -47,14 +47,17 @@ class RegisterMessage(BaseModel):
     protocol_version: str = "0.1.0"
     provider_name: str
     capabilities: ProviderCapabilities
+    # Legacy static encryption key. Confidential sessions must use the
+    # authenticated ephemeral handshake instead of this key for inference.
     encryption_public_key: str = ""
     model_identity: dict[str, Any] | None = None
-    # App Attest is an admission credential, not an L2 claim. Providers that
-    # cannot support the current platform profile leave these fields empty.
     app_attest_key_id: str = ""
     app_attest_app_id: str = ""
     app_attest_environment: str = "production"
     provider_artifact_hash: str = ""
+    # Long-lived provider identity used to authenticate ephemeral session keys.
+    # The private key never crosses the coordinator.
+    provider_identity_public_key: str = ""
 
 
 class RegisteredMessage(BaseModel):
@@ -65,8 +68,6 @@ class RegisteredMessage(BaseModel):
 
 
 class AdmissionResult(BaseModel):
-    """Coordinator → Provider: result of provider admission."""
-
     type: str = MessageType.ADMISSION_RESULT
     admitted: bool
     reason: str = ""
@@ -120,8 +121,6 @@ class CancelRequest(BaseModel):
 
 
 class AttestationChallenge(BaseModel):
-    """Coordinator → provider: fresh admission challenge."""
-
     type: str = MessageType.ATTESTATION_CHALLENGE
     nonce: str
     timestamp: float = 0.0
@@ -130,13 +129,6 @@ class AttestationChallenge(BaseModel):
 
 
 class AttestationResponse(BaseModel):
-    """Provider → coordinator: App Attest + runtime evidence.
-
-    App Attest evidence is represented separately from local L2 evidence. The
-    coordinator must not interpret local booleans as a substitute for Apple's
-    cryptographic App Attest verification.
-    """
-
     type: str = MessageType.ATTESTATION_RESPONSE
     nonce: str
     app_attest_key_id: str = ""
@@ -156,4 +148,5 @@ class AttestationResponse(BaseModel):
     platform: str = ""
     provider_encryption_public_key: str = ""
     provider_artifact_hash: str = ""
+    provider_identity_public_key: str = ""
     protocol_version: str = "0.1.0"
