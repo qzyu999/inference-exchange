@@ -26,32 +26,42 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class ConnectedProvider:
-    """A provider currently connected via WebSocket."""
-
     provider_id: str
     name: str
     ws: WebSocket
     capabilities: ProviderCapabilities
-    encryption_public_key: str = ""  # X25519 public key for E2E
+    encryption_public_key: str = ""
     connected_at: float = field(default_factory=time.time)
     active_requests: int = 0
     last_heartbeat: float = field(default_factory=time.time)
-    model_verified: bool = False  # HF hash verification passed
-    model_identity: dict = field(default_factory=dict)  # GGUF metadata from provider
-    attestation_status: str = "pending"  # pending | passed | degraded
-    last_attestation: float = 0.0  # Timestamp of last successful attestation
-    pending_challenge_nonce: str | None = None  # Nonce awaiting response
-    challenge_sent_at: float = 0.0  # When the current challenge was sent
+    model_verified: bool = False
+    model_identity: dict = field(default_factory=dict)
+    attestation_status: str = "pending"
+    app_attest_verified: bool = False
+    admission_expires_at: float = 0.0
+    app_attest_key_id: str = ""
+    provider_artifact_hash: str = ""
+    last_attestation: float = 0.0
+    pending_challenge_nonce: str | None = None
+    challenge_sent_at: float = 0.0
+
+    @property
+    def requires_app_attest(self) -> bool:
+        return self.capabilities.trust_level.value == "confidential"
+
+    @property
+    def admitted(self) -> bool:
+        if self.requires_app_attest:
+            return self.app_attest_verified and self.admission_expires_at > time.time()
+        return True
 
     @property
     def load_factor(self) -> float:
-        """0.0 = idle, 1.0 = fully loaded."""
         if self.capabilities.max_concurrent == 0:
             return 1.0
         return self.active_requests / self.capabilities.max_concurrent
 
     def score_for_request(self, model: str, preference: str = "balanced") -> float:
-        """Score this provider for a request. Used for trace/display only."""
         from .matching.models import ConfidenceLevel, InferenceOrder, ProviderOffer, RoutingPreference
         from .matching.strategy import compute_score
 
@@ -63,12 +73,8 @@ class ConnectedProvider:
         }
         conf_map = {"open": ConfidenceLevel.OPEN, "contained": ConfidenceLevel.CONTAINED,
                      "hardened": ConfidenceLevel.HARDENED, "confidential": ConfidenceLevel.CONFIDENTIAL}
-
-        order = InferenceOrder(
-            order_id="trace", consumer_id="",
-            model=model,
-            preference=pref_map.get(preference, RoutingPreference.BALANCED),
-        )
+        order = InferenceOrder(order_id="trace", consumer_id="", model=model,
+                               preference=pref_map.get(preference, RoutingPreference.BALANCED))
         offer = ProviderOffer(
             provider_id=self.provider_id,
             provider_name=self.name,
@@ -87,14 +93,11 @@ class ConnectedProvider:
 
 @dataclass
 class PendingRequest:
-    """A consumer request waiting in the queue for a provider to free up."""
-
     request_id: str
     inference_req: InferenceRequest
     event: asyncio.Event
     provider: ConnectedProvider | None = None
     queued_at: float = field(default_factory=time.time)
-    # Routing constraints (so dispatch picks a compatible provider)
     model: str = "default"
     preference: str = "balanced"
     min_confidence: str = "open"
@@ -103,25 +106,17 @@ class PendingRequest:
 
 
 class ProviderHub:
-    """Manages all connected providers and routes inference requests."""
-
     QUEUE_MAX_DEPTH = 50
     QUEUE_TIMEOUT_SECONDS = 30.0
 
     def __init__(self):
         self._providers: dict[str, ConnectedProvider] = {}
-        # Maps request_id → asyncio.Queue for streaming responses back to consumer
         self._response_queues: dict[str, asyncio.Queue] = {}
         self._next_provider_id = 0
-        # Session affinity: session_id -> provider_id (LRU, max 1000 entries)
         self._session_affinity: dict[str, str] = {}
         self._SESSION_AFFINITY_MAX = 1000
-        # Maps request_id → provider_id (for disconnect cleanup)
         self._request_to_provider: dict[str, str] = {}
-        # Pending request queue: requests waiting for a provider to free up
-        self._pending_queue: asyncio.Queue[PendingRequest] = asyncio.Queue(
-            maxsize=self.QUEUE_MAX_DEPTH
-        )
+        self._pending_queue: asyncio.Queue[PendingRequest] = asyncio.Queue(maxsize=self.QUEUE_MAX_DEPTH)
 
     @property
     def provider_count(self) -> int:
@@ -129,14 +124,12 @@ class ProviderHub:
 
     @property
     def available_models(self) -> list[str]:
-        """All models available across all connected providers."""
         models = set()
         for p in self._providers.values():
             models.update(p.capabilities.models)
         return sorted(models)
 
     def register_provider(self, ws: WebSocket, msg: RegisterMessage) -> str:
-        """Register a new provider connection. Returns provider_id."""
         self._next_provider_id += 1
         provider_id = f"provider-{self._next_provider_id}"
         self._providers[provider_id] = ConnectedProvider(
@@ -145,96 +138,64 @@ class ProviderHub:
             ws=ws,
             capabilities=msg.capabilities,
             encryption_public_key=msg.encryption_public_key,
+            app_attest_key_id=msg.app_attest_key_id,
+            provider_artifact_hash=msg.provider_artifact_hash,
         )
         encrypted_status = "🔐 E2E" if msg.encryption_public_key else "🔓 plaintext"
         logger.info(
             f"Provider registered: {msg.provider_name} ({provider_id}) "
-            f"models={msg.capabilities.models} trust={msg.capabilities.trust_level} "
-            f"[{encrypted_status}]"
+            f"models={msg.capabilities.models} trust={msg.capabilities.trust_level} [{encrypted_status}]"
         )
         return provider_id
 
     def disconnect_provider(self, provider_id: str):
-        """Remove a provider on disconnect. Push errors to any in-flight request queues."""
         if provider_id in self._providers:
             provider = self._providers[provider_id]
             name = provider.name
-
-            # Find all in-flight requests assigned to this provider
-            orphaned_requests = [
-                req_id for req_id, pid in self._request_to_provider.items()
-                if pid == provider_id
-            ]
-
-            # Push an InferenceError to each orphaned queue so consumers get a clean error
+            orphaned_requests = [req_id for req_id, pid in self._request_to_provider.items() if pid == provider_id]
             for req_id in orphaned_requests:
                 if req_id in self._response_queues:
-                    error = InferenceError(
-                        request_id=req_id,
-                        error="provider_disconnected",
-                    )
-                    self._response_queues[req_id].put_nowait(error)
-                    logger.warning(
-                        f"Provider {name} disconnected mid-stream — "
-                        f"pushed error to request {req_id[:8]}"
+                    self._response_queues[req_id].put_nowait(
+                        InferenceError(request_id=req_id, error="provider_disconnected")
                     )
                 self._request_to_provider.pop(req_id, None)
-
             del self._providers[provider_id]
             logger.info(f"Provider disconnected: {name} ({provider_id})")
-
             return orphaned_requests
-
         return []
 
-    def select_provider(
-        self, model: str, preference: str = "balanced",
-        min_confidence: str = "open", max_price: float | None = None,
-        session_id: str | None = None,
-        reputation_fn=None,
-    ) -> ConnectedProvider | None:
-        """Pick the best provider using the formal matching engine."""
+    def select_provider(self, model: str, preference: str = "balanced",
+                        min_confidence: str = "open", max_price: float | None = None,
+                        session_id: str | None = None, reputation_fn=None) -> ConnectedProvider | None:
         from .matching.models import ConfidenceLevel, InferenceOrder, ProviderOffer, RoutingPreference
-        from .matching.strategy import GreedyStrategy, compute_score
+        from .matching.strategy import GreedyStrategy
 
-        # Map string preference to enum
-        pref_map = {
-            "cheapest": RoutingPreference.CHEAPEST,
-            "fastest": RoutingPreference.FASTEST,
-            "most_secure": RoutingPreference.MOST_SECURE,
-            "balanced": RoutingPreference.BALANCED,
-        }
+        pref_map = {"cheapest": RoutingPreference.CHEAPEST, "fastest": RoutingPreference.FASTEST,
+                    "most_secure": RoutingPreference.MOST_SECURE, "balanced": RoutingPreference.BALANCED}
         conf_map = {"open": ConfidenceLevel.OPEN, "contained": ConfidenceLevel.CONTAINED,
                      "hardened": ConfidenceLevel.HARDENED, "confidential": ConfidenceLevel.CONFIDENTIAL}
-
-        # Resolve session affinity
-        affinity_pid = ""
-        if session_id and session_id in self._session_affinity:
-            affinity_pid = self._session_affinity[session_id]
-
-        # Build order
+        affinity_pid = self._session_affinity.get(session_id, "") if session_id else ""
         order = InferenceOrder(
-            order_id="select",
-            consumer_id="",
-            model=model,
+            order_id="select", consumer_id="", model=model,
             max_price_per_mtok=max_price if max_price is not None else float("inf"),
             min_confidence=conf_map.get(min_confidence, ConfidenceLevel.OPEN),
             preference=pref_map.get(preference, RoutingPreference.BALANCED),
             session_affinity_provider_id=affinity_pid,
         )
 
-        # Build offers from connected providers
         offers = []
         for p in self._providers.values():
+            # Confidential providers are invisible to routing until App Attest admission succeeds.
+            if not p.admitted:
+                continue
             rep = reputation_fn(p.provider_id) if reputation_fn else 1.0
-            trust_str = p.capabilities.trust_level.value
             offers.append(ProviderOffer(
                 provider_id=p.provider_id,
                 provider_name=p.name,
                 models=p.capabilities.models,
                 price_per_mtok_input=p.capabilities.price_per_mtok_input,
                 price_per_mtok_output=p.capabilities.price_per_mtok_output,
-                confidence_level=conf_map.get(trust_str, ConfidenceLevel.OPEN),
+                confidence_level=conf_map.get(p.capabilities.trust_level.value, ConfidenceLevel.OPEN),
                 measured_throughput_tps=p.capabilities.measured_tps,
                 total_slots=p.capabilities.max_concurrent,
                 used_slots=p.active_requests,
@@ -242,72 +203,40 @@ class ProviderHub:
                 hardware=p.capabilities.hardware,
                 reputation_score=rep,
             ))
-
-        # Run greedy match
-        strategy = GreedyStrategy()
-        matches, _ = strategy.match([order], offers)
-
+        matches, _ = GreedyStrategy().match([order], offers)
         if matches:
             winner_id = matches[0].provider_id
             if winner_id in self._providers:
-                # Record session affinity (with LRU eviction)
                 if session_id:
                     self._session_affinity[session_id] = winner_id
                     if len(self._session_affinity) > self._SESSION_AFFINITY_MAX:
-                        # Remove oldest entry (first key in dict, insertion-ordered)
-                        oldest = next(iter(self._session_affinity))
-                        del self._session_affinity[oldest]
+                        del self._session_affinity[next(iter(self._session_affinity))]
                 return self._providers[winner_id]
-
         return None
 
     def create_response_queue(self, request_id: str) -> asyncio.Queue:
-        """Create a queue for streaming response chunks back to the consumer."""
         queue: asyncio.Queue = asyncio.Queue()
         self._response_queues[request_id] = queue
         return queue
 
     def remove_response_queue(self, request_id: str):
-        """Clean up after request completes."""
         self._response_queues.pop(request_id, None)
         self._request_to_provider.pop(request_id, None)
 
     async def send_to_provider(self, provider: ConnectedProvider, request: InferenceRequest):
-        """Send an inference request to a provider."""
+        if not provider.admitted and provider.requires_app_attest:
+            raise PermissionError("provider is not App Attest admitted")
         provider.active_requests += 1
         self._request_to_provider[request.request_id] = provider.provider_id
         await provider.ws.send_json(request.model_dump())
 
-    def enqueue_request(
-        self,
-        inference_req: InferenceRequest,
-        *,
-        model: str = "default",
-        preference: str = "balanced",
-        min_confidence: str = "open",
-        max_price: float | None = None,
-        session_id: str | None = None,
-    ) -> PendingRequest:
-        """Enqueue a request for later dispatch when a provider frees up.
-
-        Returns a PendingRequest whose .event the caller should await.
-        Raises asyncio.QueueFull if the queue is at capacity.
-        """
-        pending = PendingRequest(
-            request_id=inference_req.request_id,
-            inference_req=inference_req,
-            event=asyncio.Event(),
-            model=model,
-            preference=preference,
-            min_confidence=min_confidence,
-            max_price=max_price,
-            session_id=session_id,
-        )
-        self._pending_queue.put_nowait(pending)  # Raises QueueFull if at max depth
-        logger.info(
-            f"[{inference_req.request_id[:8]}] Queued — "
-            f"depth={self._pending_queue.qsize()}/{self.QUEUE_MAX_DEPTH}"
-        )
+    def enqueue_request(self, inference_req: InferenceRequest, *, model: str = "default",
+                        preference: str = "balanced", min_confidence: str = "open",
+                        max_price: float | None = None, session_id: str | None = None) -> PendingRequest:
+        pending = PendingRequest(request_id=inference_req.request_id, inference_req=inference_req,
+                                 event=asyncio.Event(), model=model, preference=preference,
+                                 min_confidence=min_confidence, max_price=max_price, session_id=session_id)
+        self._pending_queue.put_nowait(pending)
         return pending
 
     @property
@@ -315,169 +244,97 @@ class ProviderHub:
         return self._pending_queue.qsize()
 
     async def _try_dispatch_queued(self, freed_provider_id: str | None = None):
-        """Try to dispatch the oldest queued request to a newly-freed provider.
-
-        Called after a provider completes a request (InferenceDone / InferenceError).
-        Scans the queue front-to-back (FIFO) and dispatches the first compatible
-        request to any available provider.
-        """
         if self._pending_queue.empty():
             return
-
-        # Collect all pending items, try to dispatch the first compatible one,
-        # and re-enqueue the rest in order.
         items: list[PendingRequest] = []
         dispatched = False
-
         while not self._pending_queue.empty():
             try:
                 items.append(self._pending_queue.get_nowait())
             except asyncio.QueueEmpty:
                 break
-
-        for i, pending in enumerate(items):
+        for pending in items:
             if dispatched:
-                # Already dispatched one — put the rest back
                 self._pending_queue.put_nowait(pending)
                 continue
-
-            # Try to find a provider for this pending request
-            provider = self.select_provider(
-                pending.model,
-                preference=pending.preference,
-                min_confidence=pending.min_confidence,
-                max_price=pending.max_price,
-                session_id=pending.session_id,
-            )
+            provider = self.select_provider(pending.model, preference=pending.preference,
+                                            min_confidence=pending.min_confidence,
+                                            max_price=pending.max_price, session_id=pending.session_id)
             if provider is not None:
-                # Dispatch it
                 pending.provider = provider
                 pending.event.set()
                 dispatched = True
-                logger.info(
-                    f"[{pending.request_id[:8]}] Dispatched from queue → "
-                    f"{provider.name} ({provider.provider_id})"
-                )
             else:
-                # No provider yet — put it back
                 self._pending_queue.put_nowait(pending)
 
     def handle_provider_message(self, provider_id: str, data: dict):
-        """Process a message from a provider and route to the correct response queue."""
         msg_type = data.get("type")
         request_id = data.get("request_id")
-
         if not request_id or request_id not in self._response_queues:
             return
-
         queue = self._response_queues[request_id]
-
         if msg_type == MessageType.INFERENCE_RESPONSE:
-            chunk = InferenceResponseChunk(**data)
-            queue.put_nowait(chunk)
-
+            queue.put_nowait(InferenceResponseChunk(**data))
         elif msg_type == MessageType.INFERENCE_DONE:
-            done = InferenceDone(**data)
-            queue.put_nowait(done)
-            # Decrement active requests
+            queue.put_nowait(InferenceDone(**data))
             if provider_id in self._providers:
-                self._providers[provider_id].active_requests = max(
-                    0, self._providers[provider_id].active_requests - 1
-                )
-            # Try to dispatch a queued request now that this provider freed capacity
+                self._providers[provider_id].active_requests = max(0, self._providers[provider_id].active_requests - 1)
             asyncio.ensure_future(self._try_dispatch_queued(freed_provider_id=provider_id))
-
         elif msg_type == MessageType.INFERENCE_ERROR:
-            error = InferenceError(**data)
-            queue.put_nowait(error)
+            queue.put_nowait(InferenceError(**data))
             if provider_id in self._providers:
-                self._providers[provider_id].active_requests = max(
-                    0, self._providers[provider_id].active_requests - 1
-                )
-            # Also try dispatch on error — the provider freed a slot
+                self._providers[provider_id].active_requests = max(0, self._providers[provider_id].active_requests - 1)
             asyncio.ensure_future(self._try_dispatch_queued(freed_provider_id=provider_id))
 
     def handle_heartbeat(self, provider_id: str, msg: HeartbeatMessage):
-        """Update provider state from heartbeat."""
         if provider_id in self._providers:
             provider = self._providers[provider_id]
             provider.active_requests = msg.active_requests
             provider.last_heartbeat = time.time()
 
     async def send_attestation_challenge(self, provider: ConnectedProvider) -> str:
-        """Send an attestation challenge to a provider. Returns the nonce."""
-        nonce = secrets.token_hex(16)
-        challenge = AttestationChallenge(
-            nonce=nonce,
-            timestamp=time.time(),
-        )
+        nonce = secrets.token_hex(32)
+        challenge = AttestationChallenge(nonce=nonce, timestamp=time.time(), required_profile=provider.capabilities.trust_level.value)
         provider.pending_challenge_nonce = nonce
         provider.challenge_sent_at = time.time()
         await provider.ws.send_json(challenge.model_dump())
-        logger.info(f"Attestation challenge sent to {provider.name} ({provider.provider_id})")
         return nonce
 
     def handle_attestation_response(self, provider_id: str, data: dict):
-        """Process an attestation response from a provider."""
         if provider_id not in self._providers:
             return
-
         provider = self._providers[provider_id]
         response = AttestationResponse(**data)
-
-        if not (provider.pending_challenge_nonce and response.nonce == provider.pending_challenge_nonce):
+        if not provider.pending_challenge_nonce or response.nonce != provider.pending_challenge_nonce:
             provider.attestation_status = "degraded"
-            logger.warning(
-                f"Attestation FAILED for {provider.name}: nonce mismatch "
-                f"(expected={provider.pending_challenge_nonce}, got={response.nonce})"
-            )
+            provider.app_attest_verified = False
             return
-
         provider.pending_challenge_nonce = None
         provider.last_attestation = time.time()
-
-        # Evaluate hardening evidence
         trust_claim = provider.capabilities.trust_level.value
         issues = []
-
         if trust_claim in ("hardened", "confidential"):
             if not response.sip_enabled:
                 issues.append("SIP disabled")
             if not response.hardened_runtime:
                 issues.append("no Hardened Runtime")
-            if not response.pt_deny_attach:
-                issues.append("no PT_DENY_ATTACH")
             if not response.agent_binary_hash:
-                issues.append("agent not frozen (no binary hash)")
-
+                issues.append("agent not frozen")
+        if trust_claim == "confidential" and not response.app_attest_attestation_object:
+            issues.append("missing cryptographic App Attest attestation")
         if issues:
             provider.attestation_status = "degraded"
-            logger.warning(
-                f"Attestation DEGRADED for {provider.name}: "
-                f"claims {trust_claim} but: {', '.join(issues)}"
-            )
+            provider.app_attest_verified = False
         else:
-            provider.attestation_status = "passed"
-            logger.info(
-                f"Attestation passed: {provider.name} "
-                f"(SIP={response.sip_enabled}, runtime={response.hardened_runtime}, "
-                f"pt_deny={response.pt_deny_attach}, "
-                f"agent_hash={response.agent_binary_hash[:12] or 'n/a'}, "
-                f"server_hash={response.server_binary_hash[:12] or 'n/a'}, "
-                f"platform={response.platform})"
-            )
+            # Cryptographic App Attest verification is performed by the coordinator admission service.
+            # Do not turn self-reported `hardware_attestation` into an admission grant.
+            provider.attestation_status = "passed" if trust_claim != "confidential" else "pending"
+            provider.app_attest_verified = False
 
     def check_attestation_timeouts(self, timeout_seconds: float = 30.0):
-        """Mark providers as degraded if they haven't responded to a challenge in time."""
         now = time.time()
         for provider in self._providers.values():
-            if (
-                provider.pending_challenge_nonce
-                and provider.challenge_sent_at > 0
-                and (now - provider.challenge_sent_at) > timeout_seconds
-            ):
-                provider.attestation_status = "degraded"
+            if provider.pending_challenge_nonce and now - provider.challenge_sent_at > timeout_seconds:
                 provider.pending_challenge_nonce = None
-                logger.warning(
-                    f"Attestation timeout for {provider.name} ({provider.provider_id}) — marked degraded"
-                )
+                provider.attestation_status = "degraded"
+                provider.app_attest_verified = False
