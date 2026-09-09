@@ -16,6 +16,7 @@ from typing import Any
 
 import cbor2
 from cryptography import x509
+from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
 from cryptography.x509 import Certificate
@@ -23,9 +24,6 @@ from cryptography.x509 import Certificate
 APPLE_NONCE_OID = "1.2.840.113635.100.8.2"
 PRODUCTION_AAGUID = b"appattest" + b"\x00" * 7
 DEVELOPMENT_AAGUID = b"appattestdevelop"
-# SHA-256 fingerprint of Apple's published App Appestation Root CA.
-# Keep the root certificate itself in deployment configuration so Apple root
-# rotation is an explicit reviewed change.
 APPLE_ROOT_SHA256 = "1cb9823ba28ba6ad2d33a006941de2ae4f513ef1d4e831b9f7e0fa7b6242c932"
 
 
@@ -114,10 +112,8 @@ def _der_value(data: bytes, offset: int = 0) -> tuple[int, bytes, int]:
 
 
 def _extract_nonce_from_extension(value: bytes) -> bytes:
-    """Extract Apple's nonce OCTET STRING from the extension DER value."""
     tag, sequence, _ = _der_value(value)
     if tag != 0x30:
-        # Some libraries expose the inner octet directly.
         if tag == 0x04:
             return sequence
         raise AppAttestVerificationError("malformed App Attest nonce extension")
@@ -139,8 +135,6 @@ def _extract_extension_nonce(cert: Certificate) -> bytes:
 
 
 def _parse_auth_data(auth_data: bytes) -> tuple[bytes, int, bytes, bytes, bytes]:
-    # rpIdHash (32) | flags (1) | counter (4) | aaguid (16) |
-    # credentialIdLength (2) | credentialId | credentialPublicKey (CBOR)
     if len(auth_data) < 55:
         raise AppAttestVerificationError("malformed App Attest authenticator data")
     rp_id_hash = auth_data[:32]
@@ -174,12 +168,7 @@ def verify_attestation(
     root_pem: bytes,
     expected_root_sha256: str = APPLE_ROOT_SHA256,
 ) -> VerifiedAppAttest:
-    """Verify an Apple App Attest attestation object.
-
-    `challenge` is the exact server challenge that the provider hashed before
-    passing it to `DCAppAttestService.attestKey`. The function fails closed on
-    every validation failure.
-    """
+    """Verify an Apple App Attest attestation object and return its public key."""
     if len(challenge) < 16:
         raise AppAttestVerificationError("challenge must contain at least 128 bits")
     if environment not in {"production", "development"}:
@@ -191,7 +180,6 @@ def verify_attestation(
         obj = cbor2.loads(raw)
     except Exception as exc:
         raise AppAttestVerificationError("invalid App Attest CBOR") from exc
-
     if obj.get("fmt") != "apple-appattest":
         raise AppAttestVerificationError("unexpected App Attest format")
     stmt = obj.get("attStmt") or {}
@@ -207,8 +195,7 @@ def verify_attestation(
     except Exception as exc:
         raise AppAttestVerificationError("invalid App Attest certificate") from exc
 
-    root_hash = root.fingerprint(hashlib.sha256()).hex()
-    if root_hash != expected_root_sha256.lower():
+    if root.fingerprint(hashes.SHA256()).hex() != expected_root_sha256.lower():
         raise AppAttestVerificationError("configured App Attest root does not match pinned root")
     now = datetime.now(timezone.utc)
     for cert in (leaf, intermediate, root):
@@ -219,8 +206,7 @@ def verify_attestation(
     _verify_certificate_signature(leaf, intermediate)
 
     rp_id_hash, counter, aaguid, credential_id, _ = _parse_auth_data(auth_data)
-    expected_rp_id_hash = hashlib.sha256(app_id.encode()).digest()
-    if rp_id_hash != expected_rp_id_hash:
+    if rp_id_hash != hashlib.sha256(app_id.encode()).digest():
         raise AppAttestVerificationError("App Attest RP ID mismatch")
     expected_aaguid = PRODUCTION_AAGUID if environment == "production" else DEVELOPMENT_AAGUID
     if aaguid != expected_aaguid:
@@ -233,9 +219,7 @@ def verify_attestation(
     public_point = _leaf_public_point(leaf)
     if hashlib.sha256(public_point).digest() != key_id:
         raise AppAttestVerificationError("App Attest key id does not match credential public key")
-
-    client_data_hash = hashlib.sha256(challenge).digest()
-    expected_nonce = hashlib.sha256(auth_data + client_data_hash).digest()
+    expected_nonce = hashlib.sha256(auth_data + hashlib.sha256(challenge).digest()).digest()
     if _extract_extension_nonce(leaf) != expected_nonce:
         raise AppAttestVerificationError("App Attest challenge nonce mismatch")
 
