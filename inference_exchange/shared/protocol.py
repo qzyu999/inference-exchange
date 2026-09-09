@@ -11,64 +11,67 @@ from pydantic import BaseModel
 
 
 class MessageType(str, Enum):
-    # Provider → Coordinator
     REGISTER = "register"
     HEARTBEAT = "heartbeat"
     INFERENCE_RESPONSE = "inference_response"
     INFERENCE_DONE = "inference_done"
     INFERENCE_ERROR = "inference_error"
     ATTESTATION_RESPONSE = "attestation_response"
-
-    # Coordinator → Provider
-    REGISTERED = "registered"  # Coordinator → Provider (confirmation)
+    REGISTERED = "registered"
     INFERENCE_REQUEST = "inference_request"
     CANCEL_REQUEST = "cancel_request"
     ATTESTATION_CHALLENGE = "attestation_challenge"
+    ADMISSION_RESULT = "admission_result"
 
 
 class TrustLevel(str, Enum):
-    """OCIP confidence levels."""
-
-    OPEN = "open"  # Level 0: no isolation
-    CONTAINED = "contained"  # Level 1: container/sandbox
-    HARDENED = "hardened"  # Level 2: OS-enforced process protection
-    CONFIDENTIAL = "confidential"  # Level 3: hardware memory encryption
-
-
-# --- Provider → Coordinator ---
+    OPEN = "open"
+    CONTAINED = "contained"
+    HARDENED = "hardened"
+    CONFIDENTIAL = "confidential"
 
 
 class ProviderCapabilities(BaseModel):
-    """What this provider can do."""
-
-    models: list[str]  # Model IDs this provider can serve
+    models: list[str]
     max_concurrent: int = 2
     trust_level: TrustLevel = TrustLevel.OPEN
-    # Hardware info for scoring
-    hardware: str = "unknown"  # e.g. "apple-m4-pro", "amd-ryzen-9-7945"
+    hardware: str = "unknown"
     memory_gb: float = 0
-    measured_tps: float = 0  # Tokens/sec from benchmark
-    # Pricing (USD per million tokens)
-    price_per_mtok_input: float = 0.05  # $0.05/Mtok input
-    price_per_mtok_output: float = 0.20  # $0.20/Mtok output
+    measured_tps: float = 0
+    price_per_mtok_input: float = 0.05
+    price_per_mtok_output: float = 0.20
 
 
 class RegisterMessage(BaseModel):
     type: str = MessageType.REGISTER
-    protocol_version: str = "0.1.0"  # OCIP protocol version
+    protocol_version: str = "0.1.0"
     provider_name: str
     capabilities: ProviderCapabilities
-    encryption_public_key: str = ""  # Base64 X25519 public key for E2E encryption
-    model_identity: dict[str, Any] | None = None  # Model file hash + metadata from provider
+    encryption_public_key: str = ""
+    model_identity: dict[str, Any] | None = None
+    # App Attest is an admission credential, not an L2 claim. Providers that
+    # cannot support the current platform profile leave these fields empty.
+    app_attest_key_id: str = ""
+    app_attest_app_id: str = ""
+    app_attest_environment: str = "production"
+    provider_artifact_hash: str = ""
 
 
 class RegisteredMessage(BaseModel):
-    """Coordinator → Provider: confirms registration."""
-
     type: str = MessageType.REGISTERED
     provider_id: str
     confidence_level: str = "open"
     protocol_version: str = "0.1.0"
+
+
+class AdmissionResult(BaseModel):
+    """Coordinator → Provider: result of provider admission."""
+
+    type: str = MessageType.ADMISSION_RESULT
+    admitted: bool
+    reason: str = ""
+    admission_id: str = ""
+    expires_at: float = 0.0
 
 
 class HeartbeatMessage(BaseModel):
@@ -82,9 +85,9 @@ class HeartbeatMessage(BaseModel):
 class InferenceResponseChunk(BaseModel):
     type: str = MessageType.INFERENCE_RESPONSE
     request_id: str
-    token: str = ""  # Plaintext token (when not E2E response encryption)
-    encrypted_token: dict | None = None  # OCIP encrypted token (when E2E response)
-    finish_reason: str | None = None  # "stop", "length", or None if still generating
+    token: str = ""
+    encrypted_token: dict | None = None
+    finish_reason: str | None = None
 
 
 class InferenceDone(BaseModel):
@@ -100,15 +103,12 @@ class InferenceError(BaseModel):
     error: str
 
 
-# --- Coordinator → Provider ---
-
-
 class InferenceRequest(BaseModel):
     type: str = MessageType.INFERENCE_REQUEST
     request_id: str
     model: str
-    messages: list[dict[str, Any]] | None = None  # Plaintext (when not encrypted)
-    encrypted_body: dict | None = None  # OCIP encrypted payload (when E2E)
+    messages: list[dict[str, Any]] | None = None
+    encrypted_body: dict | None = None
     max_tokens: int = 1024
     temperature: float = 0.7
     stream: bool = True
@@ -120,23 +120,40 @@ class CancelRequest(BaseModel):
 
 
 class AttestationChallenge(BaseModel):
-    """Coordinator → Provider: periodic challenge to verify provider liveness and security state."""
+    """Coordinator → provider: fresh admission challenge."""
+
     type: str = MessageType.ATTESTATION_CHALLENGE
-    nonce: str  # Random nonce the provider must echo back
-    timestamp: float = 0.0  # When the challenge was issued
+    nonce: str
+    timestamp: float = 0.0
+    purpose: str = "provider-admission"
+    required_profile: str = "hardened"
 
 
 class AttestationResponse(BaseModel):
-    """Provider → Coordinator: response to an attestation challenge."""
+    """Provider → coordinator: App Attest + runtime evidence.
+
+    App Attest evidence is represented separately from local L2 evidence. The
+    coordinator must not interpret local booleans as a substitute for Apple's
+    cryptographic App Attest verification.
+    """
+
     type: str = MessageType.ATTESTATION_RESPONSE
-    nonce: str  # Echoed nonce from the challenge
+    nonce: str
+    app_attest_key_id: str = ""
+    app_attest_app_id: str = ""
+    app_attest_environment: str = "production"
+    app_attest_attestation_object: str = ""
+    app_attest_assertion: str = ""
+    app_attest_client_data: str = ""
     sip_enabled: bool = False
     secure_boot: bool = False
     hardware_attestation: bool = False
     os_version: str = ""
-    # Hardening evidence (new)
-    agent_binary_hash: str = ""  # SHA-256 of the running agent binary
-    server_binary_hash: str = ""  # SHA-256 of the inference server binary
-    hardened_runtime: bool = False  # codesign --options runtime active
-    pt_deny_attach: bool = False  # ptrace(PT_DENY_ATTACH) called
-    platform: str = ""  # "darwin-arm64", "linux-x86_64", etc.
+    agent_binary_hash: str = ""
+    server_binary_hash: str = ""
+    hardened_runtime: bool = False
+    pt_deny_attach: bool = False
+    platform: str = ""
+    provider_encryption_public_key: str = ""
+    provider_artifact_hash: str = ""
+    protocol_version: str = "0.1.0"
