@@ -84,8 +84,6 @@ The coordinator verifies the attestation object before admitting the provider. V
 - production/development AAGUID,
 - initial assertion counter.
 
-Apple documents this server-side validation flow and requires subsequent assertions to be checked using the stored public key and monotonically increasing counter. citeturn0search0turn0search5
-
 ## 3. Admission binding
 
 A successful App Attest verification is not sufficient by itself. The coordinator additionally binds the verified App Attest identity to:
