@@ -1,18 +1,4 @@
-"""Authenticated end-to-end inference session primitives.
-
-This module is deliberately transport-agnostic. It provides the cryptographic
-building blocks for #21; coordinator routing is responsible only for relaying
-public handshake material and ciphertext.
-
-Construction:
-    provider identity: Ed25519 (long-lived authentication key)
-    session agreement: X25519 (fresh ephemeral keypairs)
-    key derivation: HKDF-SHA256
-    message protection: AES-256-GCM
-
-The provider identity key is distinct from the App Attest key and from the
-per-session X25519 keys. Private keys are never serialized by this module.
-"""
+"""Authenticated end-to-end inference session primitives."""
 
 from __future__ import annotations
 
@@ -34,6 +20,7 @@ _INFO_PREFIX = b"inference-exchange/e2e/v1"
 _NONCE_SIZE = 12
 _KEY_SIZE = 32
 _MAX_CIPHERTEXT = 16 * 1024 * 1024
+_MAX_SESSION_ID = 256
 
 
 def _b64(value: bytes) -> str:
@@ -46,19 +33,24 @@ def _unb64(value: str) -> bytes:
 
 def _transcript(session_id: str, provider_id: str, provider_identity_public_key: bytes,
                 provider_ephemeral_public_key: bytes, consumer_ephemeral_public_key: bytes,
-                admission_id: str) -> bytes:
+                admission_id: str, freshness: bytes) -> bytes:
     """Canonical length-prefixed handshake transcript."""
-    fields = [
-        PROTOCOL_VERSION.encode("ascii"), session_id.encode("utf-8"), provider_id.encode("utf-8"),
-        provider_identity_public_key, provider_ephemeral_public_key, consumer_ephemeral_public_key,
-        admission_id.encode("utf-8"),
-    ]
+    if not session_id or len(session_id) > _MAX_SESSION_ID:
+        raise ValueError("invalid session ID")
+    if len(provider_identity_public_key) != 32:
+        raise ValueError("provider identity key must be 32 bytes")
+    if len(provider_ephemeral_public_key) != 32 or len(consumer_ephemeral_public_key) != 32:
+        raise ValueError("ephemeral public keys must be 32 bytes")
+    if len(freshness) < 16 or len(freshness) > 64:
+        raise ValueError("invalid handshake freshness")
+    fields = [PROTOCOL_VERSION.encode("ascii"), session_id.encode("utf-8"), provider_id.encode("utf-8"),
+              provider_identity_public_key, provider_ephemeral_public_key, consumer_ephemeral_public_key,
+              admission_id.encode("utf-8"), freshness]
     return b"".join(struct.pack("!I", len(value)) + value for value in fields)
 
 
 @dataclass(frozen=True)
 class ProviderIdentity:
-    """Long-lived provider authentication identity."""
     private_key: Ed25519PrivateKey
 
     @classmethod
@@ -67,9 +59,7 @@ class ProviderIdentity:
 
     @property
     def public_key(self) -> bytes:
-        return self.private_key.public_key().public_bytes(
-            serialization.Encoding.Raw, serialization.PublicFormat.Raw
-        )
+        return self.private_key.public_key().public_bytes(serialization.Encoding.Raw, serialization.PublicFormat.Raw)
 
     @property
     def public_key_b64(self) -> str:
@@ -88,34 +78,44 @@ class SessionKeys:
 @dataclass(frozen=True)
 class EncryptedMessage:
     session_id: str
+    direction: str
     sequence_number: int
     nonce: str
     ciphertext: str
 
     def to_dict(self) -> dict:
         return {"protocol_version": PROTOCOL_VERSION, "session_id": self.session_id,
-                "sequence_number": self.sequence_number, "nonce": self.nonce,
-                "ciphertext": self.ciphertext}
+                "direction": self.direction, "sequence_number": self.sequence_number,
+                "nonce": self.nonce, "ciphertext": self.ciphertext}
 
     @classmethod
     def from_dict(cls, data: dict) -> "EncryptedMessage":
         if data.get("protocol_version") != PROTOCOL_VERSION:
             raise ValueError("unsupported E2E protocol version")
+        session_id = data.get("session_id")
+        direction = data.get("direction")
         sequence = data.get("sequence_number")
-        if not isinstance(sequence, int) or sequence < 0:
+        nonce = data.get("nonce")
+        ciphertext = data.get("ciphertext")
+        if not isinstance(session_id, str) or not session_id or len(session_id) > _MAX_SESSION_ID:
+            raise ValueError("invalid session ID")
+        if direction not in {"consumer_to_provider", "provider_to_consumer"}:
+            raise ValueError("invalid message direction")
+        if not isinstance(sequence, int) or isinstance(sequence, bool) or sequence < 0:
             raise ValueError("invalid sequence number")
-        return cls(session_id=str(data["session_id"]), sequence_number=sequence,
-                   nonce=str(data["nonce"]), ciphertext=str(data["ciphertext"]))
+        if not isinstance(nonce, str) or not isinstance(ciphertext, str):
+            raise ValueError("invalid encrypted message")
+        return cls(session_id, direction, sequence, nonce, ciphertext)
 
 
 class E2ESession:
-    """One side of an authenticated ephemeral-DH inference session."""
-
-    def __init__(self, session_id: str, keys: SessionKeys):
+    def __init__(self, session_id: str, keys: SessionKeys, *, is_consumer: bool):
         if not session_id:
             raise ValueError("session_id is required")
         self.session_id = session_id
         self._keys = keys
+        self._send_direction = "consumer_to_provider" if is_consumer else "provider_to_consumer"
+        self._receive_direction = "provider_to_consumer" if is_consumer else "consumer_to_provider"
         self._send_sequence = 0
         self._last_received_sequence = -1
 
@@ -127,11 +127,9 @@ class E2ESession:
         transcript_hash = hashlib.sha256(transcript).digest()
         material = HKDF(algorithm=hashes.SHA256(), length=64, salt=transcript_hash,
                         info=_INFO_PREFIX + b"/" + transcript_hash).derive(shared_secret)
-        consumer_to_provider = material[:_KEY_SIZE]
-        provider_to_consumer = material[_KEY_SIZE:]
-        keys = (SessionKeys(consumer_to_provider, provider_to_consumer)
-                if is_consumer else SessionKeys(provider_to_consumer, consumer_to_provider))
-        return cls(session_id, keys)
+        c2p, p2c = material[:_KEY_SIZE], material[_KEY_SIZE:]
+        keys = SessionKeys(c2p, p2c) if is_consumer else SessionKeys(p2c, c2p)
+        return cls(session_id, keys, is_consumer=is_consumer)
 
     def encrypt(self, plaintext: bytes, *, associated_data: bytes = b"") -> EncryptedMessage:
         if len(plaintext) > _MAX_CIPHERTEXT:
@@ -140,13 +138,14 @@ class E2ESession:
         self._send_sequence += 1
         nonce = sequence.to_bytes(8, "big") + secrets.token_bytes(4)
         ciphertext = AESGCM(self._keys.send_key).encrypt(
-            nonce, plaintext, self._aad(sequence, associated_data)
-        )
-        return EncryptedMessage(self.session_id, sequence, _b64(nonce), _b64(ciphertext))
+            nonce, plaintext, self._aad(sequence, self._send_direction, associated_data))
+        return EncryptedMessage(self.session_id, self._send_direction, sequence, _b64(nonce), _b64(ciphertext))
 
     def decrypt(self, message: EncryptedMessage, *, associated_data: bytes = b"") -> bytes:
         if message.session_id != self.session_id:
             raise ValueError("session ID mismatch")
+        if message.direction != self._receive_direction:
+            raise ValueError("message direction mismatch")
         if message.sequence_number <= self._last_received_sequence:
             raise ValueError("replayed or out-of-order message")
         nonce = _unb64(message.nonce)
@@ -156,14 +155,14 @@ class E2ESession:
         if len(ciphertext) > _MAX_CIPHERTEXT + 16:
             raise ValueError("ciphertext too large")
         plaintext = AESGCM(self._keys.receive_key).decrypt(
-            nonce, ciphertext, self._aad(message.sequence_number, associated_data)
-        )
+            nonce, ciphertext, self._aad(message.sequence_number, message.direction, associated_data))
         self._last_received_sequence = message.sequence_number
         return plaintext
 
-    def _aad(self, sequence: int, associated_data: bytes) -> bytes:
+    def _aad(self, sequence: int, direction: str, associated_data: bytes) -> bytes:
         return (PROTOCOL_VERSION.encode("ascii") + b"|" + self.session_id.encode("utf-8")
-                + b"|" + sequence.to_bytes(8, "big") + b"|" + associated_data)
+                + b"|" + direction.encode("ascii") + b"|" + sequence.to_bytes(8, "big")
+                + b"|" + associated_data)
 
 
 def generate_ephemeral_keypair() -> X25519PrivateKey:
@@ -171,39 +170,39 @@ def generate_ephemeral_keypair() -> X25519PrivateKey:
 
 
 def ephemeral_public_bytes(private_key: X25519PrivateKey) -> bytes:
-    return private_key.public_key().public_bytes(
-        serialization.Encoding.Raw, serialization.PublicFormat.Raw
-    )
+    return private_key.public_key().public_bytes(serialization.Encoding.Raw, serialization.PublicFormat.Raw)
 
 
 def derive_session(*, private_key: X25519PrivateKey, peer_public_key: bytes, session_id: str,
                    provider_id: str, provider_identity_public_key: bytes,
                    provider_ephemeral_public_key: bytes, consumer_ephemeral_public_key: bytes,
-                   admission_id: str, is_consumer: bool) -> E2ESession:
+                   admission_id: str, freshness: bytes, is_consumer: bool) -> E2ESession:
     peer = X25519PublicKey.from_public_bytes(peer_public_key)
     shared_secret = private_key.exchange(peer)
     transcript = _transcript(session_id, provider_id, provider_identity_public_key,
-                             provider_ephemeral_public_key, consumer_ephemeral_public_key, admission_id)
+                             provider_ephemeral_public_key, consumer_ephemeral_public_key,
+                             admission_id, freshness)
     return E2ESession.derive(session_id=session_id, shared_secret=shared_secret,
                              transcript=transcript, is_consumer=is_consumer)
 
 
 def sign_handshake(identity: ProviderIdentity, *, session_id: str, provider_id: str,
                    provider_ephemeral_public_key: bytes, consumer_ephemeral_public_key: bytes,
-                   admission_id: str) -> str:
+                   admission_id: str, freshness: bytes) -> str:
     transcript = _transcript(session_id, provider_id, identity.public_key,
-                             provider_ephemeral_public_key, consumer_ephemeral_public_key, admission_id)
+                             provider_ephemeral_public_key, consumer_ephemeral_public_key,
+                             admission_id, freshness)
     return _b64(identity.sign(transcript))
 
 
 def verify_handshake(signature_b64: str, provider_identity_public_key: bytes, *, session_id: str,
                      provider_id: str, provider_ephemeral_public_key: bytes,
-                     consumer_ephemeral_public_key: bytes, admission_id: str) -> None:
+                     consumer_ephemeral_public_key: bytes, admission_id: str,
+                     freshness: bytes) -> None:
     transcript = _transcript(session_id, provider_id, provider_identity_public_key,
-                             provider_ephemeral_public_key, consumer_ephemeral_public_key, admission_id)
+                             provider_ephemeral_public_key, consumer_ephemeral_public_key,
+                             admission_id, freshness)
     try:
-        Ed25519PublicKey.from_public_bytes(provider_identity_public_key).verify(
-            _unb64(signature_b64), transcript
-        )
+        Ed25519PublicKey.from_public_bytes(provider_identity_public_key).verify(_unb64(signature_b64), transcript)
     except (InvalidSignature, ValueError) as exc:
         raise ValueError("invalid provider handshake signature") from exc
