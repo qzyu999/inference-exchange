@@ -147,5 +147,5 @@ Working proof-of-concept. Local-only, in-memory provider state (reconnects on re
 
 ## License
 
-MIT
+Apache 2.0
 
