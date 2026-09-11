@@ -55,6 +55,8 @@ class RegisterMessage(BaseModel):
     app_attest_app_id: str = ""
     app_attest_environment: str = "production"
     provider_artifact_hash: str = ""
+    # Long-lived identity used to authenticate per-session X25519 keys.
+    provider_identity_public_key: str = ""
 
 
 class RegisteredMessage(BaseModel):
@@ -156,4 +158,5 @@ class AttestationResponse(BaseModel):
     platform: str = ""
     provider_encryption_public_key: str = ""
     provider_artifact_hash: str = ""
+    provider_identity_public_key: str = ""
     protocol_version: str = "0.1.0"

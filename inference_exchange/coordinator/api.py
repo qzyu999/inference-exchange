@@ -1,13 +1,7 @@
 # coordinator/api.py — backward compatibility re-exports
 #
-# The original 1133-line api.py has been split into:
-#   - dependencies.py    — singletons (set_hub, get_hub, etc.) + _request_traces
-#   - routes_auth.py     — auth endpoints
-#   - routes_exchange.py — exchange/marketplace endpoints
-#   - routes_admin.py    — admin state endpoint
-#   - routes_inference.py — POST /v1/chat/completions + helpers
-#
-# This file re-exports everything so existing imports (tests, main.py) keep working.
+# The original api.py has been split into focused route modules. This file
+# re-exports the public API and assembles the coordinator router.
 
 from .dependencies import (  # noqa: F401
     MAX_TRACES,
@@ -37,17 +31,17 @@ from .routes_inference import (  # noqa: F401
     chat_completions,
 )
 
-# Re-export a combined router that includes all sub-routers.
-# main.py imports `router` from here, so we build one that covers everything.
 from fastapi import APIRouter
 
 from .routes_admin import router as _admin_router
 from .routes_auth import router as _auth_router
 from .routes_exchange import router as _exchange_router
+from .routes_handshake import router as _handshake_router
 from .routes_inference import router as _inference_router
 
 router = APIRouter()
 router.include_router(_auth_router)
 router.include_router(_exchange_router)
 router.include_router(_admin_router)
+router.include_router(_handshake_router)
 router.include_router(_inference_router)
