@@ -24,7 +24,9 @@ from .dependencies import set_auth, set_billing, set_event_bus, set_hub, set_rep
 from .audit_log import AuditLog
 from .routes_admin import router as admin_router
 from .routes_auth import router as auth_router
+from .routes_confidential import router as confidential_router
 from .routes_exchange import router as exchange_router
+from .routes_handshake import router as handshake_router
 from .routes_inference import router as inference_router
 from .event_bus import EventBus
 from .model_registry import ModelRegistry
@@ -270,6 +272,8 @@ def create_app() -> FastAPI:
     app.include_router(auth_router)
     app.include_router(exchange_router)
     app.include_router(admin_router)
+    app.include_router(handshake_router)
+    app.include_router(confidential_router)
     app.include_router(inference_router)
 
     # Provider WebSocket endpoint
