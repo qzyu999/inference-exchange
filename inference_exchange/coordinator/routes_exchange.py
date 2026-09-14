@@ -63,6 +63,7 @@ async def list_providers():
             "max_concurrent": p.capabilities.max_concurrent,
             "status": "online",
             "encrypted": bool(p.encryption_public_key),
+            "encryption_public_key": p.encryption_public_key or None,
             "uptime_seconds": int(time.time() - p.connected_at),
         })
     return {"providers": providers}
