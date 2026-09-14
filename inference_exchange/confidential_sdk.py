@@ -162,26 +162,20 @@ class ConfidentialTransport(httpx.Client):
         if self._api_key:
             headers["authorization"] = f"Bearer {self._api_key}"
 
-        # Try confidential offers first, fall back to regular providers
         resp = httpx.get(f"{self._base_url}/v1/exchange/providers", headers=headers, timeout=10)
         if resp.status_code != 200:
             raise RuntimeError(f"Failed to discover providers: {resp.status_code}")
 
         providers = resp.json().get("providers", [])
-        # Pick first provider that has an encryption key
         for p in providers:
-            if p.get("encrypted"):
-                self._provider_pubkey = p.get("encryption_key_preview")
-                break
+            key = p.get("encryption_public_key")
+            if key and p.get("encrypted"):
+                self._provider_pubkey = key
+                logger.info(f"Discovered provider {p['name']} with encryption key")
+                return
 
-        # If no encrypted providers, try any provider's key from registration
-        # The /v1/exchange/providers doesn't expose the full key — we need it
-        # from somewhere. For alpha, we'll use the non-confidential path's
-        # provider info which includes the key.
-        if self._provider_pubkey is None and providers:
-            # Fall back: query the provider directly or accept first available
-            logger.warning("No provider encryption key found in discovery — "
-                           "falling back to non-confidential path")
+        if not self._provider_pubkey:
+            logger.warning("No provider with encryption key found")
 
     def _decrypt_response(self, response: httpx.Response) -> httpx.Response:
         """Decrypt a non-streaming confidential response."""
