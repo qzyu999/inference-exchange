@@ -43,6 +43,7 @@ from fastapi import APIRouter
 
 from .routes_admin import router as _admin_router
 from .routes_auth import router as _auth_router
+from .routes_confidential import router as _confidential_router
 from .routes_exchange import router as _exchange_router
 from .routes_handshake import router as _handshake_router
 from .routes_inference import router as _inference_router
@@ -52,4 +53,5 @@ router.include_router(_auth_router)
 router.include_router(_exchange_router)
 router.include_router(_admin_router)
 router.include_router(_handshake_router)
+router.include_router(_confidential_router)
 router.include_router(_inference_router)
