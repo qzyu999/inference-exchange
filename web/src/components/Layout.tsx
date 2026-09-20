@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Link, Outlet, useLocation } from 'react-router-dom'
 import { useCoordinatorStatus } from '../lib/useWebSocket'
 import { useAuth } from '../lib/auth'
@@ -19,13 +19,32 @@ export function Layout() {
   const coordinatorOnline = useCoordinatorStatus()
   const { user, logout } = useAuth()
   const [mobileOpen, setMobileOpen] = useState(false)
+  const isLanding = location.pathname === '/'
+  const [scrolledPast, setScrolledPast] = useState(false)
+
+  useEffect(() => {
+    if (!isLanding) { setScrolledPast(true); return }
+    const onScroll = () => {
+      // After scrolling past ~85% of the 500vh scroll sequence, the bg is white
+      setScrolledPast(window.scrollY > window.innerHeight * 4.2)
+    }
+    window.addEventListener('scroll', onScroll, { passive: true })
+    onScroll()
+    return () => window.removeEventListener('scroll', onScroll)
+  }, [isLanding])
 
   return (
-    <div className="min-h-screen bg-[#fafafa]">
-      <header className="bg-white/80 backdrop-blur-xl border-b border-gray-200/60 px-4 md:px-6 py-3 sticky top-0 z-50">
+    <div className={`min-h-screen ${isLanding ? 'bg-transparent' : 'bg-[#fafafa]'}`}>
+      <header className={`px-4 md:px-6 py-3 sticky top-0 z-50 transition-all duration-500 ${
+        isLanding && !scrolledPast
+          ? 'bg-transparent border-b border-transparent'
+          : 'bg-white/80 backdrop-blur-xl border-b border-gray-200/60'
+      }`}>
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <Link to="/" className="flex items-center gap-2 text-lg font-semibold tracking-tight text-gray-900">
+            <Link to="/" className={`flex items-center gap-2 text-lg font-semibold tracking-tight ${
+              isLanding && !scrolledPast ? 'text-white' : 'text-gray-900'
+            }`}>
               <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center">
                 <span className="text-white text-sm font-bold">IE</span>
               </div>
@@ -47,18 +66,30 @@ export function Layout() {
               {NAV.map(({ path, label }) => (
                 <Link key={path} to={path}
                   className={`px-3 py-1.5 rounded-lg text-[13px] font-medium transition-colors ${
-                    location.pathname === path ? 'bg-gray-900 text-white' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-100'
+                    location.pathname === path
+                      ? 'bg-gray-900 text-white'
+                      : isLanding && !scrolledPast
+                        ? 'text-gray-300 hover:text-white hover:bg-white/10'
+                        : 'text-gray-500 hover:text-gray-900 hover:bg-gray-100'
                   }`}>{label}</Link>
               ))}
             </nav>
             {user ? (
               <div className="flex items-center gap-2">
-                <span className="text-xs text-gray-500">{user.email}</span>
-                <span className="text-xs font-medium text-emerald-600">${user.balance_usd.toFixed(2)}</span>
-                <button onClick={logout} className="text-xs text-gray-400 hover:text-gray-600 px-2 py-1 rounded-lg hover:bg-gray-100">Sign out</button>
+                <span className={`text-xs ${isLanding && !scrolledPast ? 'text-gray-400' : 'text-gray-500'}`}>{user.email}</span>
+                <span className="text-xs font-medium text-emerald-500">${user.balance_usd.toFixed(2)}</span>
+                <button onClick={logout} className={`text-xs px-2 py-1 rounded-lg ${
+                  isLanding && !scrolledPast
+                    ? 'text-gray-400 hover:text-white hover:bg-white/10'
+                    : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'
+                }`}>Sign out</button>
               </div>
             ) : (
-              <Link to="/login" className="px-3 py-1.5 bg-gray-900 text-white rounded-lg text-[13px] font-medium hover:bg-gray-800">Sign in</Link>
+              <Link to="/login" className={`px-3 py-1.5 rounded-lg text-[13px] font-medium ${
+                isLanding && !scrolledPast
+                  ? 'bg-white/10 text-white hover:bg-white/20 border border-white/20'
+                  : 'bg-gray-900 text-white hover:bg-gray-800'
+              }`}>Sign in</Link>
             )}
           </div>
 
@@ -97,11 +128,17 @@ export function Layout() {
           </div>
         )}
       </header>
-      <main className="max-w-7xl mx-auto px-4 md:px-6 py-6 md:py-8">
+      {location.pathname === '/' ? (
         <ErrorBoundary>
           <Outlet />
         </ErrorBoundary>
-      </main>
+      ) : (
+        <main className="max-w-7xl mx-auto px-4 md:px-6 py-6 md:py-8">
+          <ErrorBoundary>
+            <Outlet />
+          </ErrorBoundary>
+        </main>
+      )}
     </div>
   )
 }
