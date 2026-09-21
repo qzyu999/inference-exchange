@@ -185,6 +185,7 @@ export function Landing() {
 
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const progress = useScrollProgress(scrollContainerRef)
+  const [webglFailed, setWebglFailed] = useState(false)
 
   // Whether the scroll sequence is complete
   const sequenceDone = progress >= 0.95
@@ -192,10 +193,38 @@ export function Landing() {
   return (
     <>
       {/* ── Scroll sequence ──────────────────────────────── */}
-      <div ref={scrollContainerRef} style={{ height: '500vh' }} className="relative">
+      <div ref={scrollContainerRef} style={{ height: webglFailed ? '100vh' : '500vh' }} className="relative">
         {/* Sticky canvas that stays in viewport during scroll */}
         <div className="sticky top-0 left-0 w-full h-screen overflow-hidden z-10">
-          <HeroScene scrollProgress={progress} />
+          <HeroScene scrollProgress={progress} onInitFailed={() => setWebglFailed(true)} />
+
+          {/* CSS fallback when WebGL is unavailable */}
+          {webglFailed && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center" style={{ background: '#08080c' }}>
+              <img
+                src="/logo.svg"
+                alt="Inference Exchange"
+                className="w-40 h-40 md:w-56 md:h-56 animate-spin"
+                style={{ animationDuration: '20s' }}
+              />
+              <h1 className="text-3xl md:text-5xl font-bold text-white tracking-tight mt-8 text-center px-6">
+                Private AI inference,{' '}
+                <span style={{ color: '#B9473C' }}>powered by everyone.</span>
+              </h1>
+              <p className="text-base text-gray-400 mt-4 max-w-md text-center px-6">
+                Providers compete to serve your requests. Prompts and responses are encrypted end-to-end.
+              </p>
+              <div className="flex gap-3 mt-8">
+                <Link to="/chat" className="px-6 py-3 bg-white text-gray-900 rounded-2xl font-medium text-sm hover:bg-gray-100 transition-colors">
+                  Start a conversation &rarr;
+                </Link>
+                <Link to="/providers" className="px-6 py-3 bg-white/10 text-white rounded-2xl font-medium text-sm border border-white/20 hover:bg-white/20 transition-colors">
+                  Become a provider
+                </Link>
+              </div>
+            </div>
+          )}
+
           <ScrollOverlay progress={progress} />
 
           {/* Scroll hint at the very start */}
@@ -215,7 +244,7 @@ export function Landing() {
       <div
         className="relative z-10 bg-[#fafafa]"
         style={{
-          opacity: sequenceDone ? 1 : 0,
+          opacity: webglFailed || sequenceDone ? 1 : 0,
           transition: 'opacity 0.6s ease',
         }}
       >
