@@ -180,7 +180,7 @@ function makeOctahedronWireframe(): THREE.LineSegments {
   geo.setAttribute('position', new THREE.BufferAttribute(positions, 3))
 
   const mat = new THREE.LineBasicMaterial({
-    color: 0xd8d1be,
+    color: 0x4d9a91,
     transparent: true,
     opacity: 0,
     depthWrite: false,
