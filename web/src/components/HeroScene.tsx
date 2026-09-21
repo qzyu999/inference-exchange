@@ -334,9 +334,10 @@ interface SceneState {
 
 interface HeroSceneProps {
   scrollProgress: number
+  onInitFailed?: () => void
 }
 
-export function HeroScene({ scrollProgress }: HeroSceneProps) {
+export function HeroScene({ scrollProgress, onInitFailed }: HeroSceneProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const stateRef = useRef<SceneState | null>(null)
   const progressRef = useRef(0)
@@ -354,6 +355,7 @@ export function HeroScene({ scrollProgress }: HeroSceneProps) {
     const gl = testCanvas.getContext('webgl2') || testCanvas.getContext('webgl')
     if (!gl) {
       console.warn('HeroScene: WebGL not available')
+      onInitFailed?.()
       return
     }
 
@@ -369,6 +371,7 @@ export function HeroScene({ scrollProgress }: HeroSceneProps) {
       renderer = new THREE.WebGLRenderer({ antialias: true })
     } catch (e) {
       console.warn('HeroScene: WebGLRenderer creation failed:', e)
+      onInitFailed?.()
       return
     }
     renderer.setSize(w, h)
@@ -539,6 +542,7 @@ export function HeroScene({ scrollProgress }: HeroSceneProps) {
         initTimerId = setTimeout(tryInit, 50 * Math.pow(2, retries - 1))
       } else {
         console.warn('HeroScene: failed to init after retries')
+        onInitFailed?.()
       }
     }
     requestAnimationFrame(tryInit)
