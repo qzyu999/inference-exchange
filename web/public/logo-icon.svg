@@ -33,5 +33,5 @@
 
   <!-- Octahedron intersection (white, subtle) -->
   <polygon points="31.5,12.5 11.3,17.5 23.1,17 24.9,31 36.7,30.5 16.5,35.5"
-    fill="none" stroke="#D8D1BE" stroke-width="0.6" stroke-opacity="0.4"/>
+    fill="none" stroke="#4D9A91" stroke-width="0.6" stroke-opacity="0.4"/>
 </svg>
