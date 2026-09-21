@@ -85,7 +85,15 @@ function ModelMarketCard({ m }: { m: MarketModel }) {
   // Reference pricing: separate same-model from alternative
   const sameModelRefs = m.reference_prices.filter(r => r.comparison_type === 'same_model' || !r.comparison_type)
   const altRefs = m.reference_prices.filter(r => r.comparison_type === 'alternative')
-  const bestSaving = m.reference_prices.filter(r => r.cheaper).sort((a, b) => b.diff_pct - a.diff_pct)[0]
+
+  // Only show "cheaper" badge if we're cheaper than the cheapest same-model alternative
+  const cheapestSameModel = sameModelRefs.length > 0
+    ? Math.min(...sameModelRefs.map(r => r.price_output))
+    : null
+  const isCheaperThanSameModel = cheapestSameModel !== null && priceMin < cheapestSameModel
+  const bestSaving = isCheaperThanSameModel
+    ? sameModelRefs.filter(r => r.cheaper).sort((a, b) => b.diff_pct - a.diff_pct)[0]
+    : null
 
   return (
     <div className="bg-white rounded-2xl border border-gray-200/60 shadow-sm overflow-hidden">
