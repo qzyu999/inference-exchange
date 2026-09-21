@@ -185,10 +185,19 @@ export function Chat() {
 
           <div className="flex-1" />
 
+          <button
+            onClick={() => { setMessages([]); localStorage.removeItem(chatKey) }}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium border transition-colors"
+            style={{ color: '#6b6b6b', borderColor: '#ddd' }}
+          >
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+            </svg>
+            New Chat
+          </button>
           <button onClick={() => setShowAdvanced(!showAdvanced)} className="text-xs text-gray-400 hover:text-gray-600">
             {showAdvanced ? 'Hide' : 'Advanced'}
           </button>
-          <button onClick={() => { setMessages([]); localStorage.removeItem(chatKey) }} className="text-xs text-gray-400 hover:text-gray-600">Clear</button>
         </div>
 
         {/* Privacy downgrade warning */}
