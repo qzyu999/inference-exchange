@@ -349,15 +349,28 @@ export function HeroScene({ scrollProgress }: HeroSceneProps) {
     const h = el.clientHeight
     if (w === 0 || h === 0) return
 
+    // Check WebGL availability
+    const testCanvas = document.createElement('canvas')
+    const gl = testCanvas.getContext('webgl2') || testCanvas.getContext('webgl')
+    if (!gl) {
+      console.warn('HeroScene: WebGL not available')
+      return
+    }
+
     const scene = new THREE.Scene()
     scene.background = new THREE.Color(BG)
 
-    // Camera: slightly elevated for depth, looking at origin
     const camera = new THREE.PerspectiveCamera(45, w / h, 0.1, 100)
     camera.position.set(0, 1.5, 9)
     camera.lookAt(0, 0, 0)
 
-    const renderer = new THREE.WebGLRenderer({ antialias: true })
+    let renderer: THREE.WebGLRenderer
+    try {
+      renderer = new THREE.WebGLRenderer({ antialias: true })
+    } catch (e) {
+      console.warn('HeroScene: WebGLRenderer creation failed:', e)
+      return
+    }
     renderer.setSize(w, h)
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
     el.appendChild(renderer.domElement)
@@ -402,6 +415,7 @@ export function HeroScene({ scrollProgress }: HeroSceneProps) {
       upTetra, downTetra, octaWire, sun, moon, dust, orbit,
       frame: 0, time: 0,
     }
+    console.log(`HeroScene: initialized (${w}x${h}, dpr=${renderer.getPixelRatio()})`)
   }, [])
 
   const animate = useCallback(() => {
@@ -509,12 +523,25 @@ export function HeroScene({ scrollProgress }: HeroSceneProps) {
   }, [])
 
   useEffect(() => {
-    requestAnimationFrame(() => {
+    let retries = 0
+    const maxRetries = 10
+    let initTimerId: ReturnType<typeof setTimeout> | null = null
+
+    const tryInit = () => {
+      if (stateRef.current) return
       init()
-      if (stateRef.current) {
-        stateRef.current.frame = requestAnimationFrame(animate)
+      // Re-read after init (TS can't track ref mutation through useCallback)
+      const s = stateRef.current as SceneState | null
+      if (s) {
+        s.frame = requestAnimationFrame(animate)
+      } else if (retries < maxRetries) {
+        retries++
+        initTimerId = setTimeout(tryInit, 50 * Math.pow(2, retries - 1))
+      } else {
+        console.warn('HeroScene: failed to init after retries')
       }
-    })
+    }
+    requestAnimationFrame(tryInit)
 
     const onResize = () => {
       const el = containerRef.current
@@ -530,6 +557,7 @@ export function HeroScene({ scrollProgress }: HeroSceneProps) {
     window.addEventListener('resize', onResize)
 
     return () => {
+      if (initTimerId) clearTimeout(initTimerId)
       window.removeEventListener('resize', onResize)
       const s = stateRef.current
       if (s) {
