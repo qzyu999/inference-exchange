@@ -2,9 +2,9 @@ import { useEffect, useRef, useCallback } from 'react'
 import * as THREE from 'three'
 
 // ─── Colors ──────────────────────────────────────────────────
-const AMBER = 0xb9473c
-const EMERALD = 0x4b9563
-const BG = 0x08080c
+const AMBER = 0xb7443b
+const EMERALD = 0x3f8055
+const BG = 0x292b2a
 
 // ─── Stella Octangula from cube vertices ─────────────────────
 //
@@ -180,7 +180,7 @@ function makeOctahedronWireframe(): THREE.LineSegments {
   geo.setAttribute('position', new THREE.BufferAttribute(positions, 3))
 
   const mat = new THREE.LineBasicMaterial({
-    color: 0xffffff,
+    color: 0xd8d1be,
     transparent: true,
     opacity: 0,
     depthWrite: false,
@@ -203,7 +203,7 @@ function makeDust(count: number): { points: THREE.Points; speeds: Float32Array }
   const geo = new THREE.BufferGeometry()
   geo.setAttribute('position', new THREE.BufferAttribute(pos, 3))
   const mat = new THREE.PointsMaterial({
-    color: 0xffffff, size: 0.03, transparent: true, opacity: 0.3,
+    color: 0xd8d1be, size: 0.03, transparent: true, opacity: 0.3,
     sizeAttenuation: true, depthWrite: false,
   })
   return { points: new THREE.Points(geo, mat), speeds }
@@ -235,7 +235,7 @@ function makeOrbit(count: number): OrbitData {
   const geo = new THREE.BufferGeometry()
   geo.setAttribute('position', new THREE.BufferAttribute(pos, 3))
   const mat = new THREE.PointsMaterial({
-    color: 0xffffff, size: 0.04, transparent: true, opacity: 0,
+    color: 0xd8d1be, size: 0.04, transparent: true, opacity: 0,
     sizeAttenuation: true, depthWrite: false,
   })
   return { points: new THREE.Points(geo, mat), phase, radii, speeds, yBase }
@@ -250,7 +250,7 @@ function makeSun(): THREE.Group {
   const r = 0.14
   const core = new THREE.Mesh(
     new THREE.CircleGeometry(r, 48),
-    new THREE.MeshBasicMaterial({ color: 0xffd666, side: THREE.DoubleSide })
+    new THREE.MeshBasicMaterial({ color: 0xc49a45, side: THREE.DoubleSide })
   )
   group.add(core)
 
@@ -258,7 +258,7 @@ function makeSun(): THREE.Group {
   const halo = new THREE.Mesh(
     new THREE.CircleGeometry(r * 2, 48),
     new THREE.MeshBasicMaterial({
-      color: 0xffd666,
+      color: 0xc49a45,
       transparent: true,
       opacity: 0.12,
       side: THREE.DoubleSide,
@@ -280,7 +280,7 @@ function makeMoon(): THREE.Group {
   // White moon disc
   const moonGeo = new THREE.CircleGeometry(r, 48)
   const moonMat = new THREE.MeshBasicMaterial({
-    color: 0xd4dff0,
+    color: 0xd8d1be,
     side: THREE.DoubleSide,
   })
   group.add(new THREE.Mesh(moonGeo, moonMat))

@@ -8,44 +8,44 @@
 
   <!-- Up tetra faces (green, translucent) -->
   <!-- Front-visible faces only for the 3D look -->
-  <polygon points="74.4,-3.9 187.9,108.3 118.1,145.4" fill="#4B9563" fill-opacity="0.15"/>
-  <polygon points="74.4,-3.9 118.1,145.4 19.5,150.1" fill="#4B9563" fill-opacity="0.22"/>
-  <polygon points="74.4,-3.9 19.5,150.1 187.9,108.3" fill="#4B9563" fill-opacity="0.08"/>
-  <polygon points="187.9,108.3 19.5,150.1 118.1,145.4" fill="#4B9563" fill-opacity="0.18"/>
+  <polygon points="74.4,-3.9 187.9,108.3 118.1,145.4" fill="#3F8055" fill-opacity="0.15"/>
+  <polygon points="74.4,-3.9 118.1,145.4 19.5,150.1" fill="#3F8055" fill-opacity="0.22"/>
+  <polygon points="74.4,-3.9 19.5,150.1 187.9,108.3" fill="#3F8055" fill-opacity="0.08"/>
+  <polygon points="187.9,108.3 19.5,150.1 118.1,145.4" fill="#3F8055" fill-opacity="0.18"/>
 
   <!-- Down tetra faces (red, translucent) -->
-  <polygon points="81.9,54.6 180.5,49.9 125.6,203.9" fill="#B9473C" fill-opacity="0.15"/>
-  <polygon points="81.9,54.6 125.6,203.9 12.1,91.7" fill="#B9473C" fill-opacity="0.22"/>
-  <polygon points="81.9,54.6 12.1,91.7 180.5,49.9" fill="#B9473C" fill-opacity="0.08"/>
-  <polygon points="180.5,49.9 12.1,91.7 125.6,203.9" fill="#B9473C" fill-opacity="0.18"/>
+  <polygon points="81.9,54.6 180.5,49.9 125.6,203.9" fill="#B7443B" fill-opacity="0.15"/>
+  <polygon points="81.9,54.6 125.6,203.9 12.1,91.7" fill="#B7443B" fill-opacity="0.22"/>
+  <polygon points="81.9,54.6 12.1,91.7 180.5,49.9" fill="#B7443B" fill-opacity="0.08"/>
+  <polygon points="180.5,49.9 12.1,91.7 125.6,203.9" fill="#B7443B" fill-opacity="0.18"/>
 
   <!-- Up tetra edges (green) -->
-  <line x1="74.4" y1="-3.9" x2="187.9" y2="108.3" stroke="#4B9563" stroke-width="2" stroke-opacity="0.9"/>
-  <line x1="74.4" y1="-3.9" x2="19.5" y2="150.1" stroke="#4B9563" stroke-width="2" stroke-opacity="0.9"/>
-  <line x1="74.4" y1="-3.9" x2="118.1" y2="145.4" stroke="#4B9563" stroke-width="2" stroke-opacity="0.9"/>
-  <line x1="187.9" y1="108.3" x2="19.5" y2="150.1" stroke="#4B9563" stroke-width="2" stroke-opacity="0.9"/>
-  <line x1="187.9" y1="108.3" x2="118.1" y2="145.4" stroke="#4B9563" stroke-width="2" stroke-opacity="0.9"/>
-  <line x1="19.5" y1="150.1" x2="118.1" y2="145.4" stroke="#4B9563" stroke-width="2" stroke-opacity="0.9"/>
+  <line x1="74.4" y1="-3.9" x2="187.9" y2="108.3" stroke="#3F8055" stroke-width="2" stroke-opacity="0.9"/>
+  <line x1="74.4" y1="-3.9" x2="19.5" y2="150.1" stroke="#3F8055" stroke-width="2" stroke-opacity="0.9"/>
+  <line x1="74.4" y1="-3.9" x2="118.1" y2="145.4" stroke="#3F8055" stroke-width="2" stroke-opacity="0.9"/>
+  <line x1="187.9" y1="108.3" x2="19.5" y2="150.1" stroke="#3F8055" stroke-width="2" stroke-opacity="0.9"/>
+  <line x1="187.9" y1="108.3" x2="118.1" y2="145.4" stroke="#3F8055" stroke-width="2" stroke-opacity="0.9"/>
+  <line x1="19.5" y1="150.1" x2="118.1" y2="145.4" stroke="#3F8055" stroke-width="2" stroke-opacity="0.9"/>
 
   <!-- Down tetra edges (red) -->
-  <line x1="81.9" y1="54.6" x2="180.5" y2="49.9" stroke="#B9473C" stroke-width="2" stroke-opacity="0.9"/>
-  <line x1="81.9" y1="54.6" x2="12.1" y2="91.7" stroke="#B9473C" stroke-width="2" stroke-opacity="0.9"/>
-  <line x1="81.9" y1="54.6" x2="125.6" y2="203.9" stroke="#B9473C" stroke-width="2" stroke-opacity="0.9"/>
-  <line x1="180.5" y1="49.9" x2="12.1" y2="91.7" stroke="#B9473C" stroke-width="2" stroke-opacity="0.9"/>
-  <line x1="180.5" y1="49.9" x2="125.6" y2="203.9" stroke="#B9473C" stroke-width="2" stroke-opacity="0.9"/>
-  <line x1="12.1" y1="91.7" x2="125.6" y2="203.9" stroke="#B9473C" stroke-width="2" stroke-opacity="0.9"/>
+  <line x1="81.9" y1="54.6" x2="180.5" y2="49.9" stroke="#B7443B" stroke-width="2" stroke-opacity="0.9"/>
+  <line x1="81.9" y1="54.6" x2="12.1" y2="91.7" stroke="#B7443B" stroke-width="2" stroke-opacity="0.9"/>
+  <line x1="81.9" y1="54.6" x2="125.6" y2="203.9" stroke="#B7443B" stroke-width="2" stroke-opacity="0.9"/>
+  <line x1="180.5" y1="49.9" x2="12.1" y2="91.7" stroke="#B7443B" stroke-width="2" stroke-opacity="0.9"/>
+  <line x1="180.5" y1="49.9" x2="125.6" y2="203.9" stroke="#B7443B" stroke-width="2" stroke-opacity="0.9"/>
+  <line x1="12.1" y1="91.7" x2="125.6" y2="203.9" stroke="#B7443B" stroke-width="2" stroke-opacity="0.9"/>
 
   <!-- Octahedron intersection edges (white) -->
-  <line x1="131.2" y1="52.2" x2="47" y2="73.1" stroke="white" stroke-width="1" stroke-opacity="0.45"/>
-  <line x1="131.2" y1="52.2" x2="96.3" y2="70.8" stroke="white" stroke-width="1" stroke-opacity="0.45"/>
-  <line x1="131.2" y1="52.2" x2="103.7" y2="129.2" stroke="white" stroke-width="1" stroke-opacity="0.45"/>
-  <line x1="131.2" y1="52.2" x2="153" y2="126.9" stroke="white" stroke-width="1" stroke-opacity="0.45"/>
-  <line x1="47" y1="73.1" x2="96.3" y2="70.8" stroke="white" stroke-width="1" stroke-opacity="0.45"/>
-  <line x1="47" y1="73.1" x2="103.7" y2="129.2" stroke="white" stroke-width="1" stroke-opacity="0.45"/>
-  <line x1="47" y1="73.1" x2="68.8" y2="147.8" stroke="white" stroke-width="1" stroke-opacity="0.45"/>
-  <line x1="96.3" y1="70.8" x2="153" y2="126.9" stroke="white" stroke-width="1" stroke-opacity="0.45"/>
-  <line x1="96.3" y1="70.8" x2="68.8" y2="147.8" stroke="white" stroke-width="1" stroke-opacity="0.45"/>
-  <line x1="103.7" y1="129.2" x2="153" y2="126.9" stroke="white" stroke-width="1" stroke-opacity="0.45"/>
-  <line x1="103.7" y1="129.2" x2="68.8" y2="147.8" stroke="white" stroke-width="1" stroke-opacity="0.45"/>
-  <line x1="153" y1="126.9" x2="68.8" y2="147.8" stroke="white" stroke-width="1" stroke-opacity="0.45"/>
+  <line x1="131.2" y1="52.2" x2="47" y2="73.1" stroke="#D8D1BE" stroke-width="1" stroke-opacity="0.45"/>
+  <line x1="131.2" y1="52.2" x2="96.3" y2="70.8" stroke="#D8D1BE" stroke-width="1" stroke-opacity="0.45"/>
+  <line x1="131.2" y1="52.2" x2="103.7" y2="129.2" stroke="#D8D1BE" stroke-width="1" stroke-opacity="0.45"/>
+  <line x1="131.2" y1="52.2" x2="153" y2="126.9" stroke="#D8D1BE" stroke-width="1" stroke-opacity="0.45"/>
+  <line x1="47" y1="73.1" x2="96.3" y2="70.8" stroke="#D8D1BE" stroke-width="1" stroke-opacity="0.45"/>
+  <line x1="47" y1="73.1" x2="103.7" y2="129.2" stroke="#D8D1BE" stroke-width="1" stroke-opacity="0.45"/>
+  <line x1="47" y1="73.1" x2="68.8" y2="147.8" stroke="#D8D1BE" stroke-width="1" stroke-opacity="0.45"/>
+  <line x1="96.3" y1="70.8" x2="153" y2="126.9" stroke="#D8D1BE" stroke-width="1" stroke-opacity="0.45"/>
+  <line x1="96.3" y1="70.8" x2="68.8" y2="147.8" stroke="#D8D1BE" stroke-width="1" stroke-opacity="0.45"/>
+  <line x1="103.7" y1="129.2" x2="153" y2="126.9" stroke="#D8D1BE" stroke-width="1" stroke-opacity="0.45"/>
+  <line x1="103.7" y1="129.2" x2="68.8" y2="147.8" stroke="#D8D1BE" stroke-width="1" stroke-opacity="0.45"/>
+  <line x1="153" y1="126.9" x2="68.8" y2="147.8" stroke="#D8D1BE" stroke-width="1" stroke-opacity="0.45"/>
 </svg>
