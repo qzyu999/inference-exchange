@@ -11,6 +11,7 @@ from .dependencies import (
     get_billing,
     get_event_bus,
     get_hub,
+    get_price_collector,
     get_reputation_tracker,
     get_tps_tracker,
 )
@@ -480,4 +481,157 @@ async def get_telemetry():
             "total_volume_usd": round(summary["total_volume_usd"], 6),
             "total_requests": summary["total_requests"],
         },
+    }
+
+
+@router.get("/v1/exchange/reference-prices")
+async def get_reference_prices(model: str = "", source: str = ""):
+    """Current reference prices from all external sources, grouped by model family.
+
+    Includes IE's own exchange prices for comparison. Separates same-model
+    comparisons (open-weight providers) from alternative-model comparisons
+    (closed-source APIs like OpenAI, Anthropic, Google).
+
+    Query params:
+    - model: filter by model family (e.g. "llama", "qwen")
+    - source: filter by source (e.g. "openrouter", "together", "openai")
+    """
+    from .model_catalog import parse_model_info
+
+    collector = get_price_collector()
+    hub = get_hub()
+
+    # Get all cached reference prices
+    all_prices = collector.get_all_current() if collector else []
+
+    # Filter by source if requested
+    if source:
+        all_prices = [p for p in all_prices if p.source == source]
+
+    # Filter by model family if requested
+    if model:
+        model_lower = model.lower()
+        all_prices = [p for p in all_prices if model_lower in p.family_key or model_lower in p.family]
+
+    # Group by family_key
+    families: dict[str, dict] = {}
+    for entry in all_prices:
+        key = entry.family_key
+        if key not in families:
+            families[key] = {
+                "family_key": key,
+                "display_name": entry.display_name,
+                "prices": [],
+            }
+        families[key]["prices"].append({
+            "source": entry.source,
+            "model_id": entry.model_id,
+            "display_name": entry.display_name,
+            "price_input": entry.input_per_mtok,
+            "price_output": entry.output_per_mtok,
+            "context_length": entry.context_length,
+            "comparison_type": "same_model" if entry.family else "alternative",
+            "quantization": entry.quantization or None,
+        })
+
+    # Inject IE exchange prices for each family
+    for p in hub._providers.values():
+        for model_name in p.capabilities.models:
+            info = parse_model_info(model_name)
+            key = info["canonical_id"]
+            if model and model.lower() not in key and model.lower() not in info["family"]:
+                continue
+            if key not in families:
+                families[key] = {
+                    "family_key": key,
+                    "display_name": info["display_name"],
+                    "prices": [],
+                }
+            families[key]["prices"].append({
+                "source": "inference-exchange",
+                "model_id": model_name,
+                "display_name": info["display_name"],
+                "price_input": p.capabilities.price_per_mtok_input,
+                "price_output": p.capabilities.price_per_mtok_output,
+                "context_length": info.get("context_length", 0),
+                "comparison_type": "same_model",
+                "trust_level": p.capabilities.trust_level.value,
+                "encrypted": bool(p.encryption_public_key),
+                "quantization": info.get("quantization") or None,
+            })
+
+    # Sort prices within each family by output price
+    for family in families.values():
+        family["prices"].sort(key=lambda x: x["price_output"])
+        # Compute IE savings vs cheapest non-IE alternative
+        ie_prices = [p for p in family["prices"] if p["source"] == "inference-exchange"]
+        alt_prices = [p for p in family["prices"] if p["source"] != "inference-exchange"]
+        if ie_prices and alt_prices:
+            ie_cheapest = min(p["price_output"] for p in ie_prices)
+            alt_cheapest = min(p["price_output"] for p in alt_prices)
+            if alt_cheapest > 0:
+                family["ie_savings_vs_cheapest_alt_pct"] = round((1 - ie_cheapest / alt_cheapest) * 100)
+            family["cheapest_source"] = "inference-exchange" if ie_cheapest <= alt_cheapest else alt_prices[0]["source"]
+        family["provider_count"] = len(family["prices"])
+
+    result = sorted(families.values(), key=lambda x: -x["provider_count"])
+
+    return {
+        "models": result,
+        "sources": list(set(p.source for p in (collector.get_all_current() if collector else []))) + ["inference-exchange"],
+        "last_updated": collector.get_sources_metadata() if collector else {},
+    }
+
+
+@router.get("/v1/exchange/reference-prices/history")
+async def get_reference_price_history(family_key: str = "", days: int = 30):
+    """Historical reference prices from SQLite for trend charts.
+
+    Returns daily price snapshots grouped by source.
+
+    Query params:
+    - family_key: model family (e.g. "llama-8b-instruct"). Required.
+    - days: how many days of history (default 30, max 90)
+    """
+    from .dependencies import get_store
+
+    if not family_key:
+        return {"error": "family_key parameter required", "hint": "e.g. ?family_key=llama-8b-instruct"}
+
+    days = min(days, 90)
+    store = get_store()
+    cutoff = time.time() - (days * 86400)
+
+    rows = store._conn.execute(
+        """SELECT source, model_id, display_name, input_per_mtok, output_per_mtok, fetched_at
+           FROM reference_prices
+           WHERE family_key = ? AND fetched_at > ?
+           ORDER BY fetched_at ASC""",
+        (family_key, cutoff),
+    ).fetchall()
+
+    # Group by date and source — one price per source per day (latest that day)
+    from collections import defaultdict
+    daily: dict[str, dict[str, dict]] = defaultdict(dict)
+
+    for row in rows:
+        r = dict(row)
+        date = time.strftime("%Y-%m-%d", time.gmtime(r["fetched_at"]))
+        src = r["source"]
+        # Keep latest entry per day per source
+        daily[date][src] = {
+            "input": round(r["input_per_mtok"], 4),
+            "output": round(r["output_per_mtok"], 4),
+        }
+
+    history = [
+        {"date": date, "prices": prices}
+        for date, prices in sorted(daily.items())
+    ]
+
+    return {
+        "family_key": family_key,
+        "days": days,
+        "data_points": len(history),
+        "history": history,
     }

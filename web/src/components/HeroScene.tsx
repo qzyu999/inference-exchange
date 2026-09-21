@@ -2,8 +2,8 @@ import { useEffect, useRef, useCallback } from 'react'
 import * as THREE from 'three'
 
 // ─── Colors ──────────────────────────────────────────────────
-const AMBER = 0xc83a32
-const EMERALD = 0x087f5b
+const AMBER = 0xb9473c
+const EMERALD = 0x4b9563
 const BG = 0x08080c
 
 // ─── Stella Octangula from cube vertices ─────────────────────
