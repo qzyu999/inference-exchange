@@ -89,6 +89,22 @@ CREATE TABLE IF NOT EXISTS users (
     created_at REAL NOT NULL,
     last_login_at REAL
 );
+
+CREATE TABLE IF NOT EXISTS reference_prices (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    source TEXT NOT NULL,
+    model_id TEXT NOT NULL,
+    display_name TEXT NOT NULL,
+    family TEXT NOT NULL DEFAULT '',
+    family_key TEXT NOT NULL DEFAULT '',
+    input_per_mtok REAL NOT NULL,
+    output_per_mtok REAL NOT NULL,
+    context_length INTEGER DEFAULT 0,
+    fetched_at REAL NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_ref_family_key ON reference_prices(family_key, fetched_at);
+CREATE INDEX IF NOT EXISTS idx_ref_source ON reference_prices(source, fetched_at);
 """
 
 MICRO_PER_DOLLAR = 1_000_000

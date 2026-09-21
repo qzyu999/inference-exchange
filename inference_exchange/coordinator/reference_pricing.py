@@ -1,10 +1,8 @@
-"""Reference pricing -- live prices from OpenRouter and public API pricing pages.
+"""Reference pricing — comparison against external providers.
 
-Fetches real-time pricing from OpenRouter's public API (no key needed) and
-compares against the exchange's prices. Falls back to cached/static data
-if the API is unreachable.
-
-OpenRouter API: https://openrouter.ai/api/v1/models (public, no auth)
+Uses the PriceCollector's cache when available (new system).
+Falls back to direct OpenRouter fetch for backward compatibility
+if the collector hasn't been initialized.
 """
 
 import logging
@@ -12,41 +10,33 @@ import time
 
 import httpx
 
+from .model_catalog import parse_model_info
+
 logger = logging.getLogger(__name__)
 
-# Cache: refreshed every 10 minutes
-_cache: dict = {"models": {}, "last_fetch": 0}
-_CACHE_TTL = 600  # 10 minutes
-
-# Known major API providers with their own pricing (not on OpenRouter)
-DIRECT_API_PRICES: dict[str, list[dict]] = {
-    "_openai": [
-        {"provider": "OpenAI", "model": "gpt-4o-mini", "input": 0.15, "output": 0.60},
-        {"provider": "OpenAI", "model": "gpt-4o", "input": 2.50, "output": 10.00},
-    ],
-    "_anthropic": [
-        {"provider": "Anthropic", "model": "claude-3.5-haiku", "input": 0.80, "output": 4.00},
-        {"provider": "Anthropic", "model": "claude-3.5-sonnet", "input": 3.00, "output": 15.00},
-    ],
-    "_google": [
-        {"provider": "Google", "model": "gemini-1.5-flash", "input": 0.075, "output": 0.30},
-        {"provider": "Google", "model": "gemini-1.5-pro", "input": 1.25, "output": 5.00},
-    ],
-}
+# Legacy cache for backward compat (used only if PriceCollector not available)
+_legacy_cache: dict = {"models": {}, "last_fetch": 0}
+_CACHE_TTL = 600
 
 
-def _fetch_openrouter_prices() -> dict[str, dict]:
-    """Fetch live model pricing from OpenRouter's public API."""
+def _get_collector():
+    """Try to get the PriceCollector singleton. Returns None if not initialized."""
+    try:
+        from .dependencies import get_price_collector
+        return get_price_collector()
+    except Exception:
+        return None
+
+
+def _fetch_openrouter_prices_legacy() -> dict[str, dict]:
+    """Legacy: direct OpenRouter fetch. Used only if PriceCollector is not available."""
     now = time.time()
-    if _cache["models"] and (now - _cache["last_fetch"]) < _CACHE_TTL:
-        return _cache["models"]
-
+    if _legacy_cache["models"] and (now - _legacy_cache["last_fetch"]) < _CACHE_TTL:
+        return _legacy_cache["models"]
     try:
         resp = httpx.get("https://openrouter.ai/api/v1/models", timeout=10)
         if resp.status_code != 200:
-            logger.warning(f"OpenRouter API returned {resp.status_code}")
-            return _cache["models"]
-
+            return _legacy_cache["models"]
         data = resp.json()
         models = {}
         for m in data.get("data", []):
@@ -55,41 +45,75 @@ def _fetch_openrouter_prices() -> dict[str, dict]:
             prompt_price = float(pricing.get("prompt", "0") or "0")
             completion_price = float(pricing.get("completion", "0") or "0")
             if prompt_price > 0 or completion_price > 0:
-                # OpenRouter prices are per token, convert to per Mtok
                 models[model_id] = {
                     "id": model_id,
                     "name": m.get("name", model_id),
-                    "input": prompt_price * 1_000_000,  # $/Mtok
-                    "output": completion_price * 1_000_000,  # $/Mtok
+                    "input": prompt_price * 1_000_000,
+                    "output": completion_price * 1_000_000,
                     "context": m.get("context_length", 0),
                 }
-
-        _cache["models"] = models
-        _cache["last_fetch"] = now
-        logger.info(f"Fetched {len(models)} models from OpenRouter")
+        _legacy_cache["models"] = models
+        _legacy_cache["last_fetch"] = now
         return models
-
     except Exception as e:
-        logger.warning(f"Failed to fetch OpenRouter prices: {e}")
-        return _cache["models"]
-
-
-def _match_model_family(model_name: str) -> str:
-    """Extract model family from a model name for matching."""
-    name = model_name.lower()
-    for family in ["llama", "qwen", "mistral", "gemma", "phi", "codellama", "deepseek", "yi"]:
-        if family in name:
-            return family
-    return ""
+        logger.warning(f"Legacy OpenRouter fetch failed: {e}")
+        return _legacy_cache["models"]
 
 
 def get_reference_prices(model_name: str) -> list[dict]:
-    """Get reference prices for a model from OpenRouter + major APIs."""
-    or_models = _fetch_openrouter_prices()
-    family = _match_model_family(model_name)
-    refs = []
+    """Get reference prices for a model from all available sources."""
+    collector = _get_collector()
 
-    # Find matching models on OpenRouter
+    if collector and collector.cache:
+        # New system: use PriceCollector cache
+        info = parse_model_info(model_name)
+        family_key = info["canonical_id"]
+        family = info["family"]
+
+        refs = []
+        seen = set()
+        for entry in collector.get_all_current():
+            # Match by family key or family name
+            if family_key == entry.family_key or (family and family == entry.family):
+                key = (entry.source, entry.model_id)
+                if key not in seen:
+                    seen.add(key)
+                    refs.append({
+                        "provider": entry.source,
+                        "model": entry.display_name,
+                        "input": round(entry.input_per_mtok, 4),
+                        "output": round(entry.output_per_mtok, 4),
+                        "comparison_type": "same_model" if entry.family else "alternative",
+                    })
+
+        # Always include cheapest closed-source as reference point
+        closed_sources = {"openai", "anthropic", "google"}
+        for entry in collector.get_all_current():
+            if entry.source in closed_sources:
+                key = (entry.source, entry.model_id)
+                if key not in seen:
+                    seen.add(key)
+                    refs.append({
+                        "provider": entry.source,
+                        "model": entry.display_name,
+                        "input": round(entry.input_per_mtok, 4),
+                        "output": round(entry.output_per_mtok, 4),
+                        "comparison_type": "alternative",
+                    })
+
+        refs.sort(key=lambda r: r["output"])
+        return refs[:8]
+
+    # Legacy fallback
+    or_models = _fetch_openrouter_prices_legacy()
+    family = ""
+    name_lower = model_name.lower()
+    for f in ["llama", "qwen", "mistral", "gemma", "phi", "codellama", "deepseek", "yi"]:
+        if f in name_lower:
+            family = f
+            break
+
+    refs = []
     for model_id, data in or_models.items():
         if family and family in model_id.lower():
             refs.append({
@@ -101,36 +125,31 @@ def get_reference_prices(model_name: str) -> list[dict]:
         if len(refs) >= 3:
             break
 
-    # Add direct API comparisons (OpenAI, Anthropic, Google) - always relevant
-    for provider_key, prices in DIRECT_API_PRICES.items():
-        # Use the cheapest model from each major provider as comparison
-        if prices:
-            cheapest = min(prices, key=lambda p: p["output"])
-            refs.append({
-                "provider": cheapest["provider"],
-                "model": cheapest["model"],
-                "input": cheapest["input"],
-                "output": cheapest["output"],
-            })
-
-    # Sort by output price ascending
     refs.sort(key=lambda r: r["output"])
-    return refs[:5]  # Top 5 comparisons
+    return refs[:5]
 
 
 def compute_savings(exchange_price: float, model_name: str) -> dict:
-    """Compute honest comparison vs reference providers. Shows ALL prices, not just favorable ones."""
+    """Compute honest comparison vs reference providers.
+
+    Separates same-model comparisons from alternative-model comparisons.
+    Shows ALL prices, not just favorable ones.
+    Flags quantization differences when detectable.
+    """
     refs = get_reference_prices(model_name)
     comparisons = []
     for ref in refs:
         ref_output = ref["output"]
         if ref_output > 0 and exchange_price > 0:
             pct_diff = round((1 - exchange_price / ref_output) * 100)
-            comparisons.append({
+            entry = {
                 "provider": ref["provider"],
                 "model": ref["model"],
                 "price_output": round(ref_output, 4),
-                "diff_pct": pct_diff,  # positive = we're cheaper, negative = they're cheaper
+                "diff_pct": pct_diff,
                 "cheaper": pct_diff > 0,
-            })
+            }
+            if "comparison_type" in ref:
+                entry["comparison_type"] = ref["comparison_type"]
+            comparisons.append(entry)
     return {"comparisons": comparisons, "exchange_price": exchange_price}

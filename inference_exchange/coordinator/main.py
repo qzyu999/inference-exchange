@@ -20,8 +20,9 @@ from inference_exchange.shared.protocol import (
     RegisterMessage,
 )
 
-from .dependencies import set_auth, set_billing, set_event_bus, set_hub, set_reputation, set_store, set_tps_tracker, set_audit_log
+from .dependencies import set_auth, set_billing, set_event_bus, set_hub, set_reputation, set_store, set_tps_tracker, set_audit_log, set_price_collector
 from .audit_log import AuditLog
+from .price_collector import PriceCollector
 from .routes_admin import router as admin_router
 from .routes_auth import router as auth_router
 from .routes_confidential import router as confidential_router
@@ -218,15 +219,29 @@ def create_app() -> FastAPI:
     audit_log = AuditLog()
     set_audit_log(audit_log)
 
+    price_collector = PriceCollector(store=store)
+    set_price_collector(price_collector)
+
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         # Start attestation challenge background task
         task = asyncio.create_task(attestation_challenge_loop(hub))
         logger.info("Attestation challenge loop started (interval=5m, timeout=30s)")
+
+        # Start reference price collector
+        price_task = price_collector.start()
+        logger.info("Price collector started (interval=30m)")
+
         yield
+
+        price_collector.stop()
         task.cancel()
         try:
             await task
+        except asyncio.CancelledError:
+            pass
+        try:
+            await price_task
         except asyncio.CancelledError:
             pass
 

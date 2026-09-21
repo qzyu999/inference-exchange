@@ -156,3 +156,17 @@ def set_audit_log(audit_log):
 
 def get_audit_log():
     return _audit_log
+
+
+# --- Price collector singleton ---
+
+_price_collector = None
+
+
+def set_price_collector(collector):
+    global _price_collector
+    _price_collector = collector
+
+
+def get_price_collector():
+    return _price_collector
