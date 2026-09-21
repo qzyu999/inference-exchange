@@ -45,9 +45,7 @@ export function Layout() {
             <Link to="/" className={`flex items-center gap-2 text-lg font-semibold tracking-tight ${
               isLanding && !scrolledPast ? 'text-white' : 'text-gray-900'
             }`}>
-              <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center">
-                <span className="text-white text-sm font-bold">IE</span>
-              </div>
+              <img src="/logo-icon.svg" alt="IE" className="w-7 h-7" />
               <span className="hidden sm:inline">Inference Exchange</span>
             </Link>
             {coordinatorOnline !== null && (
