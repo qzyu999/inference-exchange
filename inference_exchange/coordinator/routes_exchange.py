@@ -60,6 +60,7 @@ async def list_providers():
             "hardware": p.capabilities.hardware,
             "price_input": p.capabilities.price_per_mtok_input,
             "price_output": p.capabilities.price_per_mtok_output,
+            "price_cache": p.capabilities.price_per_mtok_cache,
             "measured_tps": p.capabilities.measured_tps,
             "load": round(p.load_factor, 2),
             "active_requests": p.active_requests,

@@ -52,6 +52,7 @@ CREATE TABLE IF NOT EXISTS transactions (
     model TEXT NOT NULL,
     input_tokens INTEGER NOT NULL,
     output_tokens INTEGER NOT NULL,
+    cached_tokens INTEGER NOT NULL DEFAULT 0,
     cost_micro INTEGER NOT NULL,
     provider_earning_micro INTEGER NOT NULL,
     platform_fee_micro INTEGER NOT NULL,
@@ -125,6 +126,10 @@ class Store:
         self._conn.execute("PRAGMA foreign_keys=ON")
         self._conn.executescript(SCHEMA)
         self._conn.commit()
+
+        # Migrations for existing databases
+        self._migrate()
+
         logger.info(f"Store initialized: {db_path}")
 
         # Ensure default consumer exists
@@ -132,6 +137,15 @@ class Store:
 
         # Ensure default API key exists, create if not
         self._default_key = self._ensure_default_key()
+
+    def _migrate(self):
+        """Apply schema migrations for existing databases."""
+        # Add cached_tokens column to transactions (added in v0.2)
+        columns = {row[1] for row in self._conn.execute("PRAGMA table_info(transactions)").fetchall()}
+        if "cached_tokens" not in columns:
+            self._conn.execute("ALTER TABLE transactions ADD COLUMN cached_tokens INTEGER NOT NULL DEFAULT 0")
+            self._conn.commit()
+            logger.info("Migration: added cached_tokens column to transactions")
 
     def _ensure_account(self, account_id: str, name: str):
         row = self._conn.execute(
@@ -252,12 +266,20 @@ class Store:
         output_tokens: int,
         price_per_mtok_input: float,
         price_per_mtok_output: float,
+        cached_tokens: int = 0,
+        price_per_mtok_cache: float = 0,
     ) -> dict | None:
-        """Charge consumer, credit provider, log transaction."""
-        # Calculate cost
-        input_cost = int((input_tokens / 1_000_000) * price_per_mtok_input * MICRO_PER_DOLLAR)
+        """Charge consumer, credit provider, log transaction.
+
+        Three-tier pricing: fresh input tokens, cached input tokens, output tokens.
+        If price_per_mtok_cache is 0, cached tokens are charged at the input rate.
+        """
+        cache_rate = price_per_mtok_cache if price_per_mtok_cache > 0 else price_per_mtok_input
+        fresh_input = max(0, input_tokens - cached_tokens)
+        input_cost = int((fresh_input / 1_000_000) * price_per_mtok_input * MICRO_PER_DOLLAR)
+        cache_cost = int((cached_tokens / 1_000_000) * cache_rate * MICRO_PER_DOLLAR)
         output_cost = int((output_tokens / 1_000_000) * price_per_mtok_output * MICRO_PER_DOLLAR)
-        total_cost = max(input_cost + output_cost, 100)  # Minimum $0.0001
+        total_cost = max(input_cost + cache_cost + output_cost, 100)  # Minimum $0.0001
 
         platform_fee = total_cost * self.PLATFORM_FEE_PERCENT // 100
         provider_earning = total_cost - platform_fee
@@ -278,8 +300,8 @@ class Store:
         # Log transaction
         now = time.time()
         self._conn.execute(
-            "INSERT INTO transactions (request_id, consumer_id, provider_id, model, input_tokens, output_tokens, cost_micro, provider_earning_micro, platform_fee_micro, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            (request_id, consumer_id, provider_id, model, input_tokens, output_tokens, total_cost, provider_earning, platform_fee, now),
+            "INSERT INTO transactions (request_id, consumer_id, provider_id, model, input_tokens, output_tokens, cached_tokens, cost_micro, provider_earning_micro, platform_fee_micro, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (request_id, consumer_id, provider_id, model, input_tokens, output_tokens, cached_tokens, total_cost, provider_earning, platform_fee, now),
         )
         self._conn.commit()
 
