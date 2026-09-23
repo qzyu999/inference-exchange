@@ -290,7 +290,21 @@ export function Chat() {
             className="flex-1 px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/30 focus:border-amber-400 placeholder:text-gray-300"
           />
           {streaming ? (
-            <button onClick={() => { abortRef.current?.abort(); setStreaming(false) }} className="px-5 py-3 bg-red-500 text-white rounded-xl text-sm font-medium hover:bg-red-600 transition-colors">Stop</button>
+            <button onClick={() => {
+              abortRef.current?.abort()
+              setStreaming(false)
+              // Clean up empty assistant message on cancel
+              setMessages(prev => {
+                const last = prev[prev.length - 1]
+                if (last?.role === 'assistant' && !last.content) {
+                  return prev.slice(0, -1)
+                }
+                if (last?.role === 'assistant' && last.content) {
+                  return [...prev.slice(0, -1), { ...last, content: last.content + '\n\n*[stopped]*' }]
+                }
+                return prev
+              })
+            }} className="px-5 py-3 rounded-xl text-sm font-medium transition-colors" style={{ background: '#B7443B', color: '#D8D1BE' }}>Stop</button>
           ) : (
             <button onClick={send} className="px-5 py-3 bg-gray-900 text-white rounded-xl text-sm font-medium hover:bg-gray-800 transition-colors">Send</button>
           )}
