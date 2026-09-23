@@ -51,11 +51,12 @@ dev:  ## Start coordinator + web UI (run provider separately with 'make dev-prov
 	@echo "🚀 Starting Inference Exchange..."
 	@echo "   Coordinator: http://localhost:8000"
 	@echo "   Web UI:      http://localhost:3000"
-	@echo "   Press Ctrl+C to stop."
+	@echo "   Press Ctrl+C to stop all."
 	@echo ""
-	@$(ACTIVATE) && $(PY) -m inference_exchange.coordinator &
-	@cd web && npm run dev &
-	@wait
+	@trap 'kill 0' EXIT; \
+	$(ACTIVATE) && $(PY) -m inference_exchange.coordinator & \
+	cd web && npm run dev & \
+	wait
 
 dev-coordinator:  ## Start coordinator only
 	@$(ACTIVATE) && $(PY) -m inference_exchange.coordinator
