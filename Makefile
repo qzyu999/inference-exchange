@@ -37,10 +37,13 @@ setup-model:  ## Download the default model (Qwen 2.5 0.5B, ~400MB)
 		echo "  Model already downloaded." || \
 		(echo "  Downloading model..." && $(PY) -m inference_exchange download-model)
 
-setup-web:  ## Install web UI dependencies
+setup-web:  ## Install web UI dependencies (requires Node.js 18+)
 	@echo "🌐 Setting up web UI..."
-	@cd web && npm install --silent 2>/dev/null
-	@echo "  Web deps installed."
+	@if command -v npm >/dev/null 2>&1; then \
+		cd web && npm install && echo "  Web deps installed."; \
+	else \
+		echo "  ⚠️  npm not found — skipping web UI setup. Install Node.js 18+ for the web UI."; \
+	fi
 
 # ─── Development ──────────────────────────────────────────────
 
