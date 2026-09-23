@@ -16,9 +16,11 @@ ACTIVATE := source $(VENV)/bin/activate
 
 # ─── Setup ────────────────────────────────────────────────────
 
-setup: setup-py setup-model setup-web  ## Full setup: Python + model + web UI
+setup: setup-py setup-web  ## Full setup: Python + web UI (run 'make setup-model' to download a model)
 	@echo ""
 	@echo "✅ Setup complete. Run 'make dev' to start."
+	@echo "   To download a small test model: make setup-model"
+	@echo "   Or point the provider at an existing GGUF: make dev-provider ARGS='--model /path/to/model.gguf'"
 
 setup-py:  ## Create venv and install Python dependencies
 	@echo "📦 Setting up Python environment..."
@@ -58,10 +60,11 @@ dev-coordinator:  ## Start coordinator only
 dev-web:  ## Start web UI only
 	@cd web && npm run dev
 
-dev-provider:  ## Start a local provider (default: Qwen 0.5B at $0.15/Mtok)
+dev-provider:  ## Start a local provider (default: Qwen 0.5B at $0.15/Mtok). Pass ARGS for custom model.
 	@$(ACTIVATE) && $(PY) -m inference_exchange.provider \
 		--name "local-dev" \
-		--price-output 0.15
+		--price-output 0.15 \
+		$(ARGS)
 
 dev-provider-agent:  ## Start the OCIP agent provider (production path)
 	@$(ACTIVATE) && $(PY) -m ocip_agent.agent
