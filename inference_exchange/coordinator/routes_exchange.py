@@ -21,11 +21,13 @@ router = APIRouter()
 
 @router.get("/v1/models")
 async def list_models():
-    """List available models (OpenAI-compatible)."""
+    """List available models (OpenAI-compatible).
+
+    Only returns real model names from connected providers.
+    'default' is a routing hint, not a model — handled by the chat UI.
+    """
     hub = get_hub()
-    models = hub.available_models
-    if not models:
-        models = ["default"]
+    models = [m for m in hub.available_models if m != "default"]
     return {
         "object": "list",
         "data": [{"id": m, "object": "model", "owned_by": "inference-exchange"} for m in models],
