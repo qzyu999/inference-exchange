@@ -94,9 +94,7 @@ class ProviderAgent:
             logger.info("Connected to coordinator")
 
             # Register
-            model_list = self.model_names_override or [self.engine.model_name, "default"]
-            if "default" not in model_list:
-                model_list.append("default")
+            model_list = self.model_names_override or [self.engine.model_name]
             reg = RegisterMessage(
                 provider_name=self.config.provider_name,
                 capabilities=ProviderCapabilities(
