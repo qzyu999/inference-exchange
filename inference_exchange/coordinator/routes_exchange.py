@@ -309,6 +309,8 @@ async def get_market_data():
     model_data: dict[str, dict] = {}
     for p in hub._providers.values():
         for model_name in p.capabilities.models:
+            if model_name == "default":
+                continue
             # Parse model info from the registered name
             info = parse_model_info(model_name)
             key = info["canonical_id"]
