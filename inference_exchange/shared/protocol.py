@@ -40,6 +40,7 @@ class ProviderCapabilities(BaseModel):
     measured_tps: float = 0
     price_per_mtok_input: float = 0.05
     price_per_mtok_output: float = 0.20
+    price_per_mtok_cache: float = 0  # 0 = no cache discount (charge at input rate)
 
 
 class RegisterMessage(BaseModel):
@@ -96,6 +97,8 @@ class InferenceDone(BaseModel):
     type: str = MessageType.INFERENCE_DONE
     request_id: str
     tokens_generated: int = 0
+    input_tokens: int = 0
+    cached_tokens: int = 0  # 0 if engine doesn't report cache hits
     time_seconds: float = 0
 
 
