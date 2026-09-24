@@ -192,66 +192,122 @@ function ModelMarketCard({ m }: { m: MarketModel }) {
         }
         const arrow = (col: SortCol) => sortCol === col ? (sortDir === 'asc' ? ' ↑' : ' ↓') : ''
 
-        const allRefs = [...m.reference_prices].sort((a, b) => {
-          const valA = sortCol === 'provider' ? a.provider : sortCol === 'input' ? a.price_input : sortCol === 'cache' ? a.price_cache : a.price_output
-          const valB = sortCol === 'provider' ? b.provider : sortCol === 'input' ? b.price_input : sortCol === 'cache' ? b.price_cache : b.price_output
+        // Build unified list: exchange offering + all references
+        const cheapest = m.providers.length > 0 ? m.providers.reduce((a, b) => a.price_output < b.price_output ? a : b) : null
+
+        type Offering = {
+          provider: string; model: string
+          input: number; cache: number; output: number
+          isExchange: boolean; isOpen: boolean
+        }
+
+        const offerings: Offering[] = []
+        if (cheapest) {
+          offerings.push({
+            provider: 'Exchange', model: m.model,
+            input: cheapest.price_input, cache: cheapest.price_cache, output: cheapest.price_output,
+            isExchange: true, isOpen: true,
+          })
+        }
+        for (const ref of m.reference_prices) {
+          offerings.push({
+            provider: ref.provider, model: ref.model,
+            input: ref.price_input, cache: ref.price_cache, output: ref.price_output,
+            isExchange: false, isOpen: ref.comparison_type === 'same_model',
+          })
+        }
+
+        offerings.sort((a, b) => {
+          const valA = sortCol === 'provider' ? a.provider : sortCol === 'input' ? a.input : sortCol === 'cache' ? a.cache : a.output
+          const valB = sortCol === 'provider' ? b.provider : sortCol === 'input' ? b.input : sortCol === 'cache' ? b.cache : b.output
           if (typeof valA === 'string' && typeof valB === 'string') return sortDir === 'asc' ? valA.localeCompare(valB) : valB.localeCompare(valA)
           return sortDir === 'asc' ? (valA as number) - (valB as number) : (valB as number) - (valA as number)
         })
 
-        const cheapest = m.providers.length > 0 ? m.providers.reduce((a, b) => a.price_output < b.price_output ? a : b) : null
+        // Find cheapest in each column for highlighting
+        const allInputs = offerings.map(o => o.input).filter(v => v > 0)
+        const allCaches = offerings.map(o => o.cache).filter(v => v > 0)
+        const allOutputs = offerings.map(o => o.output).filter(v => v > 0)
+        const minInput = allInputs.length ? Math.min(...allInputs) : 0
+        const minCache = allCaches.length ? Math.min(...allCaches) : 0
+        const minOutput = allOutputs.length ? Math.min(...allOutputs) : 0
 
         return (
-          <div className="px-5 py-3 border-t border-gray-100" style={{ background: '#fafaf8' }}>
-            <div className="text-[10px] uppercase tracking-wider mb-2" style={{ color: '#aaa' }}>Market comparison ($/Mtok)</div>
-
-            {/* Column headers — clickable to sort */}
-            <div className="flex items-center text-[9px] uppercase tracking-wider mb-1.5 cursor-pointer select-none" style={{ color: '#999' }}>
-              <span className="w-[120px] shrink-0 hover:text-gray-700" onClick={() => toggleSort('provider')}>Provider{arrow('provider')}</span>
-              <span className="flex-1 min-w-0 text-[9px]" style={{ color: '#bbb' }}>Model</span>
-              <span className="w-[52px] text-right hover:text-gray-700" onClick={() => toggleSort('input')}>In{arrow('input')}</span>
-              <span className="w-[52px] text-right hover:text-gray-700" onClick={() => toggleSort('cache')}>Cache{arrow('cache')}</span>
-              <span className="w-[52px] text-right hover:text-gray-700" onClick={() => toggleSort('output')}>Out{arrow('output')}</span>
-              <span className="w-[40px] text-center">Type</span>
+          <div className="px-5 py-4 border-t border-gray-100" style={{ background: '#fafaf8' }}>
+            {/* Section header with sort controls */}
+            <div className="flex items-center justify-between mb-3">
+              <div className="text-[10px] uppercase tracking-wider" style={{ color: '#aaa' }}>Market comparison</div>
+              <div className="flex items-center gap-1">
+                {(['output', 'input', 'cache'] as SortCol[]).map(col => (
+                  <button
+                    key={col}
+                    onClick={() => toggleSort(col)}
+                    className="text-[9px] uppercase tracking-wider px-2 py-0.5 rounded-full transition-colors"
+                    style={{
+                      background: sortCol === col ? C.blueBlack : 'transparent',
+                      color: sortCol === col ? '#fff' : '#aaa',
+                    }}
+                  >
+                    {col}{arrow(col)}
+                  </button>
+                ))}
+              </div>
             </div>
 
-            {/* Exchange row (our price) */}
-            {cheapest && (
-              <div className="flex items-center text-xs py-1.5 border-b border-gray-200 rounded" style={{ background: '#f0ede4' }}>
-                <span className="w-[120px] shrink-0 font-semibold truncate" style={{ color: C.blueBlack }}>Exchange</span>
-                <span className="flex-1 min-w-0 text-[10px] truncate" style={{ color: '#888' }}>{m.model}</span>
-                <span className="w-[52px] text-right font-medium" style={{ color: C.deepBlue }}>${cheapest.price_input.toFixed(2)}</span>
-                <span className="w-[52px] text-right font-medium" style={{ color: C.turquoise }}>{cheapest.price_cache > 0 ? `$${cheapest.price_cache.toFixed(3)}` : '—'}</span>
-                <span className="w-[52px] text-right font-medium" style={{ color: C.gold }}>${cheapest.price_output.toFixed(2)}</span>
-                <span className="w-[40px] text-center">
-                  <span className="text-[8px] font-bold px-1 py-0.5 rounded" style={{ background: '#edf7f1', color: C.green }}>open</span>
-                </span>
-              </div>
-            )}
-
-            {/* Reference rows */}
-            <div className="space-y-0 max-h-48 overflow-y-auto">
-              {allRefs.map((ref, i) => {
-                const isOpen = ref.comparison_type === 'same_model'
+            {/* Offering cards */}
+            <div className="space-y-1.5 max-h-[320px] overflow-y-auto">
+              {offerings.map((o, i) => {
+                const isMin = (val: number, min: number) => val > 0 && val === min
                 return (
-                  <div key={i} className="flex items-center text-xs py-1 border-b border-gray-50 last:border-0">
-                    <span className="w-[120px] shrink-0 truncate" style={{ color: isOpen ? '#555' : '#888' }}>{ref.provider}</span>
-                    <span className="flex-1 min-w-0 text-[10px] truncate" style={{ color: '#aaa' }}>{ref.model}</span>
-                    <span className="w-[52px] text-right" style={{ color: '#888' }}>
-                      {ref.price_input > 0 ? `$${ref.price_input.toFixed(2)}` : '—'}
-                    </span>
-                    <span className="w-[52px] text-right" style={{ color: '#888' }}>
-                      {ref.price_cache > 0 ? `$${ref.price_cache.toFixed(3)}` : '—'}
-                    </span>
-                    <span className="w-[52px] text-right" style={{ color: '#888' }}>
-                      ${ref.price_output.toFixed(2)}
-                    </span>
-                    <span className="w-[40px] text-center">
-                      <span className="text-[8px] font-bold px-1 py-0.5 rounded" style={{
-                        background: isOpen ? '#edf7f1' : '#f3f0f5',
-                        color: isOpen ? C.green : C.indigo,
-                      }}>{isOpen ? 'open' : 'prop'}</span>
-                    </span>
+                  <div
+                    key={i}
+                    className="rounded-xl px-3 py-2.5 transition-colors"
+                    style={{
+                      background: o.isExchange ? '#edeae2' : '#fff',
+                      border: o.isExchange ? `1.5px solid ${C.gold}44` : '1px solid #eee',
+                    }}
+                  >
+                    {/* Top line: provider + model + type */}
+                    <div className="flex items-center gap-2 mb-1.5">
+                      <span className="text-xs font-semibold" style={{ color: o.isExchange ? C.gold : C.blueBlack }}>
+                        {o.provider}
+                      </span>
+                      <span className="text-[11px] flex-1 min-w-0" style={{ color: o.isExchange ? '#8a7d60' : '#888' }}>
+                        {o.model}
+                      </span>
+                      <span
+                        className="text-[8px] font-bold px-1.5 py-0.5 rounded-full shrink-0"
+                        style={{
+                          background: o.isOpen ? '#edf7f1' : '#f3f0f5',
+                          color: o.isOpen ? C.green : C.indigo,
+                        }}
+                      >
+                        {o.isOpen ? 'open' : 'proprietary'}
+                      </span>
+                    </div>
+
+                    {/* Price pills */}
+                    <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-1 px-2 py-1 rounded-lg" style={{ background: o.isExchange ? '#e0dbd0' : '#f5f5f3' }}>
+                        <span className="text-[9px] uppercase" style={{ color: C.deepBlue }}>in</span>
+                        <span className="text-xs font-mono font-medium" style={{ color: isMin(o.input, minInput) ? C.green : C.blueBlack }}>
+                          {o.input > 0 ? `$${o.input.toFixed(2)}` : '—'}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1 px-2 py-1 rounded-lg" style={{ background: o.isExchange ? '#e0dbd0' : '#f5f5f3' }}>
+                        <span className="text-[9px] uppercase" style={{ color: C.turquoise }}>cache</span>
+                        <span className="text-xs font-mono font-medium" style={{ color: isMin(o.cache, minCache) ? C.green : o.cache > 0 ? C.blueBlack : '#ccc' }}>
+                          {o.cache > 0 ? `$${o.cache < 0.1 ? o.cache.toFixed(3) : o.cache.toFixed(2)}` : '—'}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1 px-2 py-1 rounded-lg" style={{ background: o.isExchange ? '#e0dbd0' : '#f5f5f3' }}>
+                        <span className="text-[9px] uppercase" style={{ color: C.gold }}>out</span>
+                        <span className="text-xs font-mono font-medium" style={{ color: isMin(o.output, minOutput) ? C.green : C.blueBlack }}>
+                          {o.output > 0 ? `$${o.output.toFixed(2)}` : '—'}
+                        </span>
+                      </div>
+                      <span className="text-[9px] ml-auto" style={{ color: '#bbb' }}>$/Mtok</span>
+                    </div>
                   </div>
                 )
               })}
