@@ -88,7 +88,7 @@ def get_reference_prices(model_name: str) -> list[dict]:
                     })
 
         # Always include cheapest closed-source as reference point
-        closed_sources = {"openai", "anthropic", "google"}
+        closed_sources = {"openai", "anthropic", "google", "deepseek", "alibaba"}
         for entry in collector.get_all_current():
             if entry.source in closed_sources:
                 key = (entry.source, entry.model_id)

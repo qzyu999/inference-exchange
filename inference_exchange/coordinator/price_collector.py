@@ -148,59 +148,110 @@ class DirectAPIFetcher(PriceFetcher):
     source = "direct"
     ttl = 86400  # 24h (prices are static, just re-snapshot daily)
 
-    # Last manually updated: 2026-09-20
-    LAST_UPDATED = "2026-09-20"
+    # Last manually updated: 2026-09-24
+    LAST_UPDATED = "2026-09-24"
 
     PRICES = [
         # ─── Closed-source APIs (alternative comparisons) ─────
-        # OpenAI — cache = 50% of input
+        # OpenAI — cache = 50% of input (4.1 series: 75% discount)
         {"source": "openai", "model_id": "gpt-4o-mini", "display_name": "GPT-4o Mini",
-         "input": 0.15, "cache": 0.075, "output": 0.60, "context": 128000, "comparison_type": "alternative"},
+         "input": 0.15, "cache": 0.075, "output": 0.60, "context": 128000,
+         "comparison_type": "alternative", "open_weight": False},
         {"source": "openai", "model_id": "gpt-4o", "display_name": "GPT-4o",
-         "input": 2.50, "cache": 1.25, "output": 10.00, "context": 128000, "comparison_type": "alternative"},
+         "input": 2.50, "cache": 1.25, "output": 10.00, "context": 128000,
+         "comparison_type": "alternative", "open_weight": False},
         {"source": "openai", "model_id": "gpt-4.1-mini", "display_name": "GPT-4.1 Mini",
-         "input": 0.40, "cache": 0.10, "output": 1.60, "context": 1047576, "comparison_type": "alternative"},
+         "input": 0.40, "cache": 0.10, "output": 1.60, "context": 1047576,
+         "comparison_type": "alternative", "open_weight": False},
         {"source": "openai", "model_id": "gpt-4.1", "display_name": "GPT-4.1",
-         "input": 2.00, "cache": 0.50, "output": 8.00, "context": 1047576, "comparison_type": "alternative"},
+         "input": 2.00, "cache": 0.50, "output": 8.00, "context": 1047576,
+         "comparison_type": "alternative", "open_weight": False},
 
         # Anthropic — cache read = 10% of input
         {"source": "anthropic", "model_id": "claude-3.5-haiku", "display_name": "Claude 3.5 Haiku",
-         "input": 0.80, "cache": 0.08, "output": 4.00, "context": 200000, "comparison_type": "alternative"},
+         "input": 0.80, "cache": 0.08, "output": 4.00, "context": 200000,
+         "comparison_type": "alternative", "open_weight": False},
         {"source": "anthropic", "model_id": "claude-sonnet-4", "display_name": "Claude Sonnet 4",
-         "input": 3.00, "cache": 0.30, "output": 15.00, "context": 200000, "comparison_type": "alternative"},
+         "input": 3.00, "cache": 0.30, "output": 15.00, "context": 200000,
+         "comparison_type": "alternative", "open_weight": False},
         {"source": "anthropic", "model_id": "claude-opus-4", "display_name": "Claude Opus 4",
-         "input": 15.00, "cache": 1.50, "output": 75.00, "context": 200000, "comparison_type": "alternative"},
+         "input": 15.00, "cache": 1.50, "output": 75.00, "context": 200000,
+         "comparison_type": "alternative", "open_weight": False},
 
         # Google — cache = 25% of input (for prompts > 32k tokens)
         {"source": "google", "model_id": "gemini-2.0-flash", "display_name": "Gemini 2.0 Flash",
-         "input": 0.10, "cache": 0.025, "output": 0.40, "context": 1048576, "comparison_type": "alternative"},
+         "input": 0.10, "cache": 0.025, "output": 0.40, "context": 1048576,
+         "comparison_type": "alternative", "open_weight": False},
         {"source": "google", "model_id": "gemini-2.5-pro", "display_name": "Gemini 2.5 Pro",
-         "input": 1.25, "cache": 0.3125, "output": 10.00, "context": 1048576, "comparison_type": "alternative"},
+         "input": 1.25, "cache": 0.3125, "output": 10.00, "context": 1048576,
+         "comparison_type": "alternative", "open_weight": False},
+
+        # DeepSeek — cache = 10% of input (via their API)
+        {"source": "deepseek", "model_id": "deepseek-chat", "display_name": "DeepSeek V3",
+         "input": 0.27, "cache": 0.07, "output": 1.10, "context": 65536,
+         "comparison_type": "alternative", "open_weight": True},
+        {"source": "deepseek", "model_id": "deepseek-reasoner", "display_name": "DeepSeek R1",
+         "input": 0.55, "cache": 0.14, "output": 2.19, "context": 65536,
+         "comparison_type": "alternative", "open_weight": True},
+
+        # Alibaba Cloud (Qwen via DashScope)
+        {"source": "alibaba", "model_id": "qwen-max", "display_name": "Qwen Max",
+         "input": 1.60, "cache": 0.40, "output": 6.40, "context": 32768,
+         "comparison_type": "alternative", "open_weight": False},
+        {"source": "alibaba", "model_id": "qwen-plus", "display_name": "Qwen Plus",
+         "input": 0.40, "cache": 0.10, "output": 1.20, "context": 131072,
+         "comparison_type": "alternative", "open_weight": False},
+        {"source": "alibaba", "model_id": "qwen-turbo", "display_name": "Qwen Turbo",
+         "input": 0.05, "cache": 0.01, "output": 0.20, "context": 131072,
+         "comparison_type": "alternative", "open_weight": False},
 
         # ─── Open-weight hosting providers (same-model comparisons) ─
         # Deepinfra — no published cache pricing
         {"source": "deepinfra", "model_id": "meta-llama/Llama-3.1-8B-Instruct", "display_name": "Llama 3.1 8B",
-         "input": 0.06, "output": 0.06, "context": 131072, "comparison_type": "same_model"},
+         "input": 0.06, "output": 0.06, "context": 131072,
+         "comparison_type": "same_model", "open_weight": True},
         {"source": "deepinfra", "model_id": "meta-llama/Llama-3.1-70B-Instruct", "display_name": "Llama 3.1 70B",
-         "input": 0.35, "output": 0.40, "context": 131072, "comparison_type": "same_model"},
+         "input": 0.35, "output": 0.40, "context": 131072,
+         "comparison_type": "same_model", "open_weight": True},
         {"source": "deepinfra", "model_id": "Qwen/Qwen2.5-7B-Instruct", "display_name": "Qwen 2.5 7B",
-         "input": 0.06, "output": 0.06, "context": 32768, "comparison_type": "same_model"},
+         "input": 0.06, "output": 0.06, "context": 32768,
+         "comparison_type": "same_model", "open_weight": True},
+        {"source": "deepinfra", "model_id": "deepseek-ai/DeepSeek-R1", "display_name": "DeepSeek R1",
+         "input": 0.55, "output": 2.19, "context": 65536,
+         "comparison_type": "same_model", "open_weight": True},
 
         # Groq — no published cache pricing
         {"source": "groq", "model_id": "llama-3.1-8b-instant", "display_name": "Llama 3.1 8B",
-         "input": 0.05, "output": 0.08, "context": 131072, "comparison_type": "same_model"},
+         "input": 0.05, "output": 0.08, "context": 131072,
+         "comparison_type": "same_model", "open_weight": True},
         {"source": "groq", "model_id": "llama-3.1-70b-versatile", "display_name": "Llama 3.1 70B",
-         "input": 0.59, "output": 0.79, "context": 131072, "comparison_type": "same_model"},
-        {"source": "groq", "model_id": "gemma2-9b-it", "display_name": "Gemma 2 9B",
-         "input": 0.20, "output": 0.20, "context": 8192, "comparison_type": "same_model"},
+         "input": 0.59, "output": 0.79, "context": 131072,
+         "comparison_type": "same_model", "open_weight": True},
+        {"source": "groq", "model_id": "deepseek-r1-distill-llama-70b", "display_name": "DeepSeek R1 Distill 70B",
+         "input": 0.75, "output": 0.99, "context": 131072,
+         "comparison_type": "same_model", "open_weight": True},
 
         # Fireworks — no published cache pricing
         {"source": "fireworks", "model_id": "accounts/fireworks/models/llama-v3p1-8b-instruct", "display_name": "Llama 3.1 8B",
-         "input": 0.10, "output": 0.10, "context": 131072, "comparison_type": "same_model"},
+         "input": 0.10, "output": 0.10, "context": 131072,
+         "comparison_type": "same_model", "open_weight": True},
         {"source": "fireworks", "model_id": "accounts/fireworks/models/llama-v3p1-70b-instruct", "display_name": "Llama 3.1 70B",
-         "input": 0.90, "output": 0.90, "context": 131072, "comparison_type": "same_model"},
+         "input": 0.90, "output": 0.90, "context": 131072,
+         "comparison_type": "same_model", "open_weight": True},
         {"source": "fireworks", "model_id": "accounts/fireworks/models/qwen2p5-72b-instruct", "display_name": "Qwen 2.5 72B",
-         "input": 0.90, "output": 0.90, "context": 32768, "comparison_type": "same_model"},
+         "input": 0.90, "output": 0.90, "context": 32768,
+         "comparison_type": "same_model", "open_weight": True},
+
+        # Together
+        {"source": "together", "model_id": "meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo", "display_name": "Llama 3.1 8B",
+         "input": 0.18, "output": 0.18, "context": 131072,
+         "comparison_type": "same_model", "open_weight": True},
+        {"source": "together", "model_id": "meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo", "display_name": "Llama 3.1 70B",
+         "input": 0.88, "output": 0.88, "context": 131072,
+         "comparison_type": "same_model", "open_weight": True},
+        {"source": "together", "model_id": "Qwen/Qwen2.5-72B-Instruct-Turbo", "display_name": "Qwen 2.5 72B",
+         "input": 1.20, "output": 1.20, "context": 32768,
+         "comparison_type": "same_model", "open_weight": True},
     ]
 
     async def fetch(self) -> list[PriceEntry]:
