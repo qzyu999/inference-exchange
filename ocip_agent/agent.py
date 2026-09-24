@@ -56,10 +56,11 @@ class InferenceServerManager:
     Starts it, monitors health, restarts on crash with exponential backoff.
     """
 
-    def __init__(self, model_path: str, port: int = 9999, n_gpu_layers: int = -1):
+    def __init__(self, model_path: str, port: int = 9999, n_gpu_layers: int = -1, llama_server_path: str = ""):
         self.model_path = model_path
         self.port = port
         self.n_gpu_layers = n_gpu_layers
+        self.llama_server_path = llama_server_path
         self.base_url = f"http://127.0.0.1:{port}"
         self._process: subprocess.Popen | None = None
         self._restart_count = 0
@@ -93,8 +94,20 @@ class InferenceServerManager:
             logger.info("Inference server already running")
             return
 
-        # Prefer real llama-server for cache hit reporting + performance
-        llama_server = shutil.which("llama-server")
+        # Prefer explicit --llama-server, then PATH, then Python fallback
+        llama_server = None
+        if self.llama_server_path:
+            if os.path.isfile(self.llama_server_path) and os.access(self.llama_server_path, os.X_OK):
+                llama_server = self.llama_server_path
+                logger.info(f"Using specified llama-server: {llama_server}")
+            else:
+                logger.warning(f"Specified llama-server not found or not executable: {self.llama_server_path}")
+
+        if not llama_server:
+            llama_server = shutil.which("llama-server")
+            if llama_server:
+                logger.info(f"Using native llama-server from PATH: {llama_server}")
+
         if llama_server:
             cmd = [
                 llama_server,
@@ -103,7 +116,6 @@ class InferenceServerManager:
                 "-ngl", str(self.n_gpu_layers),
                 "--host", "127.0.0.1",
             ]
-            logger.info(f"Using native llama-server: {llama_server}")
         else:
             cmd = [
                 sys.executable, "-m", "ocip_server.server",
@@ -241,6 +253,7 @@ class OCIPAgent:
         n_gpu_layers: int = -1,
         provider_token: str = "",
         max_concurrent: int = 2,
+        llama_server_path: str = "",
     ):
         self.coordinator_url = coordinator_url
         self.provider_name = provider_name
@@ -250,6 +263,7 @@ class OCIPAgent:
         self.trust_level = trust_level
         self.provider_token = provider_token
         self.max_concurrent = max_concurrent
+        self.llama_server_path = llama_server_path
 
         # Encryption
         self._keypair = KeyPair()
@@ -261,6 +275,7 @@ class OCIPAgent:
             model_path=self._model_path,
             port=inference_port,
             n_gpu_layers=n_gpu_layers,
+            llama_server_path=self.llama_server_path,
         )
 
         # Read model identity from GGUF file directly (name, hash, architecture)
@@ -638,6 +653,7 @@ def main():
     parser.add_argument("--trust", default="hardened")
     parser.add_argument("--n-gpu-layers", type=int, default=-1)
     parser.add_argument("--token", default="", help="Provider auth token (pt-ie-...)")
+    parser.add_argument("--llama-server", default="", help="Path to llama-server binary (uses native server for cache reporting)")
     parser.add_argument("--max-concurrent", type=int, default=2, help="Max concurrent requests")
     args = parser.parse_args()
 
@@ -663,6 +679,7 @@ def main():
         n_gpu_layers=args.n_gpu_layers,
         provider_token=args.token,
         max_concurrent=args.max_concurrent,
+        llama_server_path=args.llama_server,
     )
 
     try:
