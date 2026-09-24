@@ -290,9 +290,16 @@ class ProviderHub:
             callback = self._billing_callbacks.pop(request_id, None)
             if callback:
                 try:
+                    logger.info(
+                        f"[{request_id[:8]}] InferenceDone received: "
+                        f"input={done_msg.input_tokens} cached={done_msg.cached_tokens} "
+                        f"generated={done_msg.tokens_generated}"
+                    )
                     callback(done_msg)
                 except Exception as e:
                     logger.error(f"Billing callback error for {request_id[:8]}: {e}")
+            else:
+                logger.warning(f"[{request_id[:8]}] InferenceDone arrived but no billing callback registered")
             if provider_id in self._providers:
                 self._providers[provider_id].active_requests = max(0, self._providers[provider_id].active_requests - 1)
             asyncio.ensure_future(self._try_dispatch_queued(freed_provider_id=provider_id))
