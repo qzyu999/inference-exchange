@@ -147,6 +147,13 @@ class Store:
             self._conn.commit()
             logger.info("Migration: added cached_tokens column to transactions")
 
+        # Add cache_per_mtok column to reference_prices (added for three-tier comparison)
+        ref_columns = {row[1] for row in self._conn.execute("PRAGMA table_info(reference_prices)").fetchall()}
+        if "cache_per_mtok" not in ref_columns:
+            self._conn.execute("ALTER TABLE reference_prices ADD COLUMN cache_per_mtok REAL NOT NULL DEFAULT 0")
+            self._conn.commit()
+            logger.info("Migration: added cache_per_mtok column to reference_prices")
+
     def _ensure_account(self, account_id: str, name: str):
         row = self._conn.execute(
             "SELECT account_id FROM accounts WHERE account_id = ?", (account_id,)

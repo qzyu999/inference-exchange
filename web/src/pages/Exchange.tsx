@@ -42,8 +42,10 @@ interface MarketModel {
   max_trust: string
   provider_count: number
   reference_prices: Array<{
-    provider: string; model: string; price_output: number
-    diff_pct: number; cheaper: boolean; comparison_type?: string
+    provider: string; model: string
+    price_input: number; price_cache: number; price_output: number
+    diff_pct: number; diff_input_pct: number; diff_cache_pct: number
+    cheaper: boolean; comparison_type?: string
   }>
 }
 
@@ -180,20 +182,44 @@ function ModelMarketCard({ m }: { m: MarketModel }) {
       {/* Reference pricing */}
       {m.reference_prices.length > 0 && (
         <div className="px-5 py-3 border-t border-gray-100" style={{ background: '#fafaf8' }}>
-          <div className="text-[10px] uppercase tracking-wider mb-2" style={{ color: '#aaa' }}>Market comparison</div>
+          <div className="text-[10px] uppercase tracking-wider mb-2" style={{ color: '#aaa' }}>Market comparison ($/Mtok)</div>
+
+          {/* Column headers */}
+          <div className="flex items-center justify-between text-[9px] uppercase tracking-wider mb-1.5 px-0" style={{ color: '#bbb' }}>
+            <span className="w-24">Provider</span>
+            <span className="w-14 text-right">In</span>
+            <span className="w-14 text-right">Cache</span>
+            <span className="w-14 text-right">Out</span>
+          </div>
+
+          {/* Exchange row (our price) */}
+          {m.providers.length > 0 && (() => {
+            const cheapest = m.providers.reduce((a, b) => a.price_output < b.price_output ? a : b)
+            return (
+              <div className="flex items-center justify-between text-xs py-1 border-b border-gray-100" style={{ background: '#f5f3ee' }}>
+                <span className="w-24 font-medium truncate" style={{ color: C.blueBlack }}>Exchange</span>
+                <span className="w-14 text-right font-medium" style={{ color: C.deepBlue }}>${cheapest.price_input.toFixed(2)}</span>
+                <span className="w-14 text-right font-medium" style={{ color: C.turquoise }}>{cheapest.price_cache > 0 ? `$${cheapest.price_cache.toFixed(2)}` : '—'}</span>
+                <span className="w-14 text-right font-medium" style={{ color: C.gold }}>${cheapest.price_output.toFixed(2)}</span>
+              </div>
+            )
+          })()}
 
           {/* Same-model comparisons */}
           {sameModelRefs.length > 0 && (
-            <div className="space-y-1 mb-2">
+            <div className="space-y-0">
               {sameModelRefs.slice(0, 3).map((ref, i) => (
-                <div key={`s${i}`} className="flex items-center justify-between text-xs">
-                  <span style={{ color: '#666' }}>{ref.provider}</span>
-                  <div className="flex items-center gap-2">
-                    <span style={{ color: '#888' }}>${ref.price_output.toFixed(2)}</span>
-                    <span className="font-medium" style={{ color: ref.cheaper ? C.green : C.red }}>
-                      {ref.cheaper ? `−${ref.diff_pct}%` : `+${Math.abs(ref.diff_pct)}%`}
-                    </span>
-                  </div>
+                <div key={`s${i}`} className="flex items-center justify-between text-xs py-1">
+                  <span className="w-24 truncate" style={{ color: '#666' }}>{ref.provider}</span>
+                  <span className="w-14 text-right" style={{ color: '#888' }}>
+                    {ref.price_input > 0 ? `$${ref.price_input.toFixed(2)}` : '—'}
+                  </span>
+                  <span className="w-14 text-right" style={{ color: '#888' }}>
+                    {ref.price_cache > 0 ? `$${ref.price_cache.toFixed(2)}` : '—'}
+                  </span>
+                  <span className="w-14 text-right" style={{ color: '#888' }}>
+                    ${ref.price_output.toFixed(2)}
+                  </span>
                 </div>
               ))}
             </div>
@@ -201,17 +227,20 @@ function ModelMarketCard({ m }: { m: MarketModel }) {
 
           {/* Alternative (closed-source) comparisons */}
           {altRefs.length > 0 && (
-            <div className="space-y-1">
-              <div className="text-[9px] uppercase tracking-wider mt-1" style={{ color: '#bbb' }}>vs closed-source</div>
+            <div className="space-y-0 mt-1 pt-1 border-t border-gray-100">
+              <div className="text-[9px] uppercase tracking-wider" style={{ color: '#bbb' }}>vs closed-source</div>
               {altRefs.slice(0, 2).map((ref, i) => (
-                <div key={`a${i}`} className="flex items-center justify-between text-xs">
-                  <span style={{ color: '#888' }}>{ref.provider} <span style={{ color: '#bbb' }}>{ref.model}</span></span>
-                  <div className="flex items-center gap-2">
-                    <span style={{ color: '#aaa' }}>${ref.price_output.toFixed(2)}</span>
-                    <span className="font-medium" style={{ color: ref.cheaper ? C.green : C.red }}>
-                      {ref.cheaper ? `−${ref.diff_pct}%` : `+${Math.abs(ref.diff_pct)}%`}
-                    </span>
-                  </div>
+                <div key={`a${i}`} className="flex items-center justify-between text-xs py-1">
+                  <span className="w-24 truncate" style={{ color: '#888' }}>{ref.provider}</span>
+                  <span className="w-14 text-right" style={{ color: '#aaa' }}>
+                    {ref.price_input > 0 ? `$${ref.price_input.toFixed(2)}` : '—'}
+                  </span>
+                  <span className="w-14 text-right" style={{ color: '#aaa' }}>
+                    {ref.price_cache > 0 ? `$${ref.price_cache.toFixed(2)}` : '—'}
+                  </span>
+                  <span className="w-14 text-right" style={{ color: '#aaa' }}>
+                    ${ref.price_output.toFixed(2)}
+                  </span>
                 </div>
               ))}
             </div>

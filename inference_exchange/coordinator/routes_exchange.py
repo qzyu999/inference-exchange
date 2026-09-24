@@ -375,7 +375,16 @@ async def get_market_data():
     # Add reference pricing comparison
     result = []
     for key, data in model_data.items():
-        savings = compute_savings(data["cheapest_output"], data["model"])
+        # Find cheapest input and cache prices across providers
+        input_prices = [p["price_input"] for p in data["providers"] if p["price_input"] > 0]
+        cache_prices = [p["price_cache"] for p in data["providers"] if p["price_cache"] > 0]
+        cheapest_input = min(input_prices) if input_prices else 0
+        cheapest_cache = min(cache_prices) if cache_prices else 0
+
+        savings = compute_savings(
+            data["cheapest_output"], data["model"],
+            exchange_input=cheapest_input, exchange_cache=cheapest_cache,
+        )
         data["reference_prices"] = savings["comparisons"]
         data["provider_count"] = len(data["providers"])
         data["providers"].sort(key=lambda x: x["price_output"])

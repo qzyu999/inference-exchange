@@ -83,6 +83,7 @@ def get_reference_prices(model_name: str) -> list[dict]:
                         "model": entry.display_name,
                         "input": round(entry.input_per_mtok, 4),
                         "output": round(entry.output_per_mtok, 4),
+                        "cache": round(entry.cache_per_mtok, 4),
                         "comparison_type": "same_model" if entry.family else "alternative",
                     })
 
@@ -98,6 +99,7 @@ def get_reference_prices(model_name: str) -> list[dict]:
                         "model": entry.display_name,
                         "input": round(entry.input_per_mtok, 4),
                         "output": round(entry.output_per_mtok, 4),
+                        "cache": round(entry.cache_per_mtok, 4),
                         "comparison_type": "alternative",
                     })
 
@@ -129,27 +131,49 @@ def get_reference_prices(model_name: str) -> list[dict]:
     return refs[:5]
 
 
-def compute_savings(exchange_price: float, model_name: str) -> dict:
-    """Compute honest comparison vs reference providers.
+def compute_savings(exchange_price: float, model_name: str,
+                    exchange_input: float = 0, exchange_cache: float = 0) -> dict:
+    """Compute three-tier comparison vs reference providers.
 
-    Separates same-model comparisons from alternative-model comparisons.
-    Shows ALL prices, not just favorable ones.
-    Flags quantization differences when detectable.
+    Compares input, cache, and output prices separately. Shows ALL prices.
     """
     refs = get_reference_prices(model_name)
     comparisons = []
     for ref in refs:
         ref_output = ref["output"]
-        if ref_output > 0 and exchange_price > 0:
-            pct_diff = round((1 - exchange_price / ref_output) * 100)
-            entry = {
-                "provider": ref["provider"],
-                "model": ref["model"],
-                "price_output": round(ref_output, 4),
-                "diff_pct": pct_diff,
-                "cheaper": pct_diff > 0,
-            }
-            if "comparison_type" in ref:
-                entry["comparison_type"] = ref["comparison_type"]
-            comparisons.append(entry)
-    return {"comparisons": comparisons, "exchange_price": exchange_price}
+        ref_input = ref.get("input", 0)
+        ref_cache = ref.get("cache", 0)
+        if ref_output <= 0 and ref_input <= 0:
+            continue
+
+        # Output price diff (primary comparison)
+        out_diff = round((1 - exchange_price / ref_output) * 100) if ref_output > 0 and exchange_price > 0 else 0
+
+        # Input price diff
+        in_diff = round((1 - exchange_input / ref_input) * 100) if ref_input > 0 and exchange_input > 0 else 0
+
+        # Cache price diff
+        cache_diff = 0
+        if ref_cache > 0 and exchange_cache > 0:
+            cache_diff = round((1 - exchange_cache / ref_cache) * 100)
+
+        entry = {
+            "provider": ref["provider"],
+            "model": ref["model"],
+            "price_input": round(ref_input, 4),
+            "price_cache": round(ref_cache, 4),
+            "price_output": round(ref_output, 4),
+            "diff_pct": out_diff,
+            "diff_input_pct": in_diff,
+            "diff_cache_pct": cache_diff,
+            "cheaper": out_diff > 0,
+        }
+        if "comparison_type" in ref:
+            entry["comparison_type"] = ref["comparison_type"]
+        comparisons.append(entry)
+    return {
+        "comparisons": comparisons,
+        "exchange_price": exchange_price,
+        "exchange_input": exchange_input,
+        "exchange_cache": exchange_cache,
+    }
