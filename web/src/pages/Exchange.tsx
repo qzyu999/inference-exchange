@@ -134,7 +134,6 @@ function ModelMarketCard({ m }: { m: MarketModel }) {
             </div>
           )
         })()}
-        </div>
 
         {/* Quick stats row */}
         <div className="flex items-center gap-3 mt-3 flex-wrap">
@@ -369,7 +368,6 @@ function EmptyExchange() {
 export function Exchange() {
   const { data: stats } = useSWR('stats', api.stats, { refreshInterval: 3000 })
   const { data: provData } = useSWR('providers', api.providers, { refreshInterval: 3000 })
-  const { data: depthData } = useSWR('depth', api.depth, { refreshInterval: 5000 })
   const { data: traceData } = useSWR('traces', api.traces, { refreshInterval: 3000 })
   const { data: marketData } = useSWR('market', api.market, { refreshInterval: 5000 })
   const { data: reputationData } = useSWR('reputation', api.reputation, { refreshInterval: 10000 })
