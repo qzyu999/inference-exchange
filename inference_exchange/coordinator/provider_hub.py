@@ -285,8 +285,6 @@ class ProviderHub:
         # the queue before InferenceDone arrives from the provider).
         if msg_type == MessageType.INFERENCE_DONE:
             done_msg = InferenceDone(**data)
-            import sys
-            print(f">>> HUB InferenceDone: request={request_id[:8]} cached={done_msg.cached_tokens} input={done_msg.input_tokens} raw_data_cached={data.get('cached_tokens', 'MISSING')}", file=sys.stderr, flush=True)
             # Deliver to queue if it still exists (streaming generator reads it)
             queue = self._response_queues.get(request_id)
             if queue is not None:
@@ -295,16 +293,9 @@ class ProviderHub:
             callback = self._billing_callbacks.pop(request_id, None)
             if callback:
                 try:
-                    logger.info(
-                        f"[{request_id[:8]}] InferenceDone received: "
-                        f"input={done_msg.input_tokens} cached={done_msg.cached_tokens} "
-                        f"generated={done_msg.tokens_generated}"
-                    )
                     callback(done_msg)
                 except Exception as e:
                     logger.error(f"Billing callback error for {request_id[:8]}: {e}")
-            else:
-                logger.warning(f"[{request_id[:8]}] InferenceDone arrived but no billing callback registered")
             if provider_id in self._providers:
                 self._providers[provider_id].active_requests = max(0, self._providers[provider_id].active_requests - 1)
             asyncio.ensure_future(self._try_dispatch_queued(freed_provider_id=provider_id))

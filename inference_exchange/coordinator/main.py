@@ -407,8 +407,6 @@ def create_app() -> FastAPI:
                     MessageType.INFERENCE_DONE,
                     MessageType.INFERENCE_ERROR,
                 ):
-                    if msg_type == MessageType.INFERENCE_DONE:
-                        logger.info(f"[{data.get('request_id', '?')[:8]}] WS received InferenceDone: cached={data.get('cached_tokens', '?')}")
                     hub.handle_provider_message(provider_id, data)
 
                 else:

@@ -117,10 +117,6 @@ def _make_billing_callback(
         actual_cached = done_msg.cached_tokens
         output_tokens = done_msg.tokens_generated
 
-        # Print directly to stdout so it can't be missed
-        import sys
-        print(f">>> BILLING CALLBACK: request={request_id[:8]} input={actual_input} cached={actual_cached} output={output_tokens}", file=sys.stderr, flush=True)
-
         billing = get_billing()
         billing.charge_request(
             request_id=request_id,
