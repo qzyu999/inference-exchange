@@ -265,12 +265,12 @@ export function Chat() {
                 </div>
               )}
               {m.role === 'assistant' && (m.model || m.tokens != null || m.cost_usd != null) && (
-                <div className="text-[11px] text-gray-400 mt-2 flex gap-2">
+                <div className="text-[11px] text-gray-400 mt-2 flex gap-2 flex-wrap">
                   {m.model && <span>{m.model}</span>}
                   {m.tokens != null && <span>{m.tokens} tok</span>}
                   {m.cost_usd != null && <span>${m.cost_usd.toFixed(6)}</span>}
-                  {m.trust_level && <span className={m.trust_level === 'hardened' || m.trust_level === 'confidential' ? 'text-amber-500' : 'text-gray-400'}>{m.trust_level}</span>}
-                  {m.encrypted && <span className="text-emerald-500">E2E</span>}
+                  {m.trust_level && <span style={{ color: m.trust_level === 'hardened' || m.trust_level === 'confidential' ? '#C49A45' : '#aaa' }}>{m.trust_level}</span>}
+                  {m.encrypted && <span style={{ color: '#4D9A91' }}>E2E</span>}
                 </div>
               )}
             </div>

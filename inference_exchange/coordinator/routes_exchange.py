@@ -171,6 +171,9 @@ async def get_history(request: Request):
             {
                 "request_id": dict(r)["request_id"][:8],
                 "model": dict(r)["model"],
+                "input_tokens": dict(r)["input_tokens"],
+                "output_tokens": dict(r)["output_tokens"],
+                "cached_tokens": dict(r).get("cached_tokens", 0),
                 "tokens": dict(r)["input_tokens"] + dict(r)["output_tokens"],
                 "cost_usd": round(dict(r)["cost_micro"] / 1_000_000, 6),
                 "timestamp": dict(r)["timestamp"],
