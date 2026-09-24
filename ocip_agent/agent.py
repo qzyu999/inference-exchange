@@ -483,11 +483,10 @@ class OCIPAgent:
                                 details = usage.get("prompt_tokens_details") or {}
                                 cached_tokens = details.get("cached_tokens", 0)
 
-                            content = (
-                                chunk_data.get("choices", [{}])[0]
-                                .get("delta", {})
-                                .get("content")
-                            )
+                            content = None
+                            choices = chunk_data.get("choices", [])
+                            if choices:
+                                content = choices[0].get("delta", {}).get("content")
                             if content:
                                 tokens += 1
                                 if consumer_public_key:
