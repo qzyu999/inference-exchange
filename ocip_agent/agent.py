@@ -134,9 +134,9 @@ class InferenceServerManager:
         logger.info(f"Inference server PID: {self._process.pid}")
 
         # Wait for it to become healthy
-        await self._wait_for_health(timeout=30)
+        await self._wait_for_health(timeout=120)
 
-    async def _wait_for_health(self, timeout: float = 30):
+    async def _wait_for_health(self, timeout: float = 120):
         """Poll until the server responds to /health."""
         start = time.time()
         async with httpx.AsyncClient() as client:
