@@ -347,6 +347,7 @@ async def get_market_data():
                 "name": p.name,
                 "price_output": price,
                 "price_input": p.capabilities.price_per_mtok_input,
+                "price_cache": p.capabilities.price_per_mtok_cache,
                 "tps": p.capabilities.measured_tps,
                 "trust": p.capabilities.trust_level.value,
                 "encrypted": bool(p.encryption_public_key),
