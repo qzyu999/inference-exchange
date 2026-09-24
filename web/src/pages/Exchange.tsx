@@ -32,7 +32,7 @@ interface MarketModel {
   variant: string
   canonical_id: string
   providers: Array<{
-    id: string; name: string; price_output: number; price_input: number
+    id: string; name: string; price_output: number; price_input: number; price_cache: number
     tps: number; trust: string; encrypted: boolean; load: number
     hardware: string; slots: string; quantization: string; original_model: string
     context_length: number; verified: boolean
@@ -118,8 +118,22 @@ function ModelMarketCard({ m }: { m: MarketModel }) {
             {priceMax > priceMin && (
               <div className="text-[10px]" style={{ color: '#aaa' }}>→ ${priceMax.toFixed(2)}</div>
             )}
-            <div className="text-[10px]" style={{ color: '#aaa' }}>$/Mtok output</div>
+            <div className="text-[10px]" style={{ color: '#aaa' }}>$/Mtok out</div>
           </div>
+        </div>
+
+        {/* Three-tier pricing summary */}
+        {m.providers.length > 0 && (() => {
+          const cheapest = m.providers.reduce((a, b) => a.price_output < b.price_output ? a : b)
+          return (
+            <div className="flex items-center gap-3 mt-2 text-[11px]" style={{ color: '#888' }}>
+              <span><span style={{ color: C.deepBlue }}>in</span> ${cheapest.price_input.toFixed(2)}</span>
+              <span><span style={{ color: C.turquoise }}>cache</span> {cheapest.price_cache > 0 ? `$${cheapest.price_cache.toFixed(2)}` : '—'}</span>
+              <span><span style={{ color: C.gold }}>out</span> ${cheapest.price_output.toFixed(2)}</span>
+              <span style={{ color: '#bbb' }}>/ Mtok</span>
+            </div>
+          )
+        })()}
         </div>
 
         {/* Quick stats row */}
@@ -232,6 +246,10 @@ function ModelMarketCard({ m }: { m: MarketModel }) {
                     {p.verified && <span className="ml-1 text-[9px]" style={{ color: C.deepBlue }} title="Hash verified">✓</span>}
                   </div>
                   <span className="font-semibold w-14 text-right" style={{ color: C.blueBlack }}>${p.price_output.toFixed(2)}</span>
+                  <span className="text-[10px] w-10 text-right" style={{ color: '#aaa' }}>in ${p.price_input.toFixed(2)}</span>
+                  {p.price_cache > 0 && (
+                    <span className="text-[10px]" style={{ color: C.turquoise }}>⚡${p.price_cache.toFixed(2)}</span>
+                  )}
                   <span className="text-xs w-12 text-right" style={{ color: '#888' }}>{p.tps.toFixed(0)} t/s</span>
                   {p.quantization && (
                     <span className="text-[10px] font-mono px-1.5 py-0.5 rounded" style={{ background: '#fdf6ec', color: C.gold, border: '1px solid rgba(196,154,69,0.2)' }}>
