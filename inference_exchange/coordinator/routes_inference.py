@@ -97,6 +97,73 @@ def _estimate_input_tokens(messages: list) -> int:
     return max(1, total_chars // 4 + overhead)
 
 
+def _make_billing_callback(
+    request_id: str,
+    model: str,
+    provider,
+    consumer_id: str,
+    input_token_estimate: int,
+    start_time: float,
+):
+    """Create a billing callback invoked when InferenceDone arrives from the provider.
+
+    This decouples billing from the streaming generator lifecycle. The WebSocket
+    handler calls this as soon as InferenceDone arrives, regardless of whether
+    the consumer HTTP response is still open.
+    """
+
+    def callback(done_msg: InferenceDone):
+        actual_input = done_msg.input_tokens if done_msg.input_tokens > 0 else input_token_estimate
+        actual_cached = done_msg.cached_tokens
+        output_tokens = done_msg.tokens_generated
+
+        billing = get_billing()
+        billing.charge_request(
+            request_id=request_id,
+            consumer_id=consumer_id,
+            provider_id=provider.provider_id,
+            model=model,
+            input_tokens=actual_input,
+            output_tokens=output_tokens,
+            price_per_mtok_input=provider.capabilities.price_per_mtok_input,
+            price_per_mtok_output=provider.capabilities.price_per_mtok_output,
+            cached_tokens=actual_cached,
+            price_per_mtok_cache=provider.capabilities.price_per_mtok_cache,
+        )
+
+        logger.info(
+            f"[{request_id[:8]}] Billed via callback: "
+            f"in={actual_input} cached={actual_cached} out={output_tokens}"
+        )
+
+        bus = get_event_bus()
+        if bus is not None:
+            bus.publish({
+                "type": "billing",
+                "request_id": request_id,
+                "consumer_id": consumer_id,
+                "provider_id": provider.provider_id,
+                "model": model,
+                "cost_usd": round(
+                    (output_tokens * provider.capabilities.price_per_mtok_output) / 1_000_000, 6
+                ),
+                "tokens": output_tokens,
+            })
+
+        elapsed = time.time() - start_time
+        if output_tokens > 0 and elapsed > 0:
+            tps_tracker = get_tps_tracker()
+            tps_tracker.record_request(
+                provider_id=provider.provider_id,
+                model=model,
+                tokens=output_tokens,
+                seconds=elapsed,
+                hardware=provider.capabilities.hardware,
+            )
+
+    return callback
+
+
 @router.post("/v1/chat/completions")
 async def chat_completions(request: ChatCompletionRequest, raw_request: Request):
     """OpenAI-compatible chat completions endpoint."""
@@ -279,9 +346,17 @@ async def chat_completions(request: ChatCompletionRequest, raw_request: Request)
                 "source": "queue",
             })
 
+        # Register billing callback so InferenceDone triggers billing
+        # even if the streaming generator is cancelled by FastAPI
+        start_time = time.time()
+        hub.register_billing_callback(
+            request_id,
+            _make_billing_callback(request_id, request.model, provider, consumer_id, input_token_estimate, start_time),
+        )
+
         if request.stream:
             return StreamingResponse(
-                _stream_response(request_id, request.model, queue, hub, provider, consumer_id, input_token_estimate),
+                _stream_response(request_id, request.model, queue, hub, provider, consumer_id, start_time),
                 media_type="text/event-stream",
                 headers={
                     "Cache-Control": "no-cache",
@@ -293,7 +368,7 @@ async def chat_completions(request: ChatCompletionRequest, raw_request: Request)
                 },
             )
         else:
-            return await _collect_response(request_id, request.model, queue, hub, provider, consumer_id, input_token_estimate)
+            return await _collect_response(request_id, request.model, queue, hub, provider, consumer_id, start_time)
 
     # Build scoring trace for this decision
     scoring_details = []
@@ -394,9 +469,17 @@ async def chat_completions(request: ChatCompletionRequest, raw_request: Request)
             "score": max((s["score"] for s in scoring_details if s["selected"]), default=0),
         })
 
+    # Register billing callback so InferenceDone triggers billing
+    # even if the streaming generator is cancelled by FastAPI
+    start_time = time.time()
+    hub.register_billing_callback(
+        request_id,
+        _make_billing_callback(request_id, request.model, provider, consumer_id, input_token_estimate, start_time),
+    )
+
     if request.stream:
         return StreamingResponse(
-            _stream_response(request_id, request.model, queue, hub, provider, consumer_id, input_token_estimate),
+            _stream_response(request_id, request.model, queue, hub, provider, consumer_id, start_time),
             media_type="text/event-stream",
             headers={
                 "Cache-Control": "no-cache",
@@ -408,24 +491,27 @@ async def chat_completions(request: ChatCompletionRequest, raw_request: Request)
         )
     else:
         # Non-streaming: collect all tokens and return as one response
-        return await _collect_response(request_id, request.model, queue, hub, provider, consumer_id, input_token_estimate)
+        return await _collect_response(request_id, request.model, queue, hub, provider, consumer_id, start_time)
 
 
 async def _stream_response(
     request_id: str, model: str, queue: asyncio.Queue, hub, provider, consumer_id: str,
-    input_token_estimate: int,
+    start_time: float,
 ):
-    """Generate SSE stream from provider response chunks."""
+    """Generate SSE stream from provider response chunks.
+
+    Billing is handled by the billing callback registered in the hub,
+    which fires when InferenceDone arrives via WebSocket — not here.
+    This avoids the race where FastAPI cancels this generator before
+    InferenceDone is read from the queue.
+    """
     token_count = 0
-    done_msg: InferenceDone | None = None
-    start_time = time.time()
-    outcome = "success"  # Track outcome for reputation
+    outcome = "success"
     try:
         while True:
             try:
                 msg = await asyncio.wait_for(queue.get(), timeout=120.0)
             except asyncio.TimeoutError:
-                # Send error and close
                 outcome = "timeout"
                 error_data = {
                     "error": {"message": "Provider timeout", "type": "timeout"}
@@ -448,18 +534,13 @@ async def _stream_response(
                         }
                     ],
                 }
-                # Pass through encrypted token if present (full E2E mode)
                 if msg.encrypted_token:
                     chunk["ocip_encrypted_token"] = msg.encrypted_token
                 yield f"data: {json.dumps(chunk)}\n\n"
 
-                # Don't break on finish_reason — wait for InferenceDone to get cache stats
+                # Don't break on finish_reason — wait for InferenceDone
 
             elif isinstance(msg, InferenceDone):
-                # Capture cache info from provider
-                done_msg = msg
-                logger.info(f"[{request_id[:8]}] InferenceDone: input={msg.input_tokens}, cached={msg.cached_tokens}, output={token_count}")
-                # Final chunk with finish_reason
                 chunk = {
                     "id": f"chatcmpl-{request_id[:8]}",
                     "object": "chat.completion.chunk",
@@ -478,52 +559,6 @@ async def _stream_response(
 
         yield "data: [DONE]\n\n"
 
-        # Use provider-reported input/cached tokens if available
-        actual_input = done_msg.input_tokens if done_msg and done_msg.input_tokens > 0 else input_token_estimate
-        actual_cached = done_msg.cached_tokens if done_msg else 0
-
-        # Bill the request
-        billing = get_billing()
-        billing.charge_request(
-            request_id=request_id,
-            consumer_id=consumer_id,
-            provider_id=provider.provider_id,
-            model=model,
-            input_tokens=actual_input,
-            output_tokens=token_count,
-            price_per_mtok_input=provider.capabilities.price_per_mtok_input,
-            price_per_mtok_output=provider.capabilities.price_per_mtok_output,
-            cached_tokens=actual_cached,
-            price_per_mtok_cache=provider.capabilities.price_per_mtok_cache,
-        )
-
-        # Publish billing event
-        bus = get_event_bus()
-        if bus is not None:
-            bus.publish({
-                "type": "billing",
-                "request_id": request_id,
-                "consumer_id": consumer_id,
-                "provider_id": provider.provider_id,
-                "model": model,
-                "cost_usd": round(
-                    (token_count * provider.capabilities.price_per_mtok_output) / 1_000_000, 6
-                ),
-                "tokens": token_count,
-            })
-
-        # Record TPS measurement
-        elapsed = time.time() - start_time
-        if token_count > 0 and elapsed > 0:
-            tps_tracker = get_tps_tracker()
-            tps_tracker.record_request(
-                provider_id=provider.provider_id,
-                model=model,
-                tokens=token_count,
-                seconds=elapsed,
-                hardware=provider.capabilities.hardware,
-            )
-
         # Record reputation outcome
         reputation = get_reputation_tracker()
         elapsed_ms = int((time.time() - start_time) * 1000)
@@ -541,12 +576,14 @@ async def _stream_response(
 
 async def _collect_response(
     request_id: str, model: str, queue: asyncio.Queue, hub, provider, consumer_id: str,
-    input_token_estimate: int,
+    start_time: float,
 ) -> dict:
-    """Collect all tokens into a single non-streaming response."""
+    """Collect all tokens into a single non-streaming response.
+
+    Billing is handled by the billing callback registered in the hub.
+    """
     tokens: list[str] = []
     done_msg_ns: InferenceDone | None = None
-    start_time = time.time()
     outcome = "success"
     try:
         while True:
@@ -554,70 +591,23 @@ async def _collect_response(
                 msg = await asyncio.wait_for(queue.get(), timeout=120.0)
             except asyncio.TimeoutError:
                 outcome = "timeout"
-                # Record reputation before raising
                 reputation = get_reputation_tracker()
                 reputation.record_timeout(provider.provider_id)
                 raise ProviderTimeout()
 
             if isinstance(msg, InferenceResponseChunk):
                 tokens.append(msg.token)
-                if msg.finish_reason:
-                    break
+                # Don't break on finish_reason — wait for InferenceDone
             elif isinstance(msg, InferenceDone):
                 done_msg_ns = msg
                 break
             elif isinstance(msg, InferenceError):
                 outcome = "error"
-                # Record reputation before raising
                 reputation = get_reputation_tracker()
                 reputation.record_error(provider.provider_id)
                 raise ProviderError(msg.error)
     finally:
         hub.remove_response_queue(request_id)
-
-    # Bill the request
-    actual_input_ns = done_msg_ns.input_tokens if done_msg_ns and done_msg_ns.input_tokens > 0 else input_token_estimate
-    actual_cached_ns = done_msg_ns.cached_tokens if done_msg_ns else 0
-    billing = get_billing()
-    billing.charge_request(
-        request_id=request_id,
-        consumer_id=consumer_id,
-        provider_id=provider.provider_id,
-        model=model,
-        input_tokens=actual_input_ns,
-        output_tokens=len(tokens),
-        price_per_mtok_input=provider.capabilities.price_per_mtok_input,
-        price_per_mtok_output=provider.capabilities.price_per_mtok_output,
-        cached_tokens=actual_cached_ns,
-        price_per_mtok_cache=provider.capabilities.price_per_mtok_cache,
-    )
-
-    # Publish billing event
-    bus = get_event_bus()
-    if bus is not None:
-        bus.publish({
-            "type": "billing",
-            "request_id": request_id,
-            "consumer_id": consumer_id,
-            "provider_id": provider.provider_id,
-            "model": model,
-            "cost_usd": round(
-                (len(tokens) * provider.capabilities.price_per_mtok_output) / 1_000_000, 6
-            ),
-            "tokens": len(tokens),
-        })
-
-    # Record TPS
-    elapsed = time.time() - start_time
-    if len(tokens) > 0 and elapsed > 0:
-        tps_tracker = get_tps_tracker()
-        tps_tracker.record_request(
-            provider_id=provider.provider_id,
-            model=model,
-            tokens=len(tokens),
-            seconds=elapsed,
-            hardware=provider.capabilities.hardware,
-        )
 
     # Record reputation — success
     reputation = get_reputation_tracker()
@@ -638,8 +628,8 @@ async def _collect_response(
             }
         ],
         "usage": {
-            "prompt_tokens": input_token_estimate,
+            "prompt_tokens": done_msg_ns.input_tokens if done_msg_ns and done_msg_ns.input_tokens > 0 else len(content) // 4,
             "completion_tokens": len(tokens),
-            "total_tokens": input_token_estimate + len(tokens),
+            "total_tokens": (done_msg_ns.input_tokens if done_msg_ns and done_msg_ns.input_tokens > 0 else len(content) // 4) + len(tokens),
         },
     }

@@ -104,6 +104,7 @@ class TestConvenienceMethods:
             model="llama-8b",
             input_tokens=100,
             output_tokens=50,
+            cached_tokens=25,
             cost_micro=150,
             provider_earning_micro=135,
             platform_fee_micro=15,
