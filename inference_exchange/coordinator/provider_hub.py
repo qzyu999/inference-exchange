@@ -117,6 +117,8 @@ class ProviderHub:
         self._SESSION_AFFINITY_MAX = 1000
         self._request_to_provider: dict[str, str] = {}
         self._pending_queue: asyncio.Queue[PendingRequest] = asyncio.Queue(maxsize=self.QUEUE_MAX_DEPTH)
+        # Billing callbacks keyed by request_id, invoked when InferenceDone arrives
+        self._billing_callbacks: dict[str, callable] = {}
 
     @property
     def provider_count(self) -> int:
@@ -222,6 +224,11 @@ class ProviderHub:
     def remove_response_queue(self, request_id: str):
         self._response_queues.pop(request_id, None)
         self._request_to_provider.pop(request_id, None)
+        self._billing_callbacks.pop(request_id, None)
+
+    def register_billing_callback(self, request_id: str, callback: callable):
+        """Register a callback invoked when InferenceDone arrives for this request."""
+        self._billing_callbacks[request_id] = callback
 
     async def send_to_provider(self, provider: ConnectedProvider, request: InferenceRequest):
         if not provider.admitted and provider.requires_app_attest:
@@ -276,12 +283,22 @@ class ProviderHub:
         if msg_type == MessageType.INFERENCE_RESPONSE:
             queue.put_nowait(InferenceResponseChunk(**data))
         elif msg_type == MessageType.INFERENCE_DONE:
-            queue.put_nowait(InferenceDone(**data))
+            done_msg = InferenceDone(**data)
+            queue.put_nowait(done_msg)
+            # Trigger billing immediately — the streaming generator may be
+            # cancelled by FastAPI before it reads InferenceDone from the queue.
+            callback = self._billing_callbacks.pop(request_id, None)
+            if callback:
+                try:
+                    callback(done_msg)
+                except Exception as e:
+                    logger.error(f"Billing callback error for {request_id[:8]}: {e}")
             if provider_id in self._providers:
                 self._providers[provider_id].active_requests = max(0, self._providers[provider_id].active_requests - 1)
             asyncio.ensure_future(self._try_dispatch_queued(freed_provider_id=provider_id))
         elif msg_type == MessageType.INFERENCE_ERROR:
             queue.put_nowait(InferenceError(**data))
+            self._billing_callbacks.pop(request_id, None)
             if provider_id in self._providers:
                 self._providers[provider_id].active_requests = max(0, self._providers[provider_id].active_requests - 1)
             asyncio.ensure_future(self._try_dispatch_queued(freed_provider_id=provider_id))
