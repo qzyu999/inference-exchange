@@ -35,6 +35,7 @@ class PriceEntry:
     family_key: str
     input_per_mtok: float
     output_per_mtok: float
+    cache_per_mtok: float = 0  # 0 = provider doesn't offer cache pricing
     context_length: int = 0
     quantization: str = ""
     fetched_at: float = field(default_factory=time.time)
@@ -152,32 +153,32 @@ class DirectAPIFetcher(PriceFetcher):
 
     PRICES = [
         # ─── Closed-source APIs (alternative comparisons) ─────
-        # OpenAI
+        # OpenAI — cache = 50% of input
         {"source": "openai", "model_id": "gpt-4o-mini", "display_name": "GPT-4o Mini",
-         "input": 0.15, "output": 0.60, "context": 128000, "comparison_type": "alternative"},
+         "input": 0.15, "cache": 0.075, "output": 0.60, "context": 128000, "comparison_type": "alternative"},
         {"source": "openai", "model_id": "gpt-4o", "display_name": "GPT-4o",
-         "input": 2.50, "output": 10.00, "context": 128000, "comparison_type": "alternative"},
+         "input": 2.50, "cache": 1.25, "output": 10.00, "context": 128000, "comparison_type": "alternative"},
         {"source": "openai", "model_id": "gpt-4.1-mini", "display_name": "GPT-4.1 Mini",
-         "input": 0.40, "output": 1.60, "context": 1047576, "comparison_type": "alternative"},
+         "input": 0.40, "cache": 0.10, "output": 1.60, "context": 1047576, "comparison_type": "alternative"},
         {"source": "openai", "model_id": "gpt-4.1", "display_name": "GPT-4.1",
-         "input": 2.00, "output": 8.00, "context": 1047576, "comparison_type": "alternative"},
+         "input": 2.00, "cache": 0.50, "output": 8.00, "context": 1047576, "comparison_type": "alternative"},
 
-        # Anthropic
+        # Anthropic — cache read = 10% of input
         {"source": "anthropic", "model_id": "claude-3.5-haiku", "display_name": "Claude 3.5 Haiku",
-         "input": 0.80, "output": 4.00, "context": 200000, "comparison_type": "alternative"},
+         "input": 0.80, "cache": 0.08, "output": 4.00, "context": 200000, "comparison_type": "alternative"},
         {"source": "anthropic", "model_id": "claude-sonnet-4", "display_name": "Claude Sonnet 4",
-         "input": 3.00, "output": 15.00, "context": 200000, "comparison_type": "alternative"},
+         "input": 3.00, "cache": 0.30, "output": 15.00, "context": 200000, "comparison_type": "alternative"},
         {"source": "anthropic", "model_id": "claude-opus-4", "display_name": "Claude Opus 4",
-         "input": 15.00, "output": 75.00, "context": 200000, "comparison_type": "alternative"},
+         "input": 15.00, "cache": 1.50, "output": 75.00, "context": 200000, "comparison_type": "alternative"},
 
-        # Google
+        # Google — cache = 25% of input (for prompts > 32k tokens)
         {"source": "google", "model_id": "gemini-2.0-flash", "display_name": "Gemini 2.0 Flash",
-         "input": 0.10, "output": 0.40, "context": 1048576, "comparison_type": "alternative"},
+         "input": 0.10, "cache": 0.025, "output": 0.40, "context": 1048576, "comparison_type": "alternative"},
         {"source": "google", "model_id": "gemini-2.5-pro", "display_name": "Gemini 2.5 Pro",
-         "input": 1.25, "output": 10.00, "context": 1048576, "comparison_type": "alternative"},
+         "input": 1.25, "cache": 0.3125, "output": 10.00, "context": 1048576, "comparison_type": "alternative"},
 
         # ─── Open-weight hosting providers (same-model comparisons) ─
-        # Deepinfra
+        # Deepinfra — no published cache pricing
         {"source": "deepinfra", "model_id": "meta-llama/Llama-3.1-8B-Instruct", "display_name": "Llama 3.1 8B",
          "input": 0.06, "output": 0.06, "context": 131072, "comparison_type": "same_model"},
         {"source": "deepinfra", "model_id": "meta-llama/Llama-3.1-70B-Instruct", "display_name": "Llama 3.1 70B",
@@ -185,7 +186,7 @@ class DirectAPIFetcher(PriceFetcher):
         {"source": "deepinfra", "model_id": "Qwen/Qwen2.5-7B-Instruct", "display_name": "Qwen 2.5 7B",
          "input": 0.06, "output": 0.06, "context": 32768, "comparison_type": "same_model"},
 
-        # Groq
+        # Groq — no published cache pricing
         {"source": "groq", "model_id": "llama-3.1-8b-instant", "display_name": "Llama 3.1 8B",
          "input": 0.05, "output": 0.08, "context": 131072, "comparison_type": "same_model"},
         {"source": "groq", "model_id": "llama-3.1-70b-versatile", "display_name": "Llama 3.1 70B",
@@ -193,7 +194,7 @@ class DirectAPIFetcher(PriceFetcher):
         {"source": "groq", "model_id": "gemma2-9b-it", "display_name": "Gemma 2 9B",
          "input": 0.20, "output": 0.20, "context": 8192, "comparison_type": "same_model"},
 
-        # Fireworks
+        # Fireworks — no published cache pricing
         {"source": "fireworks", "model_id": "accounts/fireworks/models/llama-v3p1-8b-instruct", "display_name": "Llama 3.1 8B",
          "input": 0.10, "output": 0.10, "context": 131072, "comparison_type": "same_model"},
         {"source": "fireworks", "model_id": "accounts/fireworks/models/llama-v3p1-70b-instruct", "display_name": "Llama 3.1 70B",
@@ -214,6 +215,7 @@ class DirectAPIFetcher(PriceFetcher):
                 family_key=info["canonical_id"],
                 input_per_mtok=p["input"],
                 output_per_mtok=p["output"],
+                cache_per_mtok=p.get("cache", 0),
                 context_length=p.get("context", 0),
             ))
         logger.info(f"Direct API prices: loaded {len(entries)} entries (as of {self.LAST_UPDATED})")
@@ -293,11 +295,11 @@ class PriceCollector:
                 conn.execute(
                     """INSERT INTO reference_prices
                        (source, model_id, display_name, family, family_key,
-                        input_per_mtok, output_per_mtok, context_length, fetched_at)
-                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                        input_per_mtok, output_per_mtok, cache_per_mtok, context_length, fetched_at)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                     (entry.source, entry.model_id, entry.display_name, entry.family,
                      entry.family_key, entry.input_per_mtok, entry.output_per_mtok,
-                     entry.context_length, entry.fetched_at),
+                     entry.cache_per_mtok, entry.context_length, entry.fetched_at),
                 )
             conn.commit()
             logger.info(f"Persisted {len(self._cache)} reference prices to SQLite")
