@@ -285,6 +285,8 @@ class ProviderHub:
         # the queue before InferenceDone arrives from the provider).
         if msg_type == MessageType.INFERENCE_DONE:
             done_msg = InferenceDone(**data)
+            import sys
+            print(f">>> HUB InferenceDone: request={request_id[:8]} cached={done_msg.cached_tokens} input={done_msg.input_tokens} raw_data_cached={data.get('cached_tokens', 'MISSING')}", file=sys.stderr, flush=True)
             # Deliver to queue if it still exists (streaming generator reads it)
             queue = self._response_queues.get(request_id)
             if queue is not None:
