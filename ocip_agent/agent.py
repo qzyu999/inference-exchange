@@ -217,6 +217,7 @@ class OCIPAgent:
         inference_port: int = 9999,
         provider_name: str = "ocip-provider",
         price_output: float = 0.15,
+        price_input: float = 0.05,
         price_cache: float = 0,
         trust_level: str = "hardened",
         n_gpu_layers: int = -1,
@@ -226,6 +227,7 @@ class OCIPAgent:
         self.coordinator_url = coordinator_url
         self.provider_name = provider_name
         self.price_output = price_output
+        self.price_input = price_input
         self.price_cache = price_cache
         self.trust_level = trust_level
         self.provider_token = provider_token
@@ -352,7 +354,7 @@ class OCIPAgent:
                     trust_level=TrustLevel(self.trust_level),
                     hardware=self._detect_hardware(),
                     measured_tps=0,
-                    price_per_mtok_input=0.05,
+                    price_per_mtok_input=self.price_input,
                     price_per_mtok_output=self.price_output,
                     price_per_mtok_cache=self.price_cache,
                 ),
@@ -613,6 +615,7 @@ def main():
     parser.add_argument("--port", type=int, default=9999, help="Inference server port")
     parser.add_argument("--name", default="ocip-node")
     parser.add_argument("--price-output", type=float, default=0.15)
+    parser.add_argument("--price-input", type=float, default=0.05, help="$/Mtok for input tokens")
     parser.add_argument("--price-cache", type=float, default=0, help="$/Mtok for cached input tokens (0 = same as input)")
     parser.add_argument("--trust", default="hardened")
     parser.add_argument("--n-gpu-layers", type=int, default=-1)
@@ -636,6 +639,7 @@ def main():
         inference_port=args.port,
         provider_name=args.name,
         price_output=args.price_output,
+        price_input=args.price_input,
         price_cache=args.price_cache,
         trust_level=args.trust,
         n_gpu_layers=args.n_gpu_layers,
