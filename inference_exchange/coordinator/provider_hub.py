@@ -277,16 +277,19 @@ class ProviderHub:
     def handle_provider_message(self, provider_id: str, data: dict):
         msg_type = data.get("type")
         request_id = data.get("request_id")
-        if not request_id or request_id not in self._response_queues:
+        if not request_id:
             return
-        queue = self._response_queues[request_id]
-        if msg_type == MessageType.INFERENCE_RESPONSE:
-            queue.put_nowait(InferenceResponseChunk(**data))
-        elif msg_type == MessageType.INFERENCE_DONE:
+
+        # InferenceDone billing must fire even after the response queue is
+        # cleaned up (the streaming generator may have finished and removed
+        # the queue before InferenceDone arrives from the provider).
+        if msg_type == MessageType.INFERENCE_DONE:
             done_msg = InferenceDone(**data)
-            queue.put_nowait(done_msg)
-            # Trigger billing immediately — the streaming generator may be
-            # cancelled by FastAPI before it reads InferenceDone from the queue.
+            # Deliver to queue if it still exists (streaming generator reads it)
+            queue = self._response_queues.get(request_id)
+            if queue is not None:
+                queue.put_nowait(done_msg)
+            # Fire billing callback regardless of queue state
             callback = self._billing_callbacks.pop(request_id, None)
             if callback:
                 try:
@@ -303,6 +306,14 @@ class ProviderHub:
             if provider_id in self._providers:
                 self._providers[provider_id].active_requests = max(0, self._providers[provider_id].active_requests - 1)
             asyncio.ensure_future(self._try_dispatch_queued(freed_provider_id=provider_id))
+            return
+
+        # All other message types require an active response queue
+        if request_id not in self._response_queues:
+            return
+        queue = self._response_queues[request_id]
+        if msg_type == MessageType.INFERENCE_RESPONSE:
+            queue.put_nowait(InferenceResponseChunk(**data))
         elif msg_type == MessageType.INFERENCE_ERROR:
             queue.put_nowait(InferenceError(**data))
             self._billing_callbacks.pop(request_id, None)
