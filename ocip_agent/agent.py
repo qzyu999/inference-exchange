@@ -82,24 +82,42 @@ class InferenceServerManager:
         return stem
 
     async def start(self):
-        """Start the inference server process."""
+        """Start the inference server process.
+
+        Prefers the real C++ llama-server (supports cache hit reporting) over
+        the Python ocip_server fallback.
+        """
+        import shutil
+
         if self._process and self._process.poll() is None:
             logger.info("Inference server already running")
             return
 
-        cmd = [
-            sys.executable, "-m", "ocip_server.server",
-            "--model", self.model_path,
-            "--port", str(self.port),
-            "--n-gpu-layers", str(self.n_gpu_layers),
-        ]
+        # Prefer real llama-server for cache hit reporting + performance
+        llama_server = shutil.which("llama-server")
+        if llama_server:
+            cmd = [
+                llama_server,
+                "-m", self.model_path,
+                "--port", str(self.port),
+                "-ngl", str(self.n_gpu_layers),
+                "--host", "127.0.0.1",
+            ]
+            logger.info(f"Using native llama-server: {llama_server}")
+        else:
+            cmd = [
+                sys.executable, "-m", "ocip_server.server",
+                "--model", self.model_path,
+                "--port", str(self.port),
+                "--n-gpu-layers", str(self.n_gpu_layers),
+            ]
+            logger.info("Native llama-server not found — using Python fallback (no cache hit reporting)")
 
         logger.info(f"Starting inference server: port={self.port}")
         self._process = subprocess.Popen(
             cmd,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
-            # Don't inherit the agent's stdin — server runs headless
         )
         logger.info(f"Inference server PID: {self._process.pid}")
 
