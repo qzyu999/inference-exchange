@@ -426,6 +426,7 @@ class OCIPAgent:
                         "max_tokens": req.max_tokens,
                         "temperature": req.temperature,
                         "stream": True,
+                        "stream_options": {"include_usage": True},
                     },
                     timeout=120,
                 ) as response:
