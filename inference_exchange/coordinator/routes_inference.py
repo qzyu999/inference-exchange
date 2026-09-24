@@ -459,6 +459,7 @@ async def _stream_response(
             elif isinstance(msg, InferenceDone):
                 # Capture cache info from provider
                 done_msg = msg
+                logger.info(f"[{request_id[:8]}] InferenceDone: input={msg.input_tokens}, cached={msg.cached_tokens}, output={token_count}")
                 # Final chunk with finish_reason
                 chunk = {
                     "id": f"chatcmpl-{request_id[:8]}",
