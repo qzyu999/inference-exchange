@@ -20,6 +20,7 @@ dependencies = [
     "sse-starlette>=2.0.0,<3",
     "cbor2>=5.6,<6",
     "cryptography>=43,<47",
+    "certifi>=2024.2.2",
 ]
 
 [project.scripts]
