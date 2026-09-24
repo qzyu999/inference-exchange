@@ -12,6 +12,7 @@ Each fetch cycle updates an in-memory cache and snapshots to SQLite.
 
 import asyncio
 import logging
+import ssl
 import time
 from dataclasses import dataclass, field
 
@@ -23,6 +24,19 @@ logger = logging.getLogger(__name__)
 
 FETCH_INTERVAL = 1800  # 30 minutes
 PRUNE_DAYS = 90
+
+
+def _ssl_context() -> ssl.SSLContext:
+    """Build an SSL context using certifi's CA bundle if available.
+
+    Fixes CERTIFICATE_VERIFY_FAILED on macOS where the system Python
+    doesn't ship with root CA certs.
+    """
+    try:
+        import certifi
+        return ssl.create_default_context(cafile=certifi.where())
+    except ImportError:
+        return ssl.create_default_context()
 
 
 @dataclass
@@ -60,7 +74,7 @@ class OpenRouterFetcher(PriceFetcher):
     async def fetch(self) -> list[PriceEntry]:
         entries = []
         try:
-            async with httpx.AsyncClient(timeout=15) as client:
+            async with httpx.AsyncClient(timeout=15, verify=_ssl_context()) as client:
                 resp = await client.get("https://openrouter.ai/api/v1/models")
                 if resp.status_code != 200:
                     logger.warning(f"OpenRouter returned {resp.status_code}")
@@ -101,7 +115,7 @@ class TogetherFetcher(PriceFetcher):
     async def fetch(self) -> list[PriceEntry]:
         entries = []
         try:
-            async with httpx.AsyncClient(timeout=15) as client:
+            async with httpx.AsyncClient(timeout=15, verify=_ssl_context()) as client:
                 resp = await client.get("https://api.together.xyz/v1/models")
                 if resp.status_code != 200:
                     logger.warning(f"Together returned {resp.status_code}")
