@@ -49,6 +49,7 @@ class ProviderAgent:
         engine: InferenceEngine,
         price_per_mtok_input: float = 0.05,
         price_per_mtok_output: float = 0.20,
+        price_per_mtok_cache: float = 0,
         trust_level: str = "open",
         measured_tps: float = 0,
         hardware_override: str | None = None,
@@ -59,6 +60,7 @@ class ProviderAgent:
         self.engine = engine
         self.price_per_mtok_input = price_per_mtok_input
         self.price_per_mtok_output = price_per_mtok_output
+        self.price_per_mtok_cache = price_per_mtok_cache
         self.trust_level = trust_level
         self.measured_tps = measured_tps
         self.hardware_override = hardware_override
@@ -105,6 +107,7 @@ class ProviderAgent:
                     measured_tps=self.measured_tps,
                     price_per_mtok_input=self.price_per_mtok_input,
                     price_per_mtok_output=self.price_per_mtok_output,
+                    price_per_mtok_cache=self.price_per_mtok_cache,
                 ),
                 encryption_public_key=self._keypair.public_key_b64,
             )

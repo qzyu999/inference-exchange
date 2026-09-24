@@ -24,6 +24,7 @@ def main():
     parser.add_argument("--name", default="local-provider", help="Provider display name")
     parser.add_argument("--price-input", type=float, default=0.05, help="$/Mtok input")
     parser.add_argument("--price-output", type=float, default=0.20, help="$/Mtok output")
+    parser.add_argument("--price-cache", type=float, default=0, help="$/Mtok cached input (0 = same as input)")
     parser.add_argument("--model", default=None, help="Path to GGUF model file")
     parser.add_argument("--coordinator", default="ws://localhost:8000/ws/provider")
     parser.add_argument("--n-ctx", type=int, default=4096, help="Context window size")
@@ -72,6 +73,7 @@ def main():
         config, engine,
         price_per_mtok_input=args.price_input,
         price_per_mtok_output=args.price_output,
+        price_per_mtok_cache=args.price_cache,
         trust_level=args.trust,
         measured_tps=args.tps,
         hardware_override=args.hardware,

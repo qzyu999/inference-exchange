@@ -417,6 +417,7 @@ async def _stream_response(
 ):
     """Generate SSE stream from provider response chunks."""
     token_count = 0
+    done_msg: InferenceDone | None = None
     start_time = time.time()
     outcome = "success"  # Track outcome for reputation
     try:
@@ -456,6 +457,8 @@ async def _stream_response(
                     break
 
             elif isinstance(msg, InferenceDone):
+                # Capture cache info from provider
+                done_msg = msg
                 # Final chunk with finish_reason
                 chunk = {
                     "id": f"chatcmpl-{request_id[:8]}",
@@ -475,6 +478,10 @@ async def _stream_response(
 
         yield "data: [DONE]\n\n"
 
+        # Use provider-reported input/cached tokens if available
+        actual_input = done_msg.input_tokens if done_msg and done_msg.input_tokens > 0 else input_token_estimate
+        actual_cached = done_msg.cached_tokens if done_msg else 0
+
         # Bill the request
         billing = get_billing()
         billing.charge_request(
@@ -482,10 +489,12 @@ async def _stream_response(
             consumer_id=consumer_id,
             provider_id=provider.provider_id,
             model=model,
-            input_tokens=input_token_estimate,
+            input_tokens=actual_input,
             output_tokens=token_count,
             price_per_mtok_input=provider.capabilities.price_per_mtok_input,
             price_per_mtok_output=provider.capabilities.price_per_mtok_output,
+            cached_tokens=actual_cached,
+            price_per_mtok_cache=provider.capabilities.price_per_mtok_cache,
         )
 
         # Publish billing event
@@ -536,6 +545,7 @@ async def _collect_response(
 ) -> dict:
     """Collect all tokens into a single non-streaming response."""
     tokens: list[str] = []
+    done_msg_ns: InferenceDone | None = None
     start_time = time.time()
     outcome = "success"
     try:
@@ -554,6 +564,7 @@ async def _collect_response(
                 if msg.finish_reason:
                     break
             elif isinstance(msg, InferenceDone):
+                done_msg_ns = msg
                 break
             elif isinstance(msg, InferenceError):
                 outcome = "error"
@@ -565,16 +576,20 @@ async def _collect_response(
         hub.remove_response_queue(request_id)
 
     # Bill the request
+    actual_input_ns = done_msg_ns.input_tokens if done_msg_ns and done_msg_ns.input_tokens > 0 else input_token_estimate
+    actual_cached_ns = done_msg_ns.cached_tokens if done_msg_ns else 0
     billing = get_billing()
     billing.charge_request(
         request_id=request_id,
         consumer_id=consumer_id,
         provider_id=provider.provider_id,
         model=model,
-        input_tokens=input_token_estimate,
+        input_tokens=actual_input_ns,
         output_tokens=len(tokens),
         price_per_mtok_input=provider.capabilities.price_per_mtok_input,
         price_per_mtok_output=provider.capabilities.price_per_mtok_output,
+        cached_tokens=actual_cached_ns,
+        price_per_mtok_cache=provider.capabilities.price_per_mtok_cache,
     )
 
     # Publish billing event

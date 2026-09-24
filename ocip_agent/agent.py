@@ -217,6 +217,7 @@ class OCIPAgent:
         inference_port: int = 9999,
         provider_name: str = "ocip-provider",
         price_output: float = 0.15,
+        price_cache: float = 0,
         trust_level: str = "hardened",
         n_gpu_layers: int = -1,
         provider_token: str = "",
@@ -225,6 +226,7 @@ class OCIPAgent:
         self.coordinator_url = coordinator_url
         self.provider_name = provider_name
         self.price_output = price_output
+        self.price_cache = price_cache
         self.trust_level = trust_level
         self.provider_token = provider_token
         self.max_concurrent = max_concurrent
@@ -352,6 +354,7 @@ class OCIPAgent:
                     measured_tps=0,
                     price_per_mtok_input=0.05,
                     price_per_mtok_output=self.price_output,
+                    price_per_mtok_cache=self.price_cache,
                 ),
                 encryption_public_key=self._keypair.public_key_b64,
                 model_identity=self._model_identity,
@@ -412,6 +415,8 @@ class OCIPAgent:
                 raise ValueError("No messages in request")
 
             # Step 2: Stream from inference server (true per-chunk streaming)
+            input_tokens = 0
+            cached_tokens = 0
             async with httpx.AsyncClient() as client:
                 async with client.stream(
                     "POST",
@@ -434,6 +439,14 @@ class OCIPAgent:
 
                         try:
                             chunk_data = json.loads(data_str)
+
+                            # Extract usage from final chunk (llama.cpp includes it)
+                            usage = chunk_data.get("usage")
+                            if usage:
+                                input_tokens = usage.get("prompt_tokens", 0)
+                                details = usage.get("prompt_tokens_details") or {}
+                                cached_tokens = details.get("cached_tokens", 0)
+
                             content = (
                                 chunk_data.get("choices", [{}])[0]
                                 .get("delta", {})
@@ -463,12 +476,15 @@ class OCIPAgent:
             done = InferenceDone(
                 request_id=request_id,
                 tokens_generated=tokens,
+                input_tokens=input_tokens,
+                cached_tokens=cached_tokens,
                 time_seconds=elapsed,
             )
             await ws.send(done.model_dump_json())
 
             tps = tokens / elapsed if elapsed > 0 else 0
-            logger.info(f"[{request_id[:8]}] ✓ {tokens} tok / {elapsed:.1f}s ({tps:.1f} tok/s)")
+            cache_info = f", {cached_tokens} cached" if cached_tokens > 0 else ""
+            logger.info(f"[{request_id[:8]}] ✓ {tokens} tok / {elapsed:.1f}s ({tps:.1f} tok/s){cache_info}")
 
         except asyncio.CancelledError:
             logger.info(f"[{request_id[:8]}] Cancelled by coordinator")
@@ -596,6 +612,7 @@ def main():
     parser.add_argument("--port", type=int, default=9999, help="Inference server port")
     parser.add_argument("--name", default="ocip-node")
     parser.add_argument("--price-output", type=float, default=0.15)
+    parser.add_argument("--price-cache", type=float, default=0, help="$/Mtok for cached input tokens (0 = same as input)")
     parser.add_argument("--trust", default="hardened")
     parser.add_argument("--n-gpu-layers", type=int, default=-1)
     parser.add_argument("--token", default="", help="Provider auth token (pt-ie-...)")
@@ -618,6 +635,7 @@ def main():
         inference_port=args.port,
         provider_name=args.name,
         price_output=args.price_output,
+        price_cache=args.price_cache,
         trust_level=args.trust,
         n_gpu_layers=args.n_gpu_layers,
         provider_token=args.token,
