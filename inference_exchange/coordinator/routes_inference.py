@@ -453,8 +453,7 @@ async def _stream_response(
                     chunk["ocip_encrypted_token"] = msg.encrypted_token
                 yield f"data: {json.dumps(chunk)}\n\n"
 
-                if msg.finish_reason:
-                    break
+                # Don't break on finish_reason — wait for InferenceDone to get cache stats
 
             elif isinstance(msg, InferenceDone):
                 # Capture cache info from provider
