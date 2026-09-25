@@ -166,9 +166,13 @@ function ProviderCard({ provider, reputation, tps }: { provider: Provider; reput
         <div className="grid grid-cols-4 gap-4 mt-4">
           {/* Price */}
           <div>
-            <div className="text-[10px] uppercase tracking-wider" style={{ color: '#aaa' }}>Output</div>
-            <div className="text-lg font-bold mt-0.5" style={{ color: C.blueBlack }}>${provider.price_output.toFixed(2)}</div>
-            <div className="text-[10px]" style={{ color: '#bbb' }}>$/Mtok</div>
+            <div className="text-[10px] uppercase tracking-wider" style={{ color: '#aaa' }}>Pricing</div>
+            <div className="flex items-center gap-2 mt-1 text-[11px]">
+              <span><span style={{ color: C.deepBlue }}>in</span> <span className="font-semibold" style={{ color: C.blueBlack }}>${provider.price_input.toFixed(2)}</span></span>
+              <span><span style={{ color: C.turquoise }}>cache</span> <span className="font-semibold" style={{ color: C.blueBlack }}>{(provider.price_cache || 0) > 0 ? `$${(provider.price_cache || 0).toFixed(2)}` : '—'}</span></span>
+              <span><span style={{ color: C.gold }}>out</span> <span className="font-semibold" style={{ color: C.blueBlack }}>${provider.price_output.toFixed(2)}</span></span>
+            </div>
+            <div className="text-[9px] mt-0.5" style={{ color: '#bbb' }}>$/Mtok</div>
           </div>
 
           {/* Speed */}
