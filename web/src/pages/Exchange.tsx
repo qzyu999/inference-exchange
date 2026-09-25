@@ -54,6 +54,24 @@ type SortDir = 'asc' | 'desc'
 
 // ─── Helpers ─────────────────────────────────────────────────
 
+// Proper display names for provider sources
+const PROVIDER_NAMES: Record<string, string> = {
+  openai: 'OpenAI',
+  anthropic: 'Anthropic',
+  google: 'Google',
+  deepseek: 'DeepSeek',
+  alibaba: 'Alibaba Cloud',
+  deepinfra: 'DeepInfra',
+  groq: 'Groq',
+  fireworks: 'Fireworks AI',
+  together: 'Together AI',
+  openrouter: 'OpenRouter',
+}
+
+function providerName(source: string): string {
+  return PROVIDER_NAMES[source] || source.charAt(0).toUpperCase() + source.slice(1)
+}
+
 function formatVolume(usd: number): string {
   if (usd >= 1) return `$${usd.toFixed(2)}`
   if (usd >= 0.01) return `$${usd.toFixed(4)}`
@@ -204,14 +222,14 @@ function ModelMarketCard({ m }: { m: MarketModel }) {
         const offerings: Offering[] = []
         if (cheapest) {
           offerings.push({
-            provider: 'Exchange', model: m.model,
+            provider: 'Inference Exchange', model: m.model,
             input: cheapest.price_input, cache: cheapest.price_cache, output: cheapest.price_output,
             isExchange: true, isOpen: true,
           })
         }
         for (const ref of m.reference_prices) {
           offerings.push({
-            provider: ref.provider, model: ref.model,
+            provider: providerName(ref.provider), model: ref.model,
             input: ref.price_input, cache: ref.price_cache, output: ref.price_output,
             isExchange: false, isOpen: ref.comparison_type === 'same_model',
           })
@@ -443,7 +461,7 @@ function EmptyExchange() {
   return (
     <div className="max-w-2xl mx-auto text-center py-16">
       <img src="/logo.svg" alt="IE" className="w-20 h-20 mx-auto mb-6 opacity-30" />
-      <h2 className="text-2xl font-bold mb-3" style={{ color: C.blueBlack }}>The exchange is quiet</h2>
+      <h2 className="text-2xl font-bold mb-3" style={{ color: C.blueBlack }}>The Inference Exchange is quiet</h2>
       <p className="mb-8 max-w-md mx-auto leading-relaxed" style={{ color: '#888' }}>
         No providers are connected yet. When providers come online, you'll see live pricing,
         capacity depth, and trade activity here.
@@ -485,7 +503,7 @@ export function Exchange() {
       <div>
         <div className="flex items-center justify-between mb-8">
           <div>
-            <h1 className="text-2xl font-bold tracking-tight" style={{ color: C.blueBlack }}>Exchange</h1>
+            <h1 className="text-2xl font-bold tracking-tight" style={{ color: C.blueBlack }}>Inference Exchange</h1>
             <p className="text-sm mt-0.5" style={{ color: '#888' }}>Live inference marketplace</p>
           </div>
           <div className="flex items-center gap-2"><LiveDot /><span className="text-xs" style={{ color: '#aaa' }}>Real-time</span></div>
@@ -500,7 +518,7 @@ export function Exchange() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight" style={{ color: C.blueBlack }}>Exchange</h1>
+          <h1 className="text-2xl font-bold tracking-tight" style={{ color: C.blueBlack }}>Inference Exchange</h1>
           <p className="text-sm mt-0.5" style={{ color: '#888' }}>Live inference marketplace</p>
         </div>
         <div className="flex items-center gap-2"><LiveDot /><span className="text-xs" style={{ color: '#aaa' }}>Real-time</span></div>
