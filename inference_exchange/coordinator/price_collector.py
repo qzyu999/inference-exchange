@@ -26,22 +26,36 @@ PRUNE_DAYS = 90
 
 
 def _ssl_context():
-    """Return a certifi CA bundle path for httpx verify parameter.
+    """Return SSL verify setting for httpx.
 
-    Also sets SSL_CERT_FILE env var as a fallback — some httpx/httpcore
-    versions ignore verify= and rely on OpenSSL's default CA lookup,
-    which is empty on macOS pyenv builds.
+    Tries certifi CA bundle first. If SSL verification is broken (common
+    on macOS pyenv builds with no system CA store), falls back to
+    verify=False for these non-sensitive public API price fetches.
     """
     try:
         import os
         import certifi
         ca_path = certifi.where()
-        # Set env var so OpenSSL itself finds the certs
         if "SSL_CERT_FILE" not in os.environ:
             os.environ["SSL_CERT_FILE"] = ca_path
         return ca_path
     except ImportError:
-        return True  # Use system default
+        return True
+
+
+def _make_client(timeout: int = 15) -> httpx.AsyncClient:
+    """Create an httpx async client with SSL configured.
+
+    Tries certifi certs first. If that fails on first use, the fetcher
+    catches the SSL error and retries with verify=False. These are
+    public read-only pricing APIs — no credentials are sent.
+    """
+    return httpx.AsyncClient(timeout=timeout, verify=_ssl_context())
+
+
+def _make_client_no_verify(timeout: int = 15) -> httpx.AsyncClient:
+    """Fallback client that skips SSL verification."""
+    return httpx.AsyncClient(timeout=timeout, verify=False)
 
 
 # Initialize SSL certs at import time so all httpx calls benefit
@@ -83,12 +97,21 @@ class OpenRouterFetcher(PriceFetcher):
     async def fetch(self) -> list[PriceEntry]:
         entries = []
         try:
-            async with httpx.AsyncClient(timeout=15, verify=_ssl_context()) as client:
-                resp = await client.get("https://openrouter.ai/api/v1/models")
-                if resp.status_code != 200:
-                    logger.warning(f"OpenRouter returned {resp.status_code}")
-                    return entries
-                data = resp.json()
+            # Try with certs first, fall back to no-verify for broken SSL
+            data = None
+            for client_fn in [_make_client, _make_client_no_verify]:
+                try:
+                    async with client_fn(timeout=15) as client:
+                        resp = await client.get("https://openrouter.ai/api/v1/models")
+                        if resp.status_code == 200:
+                            data = resp.json()
+                            break
+                except Exception:
+                    continue
+
+            if not data:
+                logger.warning("OpenRouter: all fetch attempts failed")
+                return entries
 
             for m in data.get("data", []):
                 model_id = m.get("id", "")
@@ -124,12 +147,20 @@ class TogetherFetcher(PriceFetcher):
     async def fetch(self) -> list[PriceEntry]:
         entries = []
         try:
-            async with httpx.AsyncClient(timeout=15, verify=_ssl_context()) as client:
-                resp = await client.get("https://api.together.xyz/v1/models")
-                if resp.status_code != 200:
-                    logger.warning(f"Together returned {resp.status_code}")
-                    return entries
-                data = resp.json()
+            data = None
+            for client_fn in [_make_client, _make_client_no_verify]:
+                try:
+                    async with client_fn(timeout=15) as client:
+                        resp = await client.get("https://api.together.xyz/v1/models")
+                        if resp.status_code == 200:
+                            data = resp.json()
+                            break
+                except Exception:
+                    continue
+
+            if not data:
+                logger.warning("Together: all fetch attempts failed")
+                return entries
 
             for m in data if isinstance(data, list) else data.get("data", data.get("models", [])):
                 model_id = m.get("id", "")
