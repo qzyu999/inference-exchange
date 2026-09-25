@@ -24,16 +24,25 @@ logger = logging.getLogger(__name__)
 FETCH_INTERVAL = 1800  # 30 minutes
 PRUNE_DAYS = 90
 
+# Initialize SSL certs at import time so all httpx calls benefit
+_ssl_context()
+
 
 def _ssl_context():
     """Return a certifi CA bundle path for httpx verify parameter.
 
-    Fixes CERTIFICATE_VERIFY_FAILED on macOS where the system Python
-    doesn't ship with root CA certs.
+    Also sets SSL_CERT_FILE env var as a fallback — some httpx/httpcore
+    versions ignore verify= and rely on OpenSSL's default CA lookup,
+    which is empty on macOS pyenv builds.
     """
     try:
+        import os
         import certifi
-        return certifi.where()
+        ca_path = certifi.where()
+        # Set env var so OpenSSL itself finds the certs
+        if "SSL_CERT_FILE" not in os.environ:
+            os.environ["SSL_CERT_FILE"] = ca_path
+        return ca_path
     except ImportError:
         return True  # Use system default
 
