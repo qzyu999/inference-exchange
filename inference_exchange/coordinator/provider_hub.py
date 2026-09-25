@@ -17,6 +17,7 @@ from inference_exchange.shared.protocol import (
     InferenceRequest,
     InferenceResponseChunk,
     MessageType,
+    ModelCapabilities,
     ProviderCapabilities,
     RegisterMessage,
 )
@@ -36,6 +37,7 @@ class ConnectedProvider:
     last_heartbeat: float = field(default_factory=time.time)
     model_verified: bool = False
     model_identity: dict = field(default_factory=dict)
+    model_capabilities: ModelCapabilities = field(default_factory=ModelCapabilities)
     attestation_status: str = "pending"
     app_attest_verified: bool = False
     admission_expires_at: float = 0.0

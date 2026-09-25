@@ -116,6 +116,7 @@ class TestGetModelIdentity:
         assert identity["context_length"] == 4096
         assert identity["file_hash"]  # non-empty
         assert identity["filename"].endswith(".gguf")
+        assert "repo_id" in identity  # new field, may be empty for test files
         Path(path).unlink()
 
     def test_quantization_mapping(self):
@@ -124,3 +125,23 @@ class TestGetModelIdentity:
             identity = get_model_identity(path)
             assert identity["quantization"] == expected
             Path(path).unlink()
+
+    def test_repo_id_from_hf_cache_path(self):
+        """Files in the HuggingFace cache have a structured path."""
+        # Simulate a HF cache path: models--org--name/snapshots/hash/file.gguf
+        import os
+        hf_dir = Path(tempfile.mkdtemp()) / "models--meta-llama--Llama-3.1-8B-Instruct" / "snapshots" / "abc123"
+        hf_dir.mkdir(parents=True)
+        src = _make_gguf_file(name="Llama-3.1-8B")
+        dest = str(hf_dir / "model.gguf")
+        os.rename(src, dest)
+        identity = get_model_identity(dest)
+        assert identity["repo_id"] == "meta-llama/Llama-3.1-8B-Instruct"
+        Path(dest).unlink()
+
+    def test_repo_id_empty_for_plain_paths(self):
+        """Files not in HF cache and without GGUF metadata have no repo_id."""
+        path = _make_gguf_file(name="SomeModel")
+        identity = get_model_identity(path)
+        assert identity["repo_id"] == ""
+        Path(path).unlink()

@@ -31,6 +31,23 @@ class TrustLevel(str, Enum):
     CONFIDENTIAL = "confidential"
 
 
+class ModelCapabilities(BaseModel):
+    """Format-agnostic model capabilities resolved from multiple sources.
+
+    This describes what a *model* can do, independent of the weight format
+    or serving engine. Resolved by the coordinator from provider-reported
+    data, HuggingFace metadata, and GGUF metadata.
+    """
+
+    context_length: int = 0
+    supports_vision: bool = False
+    supports_tool_calling: bool = False
+    architecture: str = ""  # e.g. "LlamaForCausalLM", "Qwen2ForCausalLM"
+    model_type: str = ""  # e.g. "llama", "qwen2", "mistral"
+    model_repo_id: str = ""  # HF base model repo
+    model_format: str = ""  # "gguf", "safetensors", "gptq", "awq"
+
+
 class ProviderCapabilities(BaseModel):
     models: list[str]
     max_concurrent: int = 2
@@ -41,6 +58,12 @@ class ProviderCapabilities(BaseModel):
     price_per_mtok_input: float = 0.05
     price_per_mtok_output: float = 0.20
     price_per_mtok_cache: float = 0  # 0 = no cache discount (charge at input rate)
+    # Provider-reported capability hints (feed into capability resolution)
+    context_length: int = 0
+    supports_tool_calling: bool = False
+    supports_vision: bool = False
+    model_repo_id: str = ""
+    model_format: str = ""
 
 
 class RegisterMessage(BaseModel):
