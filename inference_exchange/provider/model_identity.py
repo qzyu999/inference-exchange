@@ -205,6 +205,7 @@ def get_model_identity(filepath: str) -> dict:
         "context_length": context_length,
         "block_count": block_count,
         "embedding_length": embed_length,
+        "repo_id": _extract_repo_id(metadata, filepath),
     }
 
     logger.info(
@@ -213,3 +214,31 @@ def get_model_identity(filepath: str) -> dict:
     )
 
     return identity
+
+
+def _extract_repo_id(metadata: dict, filepath: str) -> str:
+    """Try to extract a HuggingFace repo ID from GGUF metadata or file path.
+
+    Sources (in priority order):
+    1. GGUF metadata key: general.source.huggingface.repository
+    2. HuggingFace cache path: ~/.cache/huggingface/hub/models--org--name/...
+    """
+    # Source 1: GGUF metadata
+    repo = metadata.get("general.source.huggingface.repository", "")
+    if repo:
+        return repo
+
+    # Source 2: HuggingFace cache path structure
+    # Path looks like: .../models--org--name/snapshots/hash/filename.gguf
+    try:
+        parts = Path(filepath).parts
+        for part in parts:
+            if part.startswith("models--") and part.count("--") >= 2:
+                # models--meta-llama--Llama-3.1-8B-Instruct → meta-llama/Llama-3.1-8B-Instruct
+                segments = part.split("--", 2)
+                if len(segments) >= 3:
+                    return f"{segments[1]}/{segments[2]}"
+    except Exception:
+        pass
+
+    return ""

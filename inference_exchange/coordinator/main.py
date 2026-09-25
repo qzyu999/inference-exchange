@@ -22,6 +22,7 @@ from inference_exchange.shared.protocol import (
 
 from .dependencies import set_auth, set_billing, set_event_bus, set_hub, set_reputation, set_store, set_tps_tracker, set_audit_log, set_price_collector
 from .audit_log import AuditLog
+from .capability_resolver import ModelCapabilityCache
 from .price_collector import PriceCollector
 from .routes_admin import router as admin_router
 from .routes_auth import router as auth_router
@@ -207,6 +208,7 @@ def create_app() -> FastAPI:
     reputation = ReputationTracker()
     model_registry = ModelRegistry()
     event_bus = EventBus()
+    capability_cache = ModelCapabilityCache()
 
     set_hub(hub)
     set_billing(billing)
@@ -340,6 +342,13 @@ def create_app() -> FastAPI:
             if provider_id in hub._providers:
                 hub._providers[provider_id].model_verified = model_verified
                 hub._providers[provider_id].model_identity = reg.model_identity or {}
+
+                # Resolve model capabilities (HF lookup + three-source merge)
+                try:
+                    caps = capability_cache.resolve(reg.capabilities, reg.model_identity)
+                    hub._providers[provider_id].model_capabilities = caps
+                except Exception as e:
+                    logger.warning(f"Capability resolution failed for {reg.provider_name}: {e}")
 
             # Create billing account + log connection
             billing.get_or_create_provider(provider_id, reg.provider_name)

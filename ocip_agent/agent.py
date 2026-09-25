@@ -254,6 +254,7 @@ class OCIPAgent:
         provider_token: str = "",
         max_concurrent: int = 2,
         llama_server_path: str = "",
+        repo_id: str = "",
     ):
         self.coordinator_url = coordinator_url
         self.provider_name = provider_name
@@ -264,6 +265,7 @@ class OCIPAgent:
         self.provider_token = provider_token
         self.max_concurrent = max_concurrent
         self.llama_server_path = llama_server_path
+        self.repo_id = repo_id
 
         # Encryption
         self._keypair = KeyPair()
@@ -379,6 +381,11 @@ class OCIPAgent:
             # Register
             identity = self._server.identity
             model_name = self._model_identity.get("name", identity.get("name", "unknown"))
+
+            # Determine model format and repo_id
+            model_format = "gguf" if self._model_path.endswith(".gguf") else ""
+            model_repo_id = self.repo_id or self._model_identity.get("repo_id", "")
+
             reg = RegisterMessage(
                 provider_name=self.provider_name,
                 capabilities=ProviderCapabilities(
@@ -390,6 +397,9 @@ class OCIPAgent:
                     price_per_mtok_input=self.price_input,
                     price_per_mtok_output=self.price_output,
                     price_per_mtok_cache=self.price_cache,
+                    context_length=self._model_identity.get("context_length", 0),
+                    model_repo_id=model_repo_id,
+                    model_format=model_format,
                 ),
                 encryption_public_key=self._keypair.public_key_b64,
                 model_identity=self._model_identity,
@@ -654,6 +664,7 @@ def main():
     parser.add_argument("--token", default="", help="Provider auth token (pt-ie-...)")
     parser.add_argument("--llama-server", default="", help="Path to llama-server binary (uses native server for cache reporting)")
     parser.add_argument("--max-concurrent", type=int, default=2, help="Max concurrent requests")
+    parser.add_argument("--repo-id", default="", help="HuggingFace repo ID for capability lookup (e.g. meta-llama/Llama-3.1-8B-Instruct)")
     args = parser.parse_args()
 
     logger.info("=" * 60)
@@ -679,6 +690,7 @@ def main():
         provider_token=args.token,
         max_concurrent=args.max_concurrent,
         llama_server_path=args.llama_server,
+        repo_id=args.repo_id,
     )
 
     try:

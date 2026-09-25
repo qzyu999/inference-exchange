@@ -31,11 +31,18 @@ interface MarketModel {
   size: string
   variant: string
   canonical_id: string
+  capabilities: {
+    context_length: number
+    supports_vision: boolean
+    supports_tool_calling: boolean
+    architecture: string
+    model_type: string
+  }
   providers: Array<{
     id: string; name: string; price_output: number; price_input: number; price_cache: number
     tps: number; trust: string; encrypted: boolean; load: number
     hardware: string; slots: string; quantization: string; original_model: string
-    context_length: number; verified: boolean
+    context_length: number; format: string; verified: boolean
   }>
   cheapest_output: number
   fastest_tps: number
@@ -136,6 +143,32 @@ function ModelMarketCard({ m }: { m: MarketModel }) {
                   {verifiedCount}/{m.provider_count} verified
                 </span>
               )}
+            </div>
+            {/* Capability badges */}
+            <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+              {m.capabilities?.context_length > 0 && (
+                <span className="text-[9px] font-medium px-1.5 py-0.5 rounded" style={{ background: '#f0f4f8', color: '#4a6fa5' }}>
+                  {m.capabilities.context_length >= 1000 ? `${Math.round(m.capabilities.context_length / 1024)}k ctx` : `${m.capabilities.context_length} ctx`}
+                </span>
+              )}
+              {m.capabilities?.supports_tool_calling && (
+                <span className="text-[9px] font-medium px-1.5 py-0.5 rounded" style={{ background: '#eef7f0', color: '#2d7d46' }}>
+                  🔧 tools
+                </span>
+              )}
+              {m.capabilities?.supports_vision && (
+                <span className="text-[9px] font-medium px-1.5 py-0.5 rounded" style={{ background: '#f3eef7', color: '#6b46a5' }}>
+                  👁 vision
+                </span>
+              )}
+              {(() => {
+                const formats = [...new Set(m.providers.map(p => p.format).filter(Boolean))]
+                return formats.map(f => (
+                  <span key={f} className="text-[9px] font-medium px-1.5 py-0.5 rounded" style={{ background: '#f5f3f0', color: '#8a7d60' }}>
+                    {f.toUpperCase()}
+                  </span>
+                ))
+              })()}
             </div>
           </div>
           <div className="text-right shrink-0">

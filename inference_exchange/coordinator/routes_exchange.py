@@ -69,6 +69,13 @@ async def list_providers():
             "encrypted": bool(p.encryption_public_key),
             "encryption_public_key": p.encryption_public_key or None,
             "uptime_seconds": int(time.time() - p.connected_at),
+            "model_capabilities": {
+                "context_length": p.model_capabilities.context_length,
+                "supports_tool_calling": p.model_capabilities.supports_tool_calling,
+                "supports_vision": p.model_capabilities.supports_vision,
+                "architecture": p.model_capabilities.architecture,
+                "model_format": p.model_capabilities.model_format,
+            },
         })
     return {"providers": providers}
 
@@ -326,6 +333,7 @@ async def get_market_data():
                     "size": info["size"],
                     "variant": info["variant"],
                     "canonical_id": key,
+                    "capabilities": None,  # filled from first provider's resolved caps
                     "providers": [],
                     "cheapest_output": float("inf"),
                     "fastest_tps": 0,
@@ -334,16 +342,21 @@ async def get_market_data():
             md = model_data[key]
             price = p.capabilities.price_per_mtok_output
 
-            # Get quantization and context from provider's model_identity
+            # Use resolved model capabilities (format-agnostic)
+            caps = p.model_capabilities
             quant = info.get("quantization", "")
-            ctx = 0
-            verified = False
-            if hasattr(p, 'model_identity') and p.model_identity:
-                mi = p.model_identity
-                if not quant and mi.get("quantization"):
-                    quant = mi["quantization"]
-                ctx = mi.get("context_length", 0)
-            verified = getattr(p, 'model_verified', False)
+            if not quant and p.model_identity:
+                quant = p.model_identity.get("quantization", "")
+
+            # Set model-level capabilities from the first provider we see
+            if md["capabilities"] is None and caps.context_length > 0:
+                md["capabilities"] = {
+                    "context_length": caps.context_length,
+                    "supports_vision": caps.supports_vision,
+                    "supports_tool_calling": caps.supports_tool_calling,
+                    "architecture": caps.architecture,
+                    "model_type": caps.model_type,
+                }
 
             md["providers"].append({
                 "id": p.provider_id,
@@ -358,8 +371,9 @@ async def get_market_data():
                 "hardware": p.capabilities.hardware,
                 "slots": f"{p.active_requests}/{p.capabilities.max_concurrent}",
                 "quantization": quant,
-                "context_length": ctx,
-                "verified": verified,
+                "context_length": caps.context_length,
+                "format": caps.model_format,
+                "verified": getattr(p, 'model_verified', False),
                 "original_model": model_name,
             })
             if price < md["cheapest_output"]:
@@ -388,6 +402,15 @@ async def get_market_data():
         data["reference_prices"] = savings["comparisons"]
         data["provider_count"] = len(data["providers"])
         data["providers"].sort(key=lambda x: x["price_output"])
+        # Default model-level capabilities if none resolved
+        if data["capabilities"] is None:
+            data["capabilities"] = {
+                "context_length": 0,
+                "supports_vision": False,
+                "supports_tool_calling": False,
+                "architecture": "",
+                "model_type": "",
+            }
         result.append(data)
 
     result.sort(key=lambda x: -x["provider_count"])
