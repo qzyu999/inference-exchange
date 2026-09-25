@@ -12,7 +12,6 @@ Each fetch cycle updates an in-memory cache and snapshots to SQLite.
 
 import asyncio
 import logging
-import ssl
 import time
 from dataclasses import dataclass, field
 
@@ -26,17 +25,17 @@ FETCH_INTERVAL = 1800  # 30 minutes
 PRUNE_DAYS = 90
 
 
-def _ssl_context() -> ssl.SSLContext:
-    """Build an SSL context using certifi's CA bundle if available.
+def _ssl_context():
+    """Return a certifi CA bundle path for httpx verify parameter.
 
     Fixes CERTIFICATE_VERIFY_FAILED on macOS where the system Python
     doesn't ship with root CA certs.
     """
     try:
         import certifi
-        return ssl.create_default_context(cafile=certifi.where())
+        return certifi.where()
     except ImportError:
-        return ssl.create_default_context()
+        return True  # Use system default
 
 
 @dataclass
