@@ -334,8 +334,12 @@ class PriceCollector:
 
     def __init__(self, store=None):
         self._fetchers: list[PriceFetcher] = [
-            OpenRouterFetcher(),
-            TogetherFetcher(),
+            # OpenRouter and Together now require auth for their public APIs.
+            # Static prices from DirectAPIFetcher cover the same providers
+            # with manually verified pricing. Re-enable live fetchers when
+            # we add API key support for these sources.
+            # OpenRouterFetcher(),
+            # TogetherFetcher(),
             DirectAPIFetcher(),
         ]
         self._cache: dict[tuple[str, str], PriceEntry] = {}  # (source, model_id) → PriceEntry
