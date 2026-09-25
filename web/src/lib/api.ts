@@ -39,13 +39,22 @@ export interface Provider {
   hardware: string
   price_input: number
   price_output: number
+  price_cache?: number
   measured_tps: number
   load: number
   active_requests: number
   max_concurrent: number
   status: string
   encrypted: boolean
+  encryption_public_key?: string | null
   uptime_seconds: number
+  model_capabilities?: {
+    context_length: number
+    supports_tool_calling: boolean
+    supports_vision: boolean
+    architecture: string
+    model_format: string
+  }
 }
 
 export interface ExchangeStats {
