@@ -383,7 +383,12 @@ class OCIPAgent:
             model_name = self._model_identity.get("name", identity.get("name", "unknown"))
 
             # Determine model format and repo_id
-            model_format = "gguf" if self._model_path.endswith(".gguf") else ""
+            model_format = ""
+            if self._model_path.endswith(".gguf"):
+                model_format = "gguf"
+            elif self._model_identity.get("_gguf_version") or self._model_identity.get("architecture"):
+                # Ollama blobs don't have .gguf extension but contain GGUF metadata
+                model_format = "gguf"
             model_repo_id = self.repo_id or self._model_identity.get("repo_id", "")
 
             reg = RegisterMessage(

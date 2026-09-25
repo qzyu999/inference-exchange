@@ -235,34 +235,45 @@ class ModelCapabilityCache:
         if not repo_id and model_identity:
             repo_id = model_identity.get("repo_id", "")
 
-        # Try to resolve a GGUF repo to its base model
-        base_repo = None
-        if repo_id:
-            # Check if this is a GGUF/quant repo (no config.json) — resolve to base
-            base_repo = self._try_resolve_base(repo_id)
-
-        lookup_repo = base_repo or repo_id
-        if not lookup_repo:
+        if not repo_id:
             return None
 
+        # Try the provider-specified repo directly first (it's usually the instruct model).
+        # Only fall back to base_model resolution if that repo has no config.json.
+        lookup_repo = repo_id
+        caps = self._fetch_cached(lookup_repo)
+        if caps is not None:
+            return caps
+
+        # Try resolving to a base model (for GGUF quant repos without config.json)
+        base_repo = self._try_resolve_base(repo_id)
+        if base_repo and base_repo != lookup_repo:
+            caps = self._fetch_cached(base_repo)
+            if caps is not None:
+                return caps
+
+        return None
+
+    def _fetch_cached(self, repo_id: str) -> ModelCapabilities | None:
+        """Fetch capabilities for a repo, using cache and failure tracking."""
         # Check cache
-        if lookup_repo in self._cache:
-            return self._cache[lookup_repo]
+        if repo_id in self._cache:
+            return self._cache[repo_id]
 
         # Check failure cache
-        if lookup_repo in self._failed:
-            if time.time() - self._failed[lookup_repo] < self._RETRY_AFTER:
+        if repo_id in self._failed:
+            if time.time() - self._failed[repo_id] < self._RETRY_AFTER:
                 return None
-            del self._failed[lookup_repo]
+            del self._failed[repo_id]
 
         # Fetch from HF
-        caps = _detect_capabilities_from_hf(lookup_repo)
+        caps = _detect_capabilities_from_hf(repo_id)
         if caps:
-            self._cache[lookup_repo] = caps
+            self._cache[repo_id] = caps
             return caps
 
         # Cache the failure
-        self._failed[lookup_repo] = time.time()
+        self._failed[repo_id] = time.time()
         return None
 
     def _try_resolve_base(self, repo_id: str) -> str | None:

@@ -166,12 +166,14 @@ class TestModelCapabilityCache:
     @patch("inference_exchange.coordinator.capability_resolver._detect_capabilities_from_hf")
     @patch("inference_exchange.coordinator.capability_resolver._resolve_base_model")
     def test_base_model_resolution(self, mock_resolve, mock_detect):
-        """GGUF repos resolve to base model before HF lookup."""
+        """GGUF repos try direct lookup first, then fall back to base model."""
+        # First call (direct repo) returns None, triggering base model resolution
+        # Second call (base model) returns capabilities
+        mock_detect.side_effect = [
+            None,  # bartowski/Qwen2.5-0.5B-Instruct-GGUF has no config.json
+            ModelCapabilities(context_length=32768, supports_tool_calling=True),
+        ]
         mock_resolve.return_value = "Qwen/Qwen2.5-0.5B-Instruct"
-        mock_detect.return_value = ModelCapabilities(
-            context_length=32768,
-            supports_tool_calling=True,
-        )
 
         cache = ModelCapabilityCache()
         caps = ProviderCapabilities(
@@ -181,5 +183,7 @@ class TestModelCapabilityCache:
 
         result = cache.resolve(caps)
         assert result.context_length == 32768
-        # Looked up the base model, not the GGUF repo
-        mock_detect.assert_called_once_with("Qwen/Qwen2.5-0.5B-Instruct")
+        # First tried the GGUF repo, then resolved to base model
+        assert mock_detect.call_count == 2
+        mock_detect.assert_any_call("bartowski/Qwen2.5-0.5B-Instruct-GGUF")
+        mock_detect.assert_any_call("Qwen/Qwen2.5-0.5B-Instruct")
