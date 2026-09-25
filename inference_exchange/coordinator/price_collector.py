@@ -24,9 +24,6 @@ logger = logging.getLogger(__name__)
 FETCH_INTERVAL = 1800  # 30 minutes
 PRUNE_DAYS = 90
 
-# Initialize SSL certs at import time so all httpx calls benefit
-_ssl_context()
-
 
 def _ssl_context():
     """Return a certifi CA bundle path for httpx verify parameter.
@@ -45,6 +42,10 @@ def _ssl_context():
         return ca_path
     except ImportError:
         return True  # Use system default
+
+
+# Initialize SSL certs at import time so all httpx calls benefit
+_ssl_context()
 
 
 @dataclass
