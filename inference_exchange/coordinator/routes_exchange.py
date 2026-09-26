@@ -178,11 +178,22 @@ async def get_history(request: Request):
             {
                 "request_id": dict(r)["request_id"][:8],
                 "model": dict(r)["model"],
+                "provider_name": dict(r).get("provider_name", ""),
                 "input_tokens": dict(r)["input_tokens"],
                 "output_tokens": dict(r)["output_tokens"],
                 "cached_tokens": dict(r).get("cached_tokens", 0),
                 "tokens": dict(r)["input_tokens"] + dict(r)["output_tokens"],
                 "cost_usd": round(dict(r)["cost_micro"] / 1_000_000, 6),
+                "cost_input_usd": round(dict(r).get("cost_input_micro", 0) / 1_000_000, 6),
+                "cost_output_usd": round(dict(r).get("cost_output_micro", 0) / 1_000_000, 6),
+                "cost_cache_usd": round(dict(r).get("cost_cache_micro", 0) / 1_000_000, 6),
+                "trust_level": dict(r).get("trust_level", ""),
+                "encrypted": bool(dict(r).get("encrypted", 0)),
+                "preference": dict(r).get("preference", ""),
+                "latency_ms": dict(r).get("latency_ms", 0),
+                "tps": dict(r).get("tps", 0),
+                "queued": bool(dict(r).get("queued", 0)),
+                "queue_wait_ms": dict(r).get("queue_wait_ms", 0),
                 "timestamp": dict(r)["timestamp"],
             }
             for r in rows

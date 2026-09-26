@@ -49,13 +49,25 @@ CREATE TABLE IF NOT EXISTS transactions (
     request_id TEXT NOT NULL,
     consumer_id TEXT NOT NULL,
     provider_id TEXT NOT NULL,
+    provider_name TEXT NOT NULL DEFAULT '',
     model TEXT NOT NULL,
     input_tokens INTEGER NOT NULL,
     output_tokens INTEGER NOT NULL,
     cached_tokens INTEGER NOT NULL DEFAULT 0,
     cost_micro INTEGER NOT NULL,
+    cost_input_micro INTEGER NOT NULL DEFAULT 0,
+    cost_output_micro INTEGER NOT NULL DEFAULT 0,
+    cost_cache_micro INTEGER NOT NULL DEFAULT 0,
     provider_earning_micro INTEGER NOT NULL,
     platform_fee_micro INTEGER NOT NULL,
+    trust_level TEXT NOT NULL DEFAULT '',
+    encrypted INTEGER NOT NULL DEFAULT 0,
+    preference TEXT NOT NULL DEFAULT '',
+    latency_ms INTEGER NOT NULL DEFAULT 0,
+    ttft_ms INTEGER NOT NULL DEFAULT 0,
+    tps REAL NOT NULL DEFAULT 0,
+    queued INTEGER NOT NULL DEFAULT 0,
+    queue_wait_ms INTEGER NOT NULL DEFAULT 0,
     timestamp REAL NOT NULL
 );
 
@@ -146,6 +158,28 @@ class Store:
             self._conn.execute("ALTER TABLE transactions ADD COLUMN cached_tokens INTEGER NOT NULL DEFAULT 0")
             self._conn.commit()
             logger.info("Migration: added cached_tokens column to transactions")
+
+        # Add enrichment columns to transactions (added for #39)
+        new_tx_columns = {
+            "provider_name": "TEXT NOT NULL DEFAULT ''",
+            "trust_level": "TEXT NOT NULL DEFAULT ''",
+            "encrypted": "INTEGER NOT NULL DEFAULT 0",
+            "preference": "TEXT NOT NULL DEFAULT ''",
+            "latency_ms": "INTEGER NOT NULL DEFAULT 0",
+            "ttft_ms": "INTEGER NOT NULL DEFAULT 0",
+            "tps": "REAL NOT NULL DEFAULT 0",
+            "queued": "INTEGER NOT NULL DEFAULT 0",
+            "queue_wait_ms": "INTEGER NOT NULL DEFAULT 0",
+            "cost_input_micro": "INTEGER NOT NULL DEFAULT 0",
+            "cost_output_micro": "INTEGER NOT NULL DEFAULT 0",
+            "cost_cache_micro": "INTEGER NOT NULL DEFAULT 0",
+        }
+        for col_name, col_def in new_tx_columns.items():
+            if col_name not in columns:
+                self._conn.execute(f"ALTER TABLE transactions ADD COLUMN {col_name} {col_def}")
+                logger.info(f"Migration: added {col_name} column to transactions")
+        if any(c not in columns for c in new_tx_columns):
+            self._conn.commit()
 
         # Add cache_per_mtok column to reference_prices (added for three-tier comparison)
         ref_columns = {row[1] for row in self._conn.execute("PRAGMA table_info(reference_prices)").fetchall()}
@@ -275,6 +309,16 @@ class Store:
         price_per_mtok_output: float,
         cached_tokens: int = 0,
         price_per_mtok_cache: float = 0,
+        # Enrichment metadata
+        provider_name: str = "",
+        trust_level: str = "",
+        encrypted: bool = False,
+        preference: str = "",
+        latency_ms: int = 0,
+        ttft_ms: int = 0,
+        tps: float = 0,
+        queued: bool = False,
+        queue_wait_ms: int = 0,
     ) -> dict | None:
         """Charge consumer, credit provider, log transaction.
 
@@ -304,11 +348,23 @@ class Store:
             (provider_earning, provider_earning, provider_id),
         )
 
-        # Log transaction
+        # Log transaction with enrichment metadata
         now = time.time()
         self._conn.execute(
-            "INSERT INTO transactions (request_id, consumer_id, provider_id, model, input_tokens, output_tokens, cached_tokens, cost_micro, provider_earning_micro, platform_fee_micro, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            (request_id, consumer_id, provider_id, model, input_tokens, output_tokens, cached_tokens, total_cost, provider_earning, platform_fee, now),
+            """INSERT INTO transactions (
+                request_id, consumer_id, provider_id, provider_name, model,
+                input_tokens, output_tokens, cached_tokens,
+                cost_micro, cost_input_micro, cost_output_micro, cost_cache_micro,
+                provider_earning_micro, platform_fee_micro,
+                trust_level, encrypted, preference,
+                latency_ms, ttft_ms, tps, queued, queue_wait_ms, timestamp
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (request_id, consumer_id, provider_id, provider_name, model,
+             input_tokens, output_tokens, cached_tokens,
+             total_cost, input_cost, output_cost, cache_cost,
+             provider_earning, platform_fee,
+             trust_level, int(encrypted), preference,
+             latency_ms, ttft_ms, tps, int(queued), queue_wait_ms, now),
         )
         self._conn.commit()
 
