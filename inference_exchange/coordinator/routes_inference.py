@@ -104,6 +104,9 @@ def _make_billing_callback(
     consumer_id: str,
     input_token_estimate: int,
     start_time: float,
+    preference: str = "",
+    queued: bool = False,
+    queue_wait_ms: int = 0,
 ):
     """Create a billing callback invoked when InferenceDone arrives from the provider.
 
@@ -117,6 +120,10 @@ def _make_billing_callback(
         actual_cached = done_msg.cached_tokens
         output_tokens = done_msg.tokens_generated
 
+        elapsed = time.time() - start_time
+        latency_ms = int(elapsed * 1000)
+        tps = output_tokens / elapsed if elapsed > 0 and output_tokens > 0 else 0
+
         billing = get_billing()
         billing.charge_request(
             request_id=request_id,
@@ -129,11 +136,20 @@ def _make_billing_callback(
             price_per_mtok_output=provider.capabilities.price_per_mtok_output,
             cached_tokens=actual_cached,
             price_per_mtok_cache=provider.capabilities.price_per_mtok_cache,
+            provider_name=provider.name,
+            trust_level=provider.capabilities.trust_level.value,
+            encrypted=bool(provider.encryption_public_key),
+            preference=preference,
+            latency_ms=latency_ms,
+            tps=round(tps, 2),
+            queued=queued,
+            queue_wait_ms=queue_wait_ms,
         )
 
         logger.info(
             f"[{request_id[:8]}] Billed via callback: "
-            f"in={actual_input} cached={actual_cached} out={output_tokens}"
+            f"in={actual_input} cached={actual_cached} out={output_tokens} "
+            f"latency={latency_ms}ms tps={tps:.1f}"
         )
 
         bus = get_event_bus()
@@ -143,14 +159,20 @@ def _make_billing_callback(
                 "request_id": request_id,
                 "consumer_id": consumer_id,
                 "provider_id": provider.provider_id,
+                "provider_name": provider.name,
                 "model": model,
                 "cost_usd": round(
                     (output_tokens * provider.capabilities.price_per_mtok_output) / 1_000_000, 6
                 ),
                 "tokens": output_tokens,
+                "input_tokens": actual_input,
+                "cached_tokens": actual_cached,
+                "latency_ms": latency_ms,
+                "tps": round(tps, 2),
+                "trust_level": provider.capabilities.trust_level.value,
+                "encrypted": bool(provider.encryption_public_key),
             })
 
-        elapsed = time.time() - start_time
         if output_tokens > 0 and elapsed > 0:
             tps_tracker = get_tps_tracker()
             tps_tracker.record_request(
@@ -349,9 +371,13 @@ async def chat_completions(request: ChatCompletionRequest, raw_request: Request)
         # Register billing callback so InferenceDone triggers billing
         # even if the streaming generator is cancelled by FastAPI
         start_time = time.time()
+        queue_wait = int((time.time() - pending.queued_at) * 1000)
         hub.register_billing_callback(
             request_id,
-            _make_billing_callback(request_id, request.model, provider, consumer_id, input_token_estimate, start_time),
+            _make_billing_callback(
+                request_id, request.model, provider, consumer_id, input_token_estimate, start_time,
+                preference=request.ocip_preference, queued=True, queue_wait_ms=queue_wait,
+            ),
         )
 
         if request.stream:
@@ -474,7 +500,10 @@ async def chat_completions(request: ChatCompletionRequest, raw_request: Request)
     start_time = time.time()
     hub.register_billing_callback(
         request_id,
-        _make_billing_callback(request_id, request.model, provider, consumer_id, input_token_estimate, start_time),
+        _make_billing_callback(
+            request_id, request.model, provider, consumer_id, input_token_estimate, start_time,
+            preference=request.ocip_preference,
+        ),
     )
 
     if request.stream:
