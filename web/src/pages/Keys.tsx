@@ -4,6 +4,12 @@ import { Link } from 'react-router-dom'
 import { api, post } from '../lib/api'
 import { useAuth } from '../lib/auth'
 
+const C = {
+  gold: '#C49A45',
+  green: '#3F8055',
+  blueBlack: '#292F35',
+}
+
 export function Keys() {
   const { user } = useAuth()
   const { data, mutate } = useSWR('myKeys', api.myKeys)
@@ -33,122 +39,143 @@ export function Keys() {
     setTimeout(() => setCopied(false), 2000)
   }
 
+  if (!user) {
+    return (
+      <div className="max-w-md mx-auto text-center py-16">
+        <div className="text-sm mb-3" style={{ color: '#888' }}>Sign in to manage API keys</div>
+        <Link to="/login" className="text-sm font-medium" style={{ color: C.gold }}>Sign in or create an account</Link>
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">API Keys</h1>
-        <p className="text-sm text-gray-400 mt-1">Manage your keys for the Inference Exchange API</p>
-      </div>
-
-      {!user && (
-        <div className="bg-amber-50 rounded-2xl border border-amber-200/60 p-5 text-center">
-          <div className="text-sm text-amber-700 mb-2">Sign in to manage your own API keys</div>
-          <Link to="/login" className="text-sm font-medium text-amber-600 hover:text-amber-700">Sign in or create an account</Link>
-        </div>
-      )}
-
+      {/* Active key */}
       {defaultKey && (
-        <div className="bg-white rounded-2xl border border-gray-200/60 shadow-sm p-5">
-          <div className="text-sm font-semibold text-gray-900 mb-3">Active API Key</div>
+        <div className="bg-white rounded-2xl border border-gray-200/40 p-5">
+          <div className="text-[10px] uppercase tracking-wider font-medium mb-3" style={{ color: C.gold }}>
+            Active Key
+          </div>
           <div className="flex items-center gap-3">
-            <code className="flex-1 bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm font-mono text-gray-700">{defaultKey}</code>
-            <button onClick={() => copyKey(defaultKey)} className="px-4 py-2.5 bg-gray-900 text-white rounded-xl text-sm font-medium hover:bg-gray-800 transition-colors">
+            <code className="flex-1 text-lg font-mono tracking-wider" style={{ color: C.blueBlack }}>
+              {defaultKey.slice(0, 8)}{'·'.repeat(16)}
+            </code>
+            <span className="text-[10px] font-medium px-2.5 py-1 rounded-full" style={{ background: '#edf7f1', color: C.green }}>
+              Production
+            </span>
+            <button
+              onClick={() => copyKey(defaultKey)}
+              className="px-4 py-2 rounded-xl text-sm font-medium border transition-colors"
+              style={{ color: C.blueBlack, borderColor: '#ddd' }}
+            >
               {copied ? 'Copied' : 'Copy'}
             </button>
           </div>
-          <div className="text-xs text-gray-400 mt-2">
-            Authorization header: <code className="bg-gray-100 px-1.5 py-0.5 rounded">Bearer {defaultKey.slice(0, 12)}...</code>
+          <div className="text-xs mt-2" style={{ color: '#999' }}>
+            Bearer token for OpenAI-compatible endpoints
           </div>
         </div>
       )}
 
-      <div className="bg-white rounded-2xl border border-gray-200/60 shadow-sm p-5">
-        <div className="text-sm font-semibold text-gray-900 mb-3">Create New Key</div>
-        <div className="flex gap-3">
-          <input type="text" value={newKeyName} onChange={e => setNewKeyName(e.target.value)} onKeyDown={e => e.key === 'Enter' && createKey()}
-            placeholder="Key name (e.g. my-app)" className="flex-1 px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/30 focus:border-amber-400 placeholder:text-gray-300" />
-          <button onClick={createKey} className="px-5 py-2.5 bg-gray-900 text-white rounded-xl text-sm font-medium hover:bg-gray-800 transition-colors">Create</button>
-        </div>
-        {createdKey && (
-          <div className="mt-4 bg-emerald-50 border border-emerald-200 rounded-xl p-4">
-            <div className="text-sm font-semibold text-emerald-800 mb-1">Key created</div>
-            <div className="text-xs text-emerald-600 mb-2">Copy this now. You won't see it again.</div>
-            <div className="flex items-center gap-3">
-              <code className="flex-1 bg-white border border-emerald-200 rounded-lg px-3 py-2 text-sm font-mono break-all">{createdKey}</code>
-              <button onClick={() => copyKey(createdKey)} className="px-3 py-2 bg-emerald-600 text-white rounded-lg text-sm hover:bg-emerald-700 shrink-0">{copied ? 'Done' : 'Copy'}</button>
+      {/* Two-column: Create + Your keys */}
+      <div className="flex gap-5 flex-col lg:flex-row">
+        {/* Create new key */}
+        <div className="flex-1 bg-white rounded-2xl border border-gray-200/40 p-5">
+          <div className="text-[10px] uppercase tracking-wider font-medium mb-3" style={{ color: C.gold }}>
+            Create New Key
+          </div>
+
+          <div className="space-y-3">
+            <div>
+              <div className="text-xs mb-1.5" style={{ color: '#888' }}>Name</div>
+              <input
+                type="text" value={newKeyName}
+                onChange={e => setNewKeyName(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && createKey()}
+                placeholder="e.g. production-agent"
+                className="w-full px-4 py-2.5 bg-transparent border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/20 placeholder:text-gray-300"
+              />
             </div>
-          </div>
-        )}
-      </div>
 
-      <div className="bg-white rounded-2xl border border-gray-200/60 shadow-sm p-5">
-        <div className="text-sm font-semibold text-gray-900 mb-4">Your Keys ({userKeys.length})</div>
-        {userKeys.length > 0 ? (
-          <div className="space-y-2">
-            {userKeys.map(k => (
-              <div key={k.key_id} className="flex items-center justify-between py-2 border-b border-gray-50 last:border-0 text-sm">
-                <div>
-                  <span className="font-medium text-gray-900">{k.name}</span>
-                  <span className="text-xs text-gray-400 ml-2 font-mono">{k.key_id}</span>
-                </div>
-                <div className="text-xs text-gray-400">
-                  {k.requests_made} requests
-                  {k.last_used_at && ` · last used ${new Date(k.last_used_at * 1000).toLocaleDateString()}`}
-                </div>
+            <div>
+              <div className="text-xs mb-1.5" style={{ color: '#888' }}>Scope</div>
+              <span
+                className="text-[11px] font-medium px-3 py-1 rounded-full"
+                style={{ background: '#fdf6ec', color: C.gold, border: '1px solid rgba(196,154,69,0.2)' }}
+              >
+                Chat + Exchange
+              </span>
+            </div>
+
+            <button
+              onClick={createKey}
+              className="px-5 py-2.5 rounded-xl text-sm font-medium transition-colors mt-2"
+              style={{ background: C.blueBlack, color: '#fff' }}
+            >
+              Create key
+            </button>
+          </div>
+
+          {createdKey && (
+            <div className="mt-4 rounded-xl p-4" style={{ background: '#edf7f1', border: '1px solid rgba(63,128,85,0.15)' }}>
+              <div className="text-sm font-semibold" style={{ color: C.green }}>Key created</div>
+              <div className="text-xs mb-2" style={{ color: '#888' }}>Copy now — you won't see it again.</div>
+              <div className="flex items-center gap-2">
+                <code className="flex-1 text-xs font-mono break-all p-2 rounded-lg bg-white border border-gray-100">
+                  {createdKey}
+                </code>
+                <button
+                  onClick={() => copyKey(createdKey)}
+                  className="px-3 py-1.5 rounded-lg text-xs font-medium shrink-0"
+                  style={{ background: C.green, color: '#fff' }}
+                >
+                  {copied ? 'Done' : 'Copy'}
+                </button>
               </div>
-            ))}
+            </div>
+          )}
+        </div>
+
+        {/* Your keys list */}
+        <div className="w-full lg:w-72 shrink-0 bg-white rounded-2xl border border-gray-200/40 p-5">
+          <div className="text-[10px] uppercase tracking-wider font-medium mb-3" style={{ color: C.gold }}>
+            Your Keys
           </div>
-        ) : (
-          <div className="text-sm text-gray-300 text-center py-4">No keys yet</div>
-        )}
+
+          {userKeys.length > 0 ? (
+            <div className="space-y-3">
+              {userKeys.map(k => (
+                <div key={k.key_id} className="flex items-center justify-between py-2 border-b border-gray-50 last:border-0">
+                  <div>
+                    <div className="text-sm font-medium" style={{ color: C.blueBlack }}>{k.name}</div>
+                    <div className="text-xs" style={{ color: '#999' }}>
+                      {k.requests_made.toLocaleString()} req
+                    </div>
+                  </div>
+                  <div className="text-xs" style={{ color: '#bbb' }}>
+                    {k.last_used_at
+                      ? new Date(k.last_used_at * 1000).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+                      : 'never'
+                    }
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-xs py-6 text-center" style={{ color: '#ccc' }}>No keys yet</div>
+          )}
+        </div>
       </div>
 
-      <div className="bg-white rounded-2xl border border-gray-200/60 shadow-sm p-5">
-        <div className="text-sm font-semibold text-gray-900 mb-4">Quick Start</div>
-        <div className="space-y-5">
-          <div>
-            <div className="text-xs font-medium text-gray-500 mb-2">curl</div>
-            <pre className="bg-gray-900 text-gray-300 rounded-xl p-4 text-xs font-mono overflow-x-auto">
-{`curl http://localhost:8000/v1/chat/completions \\
-  -H "Content-Type: application/json" \\
-  -H "Authorization: Bearer ${defaultKey || 'sk-ie-YOUR_KEY'}" \\
-  -d '{"model":"default","messages":[{"role":"user","content":"Hello!"}]}'`}
-            </pre>
-          </div>
-          <div>
-            <div className="text-xs font-medium text-gray-500 mb-2">Python (OpenAI SDK)</div>
-            <pre className="bg-gray-900 text-gray-300 rounded-xl p-4 text-xs font-mono overflow-x-auto">
-{`from openai import OpenAI
-
-client = OpenAI(
-    base_url="http://localhost:8000/v1",
-    api_key="${defaultKey || 'sk-ie-YOUR_KEY'}",
-)
-
-resp = client.chat.completions.create(
-    model="default",
-    messages=[{"role": "user", "content": "Hello!"}],
-)
-print(resp.choices[0].message.content)`}
-            </pre>
-          </div>
-          <div>
-            <div className="text-xs font-medium text-gray-500 mb-2">TypeScript</div>
-            <pre className="bg-gray-900 text-gray-300 rounded-xl p-4 text-xs font-mono overflow-x-auto">
-{`import OpenAI from "openai";
-
-const client = new OpenAI({
-  baseURL: "http://localhost:8000/v1",
-  apiKey: "${defaultKey || 'sk-ie-YOUR_KEY'}",
-});
-
-const resp = await client.chat.completions.create({
-  model: "default",
-  messages: [{ role: "user", content: "Hello!" }],
-});
-console.log(resp.choices[0].message.content);`}
-            </pre>
-          </div>
+      {/* Quick start */}
+      <div className="bg-white rounded-2xl border border-gray-200/40 p-5">
+        <div className="text-[10px] uppercase tracking-wider font-medium mb-3" style={{ color: C.gold }}>
+          Quick start
+        </div>
+        <div className="rounded-xl p-4 font-mono text-xs overflow-x-auto" style={{ background: C.blueBlack, color: '#a8a8a0' }}>
+          <div>curl /v1/chat/completions \</div>
+          <div className="pl-4">-H "Authorization: Bearer $IE_KEY" \</div>
+          <div className="pl-4">-d '{`{"model":"default","messages":[{"role":"user","content":"Hello"}]}`}'</div>
         </div>
       </div>
     </div>

@@ -1,142 +1,362 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { Link, Outlet, useLocation } from 'react-router-dom'
 import { useCoordinatorStatus } from '../lib/useWebSocket'
 import { useAuth } from '../lib/auth'
 import { ErrorBoundary } from './ErrorBoundary'
 
-const NAV = [
-  { path: '/', label: 'Home' },
-  { path: '/exchange', label: 'IEX' },
-  { path: '/chat', label: 'Chat' },
-  { path: '/models', label: 'Models' },
-  { path: '/providers', label: 'Providers' },
-  { path: '/billing', label: 'Billing' },
-  { path: '/keys', label: 'API Keys' },
+// ─── Brand palette ───────────────────────────────────────────
+const C = {
+  gold: '#C49A45',
+  green: '#3F8055',
+  sidebarBg: '#292F35',
+  sidebarText: '#a8a8a0',
+  sidebarActive: '#C49A45',
+  sidebarHover: 'rgba(255,255,255,0.06)',
+  pageBg: '#f5f2ec',
+  pageText: '#292F35',
+}
+
+const PRIMARY_NAV = [
+  { path: '/overview', label: 'Overview', icon: OverviewIcon },
+  { path: '/chat', label: 'Chat', icon: ChatIcon },
+  { path: '/exchange', label: 'Exchange', icon: ExchangeIcon },
+  { path: '/models', label: 'Models', icon: ModelsIcon },
+  { path: '/providers', label: 'Providers', icon: ProvidersIcon },
 ]
+
+const ACCOUNT_NAV = [
+  { path: '/billing', label: 'Billing', icon: BillingIcon },
+  { path: '/keys', label: 'API keys', icon: KeysIcon },
+  { path: '/admin', label: 'Settings', icon: SettingsIcon },
+]
+
+// ─── Icons (simple SVG, 18x18) ──────────────────────────────
+
+function OverviewIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="2" y="2" width="5.5" height="5.5" rx="1" />
+      <rect x="10.5" y="2" width="5.5" height="5.5" rx="1" />
+      <rect x="2" y="10.5" width="5.5" height="5.5" rx="1" />
+      <rect x="10.5" y="10.5" width="5.5" height="5.5" rx="1" />
+    </svg>
+  )
+}
+
+function ChatIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 3.5h12a1 1 0 011 1v7a1 1 0 01-1 1H6l-3 2.5v-2.5a1 1 0 01-1-1v-7a1 1 0 011-1z" />
+    </svg>
+  )
+}
+
+function ExchangeIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M2 13l4-4 3 3 7-8" />
+      <path d="M10 4h6v6" />
+    </svg>
+  )
+}
+
+function ModelsIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="3" width="12" height="12" rx="2" />
+      <path d="M3 7h12M7 3v12" />
+    </svg>
+  )
+}
+
+function ProvidersIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="9" cy="9" r="2" />
+      <circle cx="9" cy="3" r="1.5" />
+      <circle cx="14" cy="13" r="1.5" />
+      <circle cx="4" cy="13" r="1.5" />
+      <path d="M9 5v2M10.7 10.3l2 1.5M7.3 10.3l-2 1.5" />
+    </svg>
+  )
+}
+
+function BillingIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="9" cy="9" r="7" />
+      <path d="M9 5v8M7 7h3.5a1.5 1.5 0 010 3H7h4a1.5 1.5 0 010 3H7" />
+    </svg>
+  )
+}
+
+function KeysIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M11.5 2l4.5 4.5-7 7-4.5-4.5 7-7z" />
+      <path d="M2 16l3-3" />
+      <path d="M9 4.5l4.5 4.5" />
+    </svg>
+  )
+}
+
+function SettingsIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="9" cy="9" r="2.5" />
+      <path d="M9 1.5v2M9 14.5v2M1.5 9h2M14.5 9h2M3.1 3.1l1.4 1.4M13.5 13.5l1.4 1.4M3.1 14.9l1.4-1.4M13.5 4.5l1.4-1.4" />
+    </svg>
+  )
+}
+
+// ─── Sidebar Nav Item ────────────────────────────────────────
+
+function NavItem({ path, label, icon: Icon, active }: {
+  path: string; label: string; icon: React.FC<{ className?: string }>; active: boolean
+}) {
+  return (
+    <Link
+      to={path}
+      className="flex items-center gap-3 px-3 py-2 rounded-lg text-[13px] font-medium transition-colors"
+      style={{
+        background: active ? C.sidebarHover : 'transparent',
+        color: active ? '#fff' : C.sidebarText,
+      }}
+    >
+      <Icon className="shrink-0" />
+      <span>{label}</span>
+      {active && (
+        <span
+          className="w-1.5 h-1.5 rounded-full ml-auto shrink-0"
+          style={{ background: C.sidebarActive }}
+        />
+      )}
+    </Link>
+  )
+}
+
+// ─── Layout ──────────────────────────────────────────────────
 
 export function Layout() {
   const location = useLocation()
   const coordinatorOnline = useCoordinatorStatus()
   const { user, logout } = useAuth()
   const [mobileOpen, setMobileOpen] = useState(false)
-  const isLanding = location.pathname === '/'
-  const [scrolledPast, setScrolledPast] = useState(false)
 
-  useEffect(() => {
-    if (!isLanding) { setScrolledPast(true); return }
-    const onScroll = () => {
-      // After scrolling past ~85% of the 500vh scroll sequence, the bg is white
-      setScrolledPast(window.scrollY > window.innerHeight * 4.2)
-    }
-    window.addEventListener('scroll', onScroll, { passive: true })
-    onScroll()
-    return () => window.removeEventListener('scroll', onScroll)
-  }, [isLanding])
+  // Landing page gets full-screen layout (no sidebar) — preserves scroll sequence
+  if (location.pathname === '/') {
+    return (
+      <ErrorBoundary>
+        <Outlet />
+      </ErrorBoundary>
+    )
+  }
 
-  return (
-    <div className={`min-h-screen ${isLanding ? 'bg-transparent' : 'bg-[#fafafa]'}`}>
-      <header className={`px-4 md:px-6 py-3 sticky top-0 z-50 transition-all duration-500 ${
-        isLanding && !scrolledPast
-          ? 'bg-transparent border-b border-transparent'
-          : 'bg-white/80 backdrop-blur-xl border-b border-gray-200/60'
-      }`}>
-        <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Link to="/" className={`flex items-center gap-2 text-lg font-semibold tracking-tight ${
-              isLanding && !scrolledPast ? 'text-white' : 'text-gray-900'
-            }`}>
-              <img src="/logo-icon.svg" alt="IE" className="w-7 h-7" />
-              <span className="hidden sm:inline">Inference Exchange</span>
-            </Link>
-            {coordinatorOnline !== null && (
-              <span className={`inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full font-medium ${
-                coordinatorOnline ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-500'
-              }`}>
-                <span className={`w-1.5 h-1.5 rounded-full ${coordinatorOnline ? 'bg-emerald-500' : 'bg-red-400'}`} />
-                {coordinatorOnline ? 'Live' : 'Offline'}
-              </span>
-            )}
-          </div>
-
-          {/* Desktop nav */}
-          <div className="hidden lg:flex items-center gap-2">
-            <nav className="flex gap-0.5 mr-3">
-              {NAV.map(({ path, label }) => (
-                <Link key={path} to={path}
-                  className={`px-3 py-1.5 rounded-lg text-[13px] font-medium transition-colors ${
-                    location.pathname === path
-                      ? 'bg-gray-900 text-white'
-                      : isLanding && !scrolledPast
-                        ? 'text-gray-300 hover:text-white hover:bg-white/10'
-                        : 'text-gray-500 hover:text-gray-900 hover:bg-gray-100'
-                  }`}>{label}</Link>
-              ))}
-            </nav>
-            {user ? (
-              <div className="flex items-center gap-2">
-                <span className={`text-xs ${isLanding && !scrolledPast ? 'text-gray-400' : 'text-gray-500'}`}>{user.email}</span>
-                <span className="text-xs font-medium text-emerald-500">${user.balance_usd.toFixed(2)}</span>
-                <button onClick={logout} className={`text-xs px-2 py-1 rounded-lg ${
-                  isLanding && !scrolledPast
-                    ? 'text-gray-400 hover:text-white hover:bg-white/10'
-                    : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'
-                }`}>Sign out</button>
-              </div>
-            ) : (
-              <Link to="/login" className={`px-3 py-1.5 rounded-lg text-[13px] font-medium ${
-                isLanding && !scrolledPast
-                  ? 'bg-white/10 text-white hover:bg-white/20 border border-white/20'
-                  : 'bg-gray-900 text-white hover:bg-gray-800'
-              }`}>Sign in</Link>
-            )}
-          </div>
-
-          {/* Mobile hamburger */}
-          <button onClick={() => setMobileOpen(!mobileOpen)} className="lg:hidden p-2 rounded-lg hover:bg-gray-100">
-            <svg className="w-5 h-5 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              {mobileOpen
-                ? <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                : <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-              }
-            </svg>
-          </button>
+  if (location.pathname === '/login') {
+    return (
+      <div className="min-h-screen" style={{ background: C.pageBg }}>
+        <div className="px-6 py-4">
+          <Link to="/" className="text-sm font-semibold tracking-tight uppercase" style={{ color: C.gold }}>
+            Inference Exchange
+          </Link>
         </div>
-
-        {/* Mobile nav dropdown */}
-        {mobileOpen && (
-          <div className="lg:hidden mt-3 pb-3 border-t border-gray-100 pt-3">
-            <nav className="flex flex-col gap-1">
-              {NAV.map(({ path, label }) => (
-                <Link key={path} to={path} onClick={() => setMobileOpen(false)}
-                  className={`px-3 py-2 rounded-lg text-sm font-medium ${
-                    location.pathname === path ? 'bg-gray-900 text-white' : 'text-gray-600 hover:bg-gray-100'
-                  }`}>{label}</Link>
-              ))}
-            </nav>
-            <div className="mt-3 pt-3 border-t border-gray-100">
-              {user ? (
-                <div className="flex items-center justify-between px-3">
-                  <span className="text-sm text-gray-500">{user.email}</span>
-                  <button onClick={() => { logout(); setMobileOpen(false) }} className="text-sm text-gray-400">Sign out</button>
-                </div>
-              ) : (
-                <Link to="/login" onClick={() => setMobileOpen(false)} className="block px-3 py-2 bg-gray-900 text-white rounded-lg text-sm font-medium text-center">Sign in</Link>
-              )}
-            </div>
-          </div>
-        )}
-      </header>
-      {location.pathname === '/' ? (
         <ErrorBoundary>
           <Outlet />
         </ErrorBoundary>
-      ) : (
-        <main className="max-w-7xl mx-auto px-4 md:px-6 py-6 md:py-8">
+      </div>
+    )
+  }
+
+  const sidebarContent = (
+    <>
+      {/* Brand */}
+      <div className="px-4 pt-5 pb-6">
+        <Link to="/" className="flex items-center gap-2.5">
+          <img src="/logo-icon.svg" alt="IE" className="w-6 h-6" />
+          <div>
+            <div className="text-sm font-bold uppercase tracking-wider" style={{ color: C.gold }}>
+              Inference
+            </div>
+            <div className="text-[11px] uppercase tracking-wider" style={{ color: '#666' }}>
+              Exchange
+            </div>
+          </div>
+        </Link>
+      </div>
+
+      {/* Primary nav */}
+      <nav className="px-3 space-y-0.5">
+        {PRIMARY_NAV.map(item => (
+          <NavItem
+            key={item.path}
+            {...item}
+            active={location.pathname === item.path}
+          />
+        ))}
+      </nav>
+
+      {/* Separator + Account nav */}
+      <div className="px-4 mt-6 mb-3">
+        <div className="border-t" style={{ borderColor: 'rgba(255,255,255,0.08)' }} />
+        <div className="text-[10px] uppercase tracking-wider mt-4 mb-2" style={{ color: '#555' }}>
+          Account
+        </div>
+      </div>
+      <nav className="px-3 space-y-0.5">
+        {ACCOUNT_NAV.map(item => (
+          <NavItem
+            key={item.path}
+            {...item}
+            active={location.pathname === item.path}
+          />
+        ))}
+      </nav>
+
+      {/* Spacer */}
+      <div className="flex-1" />
+
+      {/* Network status + user */}
+      <div className="px-4 pb-5 space-y-3">
+        {coordinatorOnline !== null && (
+          <div className="flex items-center gap-2">
+            <span
+              className="w-2 h-2 rounded-full shrink-0"
+              style={{ background: coordinatorOnline ? C.green : '#B7443B' }}
+            />
+            <span className="text-xs" style={{ color: coordinatorOnline ? C.green : '#B7443B' }}>
+              {coordinatorOnline ? 'Network online' : 'Network offline'}
+            </span>
+          </div>
+        )}
+        {user && (
+          <div className="flex items-center justify-between">
+            <div className="min-w-0">
+              <div className="text-xs truncate" style={{ color: '#888' }}>{user.name || user.email}</div>
+              <div className="text-[10px]" style={{ color: '#555' }}>
+                {user.email !== user.name ? user.email.split('@')[0] : ''}
+              </div>
+            </div>
+            <button
+              onClick={logout}
+              className="text-[10px] px-2 py-1 rounded-lg transition-colors"
+              style={{ color: '#666' }}
+            >
+              Sign out
+            </button>
+          </div>
+        )}
+      </div>
+    </>
+  )
+
+  return (
+    <div className="flex min-h-screen" style={{ background: C.pageBg }}>
+      {/* Desktop sidebar */}
+      <aside
+        className="hidden lg:flex flex-col w-52 shrink-0 sticky top-0 h-screen overflow-y-auto"
+        style={{ background: C.sidebarBg }}
+      >
+        {sidebarContent}
+      </aside>
+
+      {/* Mobile hamburger + overlay */}
+      <div className="lg:hidden fixed top-0 left-0 right-0 z-50 px-4 py-3 flex items-center justify-between"
+        style={{ background: C.pageBg, borderBottom: '1px solid rgba(0,0,0,0.06)' }}
+      >
+        <Link to="/" className="text-sm font-bold uppercase tracking-wider" style={{ color: C.gold }}>
+          IE
+        </Link>
+        <button
+          onClick={() => setMobileOpen(!mobileOpen)}
+          className="p-2 rounded-lg"
+          style={{ color: C.pageText }}
+        >
+          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            {mobileOpen
+              ? <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              : <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+            }
+          </svg>
+        </button>
+      </div>
+
+      {/* Mobile sidebar overlay */}
+      {mobileOpen && (
+        <>
+          <div
+            className="lg:hidden fixed inset-0 z-40 bg-black/40"
+            onClick={() => setMobileOpen(false)}
+          />
+          <aside
+            className="lg:hidden fixed top-0 left-0 bottom-0 z-50 w-56 flex flex-col overflow-y-auto"
+            style={{ background: C.sidebarBg }}
+            onClick={(e) => {
+              // Close on nav link clicks
+              if ((e.target as HTMLElement).closest('a')) setMobileOpen(false)
+            }}
+          >
+            {sidebarContent}
+          </aside>
+        </>
+      )}
+
+      {/* Main content */}
+      <div className="flex-1 min-w-0 lg:ml-0">
+        {/* Page title area + network status */}
+        <div className="px-6 md:px-10 pt-14 lg:pt-8 pb-6 flex items-start justify-between">
+          <div>
+            <PageTitle pathname={location.pathname} />
+          </div>
+          {coordinatorOnline !== null && (
+            <div className="hidden lg:flex items-center gap-2 pt-1">
+              <span className="text-xs" style={{ color: coordinatorOnline ? C.green : '#B7443B' }}>
+                Network · {coordinatorOnline ? 'live' : 'offline'}
+              </span>
+              <span
+                className="w-2 h-2 rounded-full"
+                style={{ background: coordinatorOnline ? C.green : '#B7443B' }}
+              />
+            </div>
+          )}
+        </div>
+
+        {/* Page content */}
+        <div className="px-6 md:px-10 pb-10">
           <ErrorBoundary>
             <Outlet />
           </ErrorBoundary>
-        </main>
-      )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── Page titles ─────────────────────────────────────────────
+
+const PAGE_META: Record<string, { title: string; subtitle: string }> = {
+  '/overview': { title: 'Network', subtitle: 'Operational transparency for the exchange.' },
+  '/chat': { title: 'Chat', subtitle: 'Familiar entry point first. Exchange mechanics stay one click away.' },
+  '/exchange': { title: 'Exchange', subtitle: 'A serious market surface for users who care about the routing mechanics.' },
+  '/models': { title: 'Models', subtitle: 'Choose the model first; then inspect how the exchange can serve it.' },
+  '/providers': { title: 'Providers', subtitle: 'Browse supply as evidence, not a directory of marketing claims.' },
+  '/billing': { title: 'Billing', subtitle: 'Alpha credits, usage and the economics of every request.' },
+  '/keys': { title: 'API keys', subtitle: 'One secure place for keys, quick start and request attribution.' },
+  '/admin': { title: 'Settings', subtitle: 'System configuration and diagnostics.' },
+  '/trace': { title: 'Request trace', subtitle: 'Inspect the evidence behind a completed request.' },
+  '/dashboard': { title: 'Provider', subtitle: 'The provider side is about turning hardware into a transparent economic offer.' },
+}
+
+function PageTitle({ pathname }: { pathname: string }) {
+  const meta = PAGE_META[pathname]
+  if (!meta) return null
+  return (
+    <div>
+      <h1 className="text-2xl font-bold tracking-tight" style={{ color: C.pageText }}>
+        {meta.title}
+      </h1>
+      <p className="text-sm mt-1" style={{ color: '#888' }}>
+        {meta.subtitle}
+      </p>
     </div>
   )
 }
