@@ -12,27 +12,201 @@ const C = {
   deepBlue: '#315B72',
   blueBlack: '#292F35',
   white: '#D8D1BE',
+  orange: '#D77A2F',
+  indigo: '#4A465F',
 }
 
 const TRUST_COLORS: Record<string, { bg: string; text: string; label: string }> = {
   open:         { bg: '#f3f3f3', text: '#999',     label: 'Open' },
-  contained:    { bg: '#eef3f7', text: C.deepBlue, label: 'Hardened' },
+  contained:    { bg: '#eef3f7', text: C.deepBlue, label: 'Contained' },
   hardened:     { bg: '#fdf6ec', text: C.gold,     label: 'Hardened+' },
   confidential: { bg: '#edf7f1', text: C.green,    label: 'Confidential' },
 }
 
+const PROVIDER_NAMES: Record<string, string> = {
+  openai: 'OpenAI', anthropic: 'Anthropic', google: 'Google', deepseek: 'DeepSeek',
+  deepinfra: 'DeepInfra', groq: 'Groq', fireworks: 'Fireworks AI',
+  together: 'Together AI', openrouter: 'OpenRouter', alibaba: 'Alibaba Cloud',
+}
+function providerName(s: string): string {
+  return PROVIDER_NAMES[s] || s.charAt(0).toUpperCase() + s.slice(1)
+}
+
 // ─── Types ───────────────────────────────────────────────────
 
+interface MarketProvider {
+  id: string; name: string; price_output: number; price_input: number; price_cache: number
+  tps: number; trust: string; hardware: string; quantization: string
+  load: number; encrypted: boolean; verified: boolean; slots: string
+  context_length: number; format: string; original_model: string
+}
+
 interface MarketModel {
-  model: string
-  provider_count: number
-  cheapest_output: number
-  fastest_tps: number
-  providers: Array<{
-    id: string; name: string; price_output: number; price_input: number
-    tps: number; trust: string; hardware: string; quantization: string
-    load: number; encrypted: boolean; verified: boolean
+  model: string; family: string; size: string; canonical_id: string
+  provider_count: number; cheapest_output: number; fastest_tps: number; max_trust: string
+  capabilities: {
+    context_length: number; supports_vision: boolean; supports_tool_calling: boolean
+    architecture: string; model_type: string
+  }
+  providers: MarketProvider[]
+  reference_prices: Array<{
+    provider: string; model: string
+    price_input: number; price_cache: number; price_output: number
+    diff_pct: number; cheaper: boolean; comparison_type?: string
   }>
+}
+
+// ─── Helpers ─────────────────────────────────────────────────
+
+function formatCtx(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`
+  if (n >= 1024) return `${Math.round(n / 1024)}k`
+  return `${n}`
+}
+
+// ─── Expanded Provider Detail ────────────────────────────────
+
+function ProviderDetail({ p, reputation }: { p: MarketProvider; reputation?: any }) {
+  const tc = TRUST_COLORS[p.trust] || TRUST_COLORS.open
+  return (
+    <div className="px-5 py-4 border-t" style={{ background: '#fafaf8', borderColor: '#f0ede6' }}>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 text-xs">
+        {/* Three-tier pricing */}
+        <div>
+          <div className="text-[10px] uppercase tracking-wider mb-2" style={{ color: '#aaa' }}>Pricing / Mtok</div>
+          <div className="space-y-1">
+            <div className="flex justify-between">
+              <span style={{ color: C.deepBlue }}>Input</span>
+              <span className="font-semibold" style={{ color: C.blueBlack }}>${p.price_input.toFixed(2)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span style={{ color: C.turquoise }}>Cache</span>
+              <span className="font-semibold" style={{ color: p.price_cache > 0 ? C.blueBlack : '#ccc' }}>
+                {p.price_cache > 0 ? `$${p.price_cache.toFixed(2)}` : '—'}
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span style={{ color: C.gold }}>Output</span>
+              <span className="font-semibold" style={{ color: C.blueBlack }}>${p.price_output.toFixed(2)}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Runtime / Security */}
+        <div>
+          <div className="text-[10px] uppercase tracking-wider mb-2" style={{ color: '#aaa' }}>Runtime</div>
+          <div className="space-y-1">
+            <div className="flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 rounded-full" style={{ background: tc.text }} />
+              <span>{tc.label}</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 rounded-full" style={{ background: p.encrypted ? C.deepBlue : '#ddd' }} />
+              <span>{p.encrypted ? 'E2E encrypted' : 'No E2E'}</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 rounded-full" style={{ background: p.verified ? C.green : '#ddd' }} />
+              <span>{p.verified ? 'Hash verified' : 'Unverified'}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Model / Hardware */}
+        <div>
+          <div className="text-[10px] uppercase tracking-wider mb-2" style={{ color: '#aaa' }}>Hardware & Model</div>
+          <div className="space-y-1">
+            <div>{p.hardware || 'Unknown'}</div>
+            {p.quantization && <div className="font-mono" style={{ color: C.gold }}>{p.quantization}</div>}
+            {p.format && <div>{p.format.toUpperCase()}</div>}
+            {p.context_length > 0 && <div>{formatCtx(p.context_length)} context</div>}
+          </div>
+        </div>
+
+        {/* Performance / Load */}
+        <div>
+          <div className="text-[10px] uppercase tracking-wider mb-2" style={{ color: '#aaa' }}>Performance</div>
+          <div className="space-y-1">
+            <div>
+              <span style={{ color: C.turquoise }}>{p.tps > 0 ? `${p.tps.toFixed(1)} tok/s` : '—'}</span>
+              <span style={{ color: '#bbb' }}> observed</span>
+            </div>
+            <div>
+              Load: <span style={{ color: p.load > 0.8 ? C.red : p.load > 0.5 ? C.orange : C.green }}>
+                {(p.load * 100).toFixed(0)}%
+              </span>
+            </div>
+            <div>Slots: {p.slots || '—'}</div>
+            {reputation && (
+              <div>
+                Rep: <span style={{ color: reputation.score > 0.8 ? C.green : reputation.score > 0.5 ? C.gold : C.red }}>
+                  {(reputation.score * 100).toFixed(0)}%
+                </span>
+                <span style={{ color: '#bbb' }}> ({reputation.total_requests} req)</span>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── Reference Pricing Section ───────────────────────────────
+
+function ReferencePricing({ refs, exchangePrice }: {
+  refs: MarketModel['reference_prices']; exchangePrice: number
+}) {
+  if (!refs || refs.length === 0) return null
+
+  const sameModel = refs.filter(r => r.comparison_type === 'same_model' || !r.comparison_type)
+  const alternatives = refs.filter(r => r.comparison_type === 'alternative')
+
+  return (
+    <div className="space-y-3">
+      {sameModel.length > 0 && (
+        <div>
+          <div className="text-[10px] uppercase tracking-wider mb-2" style={{ color: '#aaa' }}>
+            Same model — external providers
+          </div>
+          <div className="space-y-1">
+            {sameModel.map((r, i) => {
+              const cheaper = exchangePrice < r.price_output
+              return (
+                <div key={i} className="flex items-center gap-3 text-xs py-1.5 border-b border-gray-50 last:border-0">
+                  <span className="w-24 truncate" style={{ color: C.blueBlack }}>{providerName(r.provider)}</span>
+                  <span className="flex-1 truncate" style={{ color: '#888' }}>{r.model}</span>
+                  <span style={{ color: C.deepBlue }}>${r.price_input.toFixed(2)} in</span>
+                  <span style={{ color: C.turquoise }}>{r.price_cache > 0 ? `$${r.price_cache.toFixed(2)} cache` : '—'}</span>
+                  <span className="font-semibold" style={{ color: C.gold }}>${r.price_output.toFixed(2)} out</span>
+                  {cheaper && (
+                    <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full" style={{ background: '#edf7f1', color: C.green }}>
+                      {r.diff_pct}% more
+                    </span>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+      {alternatives.length > 0 && (
+        <div>
+          <div className="text-[10px] uppercase tracking-wider mb-2" style={{ color: '#aaa' }}>
+            Alternative models
+          </div>
+          <div className="space-y-1">
+            {alternatives.slice(0, 5).map((r, i) => (
+              <div key={i} className="flex items-center gap-3 text-xs py-1.5 border-b border-gray-50 last:border-0">
+                <span className="w-24 truncate" style={{ color: C.indigo }}>{providerName(r.provider)}</span>
+                <span className="flex-1 truncate" style={{ color: '#888' }}>{r.model}</span>
+                <span className="font-semibold" style={{ color: C.indigo }}>${r.price_output.toFixed(2)} out</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
 }
 
 // ─── Main ────────────────────────────────────────────────────
@@ -40,9 +214,15 @@ interface MarketModel {
 export function Exchange() {
   const { data: marketData } = useSWR('market', api.market, { refreshInterval: 5000 })
   const { data: provData } = useSWR('providers', api.providers, { refreshInterval: 5000 })
+  const { data: stats } = useSWR('stats', api.stats, { refreshInterval: 5000 })
+  const { data: repData } = useSWR('reputation', api.reputation, { refreshInterval: 10000 })
+  const { data: traceData } = useSWR('traces', api.traces, { refreshInterval: 5000 })
 
   const models = (marketData?.models || []) as MarketModel[]
   const allProviders = provData?.providers || []
+  const repMap = new Map((repData?.reputation || []).map((r: any) => [r.provider_id, r]))
+  const traces = traceData?.traces || []
+  const recentTrades = [...traces].reverse().slice(0, 8)
 
   // Filter state
   const [selectedModel, setSelectedModel] = useState('')
@@ -50,17 +230,18 @@ export function Exchange() {
   const [minTrust, setMinTrust] = useState('hardened')
   const [priceCeiling, setPriceCeiling] = useState('0.15')
   const [selectedProviderId, setSelectedProviderId] = useState('')
+  const [expandedProviderId, setExpandedProviderId] = useState<string | null>(null)
+  const [showMarketContext, setShowMarketContext] = useState(false)
 
-  // Resolve selected model (auto-select first if nothing chosen)
+  // Resolve selected model
   const activeModel = selectedModel || (models.length > 0 ? models[0].model : '')
   const modelData = models.find(m => m.model === activeModel)
 
-  // Get available quantizations for the selected model
-  const quantizations = modelData
-    ? [...new Set(modelData.providers.map(p => p.quantization).filter(Boolean))]
-    : []
+  // Quantizations and capabilities
+  const quantizations = modelData ? [...new Set(modelData.providers.map(p => p.quantization).filter(Boolean))] : []
+  const caps = modelData?.capabilities
 
-  // Filter providers by trust + price ceiling + quantization
+  // Filter
   const trustOrder = ['open', 'contained', 'hardened', 'confidential']
   const minTrustIdx = trustOrder.indexOf(minTrust)
   const ceiling = parseFloat(priceCeiling) || 999
@@ -75,34 +256,41 @@ export function Exchange() {
     })
     .sort((a, b) => a.price_output - b.price_output)
 
-  // Auto-select best route (cheapest eligible)
+  // All providers for model (before filters) for context
+  const allModelProviders = modelData?.providers || []
+  const priceRange = allModelProviders.length > 0
+    ? { min: Math.min(...allModelProviders.map(p => p.price_output)), max: Math.max(...allModelProviders.map(p => p.price_output)) }
+    : null
+  const tpsRange = allModelProviders.filter(p => p.tps > 0).length > 0
+    ? { min: Math.min(...allModelProviders.filter(p => p.tps > 0).map(p => p.tps)), max: Math.max(...allModelProviders.map(p => p.tps)) }
+    : null
+  const verifiedCount = allModelProviders.filter(p => p.verified).length
+  const encryptedCount = allModelProviders.filter(p => p.encrypted).length
+
+  // Route selection
   const bestRoute = eligibleProviders.length > 0 ? eligibleProviders[0] : null
   const activeProvider = selectedProviderId
     ? eligibleProviders.find(p => p.id === selectedProviderId) || bestRoute
     : bestRoute
 
-  // "Why this route?" explanation
+  // Fleet stats
+  const totalSlots = allProviders.reduce((s: number, p: any) => s + p.max_concurrent, 0)
+  const usedSlots = allProviders.reduce((s: number, p: any) => s + p.active_requests, 0)
+
   function explainRoute() {
     if (!activeProvider) return null
     const tc = TRUST_COLORS[activeProvider.trust] || TRUST_COLORS.open
-    const reasons: string[] = []
-    reasons.push(`Meets ${tc.label}`)
+    const parts: string[] = [`Meets ${tc.label}`]
     if (eligibleProviders.length > 1) {
       const rank = eligibleProviders.findIndex(p => p.id === activeProvider.id) + 1
-      if (rank === 1) {
-        if (activeProvider.tps >= (eligibleProviders[1]?.tps || 0)) {
-          reasons.push('fastest eligible provider')
-        } else {
-          reasons.push('cheapest eligible provider')
-        }
-      } else {
-        reasons.push(`${rank === 2 ? '2nd' : rank === 3 ? '3rd' : `${rank}th`} cheapest`)
-      }
+      if (rank === 1) parts.push(activeProvider.tps >= (eligibleProviders[1]?.tps || 0) ? 'fastest eligible' : 'cheapest eligible')
+      else parts.push(`${rank === 2 ? '2nd' : rank === 3 ? '3rd' : `${rank}th`} cheapest`)
     } else {
-      reasons.push('only eligible provider')
+      parts.push('only eligible provider')
     }
-    reasons.push(`within your $${priceCeiling} cap`)
-    return reasons.join(' · ')
+    parts.push(`within $${priceCeiling} cap`)
+    if (activeProvider.encrypted) parts.push('E2E encrypted')
+    return parts.join(' · ')
   }
 
   // Empty state
@@ -111,9 +299,7 @@ export function Exchange() {
       <div className="max-w-2xl mx-auto text-center py-16">
         <img src="/logo-icon.svg" alt="IE" className="w-16 h-16 mx-auto mb-6 opacity-20" />
         <h2 className="text-xl font-bold mb-3" style={{ color: C.blueBlack }}>The exchange is quiet</h2>
-        <p className="text-sm mb-8" style={{ color: '#888' }}>
-          No providers are connected. When providers come online, you'll see live pricing and routing here.
-        </p>
+        <p className="text-sm mb-8" style={{ color: '#888' }}>No providers connected.</p>
         <div className="bg-white rounded-2xl border border-gray-200/40 p-6 text-left max-w-sm mx-auto">
           <div className="rounded-xl p-4 font-mono text-xs space-y-1" style={{ background: C.blueBlack, color: C.white }}>
             <div><span style={{ color: '#666' }}>$</span> pip install ie-provider</div>
@@ -127,75 +313,52 @@ export function Exchange() {
   return (
     <div className="flex gap-6">
       {/* ── Left: Filter panel ── */}
-      <div className="w-64 shrink-0 space-y-6">
+      <div className="w-64 shrink-0 space-y-5">
         <div className="bg-white rounded-2xl border border-gray-200/40 p-5 space-y-5">
-          <div className="text-[10px] uppercase tracking-wider font-medium" style={{ color: C.gold }}>
-            Filter Market
-          </div>
+          <div className="text-[10px] uppercase tracking-wider font-medium" style={{ color: C.gold }}>Filter Market</div>
 
-          {/* Model selector */}
+          {/* Model */}
           <div>
             <div className="text-xs mb-1.5" style={{ color: '#888' }}>Model</div>
             <div className="flex flex-wrap gap-1.5">
               {models.map(m => (
-                <button
-                  key={m.model}
-                  onClick={() => { setSelectedModel(m.model); setSelectedQuant(''); setSelectedProviderId('') }}
+                <button key={m.model}
+                  onClick={() => { setSelectedModel(m.model); setSelectedQuant(''); setSelectedProviderId(''); setExpandedProviderId(null) }}
                   className="text-[11px] font-medium px-3 py-1.5 rounded-lg transition-colors truncate max-w-full"
-                  style={{
-                    background: activeModel === m.model ? C.blueBlack : 'transparent',
-                    color: activeModel === m.model ? '#fff' : '#888',
-                    border: `1px solid ${activeModel === m.model ? C.blueBlack : '#e5e5e5'}`,
-                  }}
-                >
-                  {m.model}
-                </button>
+                  style={{ background: activeModel === m.model ? C.blueBlack : 'transparent', color: activeModel === m.model ? '#fff' : '#888', border: `1px solid ${activeModel === m.model ? C.blueBlack : '#e5e5e5'}` }}
+                >{m.model}</button>
               ))}
             </div>
           </div>
 
-          {/* Quantization pills */}
+          {/* Quantization */}
           {quantizations.length > 0 && (
             <div>
               <div className="text-xs mb-1.5" style={{ color: '#888' }}>Quantization</div>
               <div className="flex flex-wrap gap-1">
                 {quantizations.map(q => (
-                  <button
-                    key={q}
+                  <button key={q}
                     onClick={() => { setSelectedQuant(selectedQuant === q ? '' : q); setSelectedProviderId('') }}
                     className="text-[11px] font-medium px-2.5 py-1 rounded-lg transition-colors font-mono"
-                    style={{
-                      background: selectedQuant === q ? C.blueBlack : 'transparent',
-                      color: selectedQuant === q ? '#fff' : '#888',
-                      border: `1px solid ${selectedQuant === q ? C.blueBlack : '#e5e5e5'}`,
-                    }}
-                  >
-                    {q}
-                  </button>
+                    style={{ background: selectedQuant === q ? C.blueBlack : 'transparent', color: selectedQuant === q ? '#fff' : '#888', border: `1px solid ${selectedQuant === q ? C.blueBlack : '#e5e5e5'}` }}
+                  >{q}</button>
                 ))}
               </div>
             </div>
           )}
 
-          {/* Minimum trust */}
+          {/* Trust */}
           <div>
             <div className="text-xs mb-1.5" style={{ color: '#888' }}>Minimum trust</div>
             <div className="flex flex-wrap gap-1">
               {(['open', 'contained', 'hardened', 'confidential'] as const).map(level => {
                 const tc = TRUST_COLORS[level]
                 return (
-                  <button
-                    key={level}
+                  <button key={level}
                     onClick={() => { setMinTrust(level); setSelectedProviderId('') }}
                     className="text-[11px] font-medium px-2.5 py-1 rounded-full transition-colors"
-                    style={{
-                      background: minTrust === level ? tc.bg : 'transparent',
-                      color: minTrust === level ? tc.text : '#aaa',
-                      border: `1px solid ${minTrust === level ? 'transparent' : '#e5e5e5'}`,
-                    }}
-                  >
-                    {tc.label}
-                  </button>
+                    style={{ background: minTrust === level ? tc.bg : 'transparent', color: minTrust === level ? tc.text : '#aaa', border: `1px solid ${minTrust === level ? 'transparent' : '#e5e5e5'}` }}
+                  >{tc.label}</button>
                 )
               })}
             </div>
@@ -204,167 +367,230 @@ export function Exchange() {
           {/* Price ceiling */}
           <div>
             <div className="text-xs mb-1.5" style={{ color: '#888' }}>Price ceiling</div>
-            <div className="text-lg font-bold" style={{ color: C.blueBlack }}>
-              ${priceCeiling} / M output
-            </div>
-            <input
-              type="range" min="0.01" max="1.00" step="0.01"
-              value={priceCeiling}
+            <div className="text-lg font-bold" style={{ color: C.blueBlack }}>${priceCeiling} / M output</div>
+            <input type="range" min="0.01" max="1.00" step="0.01" value={priceCeiling}
               onChange={e => { setPriceCeiling(e.target.value); setSelectedProviderId('') }}
-              className="w-full mt-1.5 accent-amber-500"
-            />
+              className="w-full mt-1.5 accent-amber-500" />
           </div>
 
-          {/* Route indicator */}
+          {/* Route */}
           <div>
             <div className="text-xs mb-1.5" style={{ color: '#888' }}>Route</div>
-            <span
-              className="text-[11px] font-medium px-3 py-1 rounded-full"
-              style={{ background: '#edf7f1', color: C.green }}
-            >
+            <span className="text-[11px] font-medium px-3 py-1 rounded-full"
+              style={{ background: activeProvider ? '#edf7f1' : '#f3f3f3', color: activeProvider ? C.green : '#999' }}>
               {activeProvider ? 'Lowest eligible' : 'No match'}
             </span>
           </div>
         </div>
 
-        {/* Provider count + live market note */}
-        <div className="px-1">
+        {/* Fleet summary */}
+        <div className="px-1 space-y-2">
           <div className="flex items-baseline gap-2">
-            <span className="text-2xl font-bold" style={{ color: C.blueBlack }}>
-              {eligibleProviders.length}
-            </span>
+            <span className="text-2xl font-bold" style={{ color: C.blueBlack }}>{eligibleProviders.length}</span>
             <span className="text-xs" style={{ color: '#888' }}>eligible providers</span>
           </div>
-          <div className="mt-3">
-            <div className="text-[10px] uppercase tracking-wider font-medium" style={{ color: C.gold }}>
-              Live market
+          {stats && (
+            <div className="text-xs space-y-1" style={{ color: '#999' }}>
+              <div>{stats.providers_online} online · {totalSlots > 0 ? `${usedSlots}/${totalSlots} slots` : '—'}</div>
+              <div>{stats.total_requests.toLocaleString()} total fills</div>
             </div>
-            <div className="text-xs mt-0.5" style={{ color: '#aaa' }}>
-              Availability changes as providers enter and leave.
-            </div>
-          </div>
+          )}
+          <div className="text-[10px] uppercase tracking-wider font-medium mt-2" style={{ color: C.gold }}>Live market</div>
+          <div className="text-xs" style={{ color: '#aaa' }}>Price updates every few seconds.</div>
         </div>
       </div>
 
-      {/* ── Right: Market depth table + explanation ── */}
+      {/* ── Right: Market depth + context ── */}
       <div className="flex-1 min-w-0 space-y-5">
-        {/* Market depth header */}
+        {/* Market depth header with model summary */}
         <div>
-          <div className="text-[10px] uppercase tracking-wider font-medium mb-1" style={{ color: C.gold }}>
-            Market Depth
+          <div className="text-[10px] uppercase tracking-wider font-medium mb-1" style={{ color: C.gold }}>Market Depth</div>
+          <h2 className="text-xl font-bold" style={{ color: C.blueBlack }}>{activeModel || 'Select a model'}</h2>
+          <div className="flex items-center gap-3 mt-1.5 flex-wrap text-xs" style={{ color: '#888' }}>
+            <span>{allModelProviders.length} provider{allModelProviders.length !== 1 ? 's' : ''} total</span>
+            <span>{eligibleProviders.length} eligible</span>
+            {priceRange && <span>${priceRange.min.toFixed(2)}–${priceRange.max.toFixed(2)}/M out</span>}
+            {tpsRange && <span>{tpsRange.min.toFixed(0)}–{tpsRange.max.toFixed(0)} tok/s</span>}
+            {verifiedCount > 0 && <span style={{ color: C.green }}>{verifiedCount} verified</span>}
+            {encryptedCount > 0 && <span style={{ color: C.deepBlue }}>{encryptedCount} E2E</span>}
           </div>
-          <h2 className="text-xl font-bold" style={{ color: C.blueBlack }}>
-            {activeModel || 'Select a model'}
-          </h2>
-          <div className="text-xs mt-0.5" style={{ color: '#888' }}>
-            {eligibleProviders.length} eligible offer{eligibleProviders.length !== 1 ? 's' : ''} · sorted by effective route cost
-          </div>
-        </div>
-
-        {/* Provider table */}
-        <div className="bg-white rounded-2xl border border-gray-200/40 overflow-hidden">
-          {/* Table header */}
-          <div className="grid grid-cols-12 gap-2 px-5 py-3 text-[10px] uppercase tracking-wider border-b border-gray-100" style={{ color: '#aaa' }}>
-            <div className="col-span-3">Provider</div>
-            <div className="col-span-2">Hardware</div>
-            <div className="col-span-1 text-right">Output</div>
-            <div className="col-span-2 text-right">Speed</div>
-            <div className="col-span-2">Trust</div>
-            <div className="col-span-2 text-right">Action</div>
-          </div>
-
-          {/* Provider rows */}
-          {eligibleProviders.length > 0 ? eligibleProviders.map(p => {
-            const isSelected = activeProvider?.id === p.id
-            const tc = TRUST_COLORS[p.trust] || TRUST_COLORS.open
-            return (
-              <div
-                key={p.id}
-                className="grid grid-cols-12 gap-2 px-5 py-3.5 items-center border-b border-gray-50 last:border-0 transition-colors cursor-pointer"
-                style={{
-                  background: isSelected ? '#fdf6ec' : 'transparent',
-                  borderLeft: isSelected ? `3px solid ${C.gold}` : '3px solid transparent',
-                }}
-                onClick={() => setSelectedProviderId(p.id)}
-              >
-                <div className="col-span-3 flex items-center gap-2 min-w-0">
-                  <span className="text-sm truncate" style={{ color: C.blueBlack }}>
-                    {activeModel}
-                  </span>
-                  <span className="text-xs truncate" style={{ color: '#888' }}>
-                    {p.name}
-                  </span>
-                </div>
-                <div className="col-span-2 text-xs" style={{ color: '#888' }}>
-                  {p.hardware || '—'}
-                </div>
-                <div className="col-span-1 text-right text-sm font-semibold" style={{ color: C.gold }}>
-                  ${p.price_output.toFixed(2)}
-                </div>
-                <div className="col-span-2 text-right text-sm" style={{ color: C.turquoise }}>
-                  {p.tps > 0 ? `${p.tps.toFixed(0)} tok/s` : '—'}
-                </div>
-                <div className="col-span-2">
-                  <span
-                    className="text-[10px] font-medium px-2 py-0.5 rounded-full"
-                    style={{ background: tc.bg, color: tc.text }}
-                  >
-                    {tc.label}
-                  </span>
-                </div>
-                <div className="col-span-2 text-right">
-                  {isSelected ? (
-                    <span className="text-[11px] font-semibold" style={{ color: C.gold }}>
-                      Selected
-                    </span>
-                  ) : (
-                    <button
-                      className="text-[11px] font-medium px-3 py-1 rounded-lg border transition-colors"
-                      style={{ color: '#888', borderColor: '#ddd' }}
-                      onClick={e => { e.stopPropagation(); setSelectedProviderId(p.id) }}
-                    >
-                      View
-                    </button>
-                  )}
-                </div>
-              </div>
-            )
-          }) : (
-            <div className="px-5 py-12 text-center text-sm" style={{ color: '#ccc' }}>
-              No providers match your filters. Try relaxing the trust requirement or raising the price ceiling.
+          {/* Capability badges */}
+          {caps && (
+            <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+              {caps.context_length > 0 && (
+                <span className="text-[9px] font-medium px-1.5 py-0.5 rounded" style={{ background: '#f0f4f8', color: '#4a6fa5' }}>
+                  {formatCtx(caps.context_length)} ctx
+                </span>
+              )}
+              {caps.supports_tool_calling && (
+                <span className="text-[9px] font-medium px-1.5 py-0.5 rounded" style={{ background: '#eef7f0', color: '#2d7d46' }}>tools</span>
+              )}
+              {caps.supports_vision && (
+                <span className="text-[9px] font-medium px-1.5 py-0.5 rounded" style={{ background: '#f3eef7', color: '#6b46a5' }}>vision</span>
+              )}
+              {caps.architecture && (
+                <span className="text-[9px] font-medium px-1.5 py-0.5 rounded" style={{ background: '#f5f3f0', color: '#8a7d60' }}>{caps.architecture}</span>
+              )}
             </div>
           )}
         </div>
 
-        {/* "Why this route?" explanation */}
+        {/* Provider table */}
+        <div className="bg-white rounded-2xl border border-gray-200/40 overflow-hidden">
+          <div className="grid grid-cols-12 gap-2 px-5 py-3 text-[10px] uppercase tracking-wider border-b border-gray-100" style={{ color: '#aaa' }}>
+            <div className="col-span-2">Provider</div>
+            <div className="col-span-1">Hardware</div>
+            <div className="col-span-1 text-right">In</div>
+            <div className="col-span-1 text-right">Cache</div>
+            <div className="col-span-1 text-right">Out</div>
+            <div className="col-span-1 text-right">Speed</div>
+            <div className="col-span-1 text-center">Load</div>
+            <div className="col-span-1">Trust</div>
+            <div className="col-span-2 text-right">Action</div>
+          </div>
+
+          {eligibleProviders.length > 0 ? eligibleProviders.map(p => {
+            const isSelected = activeProvider?.id === p.id
+            const isExpanded = expandedProviderId === p.id
+            const tc = TRUST_COLORS[p.trust] || TRUST_COLORS.open
+            const rep = repMap.get(p.id)
+            return (
+              <div key={p.id}>
+                <div
+                  className="grid grid-cols-12 gap-2 px-5 py-3 items-center border-b border-gray-50 transition-colors cursor-pointer"
+                  style={{ background: isSelected ? '#fdf6ec' : 'transparent', borderLeft: isSelected ? `3px solid ${C.gold}` : '3px solid transparent' }}
+                  onClick={() => setExpandedProviderId(isExpanded ? null : p.id)}
+                >
+                  <div className="col-span-2 min-w-0">
+                    <div className="text-sm font-medium truncate" style={{ color: C.blueBlack }}>{p.name}</div>
+                    <div className="flex items-center gap-1 mt-0.5">
+                      {p.verified && <span className="text-[8px] px-1 rounded" style={{ background: '#edf7f1', color: C.green }}>✓</span>}
+                      {p.encrypted && <span className="text-[8px] px-1 rounded" style={{ background: '#eef3f7', color: C.deepBlue }}>E2E</span>}
+                      {p.quantization && <span className="text-[8px] font-mono" style={{ color: '#999' }}>{p.quantization}</span>}
+                    </div>
+                  </div>
+                  <div className="col-span-1 text-xs truncate" style={{ color: '#888' }}>{p.hardware || '—'}</div>
+                  <div className="col-span-1 text-right text-xs" style={{ color: C.deepBlue }}>${p.price_input.toFixed(2)}</div>
+                  <div className="col-span-1 text-right text-xs" style={{ color: p.price_cache > 0 ? C.turquoise : '#ddd' }}>
+                    {p.price_cache > 0 ? `$${p.price_cache.toFixed(2)}` : '—'}
+                  </div>
+                  <div className="col-span-1 text-right text-sm font-semibold" style={{ color: C.gold }}>${p.price_output.toFixed(2)}</div>
+                  <div className="col-span-1 text-right text-sm" style={{ color: C.turquoise }}>
+                    {p.tps > 0 ? `${p.tps.toFixed(0)}` : '—'}
+                  </div>
+                  <div className="col-span-1 text-center">
+                    <div className="w-full h-1.5 rounded-full overflow-hidden mx-auto" style={{ background: '#f0f0f0', maxWidth: '40px' }}>
+                      <div className="h-full rounded-full" style={{
+                        width: `${Math.max(5, p.load * 100)}%`,
+                        background: p.load > 0.8 ? C.red : p.load > 0.5 ? C.orange : C.green,
+                      }} />
+                    </div>
+                  </div>
+                  <div className="col-span-1">
+                    <span className="text-[9px] font-medium px-1.5 py-0.5 rounded-full" style={{ background: tc.bg, color: tc.text }}>{tc.label}</span>
+                  </div>
+                  <div className="col-span-2 text-right flex items-center justify-end gap-1.5">
+                    {isSelected ? (
+                      <span className="text-[11px] font-semibold" style={{ color: C.gold }}>Selected</span>
+                    ) : (
+                      <button className="text-[11px] font-medium px-2.5 py-1 rounded-lg border" style={{ color: '#888', borderColor: '#ddd' }}
+                        onClick={e => { e.stopPropagation(); setSelectedProviderId(p.id) }}>Select</button>
+                    )}
+                    <svg className={`w-3 h-3 transition-transform ${isExpanded ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="#aaa" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </div>
+                </div>
+                {isExpanded && <ProviderDetail p={p} reputation={rep} />}
+              </div>
+            )
+          }) : (
+            <div className="px-5 py-12 text-center text-sm" style={{ color: '#ccc' }}>
+              No providers match your filters. Try relaxing trust or raising the price ceiling.
+            </div>
+          )}
+        </div>
+
+        {/* Why this route? */}
         {activeProvider && (
           <div className="bg-white rounded-2xl border border-gray-200/40 p-5">
-            <div className="text-[10px] uppercase tracking-wider font-medium mb-2" style={{ color: C.gold }}>
-              Why this route?
-            </div>
+            <div className="text-[10px] uppercase tracking-wider font-medium mb-2" style={{ color: C.gold }}>Why this route?</div>
             <div className="text-sm" style={{ color: C.blueBlack }}>
-              <span className="font-semibold">{activeProvider.name}</span>{' '}
-              {explainRoute()}
+              <span className="font-semibold">{activeProvider.name}</span> {explainRoute()}
             </div>
             <div className="text-xs mt-1" style={{ color: '#aaa' }}>
-              No fallback required · evidence available after the request.
+              {eligibleProviders.length > 1 ? `${eligibleProviders.length - 1} alternative${eligibleProviders.length > 2 ? 's' : ''} available` : 'No alternatives'} · evidence available after the request.
             </div>
-            <div className="mt-3">
-              <Link
-                to={`/chat?model=${encodeURIComponent(activeModel)}`}
-                className="inline-block text-[11px] font-medium px-4 py-1.5 rounded-lg transition-colors"
-                style={{ background: C.blueBlack, color: '#fff' }}
-              >
+            <div className="mt-3 flex gap-2">
+              <Link to={`/chat?model=${encodeURIComponent(activeModel)}`}
+                className="text-[11px] font-medium px-4 py-1.5 rounded-lg" style={{ background: C.blueBlack, color: '#fff' }}>
                 Use this route
+              </Link>
+              <Link to="/trace"
+                className="text-[11px] font-medium px-4 py-1.5 rounded-lg border" style={{ color: '#888', borderColor: '#ddd' }}>
+                View recent traces
               </Link>
             </div>
           </div>
         )}
 
-        {/* Footer note */}
-        <div className="text-xs" style={{ color: '#aaa' }}>
-          The market is a tool, not the interface.
-        </div>
+        {/* Market context (collapsible) */}
+        {modelData && (modelData.reference_prices?.length > 0 || recentTrades.length > 0) && (
+          <div className="bg-white rounded-2xl border border-gray-200/40 overflow-hidden">
+            <button
+              className="w-full flex items-center justify-between px-5 py-3.5 text-left"
+              onClick={() => setShowMarketContext(!showMarketContext)}
+            >
+              <div className="text-[10px] uppercase tracking-wider font-medium" style={{ color: C.gold }}>
+                Market Context
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs" style={{ color: '#aaa' }}>
+                  {modelData.reference_prices?.length || 0} external prices · {recentTrades.length} recent trades
+                </span>
+                <svg className={`w-3.5 h-3.5 transition-transform ${showMarketContext ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="#aaa" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                </svg>
+              </div>
+            </button>
+
+            {showMarketContext && (
+              <div className="px-5 pb-5 space-y-5 border-t border-gray-100 pt-4">
+                {/* Reference pricing */}
+                <ReferencePricing refs={modelData.reference_prices} exchangePrice={modelData.cheapest_output} />
+
+                {/* Recent trades */}
+                {recentTrades.length > 0 && (
+                  <div>
+                    <div className="text-[10px] uppercase tracking-wider mb-2" style={{ color: '#aaa' }}>Recent trades</div>
+                    <div className="space-y-0">
+                      {recentTrades.map((t: any) => {
+                        const ok = ['completed', 'matched', 'matched_from_queue'].includes(t.status)
+                        const time = new Date(t.timestamp * 1000).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+                        return (
+                          <div key={t.request_id} className="flex items-center gap-3 py-1.5 border-b border-gray-50 last:border-0 text-xs">
+                            <span className="font-mono w-14" style={{ color: '#bbb' }}>{time}</span>
+                            <span className="w-1.5 h-1.5 rounded-full" style={{ background: ok ? C.green : C.red }} />
+                            <span className="flex-1 truncate" style={{ color: C.blueBlack }}>{t.model === 'default' ? 'Any' : t.model}</span>
+                            {t.selected_price != null && <span style={{ color: C.gold }}>${t.selected_price.toFixed(2)}</span>}
+                            {t.selected_trust && (
+                              <span className="text-[9px] px-1.5 py-0.5 rounded-full"
+                                style={{ background: TRUST_COLORS[t.selected_trust]?.bg || '#f3f3f3', color: TRUST_COLORS[t.selected_trust]?.text || '#999' }}>
+                                {TRUST_COLORS[t.selected_trust]?.label || t.selected_trust}
+                              </span>
+                            )}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        <div className="text-xs" style={{ color: '#aaa' }}>The market is a tool, not the interface.</div>
       </div>
     </div>
   )
