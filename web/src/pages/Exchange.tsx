@@ -66,10 +66,37 @@ function formatCtx(n: number): string {
 
 // ─── Expanded Provider Detail ────────────────────────────────
 
-function ProviderDetail({ p, reputation }: { p: MarketProvider; reputation?: any }) {
+function ProviderDetail({ p, reputation, caps }: { p: MarketProvider; reputation?: any; caps?: MarketModel['capabilities'] }) {
   const tc = TRUST_COLORS[p.trust] || TRUST_COLORS.open
   return (
     <div className="px-5 py-4 border-t" style={{ background: '#fafaf8', borderColor: '#f0ede6' }}>
+      {/* Capability badges row */}
+      {caps && (
+        <div className="flex items-center gap-1.5 mb-3 flex-wrap">
+          {caps.context_length > 0 && (
+            <span className="text-[9px] font-medium px-1.5 py-0.5 rounded" style={{ background: '#f0f4f8', color: '#4a6fa5' }}>
+              {formatCtx(caps.context_length)} ctx
+            </span>
+          )}
+          {caps.supports_tool_calling && (
+            <span className="text-[9px] font-medium px-1.5 py-0.5 rounded" style={{ background: '#eef7f0', color: '#2d7d46' }}>tools</span>
+          )}
+          {caps.supports_vision && (
+            <span className="text-[9px] font-medium px-1.5 py-0.5 rounded" style={{ background: '#f3eef7', color: '#6b46a5' }}>vision</span>
+          )}
+          {caps.architecture && (
+            <span className="text-[9px] font-medium px-1.5 py-0.5 rounded" style={{ background: '#f5f3f0', color: '#8a7d60' }}>{caps.architecture}</span>
+          )}
+          {caps.model_type && (
+            <span className="text-[9px] font-medium px-1.5 py-0.5 rounded" style={{ background: '#f5f3f0', color: '#8a7d60' }}>{caps.model_type}</span>
+          )}
+          {p.context_length > 0 && p.context_length !== caps.context_length && (
+            <span className="text-[9px] font-medium px-1.5 py-0.5 rounded" style={{ background: '#fdf6ec', color: C.gold }}>
+              provider: {formatCtx(p.context_length)} ctx
+            </span>
+          )}
+        </div>
+      )}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 text-xs">
         {/* Three-tier pricing */}
         <div>
@@ -535,10 +562,12 @@ export function Exchange() {
                 >
                   <div className="col-span-2 min-w-0">
                     <div className="text-sm font-medium truncate" style={{ color: C.blueBlack }}>{p.name}</div>
-                    <div className="flex items-center gap-1 mt-0.5">
+                    <div className="flex items-center gap-1 mt-0.5 flex-wrap">
                       {p.verified && <span className="text-[8px] px-1 rounded" style={{ background: '#edf7f1', color: C.green }}>✓</span>}
                       {p.encrypted && <span className="text-[8px] px-1 rounded" style={{ background: '#eef3f7', color: C.deepBlue }}>E2E</span>}
                       {p.quantization && <span className="text-[8px] font-mono" style={{ color: '#999' }}>{p.quantization}</span>}
+                      {p.context_length > 0 && <span className="text-[8px]" style={{ color: '#aaa' }}>{formatCtx(p.context_length)}</span>}
+                      {p.format && <span className="text-[8px]" style={{ color: '#aaa' }}>{p.format.toUpperCase()}</span>}
                     </div>
                   </div>
                   <div className="col-span-1 text-xs truncate" style={{ color: '#888' }}>{p.hardware || '—'}</div>
@@ -573,7 +602,7 @@ export function Exchange() {
                     </svg>
                   </div>
                 </div>
-                {isExpanded && <ProviderDetail p={p} reputation={rep} />}
+                {isExpanded && <ProviderDetail p={p} reputation={rep} caps={caps} />}
               </div>
             )
           }) : (
