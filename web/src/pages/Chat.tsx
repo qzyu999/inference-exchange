@@ -1,10 +1,28 @@
 import { useState, useRef, useEffect } from 'react'
 import useSWR from 'swr'
-import { useSearchParams } from 'react-router-dom'
+import { useSearchParams, Link } from 'react-router-dom'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { api } from '../lib/api'
 import { useAuth } from '../lib/auth'
+
+// ─── Brand palette ───────────────────────────────────────────
+const C = {
+  gold: '#C49A45',
+  green: '#3F8055',
+  turquoise: '#4D9A91',
+  deepBlue: '#315B72',
+  blueBlack: '#292F35',
+  red: '#B7443B',
+  white: '#D8D1BE',
+}
+
+const TRUST_COLORS: Record<string, { bg: string; text: string; label: string }> = {
+  open:         { bg: '#f3f3f3', text: '#999',     label: 'Open' },
+  contained:    { bg: '#eef3f7', text: C.deepBlue, label: 'Contained' },
+  hardened:     { bg: '#fdf6ec', text: C.gold,     label: 'Hardened+' },
+  confidential: { bg: '#edf7f1', text: C.green,    label: 'Confidential' },
+}
 
 interface Message {
   role: 'user' | 'assistant'
@@ -12,29 +30,33 @@ interface Message {
   model?: string
   cost_usd?: number
   tokens?: number
+  input_tokens?: number
+  output_tokens?: number
   encrypted?: boolean
   trust_level?: string
+  provider_name?: string
+  provider_tps?: number
+  provider_price?: number
 }
 
 const PREFERENCES = [
-  { value: 'balanced', label: 'Balanced', icon: '⚖️' },
-  { value: 'cheapest', label: 'Cheapest', icon: '💰' },
-  { value: 'fastest', label: 'Fastest', icon: '⚡' },
-  { value: 'most_secure', label: 'Most Secure', icon: '🔒' },
+  { value: 'balanced', label: 'Balanced' },
+  { value: 'cheapest', label: 'Cheapest' },
+  { value: 'fastest', label: 'Fastest' },
+  { value: 'most_secure', label: 'Most Secure' },
 ]
 
 const TRUST_LEVELS = [
-  { value: 'open', label: 'Any', desc: 'No privacy — provider can read prompts' },
-  { value: 'contained', label: 'L1+', desc: 'Encrypted in transit' },
-  { value: 'hardened', label: 'L2+', desc: 'Hardened — provider cannot read prompts' },
-  { value: 'confidential', label: 'L3', desc: 'Hardware TEE isolation' },
+  { value: 'open', label: 'Any' },
+  { value: 'contained', label: 'Contained' },
+  { value: 'hardened', label: 'Hardened+' },
+  { value: 'confidential', label: 'Confidential' },
 ]
 
 export function Chat() {
   const [searchParams] = useSearchParams()
   const { user } = useAuth()
 
-  // Chat history keyed by user to avoid cross-user leakage
   const chatKey = user ? `ie_chat_${user.user_id}` : 'ie_chat_anon'
   const [messages, setMessages] = useState<Message[]>(() => {
     try { const saved = localStorage.getItem(chatKey); return saved ? JSON.parse(saved) : [] } catch { return [] }
@@ -44,18 +66,18 @@ export function Chat() {
   const [model, setModel] = useState(() => searchParams.get('model') || '')
   const [preference, setPreference] = useState('balanced')
   const [minTrust, setMinTrust] = useState('hardened')
-  const [maxPrice, setMaxPrice] = useState('')
-  const [showAdvanced, setShowAdvanced] = useState(false)
+  const [maxPrice, setMaxPrice] = useState('0.15')
+  const [maxInputPrice, setMaxInputPrice] = useState('0.08')
+  const [maxCachePrice, setMaxCachePrice] = useState('0.02')
   const [apiKey, setApiKey] = useState(() => localStorage.getItem('ie_api_key') || '')
+  const [showSidebar, setShowSidebar] = useState(true)
   const scrollRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const abortRef = useRef<AbortController | null>(null)
 
   const { data: modelsData } = useSWR('models', api.models)
-  const { data: pricing } = useSWR('pricing', api.pricing, { refreshInterval: 10000 })
   const { data: health } = useSWR('health', api.health)
 
-  // Auto-set API key: user's key > health default > localStorage
   useEffect(() => {
     if (user?.api_key && !apiKey) {
       setApiKey(user.api_key)
@@ -70,8 +92,10 @@ export function Chat() {
   useEffect(() => { if (messages.length > 0) localStorage.setItem(chatKey, JSON.stringify(messages)) }, [messages, chatKey])
   useEffect(() => { if (!streaming) inputRef.current?.focus() }, [streaming])
 
-  // Get pricing for selected model
-  const modelPrice = pricing?.pricing?.find(p => p.model === model || model === 'default')
+  // Get the last assistant message for match info
+  const lastAssistant = [...messages].reverse().find(m => m.role === 'assistant' && m.content)
+
+  const trustInfo = TRUST_COLORS[minTrust] || TRUST_COLORS.hardened
 
   async function send() {
     const text = input.trim()
@@ -113,9 +137,9 @@ export function Chat() {
         } catch {
           if (resp.status === 503) friendlyError = 'No providers available right now. Try again in a moment.'
           else if (resp.status === 429) friendlyError = 'Rate limit reached. Please wait a moment.'
-          else if (resp.status === 401) friendlyError = 'Invalid API key. Check your key in Advanced settings.'
-          else if (resp.status === 402) friendlyError = 'Insufficient balance. Your free credits have been used up.'
-          else friendlyError = `Server error (${resp.status}). The coordinator may be overloaded.`
+          else if (resp.status === 401) friendlyError = 'Invalid API key. Check your key in settings.'
+          else if (resp.status === 402) friendlyError = 'Insufficient balance.'
+          else friendlyError = `Server error (${resp.status}).`
         }
         setMessages(prev => { const c = [...prev]; c[c.length - 1] = { role: 'assistant', content: friendlyError }; return c })
         setStreaming(false); return
@@ -133,183 +157,334 @@ export function Chat() {
           try {
             const parsed = JSON.parse(payload)
             const delta = parsed.choices?.[0]?.delta?.content
-            if (delta) { accumulated += delta; setMessages(prev => { const c = [...prev]; c[c.length - 1] = { ...c[c.length - 1], content: accumulated, model: parsed.model }; return c }) }
-            if (parsed.usage) { setMessages(prev => { const c = [...prev]; c[c.length - 1] = { ...c[c.length - 1], tokens: (parsed.usage.prompt_tokens || 0) + (parsed.usage.completion_tokens || 0), cost_usd: parsed.usage.cost_usd }; return c }) }
+            if (delta) {
+              accumulated += delta
+              setMessages(prev => {
+                const c = [...prev]
+                c[c.length - 1] = { ...c[c.length - 1], content: accumulated, model: parsed.model }
+                return c
+              })
+            }
+            if (parsed.usage) {
+              setMessages(prev => {
+                const c = [...prev]
+                c[c.length - 1] = {
+                  ...c[c.length - 1],
+                  tokens: (parsed.usage.prompt_tokens || 0) + (parsed.usage.completion_tokens || 0),
+                  input_tokens: parsed.usage.prompt_tokens,
+                  output_tokens: parsed.usage.completion_tokens,
+                  cost_usd: parsed.usage.cost_usd,
+                }
+                return c
+              })
+            }
           } catch {}
         }
       }
     } catch (e: any) {
-      if (e.name !== 'AbortError') setMessages(prev => { const c = [...prev]; c[c.length - 1] = { role: 'assistant', content: `Connection error: ${e.message}` }; return c })
+      if (e.name !== 'AbortError') {
+        setMessages(prev => { const c = [...prev]; c[c.length - 1] = { role: 'assistant', content: `Connection error: ${e.message}` }; return c })
+      }
     } finally { setStreaming(false); abortRef.current = null }
   }
 
   return (
-    <div className="flex flex-col h-[calc(100vh-100px)]">
-      {/* Controls */}
-      <div className="pb-4 border-b border-gray-200/60 space-y-2">
-        <div className="flex items-center gap-2 flex-wrap">
-          {/* Model selector */}
-          <div className="flex items-center gap-2">
-            <select value={model} onChange={e => setModel(e.target.value)} className="px-3 py-2 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/30 focus:border-amber-400">
-              <option value="default">Any model (default)</option>
-              {modelsData?.data?.map(m => <option key={m.id} value={m.id}>{m.id}</option>)}
-            </select>
-            {modelPrice && (
-              <span className="text-xs text-gray-400">
-                ${modelPrice.output.toFixed(2)}/Mtok
-                {modelPrice.providers_available > 0 && ` from ${modelPrice.providers_available} provider${modelPrice.providers_available !== 1 ? 's' : ''}`}
-              </span>
-            )}
-          </div>
+    <div className="flex gap-6 h-[calc(100vh-140px)]">
+      {/* ── Main chat column ── */}
+      <div className="flex-1 flex flex-col min-w-0">
+        {/* Model + trust header bar */}
+        <div className="bg-white rounded-2xl border border-gray-200/40 px-5 py-3 mb-4 flex items-center gap-3 flex-wrap">
+          <select
+            value={model}
+            onChange={e => setModel(e.target.value)}
+            className="px-3 py-1.5 bg-transparent border border-gray-200 rounded-lg text-sm font-medium focus:outline-none focus:ring-2 focus:ring-amber-500/20"
+            style={{ color: C.blueBlack }}
+          >
+            <option value="default">Any model</option>
+            {modelsData?.data?.map(m => <option key={m.id} value={m.id}>{m.id}</option>)}
+          </select>
 
-          {/* Preference pills */}
-          <div className="flex bg-gray-100 rounded-xl p-0.5">
-            {PREFERENCES.map(p => (
-              <button key={p.value} onClick={() => setPreference(p.value)} className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${preference === p.value ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
-                {p.icon} {p.label}
-              </button>
-            ))}
-          </div>
+          <span
+            className="text-[11px] font-semibold px-2.5 py-1 rounded-full"
+            style={{ background: trustInfo.bg, color: trustInfo.text }}
+          >
+            {trustInfo.label}
+          </span>
 
-          {/* Trust level - always visible, not hidden in Advanced */}
-          <div className="flex items-center gap-1.5">
-            <span className="text-xs text-gray-400">Privacy:</span>
-            <div className="flex bg-gray-100 rounded-xl p-0.5">
-              {TRUST_LEVELS.map(t => (
-                <button key={t.value} onClick={() => setMinTrust(t.value)} className={`px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors ${minTrust === t.value ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`} title={t.desc}>
-                  {t.label}
-                </button>
-              ))}
-            </div>
-          </div>
+          <span className="text-xs" style={{ color: '#999' }}>
+            {PREFERENCES.find(p => p.value === preference)?.label} routing
+          </span>
 
           <div className="flex-1" />
 
           <button
             onClick={() => { setMessages([]); localStorage.removeItem(chatKey) }}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium border transition-colors"
-            style={{ color: '#6b6b6b', borderColor: '#ddd' }}
+            className="text-xs px-3 py-1.5 rounded-lg border transition-colors"
+            style={{ color: '#888', borderColor: '#ddd' }}
           >
-            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-            </svg>
-            New Chat
+            New chat
           </button>
-          <button onClick={() => setShowAdvanced(!showAdvanced)} className="text-xs text-gray-400 hover:text-gray-600">
-            {showAdvanced ? 'Hide' : 'Advanced'}
+
+          <button
+            onClick={() => setShowSidebar(!showSidebar)}
+            className="lg:hidden text-xs px-2 py-1.5 rounded-lg border"
+            style={{ color: '#888', borderColor: '#ddd' }}
+          >
+            {showSidebar ? 'Hide' : 'Policy'}
           </button>
         </div>
 
         {/* Privacy downgrade warning */}
         {(minTrust === 'open' || minTrust === 'contained') && (
-          <div className="flex items-center gap-2 px-3 py-2 bg-amber-50 border border-amber-200/60 rounded-xl text-xs text-amber-700">
-            <span>⚠️</span>
+          <div className="flex items-center gap-2 px-4 py-2.5 mb-3 rounded-xl text-xs" style={{ background: '#fdf6ec', color: C.gold, border: '1px solid rgba(196,154,69,0.15)' }}>
+            <span>⚠</span>
             <span>
               {minTrust === 'open'
-                ? 'L0 providers can see your prompts and responses. No privacy protection.'
-                : 'L1 providers have basic isolation only. Prompts are encrypted in transit but the provider process can access them.'}
+                ? 'L0 providers can see your prompts. No privacy protection.'
+                : 'L1 providers have basic isolation only.'}
             </span>
-            <button onClick={() => setMinTrust('hardened')} className="ml-auto text-amber-600 font-medium hover:text-amber-800 shrink-0">
-              Use L2 instead
+            <button onClick={() => setMinTrust('hardened')} className="ml-auto font-medium shrink-0" style={{ color: C.gold }}>
+              Use L2
             </button>
           </div>
         )}
 
-        {/* Advanced controls */}
-        {showAdvanced && (
-          <div className="flex items-center gap-4 text-xs">
-            <div className="flex items-center gap-2">
-              <span className="text-gray-400">Max price:</span>
-              <input type="number" value={maxPrice} onChange={e => setMaxPrice(e.target.value)} placeholder="$/Mtok" step="0.01" min="0"
-                className="w-20 px-2 py-1 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-amber-500/30" />
+        {/* Messages */}
+        <div ref={scrollRef} className="flex-1 overflow-y-auto space-y-4 pb-4">
+          {messages.length === 0 && (
+            <div className="text-center mt-24">
+              <img src="/logo-icon.svg" alt="IE" className="w-14 h-14 mx-auto mb-4 opacity-30" />
+              <div className="text-sm font-medium" style={{ color: '#999' }}>Send a message to start</div>
+              <div className="text-xs mt-1" style={{ color: '#bbb' }}>
+                {model && model !== 'default' ? `Using ${model}` : 'Routed to the best available provider'}
+              </div>
             </div>
-            <div className="flex items-center gap-2">
-              <span className="text-gray-400">API key:</span>
-              <input type="password" value={apiKey} onChange={e => { setApiKey(e.target.value); localStorage.setItem('ie_api_key', e.target.value) }}
-                placeholder="sk-ie-..." className="w-32 px-2 py-1 border border-gray-200 rounded-lg text-xs font-mono focus:outline-none focus:ring-1 focus:ring-amber-500/30" />
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Messages */}
-      <div ref={scrollRef} className="flex-1 overflow-y-auto py-6 space-y-4">
-        {messages.length === 0 && (
-          <div className="text-center text-gray-300 mt-24">
-            <img src="/logo-icon.svg" alt="IE" className="w-16 h-16 mx-auto mb-4" />
-            <div className="text-gray-500 font-medium">Send a message to start</div>
-            <div className="text-xs text-gray-400 mt-1">
-              {model && model !== 'default' ? `Using ${model}` : 'Routed to the best available provider'}
-              {preference !== 'balanced' && ` (${preference})`}
-            </div>
-          </div>
-        )}
-        {messages.map((m, i) => (
-          <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-            <div className={`max-w-[75%] px-4 py-3 rounded-2xl ${
-              m.role === 'user'
-                ? 'bg-gray-900 text-white'
-                : 'bg-white border border-gray-200/60 shadow-sm text-gray-800'
-            }`}>
+          )}
+          {messages.map((m, i) => (
+            <div key={i}>
               {m.role === 'user' ? (
-                <div className="whitespace-pre-wrap text-sm">{m.content || '...'}</div>
+                <div>
+                  <div className="text-[10px] uppercase tracking-wider mb-1.5" style={{ color: '#bbb' }}>You</div>
+                  <div
+                    className="inline-block px-4 py-3 rounded-2xl text-sm"
+                    style={{ background: '#e8e5de', color: C.blueBlack }}
+                  >
+                    <div className="whitespace-pre-wrap">{m.content || '...'}</div>
+                  </div>
+                </div>
               ) : (
-                <div className="text-sm prose prose-sm max-w-none prose-p:my-1 prose-pre:bg-gray-50 prose-pre:border prose-pre:border-gray-200 prose-pre:text-gray-800 prose-code:text-amber-600 prose-code:bg-amber-50 prose-code:px-1 prose-code:rounded prose-code:before:content-none prose-code:after:content-none">
-                  {m.content ? <ReactMarkdown remarkPlugins={[remarkGfm]}>{m.content}</ReactMarkdown> : (
-                    <span className="inline-flex gap-1">
-                      <span className="w-1.5 h-1.5 bg-gray-300 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                      <span className="w-1.5 h-1.5 bg-gray-300 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                      <span className="w-1.5 h-1.5 bg-gray-300 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
-                    </span>
+                <div>
+                  <div className="text-[10px] uppercase tracking-wider mb-1.5" style={{ color: C.gold }}>
+                    Inference Exchange
+                  </div>
+                  <div
+                    className="inline-block px-4 py-3 rounded-2xl text-sm max-w-full"
+                    style={{ background: C.blueBlack, color: C.white }}
+                  >
+                    {m.content ? (
+                      <div className="prose prose-sm prose-invert max-w-none prose-p:my-1 prose-pre:bg-black/30 prose-pre:border-0 prose-code:text-amber-300 prose-code:bg-transparent prose-code:before:content-none prose-code:after:content-none">
+                        <ReactMarkdown remarkPlugins={[remarkGfm]}>{m.content}</ReactMarkdown>
+                      </div>
+                    ) : (
+                      <span className="inline-flex gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full animate-bounce" style={{ background: '#666', animationDelay: '0ms' }} />
+                        <span className="w-1.5 h-1.5 rounded-full animate-bounce" style={{ background: '#666', animationDelay: '150ms' }} />
+                        <span className="w-1.5 h-1.5 rounded-full animate-bounce" style={{ background: '#666', animationDelay: '300ms' }} />
+                      </span>
+                    )}
+                  </div>
+                  {/* Message metadata */}
+                  {(m.input_tokens != null || m.tokens != null || m.cost_usd != null) && (
+                    <div className="text-[11px] mt-1.5 flex gap-2" style={{ color: '#bbb' }}>
+                      {m.input_tokens != null && m.output_tokens != null && (
+                        <span>{(m.input_tokens / 1000).toFixed(1)}k input · {(m.output_tokens / 1000).toFixed(1)}k output</span>
+                      )}
+                      {m.cost_usd != null && <span>· ${m.cost_usd.toFixed(6)}</span>}
+                    </div>
                   )}
                 </div>
               )}
-              {m.role === 'assistant' && (m.model || m.tokens != null || m.cost_usd != null) && (
-                <div className="text-[11px] text-gray-400 mt-2 flex gap-2 flex-wrap">
-                  {m.model && <span>{m.model}</span>}
-                  {m.tokens != null && <span>{m.tokens} tok</span>}
-                  {m.cost_usd != null && <span>${m.cost_usd.toFixed(6)}</span>}
-                  {m.trust_level && <span style={{ color: m.trust_level === 'hardened' || m.trust_level === 'confidential' ? '#C49A45' : '#aaa' }}>{m.trust_level}</span>}
-                  {m.encrypted && <span style={{ color: '#4D9A91' }}>E2E</span>}
-                </div>
-              )}
             </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
 
-      {/* Input */}
-      <div className="border-t border-gray-200/60 pt-4">
-        <div className="flex gap-2">
-          <input
-            type="text" value={input} onChange={e => setInput(e.target.value)}
-            ref={inputRef}
-            onKeyDown={e => e.key === 'Enter' && !e.shiftKey && send()}
-            placeholder={model && model !== 'default' ? `Message ${model}...` : 'Type a message...'}
-            disabled={streaming}
-            className="flex-1 px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/30 focus:border-amber-400 placeholder:text-gray-300"
-          />
-          {streaming ? (
-            <button onClick={() => {
-              abortRef.current?.abort()
-              setStreaming(false)
-              // Clean up empty assistant message on cancel
-              setMessages(prev => {
-                const last = prev[prev.length - 1]
-                if (last?.role === 'assistant' && !last.content) {
-                  return prev.slice(0, -1)
-                }
-                if (last?.role === 'assistant' && last.content) {
-                  return [...prev.slice(0, -1), { ...last, content: last.content + '\n\n*[stopped]*' }]
-                }
-                return prev
-              })
-            }} className="px-5 py-3 rounded-xl text-sm font-medium transition-colors" style={{ background: '#B7443B', color: '#D8D1BE' }}>Stop</button>
-          ) : (
-            <button onClick={send} className="px-5 py-3 bg-gray-900 text-white rounded-xl text-sm font-medium hover:bg-gray-800 transition-colors">Send</button>
-          )}
+        {/* Input */}
+        <div className="pt-3">
+          <div className="flex gap-2">
+            <input
+              type="text" value={input} onChange={e => setInput(e.target.value)}
+              ref={inputRef}
+              onKeyDown={e => e.key === 'Enter' && !e.shiftKey && send()}
+              placeholder="Message the exchange..."
+              disabled={streaming}
+              className="flex-1 px-4 py-3 bg-white border border-gray-200/60 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/20 placeholder:text-gray-300"
+            />
+            {streaming ? (
+              <button onClick={() => {
+                abortRef.current?.abort()
+                setStreaming(false)
+                setMessages(prev => {
+                  const last = prev[prev.length - 1]
+                  if (last?.role === 'assistant' && !last.content) return prev.slice(0, -1)
+                  if (last?.role === 'assistant' && last.content) return [...prev.slice(0, -1), { ...last, content: last.content + '\n\n*[stopped]*' }]
+                  return prev
+                })
+              }} className="px-5 py-3 rounded-xl text-sm font-medium" style={{ background: C.red, color: C.white }}>
+                Stop
+              </button>
+            ) : (
+              <button onClick={send} className="px-5 py-3 rounded-xl text-sm font-medium transition-colors" style={{ background: C.blueBlack, color: '#fff' }}>
+                Send
+              </button>
+            )}
+          </div>
         </div>
       </div>
+
+      {/* ── Right sidebar: Request Policy + Match ── */}
+      {showSidebar && (
+        <aside className="hidden lg:block w-56 shrink-0 space-y-5">
+          {/* Request Policy */}
+          <div>
+            <div className="text-[10px] uppercase tracking-wider font-medium mb-3" style={{ color: C.gold }}>
+              Request Policy
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <div className="text-xs mb-1.5" style={{ color: '#888' }}>Routing goal</div>
+                <div className="flex flex-wrap gap-1">
+                  {PREFERENCES.map(p => (
+                    <button
+                      key={p.value}
+                      onClick={() => setPreference(p.value)}
+                      className="text-[11px] font-medium px-2.5 py-1 rounded-full transition-colors"
+                      style={{
+                        background: preference === p.value ? '#fdf6ec' : 'transparent',
+                        color: preference === p.value ? C.gold : '#aaa',
+                        border: `1px solid ${preference === p.value ? 'rgba(196,154,69,0.3)' : '#e5e5e5'}`,
+                      }}
+                    >
+                      {p.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <div className="text-xs mb-1.5" style={{ color: '#888' }}>Minimum trust</div>
+                <div className="flex flex-wrap gap-1">
+                  {TRUST_LEVELS.map(t => {
+                    const tc = TRUST_COLORS[t.value] || TRUST_COLORS.hardened
+                    return (
+                      <button
+                        key={t.value}
+                        onClick={() => setMinTrust(t.value)}
+                        className="text-[11px] font-medium px-2.5 py-1 rounded-full transition-colors"
+                        style={{
+                          background: minTrust === t.value ? tc.bg : 'transparent',
+                          color: minTrust === t.value ? tc.text : '#aaa',
+                          border: `1px solid ${minTrust === t.value ? 'transparent' : '#e5e5e5'}`,
+                        }}
+                      >
+                        {t.label}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+
+              <div>
+                <div className="text-xs mb-2.5" style={{ color: '#888' }}>Max price / 1M tokens</div>
+                <div className="space-y-3">
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-[10px] uppercase tracking-wider font-medium" style={{ color: C.deepBlue }}>Input</span>
+                      <span className="text-sm font-bold" style={{ color: C.blueBlack }}>${maxInputPrice}</span>
+                    </div>
+                    <input
+                      type="range" min="0.01" max="0.50" step="0.01"
+                      value={maxInputPrice}
+                      onChange={e => setMaxInputPrice(e.target.value)}
+                      className="w-full accent-blue-400" style={{ height: '2px' }}
+                    />
+                  </div>
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-[10px] uppercase tracking-wider font-medium" style={{ color: C.turquoise }}>Cached</span>
+                      <span className="text-sm font-bold" style={{ color: C.blueBlack }}>${maxCachePrice}</span>
+                    </div>
+                    <input
+                      type="range" min="0.00" max="0.20" step="0.005"
+                      value={maxCachePrice}
+                      onChange={e => setMaxCachePrice(e.target.value)}
+                      className="w-full accent-teal-400" style={{ height: '2px' }}
+                    />
+                  </div>
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-[10px] uppercase tracking-wider font-medium" style={{ color: C.gold }}>Output</span>
+                      <span className="text-sm font-bold" style={{ color: C.blueBlack }}>${maxPrice}</span>
+                    </div>
+                    <input
+                      type="range" min="0.01" max="1.00" step="0.01"
+                      value={maxPrice || '0.15'}
+                      onChange={e => setMaxPrice(e.target.value)}
+                      className="w-full accent-amber-500" style={{ height: '2px' }}
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Divider */}
+          <div style={{ borderTop: '1px solid #e8e5de' }} />
+
+          {/* Current Match */}
+          <div>
+            <div className="text-[10px] uppercase tracking-wider font-medium mb-3" style={{ color: C.gold }}>
+              {lastAssistant ? 'Current match' : 'Match'}
+            </div>
+
+            {lastAssistant?.model ? (
+              <div className="space-y-1.5">
+                <div className="text-sm font-bold" style={{ color: C.blueBlack }}>
+                  {lastAssistant.provider_name || 'Exchange provider'}
+                </div>
+                <div className="text-xs" style={{ color: '#888' }}>
+                  {lastAssistant.cost_usd != null && `$${lastAssistant.cost_usd.toFixed(4)} out`}
+                  {lastAssistant.provider_tps ? ` · ${lastAssistant.provider_tps} tok/s` : ''}
+                </div>
+                <Link
+                  to="/trace"
+                  className="text-[11px] font-medium px-3 py-1 rounded-full mt-1 transition-colors"
+                  style={{ border: '1px solid #ddd', color: '#888', display: 'inline-block' }}
+                >
+                  Inspect trace
+                </Link>
+              </div>
+            ) : (
+              <div className="text-xs" style={{ color: '#bbb' }}>
+                No request matched yet
+              </div>
+            )}
+          </div>
+
+          {/* Divider */}
+          <div style={{ borderTop: '1px solid #e8e5de' }} />
+
+          {/* Fallback */}
+          <div>
+            <div className="text-[10px] uppercase tracking-wider font-medium mb-2" style={{ color: C.red }}>
+              Fallback
+            </div>
+            <div className="text-xs" style={{ color: '#888' }}>
+              OpenRouter available
+            </div>
+          </div>
+        </aside>
+      )}
     </div>
   )
 }
