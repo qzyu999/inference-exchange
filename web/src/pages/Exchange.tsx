@@ -153,58 +153,130 @@ function ProviderDetail({ p, reputation }: { p: MarketProvider; reputation?: any
 
 // ─── Reference Pricing Section ───────────────────────────────
 
-function ReferencePricing({ refs, exchangePrice }: {
+type RefSortCol = 'provider' | 'input' | 'cache' | 'output'
+type RefSortDir = 'asc' | 'desc'
+
+function ReferencePricing({ refs, exchangePrice, exchangeModel, exchangeInput, exchangeCache }: {
   refs: MarketModel['reference_prices']; exchangePrice: number
+  exchangeModel: string; exchangeInput: number; exchangeCache: number
 }) {
+  const [sortCol, setSortCol] = useState<RefSortCol>('output')
+  const [sortDir, setSortDir] = useState<RefSortDir>('asc')
+
   if (!refs || refs.length === 0) return null
 
-  const sameModel = refs.filter(r => r.comparison_type === 'same_model' || !r.comparison_type)
-  const alternatives = refs.filter(r => r.comparison_type === 'alternative')
+  const toggleSort = (col: RefSortCol) => {
+    if (sortCol === col) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
+    else { setSortCol(col); setSortDir('asc') }
+  }
+  const arrow = (col: RefSortCol) => sortCol === col ? (sortDir === 'asc' ? ' ↑' : ' ↓') : ''
+
+  // Build unified offerings list: exchange + all references
+  type Offering = {
+    provider: string; model: string
+    input: number; cache: number; output: number
+    isExchange: boolean; isOpen: boolean
+  }
+
+  const offerings: Offering[] = [
+    {
+      provider: 'Inference Exchange', model: exchangeModel,
+      input: exchangeInput, cache: exchangeCache, output: exchangePrice,
+      isExchange: true, isOpen: true,
+    },
+    ...refs.map(r => ({
+      provider: providerName(r.provider), model: r.model,
+      input: r.price_input, cache: r.price_cache, output: r.price_output,
+      isExchange: false, isOpen: r.comparison_type === 'same_model' || !r.comparison_type,
+    })),
+  ]
+
+  offerings.sort((a, b) => {
+    const valA = sortCol === 'provider' ? a.provider : sortCol === 'input' ? a.input : sortCol === 'cache' ? a.cache : a.output
+    const valB = sortCol === 'provider' ? b.provider : sortCol === 'input' ? b.input : sortCol === 'cache' ? b.cache : b.output
+    if (typeof valA === 'string' && typeof valB === 'string') return sortDir === 'asc' ? valA.localeCompare(valB) : valB.localeCompare(valA)
+    return sortDir === 'asc' ? (valA as number) - (valB as number) : (valB as number) - (valA as number)
+  })
+
+  // Find cheapest in each column for highlighting
+  const allIn = offerings.map(o => o.input).filter(v => v > 0)
+  const allCache = offerings.map(o => o.cache).filter(v => v > 0)
+  const allOut = offerings.map(o => o.output).filter(v => v > 0)
+  const minIn = allIn.length ? Math.min(...allIn) : 0
+  const minCache = allCache.length ? Math.min(...allCache) : 0
+  const minOut = allOut.length ? Math.min(...allOut) : 0
 
   return (
-    <div className="space-y-3">
-      {sameModel.length > 0 && (
-        <div>
-          <div className="text-[10px] uppercase tracking-wider mb-2" style={{ color: '#aaa' }}>
-            Same model — external providers
-          </div>
-          <div className="space-y-1">
-            {sameModel.map((r, i) => {
-              const cheaper = exchangePrice < r.price_output
-              return (
-                <div key={i} className="flex items-center gap-3 text-xs py-1.5 border-b border-gray-50 last:border-0">
-                  <span className="w-24 truncate" style={{ color: C.blueBlack }}>{providerName(r.provider)}</span>
-                  <span className="flex-1 truncate" style={{ color: '#888' }}>{r.model}</span>
-                  <span style={{ color: C.deepBlue }}>${r.price_input.toFixed(2)} in</span>
-                  <span style={{ color: C.turquoise }}>{r.price_cache > 0 ? `$${r.price_cache.toFixed(2)} cache` : '—'}</span>
-                  <span className="font-semibold" style={{ color: C.gold }}>${r.price_output.toFixed(2)} out</span>
-                  {cheaper && (
-                    <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full" style={{ background: '#edf7f1', color: C.green }}>
-                      {r.diff_pct}% more
-                    </span>
-                  )}
-                </div>
-              )
-            })}
-          </div>
+    <div>
+      {/* Sort controls */}
+      <div className="flex items-center justify-between mb-3">
+        <div className="text-[10px] uppercase tracking-wider" style={{ color: '#aaa' }}>
+          Market comparison
         </div>
-      )}
-      {alternatives.length > 0 && (
-        <div>
-          <div className="text-[10px] uppercase tracking-wider mb-2" style={{ color: '#aaa' }}>
-            Alternative models
-          </div>
-          <div className="space-y-1">
-            {alternatives.slice(0, 5).map((r, i) => (
-              <div key={i} className="flex items-center gap-3 text-xs py-1.5 border-b border-gray-50 last:border-0">
-                <span className="w-24 truncate" style={{ color: C.indigo }}>{providerName(r.provider)}</span>
-                <span className="flex-1 truncate" style={{ color: '#888' }}>{r.model}</span>
-                <span className="font-semibold" style={{ color: C.indigo }}>${r.price_output.toFixed(2)} out</span>
+        <div className="flex items-center gap-1">
+          {(['output', 'input', 'cache', 'provider'] as RefSortCol[]).map(col => (
+            <button key={col} onClick={() => toggleSort(col)}
+              className="text-[9px] uppercase tracking-wider px-2 py-0.5 rounded-full transition-colors"
+              style={{ background: sortCol === col ? C.blueBlack : 'transparent', color: sortCol === col ? '#fff' : '#aaa' }}>
+              {col}{arrow(col)}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Offerings table */}
+      <div className="space-y-1.5 max-h-[360px] overflow-y-auto">
+        {offerings.map((o, i) => {
+          const isMin = (val: number, min: number) => val > 0 && val === min
+          return (
+            <div key={i} className="rounded-xl px-3 py-2.5"
+              style={{
+                background: o.isExchange ? '#edeae2' : '#fff',
+                border: o.isExchange ? `1.5px solid ${C.gold}44` : '1px solid #eee',
+              }}>
+              {/* Provider + model + type badge */}
+              <div className="flex items-center gap-2 mb-1.5">
+                <span className="text-xs font-semibold" style={{ color: o.isExchange ? C.gold : C.blueBlack }}>
+                  {o.provider}
+                </span>
+                <span className="text-[11px] flex-1 min-w-0 truncate" style={{ color: o.isExchange ? '#8a7d60' : '#888' }}>
+                  {o.model}
+                </span>
+                <span className="text-[8px] font-bold px-1.5 py-0.5 rounded-full shrink-0"
+                  style={{
+                    background: o.isOpen ? '#edf7f1' : '#f3f0f5',
+                    color: o.isOpen ? C.green : C.indigo,
+                  }}>
+                  {o.isOpen ? 'open' : 'proprietary'}
+                </span>
               </div>
-            ))}
-          </div>
-        </div>
-      )}
+
+              {/* Price pills */}
+              <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1 px-2 py-1 rounded-lg" style={{ background: o.isExchange ? '#e0dbd0' : '#f5f5f3' }}>
+                  <span className="text-[9px] uppercase" style={{ color: C.deepBlue }}>in</span>
+                  <span className="text-xs font-mono font-medium" style={{ color: isMin(o.input, minIn) ? C.green : C.blueBlack }}>
+                    {o.input > 0 ? `$${o.input.toFixed(2)}` : '—'}
+                  </span>
+                </div>
+                <div className="flex items-center gap-1 px-2 py-1 rounded-lg" style={{ background: o.isExchange ? '#e0dbd0' : '#f5f5f3' }}>
+                  <span className="text-[9px] uppercase" style={{ color: C.turquoise }}>cache</span>
+                  <span className="text-xs font-mono font-medium" style={{ color: isMin(o.cache, minCache) ? C.green : o.cache > 0 ? C.blueBlack : '#ccc' }}>
+                    {o.cache > 0 ? `$${o.cache < 0.1 ? o.cache.toFixed(3) : o.cache.toFixed(2)}` : '—'}
+                  </span>
+                </div>
+                <div className="flex items-center gap-1 px-2 py-1 rounded-lg" style={{ background: o.isExchange ? '#e0dbd0' : '#f5f5f3' }}>
+                  <span className="text-[9px] uppercase" style={{ color: C.gold }}>out</span>
+                  <span className="text-xs font-mono font-medium" style={{ color: isMin(o.output, minOut) ? C.green : C.blueBlack }}>
+                    {o.output > 0 ? `$${o.output.toFixed(2)}` : '—'}
+                  </span>
+                </div>
+                <span className="text-[9px] ml-auto" style={{ color: '#bbb' }}>$/Mtok</span>
+              </div>
+            </div>
+          )
+        })}
+      </div>
     </div>
   )
 }
@@ -557,7 +629,13 @@ export function Exchange() {
             {showMarketContext && (
               <div className="px-5 pb-5 space-y-5 border-t border-gray-100 pt-4">
                 {/* Reference pricing */}
-                <ReferencePricing refs={modelData.reference_prices} exchangePrice={modelData.cheapest_output} />
+                <ReferencePricing
+                  refs={modelData.reference_prices}
+                  exchangePrice={modelData.cheapest_output}
+                  exchangeModel={modelData.model}
+                  exchangeInput={bestRoute?.price_input || 0}
+                  exchangeCache={bestRoute?.price_cache || 0}
+                />
 
                 {/* Recent trades */}
                 {recentTrades.length > 0 && (
