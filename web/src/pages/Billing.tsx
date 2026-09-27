@@ -1,4 +1,5 @@
 import useSWR from 'swr'
+import { Link } from 'react-router-dom'
 import { api } from '../lib/api'
 
 const C = {
@@ -160,6 +161,51 @@ export function Billing() {
             </div>
           </div>
         </div>
+      </div>
+
+      {/* Transaction history table */}
+      <div className="bg-white rounded-2xl border border-gray-200/40 p-6">
+        <div className="text-[10px] uppercase tracking-wider font-medium mb-1" style={{ color: C.gold }}>
+          Transaction History
+        </div>
+        <h2 className="text-lg font-bold mb-4" style={{ color: C.blueBlack }}>Every request, every charge</h2>
+
+        <div className="grid grid-cols-12 gap-2 pb-2 mb-2 border-b border-gray-100 text-[9px] uppercase tracking-wider" style={{ color: '#bbb' }}>
+          <div className="col-span-2">Time</div>
+          <div className="col-span-1">ID</div>
+          <div className="col-span-2">Model</div>
+          <div className="col-span-1 text-right" style={{ color: C.deepBlue }}>Input</div>
+          <div className="col-span-1 text-right" style={{ color: C.turquoise }}>Cache</div>
+          <div className="col-span-1 text-right" style={{ color: C.gold }}>Output</div>
+          <div className="col-span-2 text-right">Cost</div>
+          <div className="col-span-2 text-right">Trace</div>
+        </div>
+
+        {transactions.length > 0 ? (
+          <div className="max-h-[400px] overflow-y-auto">
+            {[...transactions].reverse().map((t: any, i: number) => {
+              const time = new Date(t.timestamp * 1000).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+              return (
+                <div key={i} className="grid grid-cols-12 gap-2 py-2.5 items-center border-b border-gray-50 last:border-0 text-xs">
+                  <div className="col-span-2" style={{ color: '#999' }}>{time}</div>
+                  <div className="col-span-1 font-mono truncate" style={{ color: '#bbb' }}>{t.request_id?.slice(0, 8) || '—'}</div>
+                  <div className="col-span-2 truncate" style={{ color: C.blueBlack }}>{t.model || '—'}</div>
+                  <div className="col-span-1 text-right" style={{ color: C.deepBlue }}>{(t.input_tokens || 0).toLocaleString()}</div>
+                  <div className="col-span-1 text-right" style={{ color: (t.cached_tokens || 0) > 0 ? C.turquoise : '#ddd' }}>
+                    {(t.cached_tokens || 0) > 0 ? (t.cached_tokens || 0).toLocaleString() : '—'}
+                  </div>
+                  <div className="col-span-1 text-right" style={{ color: C.gold }}>{(t.output_tokens || 0).toLocaleString()}</div>
+                  <div className="col-span-2 text-right font-semibold" style={{ color: C.red }}>-${(t.cost_usd || 0).toFixed(6)}</div>
+                  <div className="col-span-2 text-right">
+                    {t.request_id && <Link to={`/trace?id=${t.request_id}`} className="text-[10px] font-medium" style={{ color: C.gold }}>View trace</Link>}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        ) : (
+          <div className="text-sm text-center py-8" style={{ color: '#ccc' }}>No transactions yet</div>
+        )}
       </div>
 
       {/* Alpha reset CTA */}

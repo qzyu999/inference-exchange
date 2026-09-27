@@ -76,6 +76,7 @@ export function Trace() {
   const [searchParams] = useSearchParams()
   const requestId = searchParams.get('id')
   const { data: traceData } = useSWR('traces', api.traces, { refreshInterval: 5000 })
+  const { data: historyData } = useSWR('history', api.history, { refreshInterval: 10000 })
   const [expandedStep, setExpandedStep] = useState<string | null>(null)
 
   const traces = traceData?.traces || []
@@ -104,6 +105,9 @@ export function Trace() {
   const encrypted = trace.encrypted
   const scoring = trace.scoring || []
   const preference = trace.preference || 'balanced'
+
+  // Cross-reference billing history for per-tier token data
+  const billingTx = (historyData?.transactions || []).find((t: any) => t.request_id === trace.request_id)
 
   // FIX: Get TPS from the SELECTED provider's scoring entry, not scoring[0]
   const selectedScoring = scoring.find((s: any) => s.selected || s.name === provider)
@@ -265,16 +269,48 @@ export function Trace() {
         {/* 05 BILLING */}
         <TraceStep
           number="05" label="BILLING"
-          value={trace.cost_usd != null ? `$${trace.cost_usd.toFixed(6)}` : price != null ? `$${price.toFixed(2)}/M` : '—'}
+          value={billingTx ? `$${(billingTx as any).cost_usd.toFixed(6)}` : trace.cost_usd != null ? `$${trace.cost_usd.toFixed(6)}` : price != null ? `$${price.toFixed(2)}/M` : '—'}
           detail="90% provider · 10% exchange"
           dot="gold"
           expanded={expandedStep === '05'} onToggle={() => toggle('05')}
         >
           <div className="space-y-1.5">
-            {price != null && <div>Output rate: ${price.toFixed(2)} / M tokens</div>}
-            {trace.cost_usd != null && <div>Total cost: ${trace.cost_usd.toFixed(6)}</div>}
-            <div>Provider revenue: {trace.cost_usd != null ? `$${(trace.cost_usd * 0.9).toFixed(6)}` : '—'} (90%)</div>
-            <div>Platform fee: {trace.cost_usd != null ? `$${(trace.cost_usd * 0.1).toFixed(6)}` : '—'} (10%)</div>
+            {billingTx ? (
+              <>
+                <div className="grid grid-cols-3 gap-3 mb-2">
+                  <div className="bg-white rounded-lg border border-gray-100 p-2 text-center">
+                    <div className="text-[9px] uppercase" style={{ color: C.deepBlue }}>Input</div>
+                    <div className="text-sm font-bold" style={{ color: C.blueBlack }}>{((billingTx as any).input_tokens || 0).toLocaleString()}</div>
+                    <div className="text-[10px]" style={{ color: '#bbb' }}>tokens</div>
+                  </div>
+                  <div className="bg-white rounded-lg border border-gray-100 p-2 text-center">
+                    <div className="text-[9px] uppercase" style={{ color: C.turquoise }}>Cached</div>
+                    <div className="text-sm font-bold" style={{ color: (billingTx as any).cached_tokens > 0 ? C.blueBlack : '#ddd' }}>
+                      {(billingTx as any).cached_tokens > 0 ? ((billingTx as any).cached_tokens).toLocaleString() : '—'}
+                    </div>
+                    <div className="text-[10px]" style={{ color: '#bbb' }}>tokens</div>
+                  </div>
+                  <div className="bg-white rounded-lg border border-gray-100 p-2 text-center">
+                    <div className="text-[9px] uppercase" style={{ color: C.gold }}>Output</div>
+                    <div className="text-sm font-bold" style={{ color: C.blueBlack }}>{((billingTx as any).output_tokens || 0).toLocaleString()}</div>
+                    <div className="text-[10px]" style={{ color: '#bbb' }}>tokens</div>
+                  </div>
+                </div>
+                <div>Total cost: <span className="font-semibold" style={{ color: C.red }}>${(billingTx as any).cost_usd.toFixed(6)}</span></div>
+                <div>Provider revenue: ${((billingTx as any).cost_usd * 0.9).toFixed(6)} (90%)</div>
+                <div>Platform fee: ${((billingTx as any).cost_usd * 0.1).toFixed(6)} (10%)</div>
+              </>
+            ) : (
+              <>
+                {price != null && <div>Output rate: ${price.toFixed(2)} / M tokens</div>}
+                {trace.cost_usd != null && <div>Total cost: ${trace.cost_usd.toFixed(6)}</div>}
+                <div>Provider revenue: {trace.cost_usd != null ? `$${(trace.cost_usd * 0.9).toFixed(6)}` : '—'} (90%)</div>
+                <div>Platform fee: {trace.cost_usd != null ? `$${(trace.cost_usd * 0.1).toFixed(6)}` : '—'} (10%)</div>
+                <div className="text-[10px] mt-1" style={{ color: '#bbb' }}>
+                  Per-tier token breakdown not available for this request. Check Billing page for full transaction detail.
+                </div>
+              </>
+            )}
             <div className="text-[10px] mt-1" style={{ color: '#bbb' }}>
               Billing is per-token: input tokens + cached tokens (discounted) + output tokens.
             </div>
