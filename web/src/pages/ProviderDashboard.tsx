@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom'
+import { MineralField } from '../components/MineralField'
 
 const C = {
   gold: '#C49A45',
@@ -13,7 +14,9 @@ export function ProviderDashboard() {
   // See GitHub issue for requirements
 
   return (
-    <div className="space-y-6">
+    <div className="relative space-y-6">
+      <MineralField variant="provider" />
+      <div className="relative z-10 space-y-6">
       {/* Stat cards (stub data) */}
       <div className="flex items-center gap-4 flex-wrap">
         <div className="flex-1 grid grid-cols-2 lg:grid-cols-4 gap-3">
@@ -144,6 +147,7 @@ export function ProviderDashboard() {
         <Link to="/providers" className="text-xs font-medium shrink-0 ml-auto" style={{ color: C.gold }}>
           View public providers
         </Link>
+      </div>
       </div>
     </div>
   )
