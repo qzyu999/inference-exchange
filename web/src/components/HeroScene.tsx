@@ -3,19 +3,30 @@ import * as THREE from 'three'
 
 import { GL } from '../lib/theme'
 
-// ─── Mineral spectrum colors for gradient edges ──────────────
-const WARM_COLORS = [
-  new THREE.Color(0xB7443B), // cinnabar
-  new THREE.Color(0xCE8637), // copper
-  new THREE.Color(0xC49A45), // gold
-]
-const COOL_COLORS = [
-  new THREE.Color(0x1C8565), // jade
-  new THREE.Color(0x4D9A91), // chrysocolla
-  new THREE.Color(0x3F8055), // aventurine
+// ─── Mineral spectrum ────────────────────────────────────────
+// The red and green tetrahedra remain the poles of the mark.
+// The intersection is allowed to travel through the full mineral spectrum.
+const MINERAL_COLORS = [
+  new THREE.Color(0xC83A32), // red / demand
+  new THREE.Color(0xD77A2F), // orange / computation
+  new THREE.Color(0xC49A45), // gold / value
+  new THREE.Color(0x087F5B), // green / supply
+  new THREE.Color(0x4D9A91), // turquoise / intersection
+  new THREE.Color(0x315B72), // blue / trust
+  new THREE.Color(0x4A465F), // indigo / observability
+  new THREE.Color(0x702F32), // maroon / resolution
 ]
 
-// ─── Colors ──────────────────────────────────────────────────
+function mineralAt(t: number): THREE.Color {
+  const p = ((t % 1) + 1) % 1
+  const scaled = p * (MINERAL_COLORS.length - 1)
+  const i = Math.floor(scaled)
+  return MINERAL_COLORS[i].clone().lerp(
+    MINERAL_COLORS[Math.min(i + 1, MINERAL_COLORS.length - 1)],
+    scaled - i
+  )
+}
+
 const AMBER = GL.amber
 const EMERALD = GL.emerald
 const BG = GL.bg
@@ -456,36 +467,24 @@ export function HeroScene({ scrollProgress, onInitFailed }: HeroSceneProps) {
     s.pivot.rotation.y = t * 0.15
 
     // ── Mineral color evolution ──────────────────────────────
-    // As tetrahedra merge, their colors shift through the mineral
-    // spectrum — warm side cycles cinnabar → copper → gold,
-    // cool side cycles jade → chrysocolla → aventurine
-    const colorCycle = (t * 0.3) % 1
-    const warmIdx = colorCycle * (WARM_COLORS.length - 1)
-    const warmA = WARM_COLORS[Math.floor(warmIdx)]
-    const warmB = WARM_COLORS[Math.min(Math.ceil(warmIdx), WARM_COLORS.length - 1)]
-    const warmLerp = warmIdx - Math.floor(warmIdx)
-    const currentWarm = warmA.clone().lerp(warmB, warmLerp)
+    // Keep the two tetrahedra recognizably red/green while the
+    // intersection becomes the moving carrier of the full spectrum.
+    const spectrum = mineralAt(t * 0.055 + merge * 0.18)
+    const intersection = mineralAt(t * 0.055 + 0.50)
 
-    const coolIdx = colorCycle * (COOL_COLORS.length - 1)
-    const coolA = COOL_COLORS[Math.floor(coolIdx)]
-    const coolB = COOL_COLORS[Math.min(Math.ceil(coolIdx), COOL_COLORS.length - 1)]
-    const coolLerp = coolIdx - Math.floor(coolIdx)
-    const currentCool = coolA.clone().lerp(coolB, coolLerp)
-
-    // Apply: edges shift color, faces stay more subtle
     const uFace = (s.upTetra.children[0] as THREE.Mesh).material as THREE.MeshPhongMaterial
     const dFace = (s.downTetra.children[0] as THREE.Mesh).material as THREE.MeshPhongMaterial
     const uEdge = (s.upTetra.children[1] as THREE.LineSegments).material as THREE.LineBasicMaterial
     const dEdge = (s.downTetra.children[1] as THREE.LineSegments).material as THREE.LineBasicMaterial
 
-    // Blend from original color toward cycling mineral as merge increases
-    const colorBlend = merge * 0.6
-    uEdge.color.set(EMERALD).lerp(currentCool, colorBlend)
-    dEdge.color.set(AMBER).lerp(currentWarm, colorBlend)
-    uFace.color.set(EMERALD).lerp(currentCool, colorBlend * 0.5)
-    dFace.color.set(AMBER).lerp(currentWarm, colorBlend * 0.5)
+    // Brand poles stay stable until convergence. Then the edges pick up
+    // mineral light while the translucent faces remain quiet.
+    const colorBlend = merge * 0.42
+    uEdge.color.set(EMERALD).lerp(intersection, colorBlend)
+    dEdge.color.set(AMBER).lerp(spectrum, colorBlend)
+    uFace.color.set(EMERALD).lerp(intersection, colorBlend * 0.32)
+    dFace.color.set(AMBER).lerp(spectrum, colorBlend * 0.32)
 
-    // Opacity — intensifies during merge
     const fO = 0.12 + merge * 0.22
     const eO = 0.7 + merge * 0.25
 
@@ -501,10 +500,9 @@ export function HeroScene({ scrollProgress, onInitFailed }: HeroSceneProps) {
 
     // Intersection octahedron: aurora pulse through the mineral spectrum
     const octaMat = s.octaWire.material as THREE.LineBasicMaterial
-    const auroraPhase = (t * 0.4) % 1
-    const auroraColor = currentWarm.clone().lerp(currentCool, 0.5 + Math.sin(auroraPhase * Math.PI * 2) * 0.5)
+    const auroraColor = mineralAt(t * 0.045 + merge * 0.35)
     octaMat.color.copy(auroraColor)
-    octaMat.opacity = merge * (0.4 + Math.sin(t * 2) * 0.15)
+    octaMat.opacity = merge * (0.44 + Math.sin(t * 1.7) * 0.12)
 
     // ── Act 2: orbit particles + sun/moon (0.30 → 0.55) ────
     const orbitFade = clamp01((p - 0.30) / 0.25)
