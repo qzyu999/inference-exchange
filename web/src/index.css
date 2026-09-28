@@ -3,10 +3,14 @@
 :root {
   --color-accent: #C49A45;
   --color-accent-light: #fdf6ec;
-  --mineral-warm: #CE8637;
-  --mineral-cool: #4D9A91;
-  --mineral-red: #B7443B;
-  --mineral-jade: #1C8565;
+  --mineral-red: #C83A32;
+  --mineral-orange: #D77A2F;
+  --mineral-gold: #C49A45;
+  --mineral-green: #087F5B;
+  --mineral-turquoise: #4D9A91;
+  --mineral-blue: #315B72;
+  --mineral-indigo: #4A465F;
+  --mineral-maroon: #702F32;
 }
 
 body {
@@ -16,9 +20,7 @@ body {
   background: #292b2a;
 }
 
-/* ─── Mineral gradient utilities ──────────────────────────── */
-
-/* Animated gradient border — used on featured cards and active elements */
+/* The spectrum is a mineral light source, not a generic rainbow. */
 @keyframes mineral-shift {
   0%, 100% { background-position: 0% 50%; }
   50% { background-position: 100% 50%; }
@@ -33,10 +35,12 @@ body {
   position: absolute;
   inset: 0;
   border-radius: inherit;
-  padding: 1.5px;
-  background: linear-gradient(135deg, #B7443B44, #CE863766, #C49A4566, #4D9A9144, #1C856544);
-  background-size: 200% 200%;
-  animation: mineral-shift 8s ease infinite;
+  padding: 1px;
+  background: linear-gradient(135deg,
+    #C83A3240, #D77A2F55, #C49A4555, #087F5B44,
+    #4D9A9144, #315B7240, #4A465F38, #702F3238);
+  background-size: 220% 220%;
+  animation: mineral-shift 14s ease-in-out infinite;
   mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
   mask-composite: exclude;
   -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
@@ -44,7 +48,6 @@ body {
   pointer-events: none;
 }
 
-/* Subtle ambient glow on page backgrounds */
 .mineral-glow {
   position: relative;
 }
@@ -54,30 +57,36 @@ body {
   inset: 0;
   pointer-events: none;
   background:
-    radial-gradient(ellipse at 15% 0%, rgba(206,134,55,0.045) 0%, transparent 55%),
-    radial-gradient(ellipse at 85% 100%, rgba(77,154,145,0.035) 0%, transparent 55%);
+    radial-gradient(ellipse at 12% 0%, rgba(215,122,47,0.05) 0%, transparent 52%),
+    radial-gradient(ellipse at 52% 30%, rgba(77,154,145,0.025) 0%, transparent 48%),
+    radial-gradient(ellipse at 88% 100%, rgba(49,91,114,0.035) 0%, transparent 55%);
   z-index: 0;
 }
 
-/* Mineral gradient text */
 .mineral-text {
-  background: linear-gradient(135deg, #C49A45, #CE8637, #B7443B);
+  background: linear-gradient(135deg, #292F35 0%, #4A465F 55%, #315B72 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
 }
 
-/* Full spectrum text (warm → cool) */
 .mineral-spectrum-text {
-  background: linear-gradient(to right, #B7443B, #CE8637, #C49A45, #3F8055, #4D9A91);
-  background-size: 200% auto;
+  background: linear-gradient(90deg,
+    #C83A32 0%,
+    #D77A2F 14%,
+    #C49A45 28%,
+    #087F5B 43%,
+    #4D9A91 57%,
+    #315B72 72%,
+    #4A465F 86%,
+    #702F32 100%);
+  background-size: 180% auto;
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
-  animation: mineral-shift 6s ease infinite;
+  animation: mineral-shift 12s ease-in-out infinite;
 }
 
-/* Sidebar gradient active indicator */
 .sidebar-active-bar {
   position: relative;
 }
@@ -88,12 +97,18 @@ body {
   top: 50%;
   transform: translateY(-50%);
   width: 3px;
-  height: 60%;
+  height: 62%;
   border-radius: 3px 0 0 3px;
-  background: linear-gradient(to bottom, #C49A45, #CE8637);
+  background: linear-gradient(to bottom, #C83A32, #C49A45, #4D9A91, #315B72);
 }
 
-/* Markdown prose in chat */
+@media (prefers-reduced-motion: reduce) {
+  .mineral-border::before,
+  .mineral-spectrum-text {
+    animation: none;
+  }
+}
+
 .prose pre {
   border-radius: 0.75rem;
   padding: 0.875rem;
