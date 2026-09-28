@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import useSWR from 'swr'
 import { Link } from 'react-router-dom'
+import { MineralField } from '../components/MineralField'
 import { api, Provider, ReputationEntry, TPSEntry } from '../lib/api'
 
 // ─── Brand palette ───────────────────────────────────────────
@@ -201,7 +202,9 @@ export function Providers() {
   const cheapestOut = providers.length > 0 ? Math.min(...providers.map(p => p.price_output).filter(p => p > 0)) : 0
 
   return (
-    <div className="space-y-6">
+    <div className="relative space-y-6">
+      <MineralField variant="provider" />
+      <div className="relative z-10 space-y-6">
       {/* Stat cards + CTA */}
       <div className="flex items-center gap-4 flex-wrap">
         <div className="flex-1 grid grid-cols-2 lg:grid-cols-4 gap-3">
@@ -356,6 +359,7 @@ export function Providers() {
         <div className="text-xs mt-1" style={{ color: '#888' }}>
           See binary hash, trust level, recent success rate and observed throughput before routing.
         </div>
+      </div>
       </div>
     </div>
   )
