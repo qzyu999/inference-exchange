@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useSearchParams, Link } from 'react-router-dom'
 import useSWR from 'swr'
 import { api } from '../lib/api'
+import { MineralField } from '../components/MineralField'
 
 const C = {
   gold: '#C49A45',
@@ -124,7 +125,9 @@ export function Trace() {
   const toggle = (step: string) => setExpandedStep(expandedStep === step ? null : step)
 
   return (
-    <div className="max-w-3xl space-y-6">
+    <div className="relative max-w-3xl space-y-6">
+      <MineralField variant="trust" />
+      <div className="relative z-10">
       {/* Request header */}
       <div className="bg-white rounded-2xl border border-gray-200/40 px-6 py-4">
         <div className="flex items-center justify-between">
@@ -397,6 +400,7 @@ export function Trace() {
           </div>
         </div>
       )}
+      </div>
     </div>
   )
 }
