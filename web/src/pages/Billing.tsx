@@ -1,15 +1,7 @@
 import useSWR from 'swr'
 import { Link } from 'react-router-dom'
 import { api } from '../lib/api'
-
-const C = {
-  gold: '#C49A45',
-  green: '#3F8055',
-  turquoise: '#4D9A91',
-  deepBlue: '#315B72',
-  blueBlack: '#292F35',
-  red: '#B7443B',
-}
+import { C } from '../lib/theme'
 
 function formatTokens(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`
@@ -88,7 +80,7 @@ export function Billing() {
                     <span className="text-sm font-semibold w-14" style={{ color: C.gold }}>
                       ${spend.toFixed(2)}
                     </span>
-                    <div className="flex-1 h-3 rounded-full overflow-hidden" style={{ background: '#f0ede6' }}>
+                    <div className="flex-1 h-3 rounded-full overflow-hidden" style={{ background: '#eaeae8' }}>
                       <div
                         className="h-full rounded-full transition-all"
                         style={{ width: `${Math.max(3, pct)}%`, background: C.gold }}
@@ -106,7 +98,7 @@ export function Billing() {
                   <span className="text-sm font-semibold w-14" style={{ color: '#999' }}>
                     ${otherSpend.toFixed(2)}
                   </span>
-                  <div className="flex-1 h-3 rounded-full overflow-hidden" style={{ background: '#f0ede6' }}>
+                  <div className="flex-1 h-3 rounded-full overflow-hidden" style={{ background: '#eaeae8' }}>
                     <div
                       className="h-full rounded-full"
                       style={{
@@ -155,7 +147,7 @@ export function Billing() {
               </div>
             </div>
 
-            <div className="pt-3" style={{ borderTop: '1px solid #e8e5de' }}>
+            <div className="pt-3" style={{ borderTop: '1px solid #e5e5e3' }}>
               <div className="text-xs" style={{ color: '#888' }}>Provider share</div>
               <div className="text-xl font-bold mt-0.5" style={{ color: C.green }}>90%</div>
             </div>

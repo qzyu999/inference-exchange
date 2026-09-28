@@ -2,26 +2,7 @@ import useSWR from 'swr'
 import { api } from '../lib/api'
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-
-// ─── Brand palette ───────────────────────────────────────────
-const C = {
-  red: '#B7443B',
-  gold: '#C49A45',
-  green: '#3F8055',
-  turquoise: '#4D9A91',
-  deepBlue: '#315B72',
-  blueBlack: '#292F35',
-  white: '#D8D1BE',
-  orange: '#D77A2F',
-  indigo: '#4A465F',
-}
-
-const TRUST_COLORS: Record<string, { bg: string; text: string; label: string }> = {
-  open:         { bg: '#f3f3f3', text: '#999',     label: 'Open' },
-  contained:    { bg: '#eef3f7', text: C.deepBlue, label: 'Contained' },
-  hardened:     { bg: '#fdf6ec', text: C.gold,     label: 'Hardened+' },
-  confidential: { bg: '#edf7f1', text: C.green,    label: 'Confidential' },
-}
+import { C, TRUST_COLORS } from '../lib/theme'
 
 const PROVIDER_NAMES: Record<string, string> = {
   openai: 'OpenAI', anthropic: 'Anthropic', google: 'Google', deepseek: 'DeepSeek',
@@ -69,7 +50,7 @@ function formatCtx(n: number): string {
 function ProviderDetail({ p, reputation, caps }: { p: MarketProvider; reputation?: any; caps?: MarketModel['capabilities'] }) {
   const tc = TRUST_COLORS[p.trust] || TRUST_COLORS.open
   return (
-    <div className="px-5 py-4 border-t" style={{ background: '#fafaf8', borderColor: '#f0ede6' }}>
+    <div className="px-5 py-4 border-t" style={{ background: '#f8f8f7', borderColor: '#eaeae8' }}>
       {/* Capability badges row */}
       {caps && (
         <div className="flex items-center gap-1.5 mb-3 flex-wrap">
@@ -258,7 +239,7 @@ function ReferencePricing({ refs, exchangePrice, exchangeModel, exchangeInput, e
           return (
             <div key={i} className="rounded-xl px-3 py-2.5"
               style={{
-                background: o.isExchange ? '#edeae2' : '#fff',
+                background: o.isExchange ? '#ebebea' : '#fff',
                 border: o.isExchange ? `1.5px solid ${C.gold}44` : '1px solid #eee',
               }}>
               {/* Provider + model + type badge */}
@@ -280,19 +261,19 @@ function ReferencePricing({ refs, exchangePrice, exchangeModel, exchangeInput, e
 
               {/* Price pills */}
               <div className="flex items-center gap-2">
-                <div className="flex items-center gap-1 px-2 py-1 rounded-lg" style={{ background: o.isExchange ? '#e0dbd0' : '#f5f5f3' }}>
+                <div className="flex items-center gap-1 px-2 py-1 rounded-lg" style={{ background: o.isExchange ? '#e3e3e1' : '#f5f5f3' }}>
                   <span className="text-[9px] uppercase" style={{ color: C.deepBlue }}>in</span>
                   <span className="text-xs font-mono font-medium" style={{ color: isMin(o.input, minIn) ? C.green : C.blueBlack }}>
                     {o.input > 0 ? `$${o.input.toFixed(2)}` : '—'}
                   </span>
                 </div>
-                <div className="flex items-center gap-1 px-2 py-1 rounded-lg" style={{ background: o.isExchange ? '#e0dbd0' : '#f5f5f3' }}>
+                <div className="flex items-center gap-1 px-2 py-1 rounded-lg" style={{ background: o.isExchange ? '#e3e3e1' : '#f5f5f3' }}>
                   <span className="text-[9px] uppercase" style={{ color: C.turquoise }}>cache</span>
                   <span className="text-xs font-mono font-medium" style={{ color: isMin(o.cache, minCache) ? C.green : o.cache > 0 ? C.blueBlack : '#ccc' }}>
                     {o.cache > 0 ? `$${o.cache < 0.1 ? o.cache.toFixed(3) : o.cache.toFixed(2)}` : '—'}
                   </span>
                 </div>
-                <div className="flex items-center gap-1 px-2 py-1 rounded-lg" style={{ background: o.isExchange ? '#e0dbd0' : '#f5f5f3' }}>
+                <div className="flex items-center gap-1 px-2 py-1 rounded-lg" style={{ background: o.isExchange ? '#e3e3e1' : '#f5f5f3' }}>
                   <span className="text-[9px] uppercase" style={{ color: C.gold }}>out</span>
                   <span className="text-xs font-mono font-medium" style={{ color: isMin(o.output, minOut) ? C.green : C.blueBlack }}>
                     {o.output > 0 ? `$${o.output.toFixed(2)}` : '—'}
@@ -400,7 +381,7 @@ export function Exchange() {
         <h2 className="text-xl font-bold mb-3" style={{ color: C.blueBlack }}>The exchange is quiet</h2>
         <p className="text-sm mb-8" style={{ color: '#888' }}>No providers connected.</p>
         <div className="bg-white rounded-2xl border border-gray-200/40 p-6 text-left max-w-sm mx-auto">
-          <div className="rounded-xl p-4 font-mono text-xs space-y-1" style={{ background: C.blueBlack, color: C.white }}>
+          <div className="rounded-xl p-4 font-mono text-xs space-y-1" style={{ background: C.blueBlack, color: C.warmWhite }}>
             <div><span style={{ color: '#666' }}>$</span> pip install ie-provider</div>
             <div><span style={{ color: '#666' }}>$</span> ie-provider start</div>
           </div>

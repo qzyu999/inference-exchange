@@ -1,10 +1,24 @@
 import { useEffect, useRef, useCallback } from 'react'
 import * as THREE from 'three'
 
+import { GL } from '../lib/theme'
+
+// ─── Mineral spectrum colors for gradient edges ──────────────
+const WARM_COLORS = [
+  new THREE.Color(0xB7443B), // cinnabar
+  new THREE.Color(0xCE8637), // copper
+  new THREE.Color(0xC49A45), // gold
+]
+const COOL_COLORS = [
+  new THREE.Color(0x1C8565), // jade
+  new THREE.Color(0x4D9A91), // chrysocolla
+  new THREE.Color(0x3F8055), // aventurine
+]
+
 // ─── Colors ──────────────────────────────────────────────────
-const AMBER = 0xb7443b
-const EMERALD = 0x3f8055
-const BG = 0x292b2a
+const AMBER = GL.amber
+const EMERALD = GL.emerald
+const BG = GL.bg
 
 // ─── Stella Octangula from cube vertices ─────────────────────
 //
@@ -180,7 +194,7 @@ function makeOctahedronWireframe(): THREE.LineSegments {
   geo.setAttribute('position', new THREE.BufferAttribute(positions, 3))
 
   const mat = new THREE.LineBasicMaterial({
-    color: 0x4d9a91,
+    color: GL.chryso,
     transparent: true,
     opacity: 0,
     depthWrite: false,
@@ -203,7 +217,7 @@ function makeDust(count: number): { points: THREE.Points; speeds: Float32Array }
   const geo = new THREE.BufferGeometry()
   geo.setAttribute('position', new THREE.BufferAttribute(pos, 3))
   const mat = new THREE.PointsMaterial({
-    color: 0xd8d1be, size: 0.03, transparent: true, opacity: 0.3,
+    color: GL.warmWhite, size: 0.03, transparent: true, opacity: 0.3,
     sizeAttenuation: true, depthWrite: false,
   })
   return { points: new THREE.Points(geo, mat), speeds }
@@ -235,7 +249,7 @@ function makeOrbit(count: number): OrbitData {
   const geo = new THREE.BufferGeometry()
   geo.setAttribute('position', new THREE.BufferAttribute(pos, 3))
   const mat = new THREE.PointsMaterial({
-    color: 0xd8d1be, size: 0.04, transparent: true, opacity: 0,
+    color: GL.warmWhite, size: 0.04, transparent: true, opacity: 0,
     sizeAttenuation: true, depthWrite: false,
   })
   return { points: new THREE.Points(geo, mat), phase, radii, speeds, yBase }
@@ -250,7 +264,7 @@ function makeSun(): THREE.Group {
   const r = 0.14
   const core = new THREE.Mesh(
     new THREE.CircleGeometry(r, 48),
-    new THREE.MeshBasicMaterial({ color: 0xc49a45, side: THREE.DoubleSide })
+    new THREE.MeshBasicMaterial({ color: GL.gold, side: THREE.DoubleSide })
   )
   group.add(core)
 
@@ -258,7 +272,7 @@ function makeSun(): THREE.Group {
   const halo = new THREE.Mesh(
     new THREE.CircleGeometry(r * 2, 48),
     new THREE.MeshBasicMaterial({
-      color: 0xc49a45,
+      color: GL.gold,
       transparent: true,
       opacity: 0.12,
       side: THREE.DoubleSide,
@@ -280,7 +294,7 @@ function makeMoon(): THREE.Group {
   // White moon disc
   const moonGeo = new THREE.CircleGeometry(r, 48)
   const moonMat = new THREE.MeshBasicMaterial({
-    color: 0xd8d1be,
+    color: GL.warmWhite,
     side: THREE.DoubleSide,
   })
   group.add(new THREE.Mesh(moonGeo, moonMat))
@@ -441,28 +455,56 @@ export function HeroScene({ scrollProgress, onInitFailed }: HeroSceneProps) {
     // Slow Y rotation
     s.pivot.rotation.y = t * 0.15
 
-    // Opacity
-    const fO = 0.12 + merge * 0.18
-    const eO = 0.7 + merge * 0.25
+    // ── Mineral color evolution ──────────────────────────────
+    // As tetrahedra merge, their colors shift through the mineral
+    // spectrum — warm side cycles cinnabar → copper → gold,
+    // cool side cycles jade → chrysocolla → aventurine
+    const colorCycle = (t * 0.3) % 1
+    const warmIdx = colorCycle * (WARM_COLORS.length - 1)
+    const warmA = WARM_COLORS[Math.floor(warmIdx)]
+    const warmB = WARM_COLORS[Math.min(Math.ceil(warmIdx), WARM_COLORS.length - 1)]
+    const warmLerp = warmIdx - Math.floor(warmIdx)
+    const currentWarm = warmA.clone().lerp(warmB, warmLerp)
 
+    const coolIdx = colorCycle * (COOL_COLORS.length - 1)
+    const coolA = COOL_COLORS[Math.floor(coolIdx)]
+    const coolB = COOL_COLORS[Math.min(Math.ceil(coolIdx), COOL_COLORS.length - 1)]
+    const coolLerp = coolIdx - Math.floor(coolIdx)
+    const currentCool = coolA.clone().lerp(coolB, coolLerp)
+
+    // Apply: edges shift color, faces stay more subtle
     const uFace = (s.upTetra.children[0] as THREE.Mesh).material as THREE.MeshPhongMaterial
     const dFace = (s.downTetra.children[0] as THREE.Mesh).material as THREE.MeshPhongMaterial
     const uEdge = (s.upTetra.children[1] as THREE.LineSegments).material as THREE.LineBasicMaterial
     const dEdge = (s.downTetra.children[1] as THREE.LineSegments).material as THREE.LineBasicMaterial
+
+    // Blend from original color toward cycling mineral as merge increases
+    const colorBlend = merge * 0.6
+    uEdge.color.set(EMERALD).lerp(currentCool, colorBlend)
+    dEdge.color.set(AMBER).lerp(currentWarm, colorBlend)
+    uFace.color.set(EMERALD).lerp(currentCool, colorBlend * 0.5)
+    dFace.color.set(AMBER).lerp(currentWarm, colorBlend * 0.5)
+
+    // Opacity — intensifies during merge
+    const fO = 0.12 + merge * 0.22
+    const eO = 0.7 + merge * 0.25
 
     uFace.opacity = fO
     dFace.opacity = fO
     uEdge.opacity = eO
     dEdge.opacity = eO
 
-    // Breathe when merged
-    const breathe = merge > 0.95 ? 1 + Math.sin(t * 2) * 0.015 : 1
+    // Breathe when merged — deeper, slower pulse
+    const breathe = merge > 0.95 ? 1 + Math.sin(t * 1.5) * 0.02 : 1
     s.upTetra.scale.setScalar(breathe)
     s.downTetra.scale.setScalar(breathe)
 
-    // Intersection octahedron wireframe fades in with merge
+    // Intersection octahedron: aurora pulse through the mineral spectrum
     const octaMat = s.octaWire.material as THREE.LineBasicMaterial
-    octaMat.opacity = merge * 0.5
+    const auroraPhase = (t * 0.4) % 1
+    const auroraColor = currentWarm.clone().lerp(currentCool, 0.5 + Math.sin(auroraPhase * Math.PI * 2) * 0.5)
+    octaMat.color.copy(auroraColor)
+    octaMat.opacity = merge * (0.4 + Math.sin(t * 2) * 0.15)
 
     // ── Act 2: orbit particles + sun/moon (0.30 → 0.55) ────
     const orbitFade = clamp01((p - 0.30) / 0.25)
@@ -511,7 +553,7 @@ export function HeroScene({ scrollProgress, onInitFailed }: HeroSceneProps) {
       s.moon.visible = false
     }
 
-    s.scene.background = new THREE.Color(BG).lerp(new THREE.Color(0xfafafa), fade)
+    s.scene.background = new THREE.Color(BG).lerp(new THREE.Color(GL.darkBg), fade)
 
     // Dust
     const dPos = s.dust.points.geometry.attributes.position as THREE.BufferAttribute

@@ -1,12 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../lib/auth'
-
-const C = {
-  gold: '#C49A45',
-  green: '#3F8055',
-  blueBlack: '#292F35',
-}
+import { C } from '../lib/theme'
 
 export function Login() {
   const [mode, setMode] = useState<'login' | 'signup'>('login')

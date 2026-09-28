@@ -2,24 +2,7 @@ import { useState } from 'react'
 import useSWR from 'swr'
 import { Link } from 'react-router-dom'
 import { api, Provider, ReputationEntry, TPSEntry } from '../lib/api'
-
-// ─── Brand palette ───────────────────────────────────────────
-const C = {
-  red: '#B7443B',
-  gold: '#C49A45',
-  green: '#3F8055',
-  turquoise: '#4D9A91',
-  deepBlue: '#315B72',
-  blueBlack: '#292F35',
-  orange: '#D77A2F',
-}
-
-const TRUST_COLORS: Record<string, { bg: string; text: string; label: string }> = {
-  open:         { bg: '#f3f3f3', text: '#999',     label: 'Open' },
-  contained:    { bg: '#eef3f7', text: C.deepBlue, label: 'Contained' },
-  hardened:     { bg: '#fdf6ec', text: C.gold,     label: 'Hardened+' },
-  confidential: { bg: '#edf7f1', text: C.green,    label: 'Confidential' },
-}
+import { C, TRUST_COLORS } from '../lib/theme'
 
 function formatUptime(seconds: number): string {
   if (seconds < 60) return `${seconds}s`
@@ -41,7 +24,7 @@ function ProviderEvidence({ p, reputation, tps }: { p: Provider; reputation?: Re
   const caps = p.model_capabilities
 
   return (
-    <div className="px-5 py-4 border-t" style={{ background: '#fafaf8', borderColor: '#f0ede6' }}>
+    <div className="px-5 py-4 border-t" style={{ background: '#f8f8f7', borderColor: '#eaeae8' }}>
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-5 text-xs">
         {/* Pricing */}
         <div>
@@ -146,7 +129,7 @@ function ProviderEvidence({ p, reputation, tps }: { p: Provider; reputation?: Re
               <span style={{ color: '#bbb' }}> ({p.active_requests}/{p.max_concurrent} slots)</span>
             </div>
             {reputation && (
-              <div className="mt-1.5 pt-1.5" style={{ borderTop: '1px solid #e8e5de' }}>
+              <div className="mt-1.5 pt-1.5" style={{ borderTop: '1px solid #e5e5e3' }}>
                 <div className="flex items-center justify-between">
                   <span>Reputation</span>
                   <span className="font-semibold" style={{

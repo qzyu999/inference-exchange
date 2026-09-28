@@ -2,28 +2,7 @@ import { useState } from 'react'
 import { useSearchParams, Link } from 'react-router-dom'
 import useSWR from 'swr'
 import { api } from '../lib/api'
-
-const C = {
-  gold: '#C49A45',
-  green: '#3F8055',
-  turquoise: '#4D9A91',
-  deepBlue: '#315B72',
-  blueBlack: '#292F35',
-  red: '#B7443B',
-  orange: '#D77A2F',
-  indigo: '#4A465F',
-}
-
-const TRUST_LABELS: Record<string, string> = {
-  open: 'Open', contained: 'Contained', hardened: 'Hardened', confidential: 'Confidential',
-}
-
-const TRUST_COLORS: Record<string, { bg: string; text: string }> = {
-  open:         { bg: '#f3f3f3', text: '#999' },
-  contained:    { bg: '#eef3f7', text: C.deepBlue },
-  hardened:     { bg: '#fdf6ec', text: C.gold },
-  confidential: { bg: '#edf7f1', text: C.green },
-}
+import { C, TRUST_COLORS } from '../lib/theme'
 
 const DOT_COLORS: Record<string, string> = {
   green: C.green, gold: C.gold, blue: C.deepBlue, red: C.red, gray: '#ccc',
@@ -39,7 +18,7 @@ function TraceStep({ number, label, value, detail, dot, expanded, children, onTo
     <div>
       <div
         className={`flex items-center gap-5 px-6 py-4 ${onToggle ? 'cursor-pointer hover:bg-gray-50/50' : ''}`}
-        style={{ borderTop: number !== '01' ? '1px solid #f0ede6' : 'none' }}
+        style={{ borderTop: number !== '01' ? '1px solid #eaeae8' : 'none' }}
         onClick={onToggle}
       >
         <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0"
@@ -60,7 +39,7 @@ function TraceStep({ number, label, value, detail, dot, expanded, children, onTo
         )}
       </div>
       {expanded && children && (
-        <div className="px-6 pb-4 ml-14" style={{ borderTop: '1px solid #f0ede6' }}>
+        <div className="px-6 pb-4 ml-14" style={{ borderTop: '1px solid #eaeae8' }}>
           <div className="pt-3 text-xs" style={{ color: '#888' }}>
             {children}
           </div>
@@ -118,7 +97,7 @@ export function Trace() {
   // Candidates that were NOT selected
   const alternatives = scoring.filter((s: any) => !s.selected && s.name !== provider)
 
-  const trustLabel = TRUST_LABELS[trust] || trust
+  const trustLabel = TRUST_COLORS[trust]?.label || trust
   const tc = TRUST_COLORS[trust] || TRUST_COLORS.open
 
   const toggle = (step: string) => setExpandedStep(expandedStep === step ? null : step)
@@ -184,7 +163,7 @@ export function Trace() {
                         <span style={{ color: C.gold }}>${s.price?.toFixed(2)}</span>
                         <span style={{ color: C.turquoise }}>{s.tps?.toFixed(0)} t/s</span>
                         <span className="text-[9px] px-1.5 py-0.5 rounded-full" style={{ background: stc.bg, color: stc.text }}>
-                          {TRUST_LABELS[s.trust] || s.trust}
+                          {TRUST_COLORS[s.trust]?.label || s.trust}
                         </span>
                       </div>
                     )
@@ -385,7 +364,7 @@ export function Trace() {
                   {t.selected_trust && (
                     <span className="text-[8px] px-1.5 py-0.5 rounded-full"
                       style={{ background: (TRUST_COLORS[t.selected_trust] || TRUST_COLORS.open).bg, color: (TRUST_COLORS[t.selected_trust] || TRUST_COLORS.open).text }}>
-                      {TRUST_LABELS[t.selected_trust] || t.selected_trust}
+                      {TRUST_COLORS[t.selected_trust]?.label || t.selected_trust}
                     </span>
                   )}
                   {t.selected_price != null && (
