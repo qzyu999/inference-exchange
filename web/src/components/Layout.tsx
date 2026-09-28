@@ -1,20 +1,13 @@
 import { useState } from 'react'
 import { Link, Outlet, useLocation } from 'react-router-dom'
-import { useCoordinatorStatus } from '../lib/useWebSocket'
+import { useCoordinatorStatus, useWebSocket } from '../lib/useWebSocket'
 import { useAuth } from '../lib/auth'
+import { C, TRUST_COLORS, GRADIENTS } from '../lib/theme'
 import { ErrorBoundary } from './ErrorBoundary'
+import { MineralAurora, NetworkHeartbeat, useNetworkPulses } from './MineralAurora'
 
-// ─── Brand palette ───────────────────────────────────────────
-const C = {
-  gold: '#C49A45',
-  green: '#3F8055',
-  sidebarBg: '#292F35',
-  sidebarText: '#a8a8a0',
-  sidebarActive: '#C49A45',
-  sidebarHover: 'rgba(255,255,255,0.06)',
-  pageBg: '#f5f2ec',
-  pageText: '#292F35',
-}
+// Trust colors re-exported for convenience (used by child pages)
+export { TRUST_COLORS }
 
 const PRIMARY_NAV = [
   { path: '/overview', label: 'Overview', icon: OverviewIcon },
@@ -117,7 +110,7 @@ function NavItem({ path, label, icon: Icon, active }: {
   return (
     <Link
       to={path}
-      className="flex items-center gap-3 px-3 py-2 rounded-lg text-[13px] font-medium transition-colors"
+      className={`flex items-center gap-3 px-3 py-2 rounded-lg text-[13px] font-medium transition-colors ${active ? 'sidebar-active-bar' : ''}`}
       style={{
         background: active ? C.sidebarHover : 'transparent',
         color: active ? '#fff' : C.sidebarText,
@@ -125,12 +118,6 @@ function NavItem({ path, label, icon: Icon, active }: {
     >
       <Icon className="shrink-0" />
       <span>{label}</span>
-      {active && (
-        <span
-          className="w-1.5 h-1.5 rounded-full ml-auto shrink-0"
-          style={{ background: C.sidebarActive }}
-        />
-      )}
     </Link>
   )
 }
@@ -143,6 +130,10 @@ export function Layout() {
   const { user, logout } = useAuth()
   const [mobileOpen, setMobileOpen] = useState(false)
 
+  // Subscribe to live exchange events for reactive aurora
+  const { events } = useWebSocket('/ws/events')
+  const pulses = useNetworkPulses(events, performance.now() / 1000)
+
   // Landing page gets full-screen layout (no sidebar) — preserves scroll sequence
   if (location.pathname === '/') {
     return (
@@ -154,7 +145,7 @@ export function Layout() {
 
   if (location.pathname === '/login') {
     return (
-      <div className="min-h-screen" style={{ background: C.pageBg }}>
+      <div className="min-h-screen" style={{ background: `linear-gradient(180deg, #F8F8F5 0%, ${C.pageBg} 40%, #F3F2EE 100%)` }}>
         <div className="px-6 py-4">
           <Link to="/" className="text-sm font-semibold tracking-tight uppercase" style={{ color: C.gold }}>
             Inference Exchange
@@ -170,11 +161,11 @@ export function Layout() {
   const sidebarContent = (
     <>
       {/* Brand */}
-      <div className="px-4 pt-5 pb-6">
+      <div className="px-4 pt-5 pb-6" style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
         <Link to="/" className="flex items-center gap-2.5">
           <img src="/logo-icon.svg" alt="IE" className="w-6 h-6" />
           <div>
-            <div className="text-sm font-bold uppercase tracking-wider" style={{ color: C.gold }}>
+            <div className="text-sm font-bold uppercase tracking-wider mineral-spectrum-text">
               Inference
             </div>
             <div className="text-[11px] uppercase tracking-wider" style={{ color: '#666' }}>
@@ -195,9 +186,9 @@ export function Layout() {
         ))}
       </nav>
 
-      {/* Separator + Account nav */}
+      {/* Mineral stratum vein separator */}
       <div className="px-4 mt-6 mb-3">
-        <div className="border-t" style={{ borderColor: 'rgba(255,255,255,0.08)' }} />
+        <div className="h-[1px] rounded-full" style={{ background: GRADIENTS.mineralBar, opacity: 0.25 }} />
         <div className="text-[10px] uppercase tracking-wider mt-4 mb-2" style={{ color: '#555' }}>
           Account
         </div>
@@ -219,10 +210,7 @@ export function Layout() {
       <div className="px-4 pb-5 space-y-3">
         {coordinatorOnline !== null && (
           <div className="flex items-center gap-2">
-            <span
-              className="w-2 h-2 rounded-full shrink-0"
-              style={{ background: coordinatorOnline ? C.green : '#B7443B' }}
-            />
+            <NetworkHeartbeat online={!!coordinatorOnline} eventCount={events.length} />
             <span className="text-xs" style={{ color: coordinatorOnline ? C.green : '#B7443B' }}>
               {coordinatorOnline ? 'Network online' : 'Network offline'}
             </span>
@@ -250,18 +238,18 @@ export function Layout() {
   )
 
   return (
-    <div className="flex min-h-screen" style={{ background: C.pageBg }}>
+    <div className="flex min-h-screen" style={{ background: `linear-gradient(180deg, #F8F8F5 0%, ${C.pageBg} 40%, #F3F2EE 100%)` }}>
       {/* Desktop sidebar */}
       <aside
         className="hidden lg:flex flex-col w-52 shrink-0 sticky top-0 h-screen overflow-y-auto"
-        style={{ background: C.sidebarBg }}
+        style={{ background: GRADIENTS.sidebar }}
       >
         {sidebarContent}
       </aside>
 
       {/* Mobile hamburger + overlay */}
       <div className="lg:hidden fixed top-0 left-0 right-0 z-50 px-4 py-3 flex items-center justify-between"
-        style={{ background: C.pageBg, borderBottom: '1px solid rgba(0,0,0,0.06)' }}
+        style={{ background: '#F8F8F5', borderBottom: '1px solid rgba(0,0,0,0.05)' }}
       >
         <Link to="/" className="text-sm font-bold uppercase tracking-wider" style={{ color: C.gold }}>
           IE
@@ -289,7 +277,7 @@ export function Layout() {
           />
           <aside
             className="lg:hidden fixed top-0 left-0 bottom-0 z-50 w-56 flex flex-col overflow-y-auto"
-            style={{ background: C.sidebarBg }}
+            style={{ background: GRADIENTS.sidebar }}
             onClick={(e) => {
               // Close on nav link clicks
               if ((e.target as HTMLElement).closest('a')) setMobileOpen(false)
@@ -301,9 +289,14 @@ export function Layout() {
       )}
 
       {/* Main content */}
-      <div className="flex-1 min-w-0 lg:ml-0">
+      <div className="flex-1 min-w-0 lg:ml-0 relative">
+        {/* Living mineral aurora — reactive to network events */}
+        <div className="absolute inset-0 z-0 overflow-hidden">
+          <MineralAurora variant="light" opacity={0.06} speed={0.0002} pulses={pulses} className="absolute inset-0" />
+        </div>
+
         {/* Page title area + network status */}
-        <div className="px-6 md:px-10 pt-14 lg:pt-8 pb-6 flex items-start justify-between">
+        <div className="relative z-10 px-6 md:px-10 pt-14 lg:pt-8 pb-6 flex items-start justify-between">
           <div>
             <PageTitle pathname={location.pathname} />
           </div>
@@ -312,16 +305,13 @@ export function Layout() {
               <span className="text-xs" style={{ color: coordinatorOnline ? C.green : '#B7443B' }}>
                 Network · {coordinatorOnline ? 'live' : 'offline'}
               </span>
-              <span
-                className="w-2 h-2 rounded-full"
-                style={{ background: coordinatorOnline ? C.green : '#B7443B' }}
-              />
+              <NetworkHeartbeat online={!!coordinatorOnline} eventCount={events.length} />
             </div>
           )}
         </div>
 
         {/* Page content */}
-        <div className="px-6 md:px-10 pb-10">
+        <div className="relative z-10 px-6 md:px-10 pb-10">
           <ErrorBoundary>
             <Outlet />
           </ErrorBoundary>
@@ -351,7 +341,7 @@ function PageTitle({ pathname }: { pathname: string }) {
   if (!meta) return null
   return (
     <div>
-      <h1 className="text-2xl font-bold tracking-tight" style={{ color: C.pageText }}>
+      <h1 className="text-2xl font-bold tracking-tight mineral-text">
         {meta.title}
       </h1>
       <p className="text-sm mt-1" style={{ color: '#888' }}>

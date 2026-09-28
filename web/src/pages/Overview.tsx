@@ -2,23 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import useSWR from 'swr'
 import { Link } from 'react-router-dom'
 import { api } from '../lib/api'
-
-const C = {
-  gold: '#C49A45',
-  green: '#3F8055',
-  turquoise: '#4D9A91',
-  deepBlue: '#315B72',
-  blueBlack: '#292F35',
-  red: '#B7443B',
-  orange: '#D77A2F',
-}
-
-const TRUST_COLORS: Record<string, { bg: string; text: string; label: string }> = {
-  open:         { bg: '#f3f3f3', text: '#999',     label: 'Open' },
-  contained:    { bg: '#eef3f7', text: C.deepBlue, label: 'Contained' },
-  hardened:     { bg: '#fdf6ec', text: C.gold,     label: 'Hardened+' },
-  confidential: { bg: '#edf7f1', text: C.green,    label: 'Confidential' },
-}
+import { C, TRUST_COLORS } from '../lib/theme'
 
 export function Overview() {
   const { data: stats } = useSWR('stats', api.stats, { refreshInterval: 5000 })
@@ -126,7 +110,7 @@ export function Overview() {
           )}
 
           {/* Fleet capacity */}
-          <div className="mt-4 pt-4 flex items-center gap-4 text-xs" style={{ borderTop: '1px solid #f0ede6', color: '#888' }}>
+          <div className="mt-4 pt-4 flex items-center gap-4 text-xs" style={{ borderTop: '1px solid #eaeae8', color: '#888' }}>
             <span>Capacity: <span className="font-semibold" style={{ color: C.blueBlack }}>{usedSlots}/{totalSlots}</span> slots</span>
             {encryptedCount > 0 && <span><span className="font-semibold" style={{ color: C.deepBlue }}>{encryptedCount}</span> E2E</span>}
             {hardenedCount > 0 && <span><span className="font-semibold" style={{ color: C.gold }}>{hardenedCount}</span> Hardened+</span>}
@@ -162,7 +146,7 @@ export function Overview() {
 
           {/* Trust level distribution */}
           {providers.length > 0 && (
-            <div className="mt-4 pt-4" style={{ borderTop: '1px solid #f0ede6' }}>
+            <div className="mt-4 pt-4" style={{ borderTop: '1px solid #eaeae8' }}>
               <div className="text-[10px] uppercase tracking-wider font-medium mb-2" style={{ color: '#aaa' }}>
                 Fleet trust distribution
               </div>

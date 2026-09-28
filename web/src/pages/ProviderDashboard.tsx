@@ -1,12 +1,5 @@
 import { Link } from 'react-router-dom'
-
-const C = {
-  gold: '#C49A45',
-  green: '#3F8055',
-  turquoise: '#4D9A91',
-  deepBlue: '#315B72',
-  blueBlack: '#292F35',
-}
+import { C } from '../lib/theme'
 
 export function ProviderDashboard() {
   // Stub: this page needs backend endpoints for provider-specific data
@@ -76,7 +69,7 @@ export function ProviderDashboard() {
           </div>
 
           {/* Estimated earnings */}
-          <div className="mt-5 pt-4" style={{ borderTop: '1px solid #e8e5de' }}>
+          <div className="mt-5 pt-4" style={{ borderTop: '1px solid #e5e5e3' }}>
             <div className="text-xs" style={{ color: '#888' }}>Estimated earnings</div>
             <div className="text-2xl font-bold mt-0.5" style={{ color: C.blueBlack }}>$2.10 today</div>
             <div className="text-xs" style={{ color: '#999' }}>Based on recent utilization and market depth.</div>
@@ -120,7 +113,7 @@ export function ProviderDashboard() {
             ))}
           </div>
 
-          <div className="mt-6 pt-4" style={{ borderTop: '1px solid #e8e5de' }}>
+          <div className="mt-6 pt-4" style={{ borderTop: '1px solid #e5e5e3' }}>
             <div className="text-[10px] uppercase tracking-wider font-medium mb-2" style={{ color: C.gold }}>
               Public Provider Profile
             </div>

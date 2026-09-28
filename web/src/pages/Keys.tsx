@@ -3,12 +3,7 @@ import useSWR from 'swr'
 import { Link } from 'react-router-dom'
 import { api, post } from '../lib/api'
 import { useAuth } from '../lib/auth'
-
-const C = {
-  gold: '#C49A45',
-  green: '#3F8055',
-  blueBlack: '#292F35',
-}
+import { C } from '../lib/theme'
 
 export function Keys() {
   const { user } = useAuth()

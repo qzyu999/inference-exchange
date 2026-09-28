@@ -2,26 +2,7 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import useSWR from 'swr'
 import { api } from '../lib/api'
-
-// ─── Brand palette ───────────────────────────────────────────
-const C = {
-  red: '#B7443B',
-  gold: '#C49A45',
-  green: '#3F8055',
-  turquoise: '#4D9A91',
-  deepBlue: '#315B72',
-  blueBlack: '#292F35',
-  orange: '#D77A2F',
-  indigo: '#4A465F',
-  white: '#D8D1BE',
-}
-
-const TRUST_COLORS: Record<string, { bg: string; text: string; label: string }> = {
-  open:         { bg: '#f3f3f3', text: '#999',     label: 'Open' },
-  contained:    { bg: '#eef3f7', text: C.deepBlue, label: 'Contained' },
-  hardened:     { bg: '#fdf6ec', text: C.gold,     label: 'Hardened+' },
-  confidential: { bg: '#edf7f1', text: C.green,    label: 'Confidential' },
-}
+import { C, TRUST_COLORS } from '../lib/theme'
 
 // ─── Types ───────────────────────────────────────────────────
 
@@ -186,7 +167,7 @@ function ModelDetail({ m }: { m: MarketModel }) {
   return (
     <div className="bg-white rounded-2xl border border-gray-200/40 overflow-hidden">
       {/* Header */}
-      <div className="p-5 border-b" style={{ borderColor: '#f0ede6' }}>
+      <div className="p-5 border-b" style={{ borderColor: '#eaeae8' }}>
         <div className="text-[10px] uppercase tracking-wider font-medium mb-1" style={{ color: C.gold }}>
           Model Detail
         </div>
@@ -209,7 +190,7 @@ function ModelDetail({ m }: { m: MarketModel }) {
 
       {/* Quantization breakdown */}
       {quants.length > 0 && (
-        <div className="px-5 py-4 border-b" style={{ borderColor: '#f0ede6', background: '#fafaf8' }}>
+        <div className="px-5 py-4 border-b" style={{ borderColor: '#eaeae8', background: '#f8f8f7' }}>
           <div className="text-[10px] uppercase tracking-wider font-medium mb-3" style={{ color: '#aaa' }}>
             Quantization variants
           </div>
@@ -320,7 +301,7 @@ function ModelDetail({ m }: { m: MarketModel }) {
 
               {/* Expanded provider detail */}
               {isExpanded && (
-                <div className="py-3 px-3 border-b border-gray-50" style={{ background: '#fafaf8' }}>
+                <div className="py-3 px-3 border-b border-gray-50" style={{ background: '#f8f8f7' }}>
                   <div className="grid grid-cols-3 gap-4 text-xs">
                     <div>
                       <div className="text-[9px] uppercase tracking-wider mb-1.5" style={{ color: '#aaa' }}>Hardware</div>
@@ -365,7 +346,7 @@ function ModelDetail({ m }: { m: MarketModel }) {
 
       {/* Reference pricing comparison */}
       {sameModelRefs.length > 0 && (
-        <div className="px-5 py-4 border-t" style={{ borderColor: '#f0ede6', background: '#fafaf8' }}>
+        <div className="px-5 py-4 border-t" style={{ borderColor: '#eaeae8', background: '#f8f8f7' }}>
           <div className="text-[10px] uppercase tracking-wider font-medium mb-3" style={{ color: '#aaa' }}>
             Same model — external market
           </div>
@@ -391,7 +372,7 @@ function ModelDetail({ m }: { m: MarketModel }) {
       )}
 
       {/* CTA */}
-      <div className="px-5 py-4 border-t flex items-center justify-between" style={{ borderColor: '#f0ede6' }}>
+      <div className="px-5 py-4 border-t flex items-center justify-between" style={{ borderColor: '#eaeae8' }}>
         <div className="text-xs" style={{ color: '#888' }}>
           Route through the exchange for the best available offer.
         </div>

@@ -2,22 +2,9 @@ import { useState, useEffect, useRef } from 'react'
 import useSWR from 'swr'
 import { Link } from 'react-router-dom'
 import { api } from '../lib/api'
+import { C, GRADIENTS } from '../lib/theme'
 import { HeroScene } from '../components/HeroScene'
-
-// ─── Brand palette ───────────────────────────────────────────
-const C = {
-  red: '#B7443B',
-  orange: '#D77A2F',
-  gold: '#C49A45',
-  white: '#D8D1BE',
-  maroon: '#702F32',
-  black: '#292B2A',
-  green: '#3F8055',
-  turquoise: '#4D9A91',
-  deepBlue: '#315B72',
-  blueBlack: '#292F35',
-  indigo: '#4A465F',
-}
+import { MineralAurora } from '../components/MineralAurora'
 
 // ─── Helpers ─────────────────────────────────────────────────
 
@@ -81,8 +68,17 @@ function ScrollOverlay({ progress }: { progress: number }) {
             className="absolute text-center px-6 max-w-2xl"
             style={{ opacity, transform: `translateY(${yShift}px)`, transition: 'none' }}
           >
-            <h2 style={{ color: C.white }} className="text-3xl md:text-5xl font-bold tracking-tight leading-tight">
-              {o.text}
+            <h2 className="text-3xl md:text-5xl font-bold tracking-tight leading-tight">
+              <span
+                className="bg-clip-text text-transparent"
+                style={{
+                  backgroundImage: i === 0 || i === 5
+                    ? GRADIENTS.heroText
+                    : `linear-gradient(135deg, ${C.warmWhite}, ${C.sand})`,
+                }}
+              >
+                {o.text}
+              </span>
             </h2>
             {o.sub && (
               <p className="text-base md:text-lg mt-4 leading-relaxed max-w-lg mx-auto" style={{ color: '#8a8578' }}>
@@ -114,17 +110,16 @@ function LiveExchangeCard() {
 
   return (
     <div
-      className="rounded-2xl p-6 w-full max-w-sm"
+      className="rounded-2xl p-6 w-full max-w-sm mineral-border"
       style={{
         background: 'rgba(255,255,255,0.06)',
-        border: '1px solid rgba(255,255,255,0.08)',
         backdropFilter: 'blur(12px)',
       }}
     >
       <div className="text-[10px] uppercase tracking-wider font-medium mb-1.5" style={{ color: C.gold }}>
         Live Exchange
       </div>
-      <h3 className="text-xl font-bold mb-5" style={{ color: C.white }}>
+      <h3 className="text-xl font-bold mb-5" style={{ color: C.warmWhite }}>
         Supply &times; demand
       </h3>
 
@@ -140,7 +135,7 @@ function LiveExchangeCard() {
           return (
             <div key={m.model} className="flex items-center justify-between">
               <div className="flex items-center gap-3 min-w-0">
-                <span className="text-sm font-medium truncate" style={{ color: C.white }}>
+                <span className="text-sm font-medium truncate" style={{ color: C.warmWhite }}>
                   {m.model}
                 </span>
               </div>
@@ -184,8 +179,18 @@ export function Landing() {
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const progress = useScrollProgress(scrollContainerRef)
   const [webglFailed, setWebglFailed] = useState(false)
+  const [mouseX, setMouseX] = useState(0.5)
 
   const sequenceDone = progress >= 0.95
+
+  // Track mouse position for cursor-reactive aurora
+  useEffect(() => {
+    const onMove = (e: MouseEvent) => {
+      setMouseX(e.clientX / window.innerWidth)
+    }
+    window.addEventListener('mousemove', onMove, { passive: true })
+    return () => window.removeEventListener('mousemove', onMove)
+  }, [])
 
   return (
     <>
@@ -202,7 +207,7 @@ export function Landing() {
                 className="w-40 h-40 md:w-56 md:h-56 animate-spin"
                 style={{ animationDuration: '20s' }}
               />
-              <h1 className="text-3xl md:text-5xl font-bold tracking-tight mt-8 text-center px-6" style={{ color: C.white }}>
+              <h1 className="text-3xl md:text-5xl font-bold tracking-tight mt-8 text-center px-6" style={{ color: C.warmWhite }}>
                 Private AI inference,{' '}
                 <span style={{ color: C.red }}>powered by everyone.</span>
               </h1>
@@ -210,10 +215,10 @@ export function Landing() {
                 Providers compete to serve your requests. Prompts and responses are encrypted end-to-end.
               </p>
               <div className="flex gap-3 mt-8">
-                <Link to="/chat" className="px-6 py-3 rounded-2xl font-medium text-sm transition-colors" style={{ background: C.white, color: C.black }}>
+                <Link to="/chat" className="px-6 py-3 rounded-2xl font-medium text-sm transition-colors" style={{ background: C.warmWhite, color: C.black }}>
                   Start a conversation &rarr;
                 </Link>
-                <Link to="/providers" className="px-6 py-3 rounded-2xl font-medium text-sm border transition-colors" style={{ color: C.white, borderColor: 'rgba(216,209,190,0.3)', background: 'rgba(216,209,190,0.08)' }}>
+                <Link to="/providers" className="px-6 py-3 rounded-2xl font-medium text-sm border transition-colors" style={{ color: C.warmWhite, borderColor: 'rgba(216,209,190,0.3)', background: 'rgba(216,209,190,0.08)' }}>
                   Become a provider
                 </Link>
               </div>
@@ -228,26 +233,36 @@ export function Landing() {
           >
             <span className="text-xs tracking-wider uppercase" style={{ color: '#8a8578' }}>Scroll / explore</span>
             <div className="w-5 h-8 rounded-full flex items-start justify-center p-1.5" style={{ border: `1px solid ${C.indigo}` }}>
-              <div className="w-1 h-2 rounded-full animate-bounce" style={{ background: C.white }} />
+              <div className="w-1 h-2 rounded-full animate-bounce" style={{ background: C.warmWhite }} />
             </div>
           </div>
         </div>
       </div>
 
+      {/* ── Mineral spectrum divider ─────────────────── */}
+      <div
+        className="relative z-10 h-[2px]"
+        style={{ background: GRADIENTS.fullSpectrum }}
+      />
+
       {/* ── Hero section (after scroll) ──────────────────── */}
       <div
-        className="relative z-10 min-h-screen flex flex-col"
+        className="relative z-10 min-h-screen flex flex-col overflow-hidden"
         style={{
           background: C.blueBlack,
           opacity: webglFailed || sequenceDone ? 1 : 0,
           transition: 'opacity 0.6s ease',
         }}
       >
+        {/* Living mineral aurora — cursor-reactive behind hero content */}
+        <div className="absolute inset-0 z-0">
+          <MineralAurora variant="dark" opacity={0.18} speed={0.0004} mouseX={mouseX} className="absolute inset-0" />
+        </div>
         {/* Top bar */}
-        <div className="max-w-7xl mx-auto w-full px-6 md:px-10 py-5 flex items-center justify-between">
+        <div className="relative z-10 max-w-7xl mx-auto w-full px-6 md:px-10 py-5 flex items-center justify-between">
           <Link to="/" className="flex items-center gap-2.5">
             <img src="/logo-icon.svg" alt="IE" className="w-6 h-6" />
-            <span className="text-sm font-semibold uppercase tracking-wider" style={{ color: C.gold }}>
+            <span className="text-sm font-semibold uppercase tracking-wider mineral-spectrum-text">
               Inference Exchange
             </span>
           </Link>
@@ -257,17 +272,17 @@ export function Landing() {
         </div>
 
         {/* Hero content: headline left, live exchange card right */}
-        <div className="flex-1 flex items-center">
+        <div className="relative z-10 flex-1 flex items-center">
           <div className="max-w-7xl mx-auto w-full px-6 md:px-10 py-12">
             <div className="flex flex-col lg:flex-row items-center justify-between gap-12 lg:gap-16">
             {/* Left: headline + CTAs */}
             <div className="flex-1 max-w-xl">
-              <h1 className="text-4xl md:text-5xl font-bold tracking-tight leading-[1.1]" style={{ color: C.white }}>
+              <h1 className="text-4xl md:text-5xl font-bold tracking-tight leading-[1.1]" style={{ color: C.warmWhite }}>
                 Private AI inference,
                 <br />
                 <span
                   className="bg-clip-text text-transparent"
-                  style={{ backgroundImage: `linear-gradient(to right, ${C.gold}, ${C.orange}, ${C.red})` }}
+                  style={{ backgroundImage: GRADIENTS.heroText }}
                 >
                   powered by everyone.
                 </span>
@@ -281,21 +296,22 @@ export function Landing() {
               <div className="flex gap-3 mt-8">
                 <Link
                   to="/chat"
-                  className="px-6 py-3 rounded-xl font-medium text-sm transition-colors"
-                  style={{ background: C.white, color: C.blueBlack }}
+                  className="group relative px-6 py-3 rounded-xl font-medium text-sm transition-all overflow-hidden"
+                  style={{ color: C.blueBlack }}
                 >
-                  Start a conversation
+                  <span className="absolute inset-0 rounded-xl transition-opacity" style={{ background: C.warmWhite }} />
+                  <span className="absolute inset-0 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity" style={{ background: GRADIENTS.heroText }} />
+                  <span className="relative z-10 group-hover:text-white transition-colors">Start a conversation</span>
                 </Link>
                 <Link
                   to="/providers"
-                  className="px-6 py-3 rounded-xl font-medium text-sm border transition-colors"
+                  className="group relative px-6 py-3 rounded-xl font-medium text-sm border transition-all overflow-hidden mineral-border"
                   style={{
-                    color: C.white,
-                    borderColor: 'rgba(216,209,190,0.25)',
+                    color: C.warmWhite,
                     background: 'rgba(216,209,190,0.06)',
                   }}
                 >
-                  Become a provider
+                  <span className="relative z-10">Become a provider</span>
                 </Link>
               </div>
             </div>

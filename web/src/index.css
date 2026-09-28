@@ -1,8 +1,12 @@
 @import "tailwindcss";
 
 :root {
-  --color-accent: #e8a23e;
-  --color-accent-light: #fef3e0;
+  --color-accent: #C49A45;
+  --color-accent-light: #fdf6ec;
+  --mineral-warm: #CE8637;
+  --mineral-cool: #4D9A91;
+  --mineral-red: #B7443B;
+  --mineral-jade: #1C8565;
 }
 
 body {
@@ -10,6 +14,83 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   background: #292b2a;
+}
+
+/* ─── Mineral gradient utilities ──────────────────────────── */
+
+/* Animated gradient border — used on featured cards and active elements */
+@keyframes mineral-shift {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
+.mineral-border {
+  position: relative;
+  isolation: isolate;
+}
+.mineral-border::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1.5px;
+  background: linear-gradient(135deg, #B7443B44, #CE863766, #C49A4566, #4D9A9144, #1C856544);
+  background-size: 200% 200%;
+  animation: mineral-shift 8s ease infinite;
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  pointer-events: none;
+}
+
+/* Subtle ambient glow on page backgrounds */
+.mineral-glow {
+  position: relative;
+}
+.mineral-glow::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse at 15% 0%, rgba(206,134,55,0.045) 0%, transparent 55%),
+    radial-gradient(ellipse at 85% 100%, rgba(77,154,145,0.035) 0%, transparent 55%);
+  z-index: 0;
+}
+
+/* Mineral gradient text */
+.mineral-text {
+  background: linear-gradient(135deg, #C49A45, #CE8637, #B7443B);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Full spectrum text (warm → cool) */
+.mineral-spectrum-text {
+  background: linear-gradient(to right, #B7443B, #CE8637, #C49A45, #3F8055, #4D9A91);
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: mineral-shift 6s ease infinite;
+}
+
+/* Sidebar gradient active indicator */
+.sidebar-active-bar {
+  position: relative;
+}
+.sidebar-active-bar::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 60%;
+  border-radius: 3px 0 0 3px;
+  background: linear-gradient(to bottom, #C49A45, #CE8637);
 }
 
 /* Markdown prose in chat */

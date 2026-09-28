@@ -5,24 +5,7 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { api } from '../lib/api'
 import { useAuth } from '../lib/auth'
-
-// ─── Brand palette ───────────────────────────────────────────
-const C = {
-  gold: '#C49A45',
-  green: '#3F8055',
-  turquoise: '#4D9A91',
-  deepBlue: '#315B72',
-  blueBlack: '#292F35',
-  red: '#B7443B',
-  white: '#D8D1BE',
-}
-
-const TRUST_COLORS: Record<string, { bg: string; text: string; label: string }> = {
-  open:         { bg: '#f3f3f3', text: '#999',     label: 'Open' },
-  contained:    { bg: '#eef3f7', text: C.deepBlue, label: 'Contained' },
-  hardened:     { bg: '#fdf6ec', text: C.gold,     label: 'Hardened+' },
-  confidential: { bg: '#edf7f1', text: C.green,    label: 'Confidential' },
-}
+import { C, TRUST_COLORS } from '../lib/theme'
 
 interface Message {
   role: 'user' | 'assistant'
@@ -267,7 +250,7 @@ export function Chat() {
                   <div className="text-[10px] uppercase tracking-wider mb-1.5" style={{ color: '#bbb' }}>You</div>
                   <div
                     className="inline-block px-4 py-3 rounded-2xl text-sm"
-                    style={{ background: '#e8e5de', color: C.blueBlack }}
+                    style={{ background: '#e5e5e3', color: C.blueBlack }}
                   >
                     <div className="whitespace-pre-wrap">{m.content || '...'}</div>
                   </div>
@@ -279,7 +262,7 @@ export function Chat() {
                   </div>
                   <div
                     className="inline-block px-4 py-3 rounded-2xl text-sm max-w-full"
-                    style={{ background: C.blueBlack, color: C.white }}
+                    style={{ background: C.blueBlack, color: C.warmWhite }}
                   >
                     {m.content ? (
                       <div className="prose prose-sm prose-invert max-w-none prose-p:my-1 prose-pre:bg-black/30 prose-pre:border-0 prose-code:text-amber-300 prose-code:bg-transparent prose-code:before:content-none prose-code:after:content-none">
@@ -329,7 +312,7 @@ export function Chat() {
                   if (last?.role === 'assistant' && last.content) return [...prev.slice(0, -1), { ...last, content: last.content + '\n\n*[stopped]*' }]
                   return prev
                 })
-              }} className="px-5 py-3 rounded-xl text-sm font-medium" style={{ background: C.red, color: C.white }}>
+              }} className="px-5 py-3 rounded-xl text-sm font-medium" style={{ background: C.red, color: C.warmWhite }}>
                 Stop
               </button>
             ) : (
@@ -439,7 +422,7 @@ export function Chat() {
           </div>
 
           {/* Divider */}
-          <div style={{ borderTop: '1px solid #e8e5de' }} />
+          <div style={{ borderTop: '1px solid #e5e5e3' }} />
 
           {/* Current Match */}
           <div>
@@ -472,7 +455,7 @@ export function Chat() {
           </div>
 
           {/* Divider */}
-          <div style={{ borderTop: '1px solid #e8e5de' }} />
+          <div style={{ borderTop: '1px solid #e5e5e3' }} />
 
           {/* Fallback */}
           <div>
