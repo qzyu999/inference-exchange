@@ -2,6 +2,7 @@ import useSWR from 'swr'
 import { api } from '../lib/api'
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
+import { MineralField } from '../components/MineralField'
 
 // ─── Brand palette ───────────────────────────────────────────
 const C = {
@@ -410,7 +411,9 @@ export function Exchange() {
   }
 
   return (
-    <div className="flex gap-6">
+    <div className="relative flex gap-6">
+      <MineralField variant="market" />
+      <div className="relative z-10">
       {/* ── Left: Filter panel ── */}
       <div className="w-64 shrink-0 space-y-5">
         <div className="bg-white rounded-2xl border border-gray-200/40 p-5 space-y-5">
@@ -698,6 +701,7 @@ export function Exchange() {
         )}
 
         <div className="text-xs" style={{ color: '#aaa' }}>The market is a tool, not the interface.</div>
+      </div>
       </div>
     </div>
   )
