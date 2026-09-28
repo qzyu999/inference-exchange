@@ -5,6 +5,7 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { api } from '../lib/api'
 import { useAuth } from '../lib/auth'
+import { MineralField } from '../components/MineralField'
 
 // ─── Brand palette ───────────────────────────────────────────
 const C = {
@@ -189,7 +190,9 @@ export function Chat() {
   }
 
   return (
-    <div className="flex gap-6 h-[calc(100vh-140px)]">
+    <div className="relative flex gap-6 h-[calc(100vh-140px)]">
+      <MineralField variant="consumer" />
+      <div className="relative z-10 flex gap-6 h-[calc(100vh-140px)]">
       {/* ── Main chat column ── */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* Model + trust header bar */}
@@ -485,6 +488,7 @@ export function Chat() {
           </div>
         </aside>
       )}
+      </div>
     </div>
   )
 }
