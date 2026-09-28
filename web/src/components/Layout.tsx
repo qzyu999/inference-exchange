@@ -290,6 +290,8 @@ export function Layout() {
 
       {/* Main content */}
       <div className="flex-1 min-w-0 lg:ml-0 relative">
+        {/* Continuous mineral light field. Product surfaces stay quiet; the spectrum lives behind them. */}
+        <div className="absolute left-0 right-0 top-0 z-20 h-[2px]" style={{ background: GRADIENTS.fullSpectrum }} />
         {/* Living mineral aurora — reactive to network events */}
         <div className="absolute inset-0 z-0 overflow-hidden">
           <MineralAurora variant="light" opacity={0.06} speed={0.0002} pulses={pulses} className="absolute inset-0" />
@@ -311,7 +313,7 @@ export function Layout() {
         </div>
 
         {/* Page content */}
-        <div className="relative z-10 px-6 md:px-10 pb-10">
+        <div className="relative z-10 px-6 md:px-10 pb-10 mineral-glow">
           <ErrorBoundary>
             <Outlet />
           </ErrorBoundary>
@@ -339,9 +341,25 @@ const PAGE_META: Record<string, { title: string; subtitle: string }> = {
 function PageTitle({ pathname }: { pathname: string }) {
   const meta = PAGE_META[pathname]
   if (!meta) return null
+
+  const gradient =
+    pathname === '/chat' ? GRADIENTS.demandToExchange :
+    pathname === '/exchange' || pathname === '/models' ? GRADIENTS.market :
+    pathname === '/providers' || pathname === '/dashboard' ? GRADIENTS.supplyToValue :
+    pathname === '/trace' ? GRADIENTS.trust :
+    GRADIENTS.titleText
+
   return (
     <div>
-      <h1 className="text-2xl font-bold tracking-tight mineral-text">
+      <h1
+        className="text-2xl font-bold tracking-tight"
+        style={{
+          backgroundImage: gradient,
+          backgroundClip: 'text',
+          WebkitBackgroundClip: 'text',
+          WebkitTextFillColor: 'transparent',
+        }}
+      >
         {meta.title}
       </h1>
       <p className="text-sm mt-1" style={{ color: '#888' }}>
