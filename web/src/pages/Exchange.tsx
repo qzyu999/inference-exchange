@@ -45,6 +45,213 @@ function formatCtx(n: number): string {
   return `${n}`
 }
 
+function cacheDiscount(input: number, cache: number): number {
+  if (input <= 0 || cache <= 0) return 0
+  return Math.round((1 - cache / input) * 100)
+}
+
+/** Compute effective blended cost for a workload shape. */
+function effectiveCost(
+  priceInput: number, priceCache: number, priceOutput: number,
+  inputTokens: number, cacheRate: number, outputTokens: number,
+): number {
+  const cachePrice = priceCache > 0 ? priceCache : priceInput
+  const freshInput = inputTokens * (1 - cacheRate)
+  const cachedInput = inputTokens * cacheRate
+  return (freshInput / 1e6) * priceInput + (cachedInput / 1e6) * cachePrice + (outputTokens / 1e6) * priceOutput
+}
+
+// ─── Market Summary Strip ────────────────────────────────────
+
+function MarketSummaryStrip({ stats, models, traces }: {
+  stats?: { providers_online: number; models_available: number; total_requests: number }
+  models: MarketModel[]; traces: any[]
+}) {
+  const completedTraces = traces.filter((t: any) => ['completed', 'matched', 'matched_from_queue'].includes(t.status))
+  const avgCacheSavings = models.reduce((sum, m) => {
+    const withCache = m.providers.filter(p => p.price_cache > 0 && p.price_input > 0)
+    if (withCache.length === 0) return sum
+    return sum + withCache.reduce((s, p) => s + cacheDiscount(p.price_input, p.price_cache), 0) / withCache.length
+  }, 0) / Math.max(models.filter(m => m.providers.some(p => p.price_cache > 0)).length, 1)
+
+  return (
+    <div className="flex items-center gap-4 px-4 py-2 rounded-xl text-xs overflow-x-auto"
+      style={{ background: '#fff', border: '1px solid #eaeae8' }}>
+      {stats && (
+        <>
+          <span style={{ color: C.green }}>{stats.providers_online} providers</span>
+          <span style={{ color: '#ccc' }}>|</span>
+          <span style={{ color: C.deepBlue }}>{stats.models_available} models</span>
+          <span style={{ color: '#ccc' }}>|</span>
+          <span style={{ color: C.gold }}>{stats.total_requests.toLocaleString()} fills</span>
+        </>
+      )}
+      {completedTraces.length > 0 && (
+        <>
+          <span style={{ color: '#ccc' }}>|</span>
+          <span style={{ color: C.turquoise }}>{completedTraces.length} recent trades</span>
+        </>
+      )}
+      {avgCacheSavings > 0 && (
+        <>
+          <span style={{ color: '#ccc' }}>|</span>
+          <span style={{ color: C.indigo }}>avg cache savings {avgCacheSavings.toFixed(0)}%</span>
+        </>
+      )}
+    </div>
+  )
+}
+
+// ─── Fills Ticker ────────────────────────────────────────────
+
+function FillsTicker({ traces }: { traces: any[] }) {
+  const fills = [...traces]
+    .filter((t: any) => ['completed', 'matched', 'matched_from_queue'].includes(t.status))
+    .reverse()
+    .slice(0, 5)
+
+  if (fills.length === 0) return null
+
+  return (
+    <div className="flex items-center gap-3 px-4 py-2 rounded-xl overflow-x-auto"
+      style={{ background: '#fafaf8', border: '1px solid #eaeae8' }}>
+      <span className="text-[9px] uppercase tracking-wider font-medium shrink-0" style={{ color: C.gold }}>
+        Recent
+      </span>
+      {fills.map((t: any) => {
+        const time = new Date(t.timestamp * 1000).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
+        const tc = TRUST_COLORS[t.selected_trust] || TRUST_COLORS.open
+        return (
+          <div key={t.request_id} className="flex items-center gap-1.5 shrink-0 text-xs">
+            <span className="w-1.5 h-1.5 rounded-full" style={{ background: C.green }} />
+            <span className="font-mono" style={{ color: '#bbb' }}>{time}</span>
+            <span className="truncate max-w-[100px]" style={{ color: C.blueBlack }}>
+              {t.model === 'default' ? 'Any' : t.model}
+            </span>
+            {t.selected_price != null && (
+              <span className="font-mono" style={{ color: C.gold }}>${t.selected_price.toFixed(2)}</span>
+            )}
+            <span className="text-[8px] px-1 py-0.5 rounded-full" style={{ background: tc.bg, color: tc.text }}>
+              {tc.label}
+            </span>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+// ─── Spread Indicator ────────────────────────────────────────
+
+function SpreadIndicator({ providers }: { providers: MarketProvider[] }) {
+  if (providers.length < 2) return null
+  const prices = providers.map(p => p.price_output).filter(p => p > 0)
+  if (prices.length < 2) return null
+  const min = Math.min(...prices)
+  const max = Math.max(...prices)
+  const spreadPct = min > 0 ? Math.round((max / min - 1) * 100) : 0
+  const barPct = Math.min(spreadPct, 500) / 5 // cap visual at 500%
+
+  return (
+    <div className="flex items-center gap-3 mt-2">
+      <span className="text-[10px] uppercase tracking-wider" style={{ color: '#aaa' }}>Spread</span>
+      <span className="text-xs font-mono" style={{ color: C.green }}>${min.toFixed(2)}</span>
+      <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ background: '#f0f0f0', maxWidth: 120 }}>
+        <div className="h-full rounded-full" style={{
+          width: `${Math.max(5, barPct)}%`,
+          background: spreadPct > 200 ? C.red : spreadPct > 50 ? C.orange : C.green,
+        }} />
+      </div>
+      <span className="text-xs font-mono" style={{ color: C.red }}>${max.toFixed(2)}</span>
+      <span className="text-[10px] font-semibold" style={{
+        color: spreadPct > 200 ? C.red : spreadPct > 50 ? C.orange : C.green,
+      }}>
+        {spreadPct}%
+      </span>
+    </div>
+  )
+}
+
+// ─── Cost Estimator ──────────────────────────────────────────
+
+function CostEstimator({ providers }: { providers: MarketProvider[] }) {
+  const [inputTok, setInputTok] = useState(1000)
+  const [cacheRate, setCacheRate] = useState(0.4)
+  const [outputTok, setOutputTok] = useState(500)
+
+  if (providers.length === 0) return null
+
+  const ranked = [...providers]
+    .map(p => ({
+      ...p,
+      effective: effectiveCost(p.price_input, p.price_cache, p.price_output, inputTok, cacheRate, outputTok),
+    }))
+    .sort((a, b) => a.effective - b.effective)
+
+  const cheapest = ranked[0]
+  const expensive = ranked[ranked.length - 1]
+
+  return (
+    <div className="bg-white rounded-2xl border border-gray-200/40 p-4 space-y-3">
+      <div className="text-[10px] uppercase tracking-wider font-medium" style={{ color: C.turquoise }}>
+        Cost Estimator
+      </div>
+      <div className="space-y-2">
+        <div>
+          <div className="flex justify-between text-[10px] mb-0.5">
+            <span style={{ color: '#888' }}>Input tokens</span>
+            <span className="font-mono" style={{ color: C.blueBlack }}>{inputTok.toLocaleString()}</span>
+          </div>
+          <input type="range" min="100" max="10000" step="100" value={inputTok}
+            onChange={e => setInputTok(Number(e.target.value))}
+            className="w-full accent-sky-600" style={{ height: 4 }} />
+        </div>
+        <div>
+          <div className="flex justify-between text-[10px] mb-0.5">
+            <span style={{ color: '#888' }}>Cache hit rate</span>
+            <span className="font-mono" style={{ color: C.indigo }}>{(cacheRate * 100).toFixed(0)}%</span>
+          </div>
+          <input type="range" min="0" max="0.95" step="0.05" value={cacheRate}
+            onChange={e => setCacheRate(Number(e.target.value))}
+            className="w-full accent-violet-500" style={{ height: 4 }} />
+        </div>
+        <div>
+          <div className="flex justify-between text-[10px] mb-0.5">
+            <span style={{ color: '#888' }}>Output tokens</span>
+            <span className="font-mono" style={{ color: C.blueBlack }}>{outputTok.toLocaleString()}</span>
+          </div>
+          <input type="range" min="50" max="4000" step="50" value={outputTok}
+            onChange={e => setOutputTok(Number(e.target.value))}
+            className="w-full accent-amber-500" style={{ height: 4 }} />
+        </div>
+      </div>
+
+      {/* Result */}
+      <div className="rounded-xl p-3 space-y-1.5" style={{ background: '#f8f8f7' }}>
+        <div className="flex items-baseline justify-between">
+          <span className="text-[10px] uppercase tracking-wider" style={{ color: '#aaa' }}>Best effective cost</span>
+          <span className="text-lg font-bold font-mono" style={{ color: C.green }}>
+            ${cheapest.effective < 0.0001 ? cheapest.effective.toExponential(1) : cheapest.effective.toFixed(4)}
+          </span>
+        </div>
+        <div className="text-xs" style={{ color: '#888' }}>
+          {cheapest.name} <span className="font-mono" style={{ color: C.gold }}>
+            (in=${cheapest.price_input.toFixed(2)} cache=${cheapest.price_cache > 0 ? cheapest.price_cache.toFixed(2) : '--'} out=${cheapest.price_output.toFixed(2)})
+          </span>
+        </div>
+        {ranked.length > 1 && expensive.effective > cheapest.effective * 1.1 && (
+          <div className="text-[10px]" style={{ color: '#bbb' }}>
+            vs {expensive.name}: ${expensive.effective < 0.0001 ? expensive.effective.toExponential(1) : expensive.effective.toFixed(4)}
+            {cheapest.effective > 0 && (
+              <span style={{ color: C.red }}> ({Math.round((expensive.effective / cheapest.effective - 1) * 100)}% more)</span>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 // ─── Expanded Provider Detail ────────────────────────────────
 
 function ProviderDetail({ p, reputation, caps }: { p: MarketProvider; reputation?: any; caps?: MarketModel['capabilities'] }) {
@@ -463,6 +670,9 @@ export function Exchange() {
           </div>
         </div>
 
+        {/* Cost estimator */}
+        <CostEstimator providers={allModelProviders} />
+
         {/* Fleet summary */}
         <div className="px-1 space-y-2">
           <div className="flex items-baseline gap-2">
@@ -482,6 +692,12 @@ export function Exchange() {
 
       {/* ── Right: Market depth + context ── */}
       <div className="flex-1 min-w-0 space-y-5">
+        {/* Market summary + fills ticker */}
+        <div className="space-y-2">
+          <MarketSummaryStrip stats={stats} models={models} traces={traces} />
+          <FillsTicker traces={traces} />
+        </div>
+
         {/* Market depth header with model summary */}
         <div>
           <div className="text-[10px] uppercase tracking-wider font-medium mb-1" style={{ color: C.gold }}>Market Depth</div>
@@ -494,6 +710,8 @@ export function Exchange() {
             {verifiedCount > 0 && <span style={{ color: C.green }}>{verifiedCount} verified</span>}
             {encryptedCount > 0 && <span style={{ color: C.deepBlue }}>{encryptedCount} E2E</span>}
           </div>
+          {/* Spread indicator */}
+          <SpreadIndicator providers={allModelProviders} />
           {/* Capability badges */}
           {caps && (
             <div className="flex items-center gap-1.5 mt-2 flex-wrap">
@@ -546,6 +764,11 @@ export function Exchange() {
                     <div className="flex items-center gap-1 mt-0.5 flex-wrap">
                       {p.verified && <span className="text-[8px] px-1 rounded" style={{ background: '#edf7f1', color: C.green }}>✓</span>}
                       {p.encrypted && <span className="text-[8px] px-1 rounded" style={{ background: '#eef3f7', color: C.deepBlue }}>E2E</span>}
+                      {p.price_cache > 0 && p.price_input > 0 && (
+                        <span className="text-[8px] px-1 rounded" style={{ background: '#f3eef7', color: C.indigo }}>
+                          -{cacheDiscount(p.price_input, p.price_cache)}% cache
+                        </span>
+                      )}
                       {p.quantization && <span className="text-[8px] font-mono" style={{ color: '#999' }}>{p.quantization}</span>}
                       {p.context_length > 0 && <span className="text-[8px]" style={{ color: '#aaa' }}>{formatCtx(p.context_length)}</span>}
                       {p.format && <span className="text-[8px]" style={{ color: '#aaa' }}>{p.format.toUpperCase()}</span>}
