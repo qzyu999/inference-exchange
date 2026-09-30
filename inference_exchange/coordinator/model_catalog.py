@@ -31,6 +31,23 @@ FAMILIES = {
     "command": "Command-R",
     "mpt": "MPT",
     "olmo": "OLMo",
+    # Closed-source / API providers
+    "claude": "Claude",
+    "gpt": "GPT",
+    "gemini": "Gemini",
+    "nova": "Nova",
+    "grok": "Grok",
+    # Additional open-weight
+    "hermes": "Hermes",
+    "glm": "GLM",
+    "seed": "Seed",
+    "ernie": "ERNIE",
+    "internlm": "InternLM",
+    "jamba": "Jamba",
+    "dbrx": "DBRX",
+    "arctic": "Arctic",
+    "nemotron": "Nemotron",
+    "aya": "Aya",
 }
 
 # Parameter size patterns
@@ -127,6 +144,12 @@ def parse_model_info(
     elif "safetensors" in name_lower:
         fmt = "SafeTensors"
 
+    # Detect version numbers like 3.1, 4.6, 2.5 for models without explicit size
+    version = ""
+    ver_match = re.search(r"(\d+\.?\d*)", name_lower)
+    if ver_match and not size:
+        version = ver_match.group(1)
+
     # Build display name
     parts = [family_display or family or name.split()[0]]
     if size:
@@ -135,8 +158,9 @@ def parse_model_info(
         parts.append(variant)
     display_name = " ".join(parts) or name
 
-    # Canonical ID for grouping (family + size + variant, ignoring quantization)
-    canonical_id = f"{family or 'unknown'}-{size or 'unknown'}-{variant or 'base'}".lower()
+    # Canonical ID for grouping (family + size/version + variant, ignoring quantization)
+    size_or_version = size or version or "unknown"
+    canonical_id = f"{family or 'unknown'}-{size_or_version}-{variant or 'base'}".lower()
 
     return {
         "family": family,
