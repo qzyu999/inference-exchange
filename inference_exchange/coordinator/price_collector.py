@@ -101,15 +101,70 @@ class PriceFetcher:
 class OpenRouterFetcher(PriceFetcher):
     """Fetch live prices from OpenRouter's public API.
 
-    Captures three-tier pricing (input/cache-read/output), benchmark scores
-    (Artificial Analysis intelligence/coding/agentic indices), and additional
-    pricing dimensions (image, web search, reasoning tokens).
+    Falls back to a bundled JSON cache file when the live API is unreachable
+    (offline, restricted network, or TLS failure).
     """
     source = "openrouter"
     ttl = 1800  # 30 min
 
-    async def fetch(self) -> list[PriceEntry]:
+    @staticmethod
+    def _parse_models(models: list) -> list[PriceEntry]:
+        """Parse model list into PriceEntry objects."""
         entries = []
+        for m in models:
+            model_id = m.get("id", "")
+            pricing = m.get("pricing", {})
+            prompt_price = float(pricing.get("prompt", "0") or "0")
+            completion_price = float(pricing.get("completion", "0") or "0")
+            if prompt_price <= 0 and completion_price <= 0:
+                continue
+            cache_read = float(pricing.get("input_cache_read", "0") or "0")
+            cache_write = float(pricing.get("input_cache_write", "0") or "0")
+            image_price = float(pricing.get("image", "0") or "0")
+            web_search = float(pricing.get("web_search", "0") or "0")
+            reasoning = float(pricing.get("internal_reasoning", "0") or "0")
+            benchmarks = m.get("benchmarks", {})
+            aa = benchmarks.get("artificial_analysis", {}) if benchmarks else {}
+            info = parse_model_info(model_id)
+            entries.append(PriceEntry(
+                source="openrouter",
+                model_id=model_id,
+                display_name=m.get("name", model_id),
+                family=info["family"],
+                family_key=info["canonical_id"],
+                input_per_mtok=round(prompt_price * 1_000_000, 4),
+                output_per_mtok=round(completion_price * 1_000_000, 4),
+                cache_per_mtok=round(cache_read * 1_000_000, 4),
+                cache_write_per_mtok=round(cache_write * 1_000_000, 4),
+                context_length=m.get("context_length", 0),
+                intelligence_index=aa.get("intelligence_index") if aa else None,
+                coding_index=aa.get("coding_index") if aa else None,
+                agentic_index=aa.get("agentic_index") if aa else None,
+                image_per_mtok=round(image_price * 1_000_000, 4),
+                web_search_price=web_search,
+                reasoning_per_mtok=round(reasoning * 1_000_000, 4),
+            ))
+        return entries
+
+    def _load_cache(self) -> list[PriceEntry]:
+        """Load from bundled openrouter_cache.json when live API fails."""
+        import json
+        from pathlib import Path
+        cache_path = Path(__file__).parent / "openrouter_cache.json"
+        if not cache_path.exists():
+            logger.warning("OpenRouter: no cache file found")
+            return []
+        try:
+            with open(cache_path) as f:
+                models = json.load(f)
+            entries = self._parse_models(models)
+            logger.info(f"OpenRouter: loaded {len(entries)} models from bundled cache")
+            return entries
+        except Exception as e:
+            logger.error(f"OpenRouter: cache load failed: {e}")
+            return []
+
+    async def fetch(self) -> list[PriceEntry]:
         try:
             data = None
             for client_fn in [_make_client, _make_client_no_verify]:
@@ -121,56 +176,15 @@ class OpenRouterFetcher(PriceFetcher):
                             break
                 except Exception:
                     continue
-
-            if not data:
-                logger.warning("OpenRouter: all fetch attempts failed")
+            if data:
+                entries = self._parse_models(data.get("data", []))
+                logger.info(f"OpenRouter: fetched {len(entries)} models live")
                 return entries
-
-            for m in data.get("data", []):
-                model_id = m.get("id", "")
-                pricing = m.get("pricing", {})
-                prompt_price = float(pricing.get("prompt", "0") or "0")
-                completion_price = float(pricing.get("completion", "0") or "0")
-                if prompt_price <= 0 and completion_price <= 0:
-                    continue
-
-                # Three-tier: input, cache read, output
-                cache_read = float(pricing.get("input_cache_read", "0") or "0")
-                cache_write = float(pricing.get("input_cache_write", "0") or "0")
-                image_price = float(pricing.get("image", "0") or "0")
-                web_search = float(pricing.get("web_search", "0") or "0")
-                reasoning = float(pricing.get("internal_reasoning", "0") or "0")
-
-                # Benchmark scores
-                benchmarks = m.get("benchmarks", {})
-                aa = benchmarks.get("artificial_analysis", {}) if benchmarks else {}
-                intel_idx = aa.get("intelligence_index") if aa else None
-                coding_idx = aa.get("coding_index") if aa else None
-                agentic_idx = aa.get("agentic_index") if aa else None
-
-                info = parse_model_info(model_id)
-                entries.append(PriceEntry(
-                    source=self.source,
-                    model_id=model_id,
-                    display_name=m.get("name", model_id),
-                    family=info["family"],
-                    family_key=info["canonical_id"],
-                    input_per_mtok=round(prompt_price * 1_000_000, 4),
-                    output_per_mtok=round(completion_price * 1_000_000, 4),
-                    cache_per_mtok=round(cache_read * 1_000_000, 4),
-                    cache_write_per_mtok=round(cache_write * 1_000_000, 4),
-                    context_length=m.get("context_length", 0),
-                    intelligence_index=intel_idx,
-                    coding_index=coding_idx,
-                    agentic_index=agentic_idx,
-                    image_per_mtok=round(image_price * 1_000_000, 4),
-                    web_search_price=web_search,
-                    reasoning_per_mtok=round(reasoning * 1_000_000, 4),
-                ))
-            logger.info(f"OpenRouter: fetched {len(entries)} models with three-tier pricing + benchmarks")
+            logger.warning("OpenRouter: live API unreachable, using bundled cache")
+            return self._load_cache()
         except Exception as e:
-            logger.warning(f"OpenRouter fetch failed: {e}")
-        return entries
+            logger.warning(f"OpenRouter fetch failed: {e}, using bundled cache")
+            return self._load_cache()
 
 
 class TogetherFetcher(PriceFetcher):
