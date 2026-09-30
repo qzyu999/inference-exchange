@@ -188,15 +188,33 @@ export function Exchange() {
   const activeKey = selectedKey || (unifiedModels.length > 0 ? unifiedModels[0].key : '')
   const activeUnified = unifiedModels.find(m => m.key === activeKey)
   const activeIEModel = models.find(m => (m.canonical_id || m.model) === activeKey)
-  // Find matching reference family — try exact key match, then fuzzy match on name
-  const activeRefFamily = refFamilies.find(f => f.family_key === activeKey)
-    || refFamilies.find(f => {
-      if (!activeUnified) return false
-      const uName = activeUnified.name.toLowerCase()
-      const fName = f.display_name.toLowerCase()
-      return uName === fName || fName.includes(uName) || uName.includes(fName)
+  // Find matching reference family:
+  // 1. Exact key match
+  // 2. Check if any ref family key is a substring of the active key or vice versa
+  // 3. Fuzzy match on display name
+  const activeRefFamily = (() => {
+    if (!activeKey) return null
+    // Exact match
+    const exact = refFamilies.find(f => f.family_key === activeKey)
+    if (exact) return exact
+    // Key substring match (e.g. "llama-3.1-70b" matches "llama-3.1-70b-instruct")
+    const keyLower = activeKey.toLowerCase()
+    const keyMatch = refFamilies.find(f => {
+      const fk = f.family_key.toLowerCase()
+      return fk.includes(keyLower) || keyLower.includes(fk)
     })
-    || null
+    if (keyMatch) return keyMatch
+    // Name fuzzy match
+    if (activeUnified) {
+      const uName = activeUnified.name.toLowerCase().replace(/[^a-z0-9]/g, '')
+      const nameMatch = refFamilies.find(f => {
+        const fName = f.display_name.toLowerCase().replace(/[^a-z0-9]/g, '')
+        return uName.includes(fName) || fName.includes(uName)
+      })
+      if (nameMatch) return nameMatch
+    }
+    return null
+  })()
 
   // ─── Filtered model list for palette ─────────────────────
   const families = useMemo(() => [...new Set(unifiedModels.map(m => m.family))].sort(), [unifiedModels])
@@ -574,7 +592,69 @@ export function Exchange() {
             </div>
           </div>
 
-          {/* Card 2: Recent fills */}
+          {/* Card 2: Price chart (placeholder — needs historical data from PriceCollector) */}
+          <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #eaeae8', padding: 14, overflow: 'hidden' }}>
+            <h4 style={{ fontSize: 8, textTransform: 'uppercase', letterSpacing: '.06em', color: '#888', marginBottom: 10, fontWeight: 600 }}>
+              {activeUnified?.name || 'Model'} — provider prices
+            </h4>
+            {offerRows.length > 0 ? (
+              <div style={{ position: 'relative' }}>
+                <svg viewBox="0 0 280 120" style={{ width: '100%', height: 120, background: '#fafaf8', borderRadius: 8 }}>
+                  {/* Grid lines */}
+                  <line x1="0" y1="30" x2="280" y2="30" stroke="#e5e5e5" strokeWidth="0.5" />
+                  <line x1="0" y1="60" x2="280" y2="60" stroke="#e5e5e5" strokeWidth="0.5" />
+                  <line x1="0" y1="90" x2="280" y2="90" stroke="#e5e5e5" strokeWidth="0.5" />
+
+                  {/* Price lines for each provider — current snapshot as flat lines */}
+                  {(() => {
+                    const prices = offerRows.filter(r => r.priceOutput > 0).map(r => r.priceOutput)
+                    if (prices.length === 0) return null
+                    const pMax = Math.max(...prices) * 1.1
+                    const pMin = 0
+                    const y = (p: number) => 10 + (1 - (p - pMin) / (pMax - pMin)) * 100
+                    const colors = [C.gold, C.turquoise, C.deepBlue, C.orange, C.red, '#888', C.indigo]
+                    return offerRows.filter(r => r.priceOutput > 0).map((r, i) => {
+                      const yPos = y(r.priceOutput)
+                      const col = r.isIE ? C.gold : colors[i % colors.length]
+                      return (
+                        <g key={i}>
+                          <line x1={r.isIE ? 140 : 0} y1={yPos} x2="280" y2={yPos}
+                            stroke={col} strokeWidth={r.isIE ? 2.5 : 1.5}
+                            strokeDasharray={r.isIE ? '' : '4'} />
+                          {r.isIE && <circle cx="140" cy={yPos} r="3" fill={col} />}
+                          <text x="3" y={yPos - 3} fontSize="7" fill={col}>
+                            {r.name.substring(0, 16)} ${r.priceOutput.toFixed(2)}
+                          </text>
+                        </g>
+                      )
+                    })
+                  })()}
+
+                  {/* Y axis labels */}
+                  {(() => {
+                    const prices = offerRows.filter(r => r.priceOutput > 0).map(r => r.priceOutput)
+                    if (prices.length === 0) return null
+                    const pMax = Math.max(...prices) * 1.1
+                    return [0, 0.25, 0.5, 0.75, 1].map(frac => {
+                      const val = pMax * (1 - frac)
+                      return <text key={frac} x="274" y={10 + frac * 100 + 3} fontSize="6" fill="#aaa" textAnchor="end">${val.toFixed(2)}</text>
+                    })
+                  })()}
+                </svg>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 8, color: '#aaa', marginTop: 3, padding: '0 2px' }}>
+                  <span>30d ago</span>
+                  <span>Today</span>
+                </div>
+                <div style={{ fontSize: 8, color: '#aaa', marginTop: 4 }}>
+                  Current prices shown as lines. Historical trends require the coordinator to collect snapshots over time.
+                </div>
+              </div>
+            ) : (
+              <div style={{ fontSize: 11, color: '#ccc', padding: '12px 0', textAlign: 'center' }}>Select a model to see pricing</div>
+            )}
+          </div>
+
+          {/* Card 3: Recent fills */}
           <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #eaeae8', padding: 14, overflow: 'hidden' }}>
             <h4 style={{ fontSize: 8, textTransform: 'uppercase', letterSpacing: '.06em', color: '#888', marginBottom: 10, fontWeight: 600 }}>
               Recent fills
