@@ -188,7 +188,15 @@ export function Exchange() {
   const activeKey = selectedKey || (unifiedModels.length > 0 ? unifiedModels[0].key : '')
   const activeUnified = unifiedModels.find(m => m.key === activeKey)
   const activeIEModel = models.find(m => (m.canonical_id || m.model) === activeKey)
+  // Find matching reference family — try exact key match, then fuzzy match on name
   const activeRefFamily = refFamilies.find(f => f.family_key === activeKey)
+    || refFamilies.find(f => {
+      if (!activeUnified) return false
+      const uName = activeUnified.name.toLowerCase()
+      const fName = f.display_name.toLowerCase()
+      return uName === fName || fName.includes(uName) || uName.includes(fName)
+    })
+    || null
 
   // ─── Filtered model list for palette ─────────────────────
   const families = useMemo(() => [...new Set(unifiedModels.map(m => m.family))].sort(), [unifiedModels])
@@ -500,9 +508,9 @@ export function Exchange() {
       </div>
 
       {/* ── 4. Main Grid ── */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 300px', gap: 14, marginBottom: 16 }}>
-        {/* ── Left: Sortable offer table ── */}
-        <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #eaeae8', overflow: 'hidden' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginBottom: 16 }}>
+        {/* ── Sortable offer table (full width) ── */}
+        <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #eaeae8', overflow: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr>
@@ -549,14 +557,14 @@ export function Exchange() {
           </table>
         </div>
 
-        {/* ── Right column ── */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        {/* ── Below table: DOM + Recent fills in a row ── */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 280px', gap: 14 }}>
           {/* Card 1: 3-column DOM */}
           <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #eaeae8', padding: 14, overflow: 'hidden' }}>
             <h4 style={{ fontSize: 8, textTransform: 'uppercase', letterSpacing: '.06em', color: '#888', marginBottom: 10, fontWeight: 600 }}>
               Depth of market — three-tier pricing
             </h4>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, minWidth: 0 }}>
               <DOMColumn label="Input" unit="$/Mtok" color={C.deepBlue} levels={domData.input} />
               <DOMColumn label="Cache read" unit="$/Mtok" color={C.turquoise} levels={domData.cache} emptyMsg="Only IE publishes cache pricing" offerRows={offerRows} />
               <DOMColumn label="Output" unit="$/Mtok" color={C.gold} levels={domData.output} />
