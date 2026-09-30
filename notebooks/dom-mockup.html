@@ -3,108 +3,90 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>IE Exchange — v5 (design-doc driven)</title>
+<title>IE Exchange — v7</title>
 <style>
   *{margin:0;padding:0;box-sizing:border-box}
   body{background:#F5F5F1;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;color:#292F35;font-size:13px}
   .m{font-family:'SF Mono',Menlo,Consolas,monospace}
-
   .page{display:flex;min-height:100vh}
-
-  /* sidebar */
   .side{width:220px;background:#292F35;padding:16px 12px;flex-shrink:0}
   .side .logo{font-size:12px;font-weight:700;color:#C49A45;margin-bottom:18px}
   .side .lbl{font-size:7px;text-transform:uppercase;letter-spacing:.1em;color:#555;margin:12px 0 4px 6px}
   .side a{display:block;padding:6px 8px;border-radius:6px;font-size:11px;color:#777;text-decoration:none;margin-bottom:1px}
   .side a:hover{background:rgba(255,255,255,.04)}
   .side a.on{background:rgba(196,154,69,.1);color:#C49A45}
+  .content{flex:1;padding:20px 28px;max-width:1100px;overflow-x:hidden}
 
-  .content{flex:1;padding:20px 28px;max-width:960px}
-
-  /* ── Layer 0: Recommendation ── */
-  .rec{background:#fff;border-radius:12px;border:1px solid #eaeae8;padding:16px 20px;margin-bottom:16px;display:flex;align-items:center;gap:20px}
-  .rec .text{flex:1}
-  .rec .text .above{font-size:10px;color:#888;margin-bottom:4px}
-  .rec .text .model-name{font-size:17px;font-weight:700}
-  .rec .text .via{font-size:12px;color:#888;margin-top:2px}
-  .rec .cost{text-align:right}
-  .rec .cost .price{font-size:22px;font-weight:700;color:#087F5B}
-  .rec .cost .per{font-size:10px;color:#888}
-  .rec .quality{text-align:center;width:80px}
-  .rec .quality .bar-bg{width:60px;height:6px;background:#f0f0f0;border-radius:3px;margin:4px auto 2px}
-  .rec .quality .bar-fg{height:6px;border-radius:3px;background:#315B72}
-  .rec .quality .score{font-size:11px;font-weight:700;color:#315B72}
-  .rec .quality .label{font-size:8px;color:#aaa}
-  .rec .actions{display:flex;flex-direction:column;gap:6px}
-  .rec .actions a{display:block;padding:6px 14px;border-radius:7px;font-size:11px;font-weight:600;text-decoration:none;text-align:center}
-  .rec .actions .primary{background:#292F35;color:#fff}
-  .rec .actions .secondary{border:1px solid #ddd;color:#888}
-
-  /* model tabs */
-  .tabs{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:14px}
-  .tab{padding:4px 10px;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;border:1px solid #e5e5e5;background:#fff;color:#888}
+  .tabs{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:16px}
+  .tab{padding:5px 12px;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;border:1px solid #e5e5e5;background:#fff;color:#888;user-select:none}
+  .tab:hover{border-color:#ccc;color:#555}
   .tab.on{background:#292F35;color:#fff;border-color:#292F35}
 
-  /* ── Layer 1: Comparison table ── */
-  .tbl{background:#fff;border-radius:12px;border:1px solid #eaeae8;overflow-x:auto;margin-bottom:6px}
-  .tbl table{width:100%;border-collapse:collapse;min-width:660px}
-  .tbl th{font-size:8px;text-transform:uppercase;letter-spacing:.06em;color:#aaa;padding:8px 10px;text-align:right;border-bottom:1px solid #f0f0f0;font-weight:600;position:sticky;top:0;background:#fff}
+  .hdr{display:flex;align-items:baseline;gap:14px;margin-bottom:4px;flex-wrap:wrap}
+  .hdr h1{font-size:20px;font-weight:700}
+  .hdr .stat{font-size:11px;color:#888}
+  .hdr .stat b{color:#292F35}
+  .caps{display:flex;gap:4px;margin-bottom:16px;flex-wrap:wrap}
+  .caps span{font-size:8px;font-weight:600;padding:2px 6px;border-radius:4px}
+
+  .grid{display:grid;grid-template-columns:1fr 300px;gap:14px;margin-bottom:16px}
+  @media(max-width:960px){.grid{grid-template-columns:1fr}}
+
+  /* table */
+  .tbl{background:#fff;border-radius:12px;border:1px solid #eaeae8;overflow:hidden}
+  .tbl table{width:100%;border-collapse:collapse}
+  .tbl th{font-size:8px;text-transform:uppercase;letter-spacing:.06em;color:#aaa;padding:8px 10px;text-align:right;border-bottom:1px solid #f0f0f0;font-weight:600;cursor:pointer;user-select:none;white-space:nowrap}
   .tbl th:first-child{text-align:left}
-  .tbl td{padding:9px 10px;border-bottom:1px solid #fafaf8;text-align:right;font-size:12px}
-  .tbl td:first-child{text-align:left}
+  .tbl th:hover{color:#292F35}
+  .tbl th .arr{font-size:9px;margin-left:2px;color:#C49A45}
+  .tbl td{padding:9px 10px;border-bottom:1px solid #fafaf8;text-align:right;font-size:12px;white-space:nowrap}
+  .tbl td:first-child{text-align:left;white-space:normal}
   .tbl tr:hover{background:#fafaf8}
   .tbl tr.ie{background:#fdf6ec}
   .tbl tr.ie:hover{background:#fdf6ec}
   .tbl tr.ie td:first-child{border-left:3px solid #C49A45}
-  .tbl tr.sep td{padding:4px 10px;font-size:8px;text-transform:uppercase;letter-spacing:.06em;color:#bbb;background:#fafaf8;border-bottom:1px solid #f0f0f0}
   .tbl .name{font-weight:600;font-size:12px}
-  .tbl .sub{font-size:9px;color:#999}
-  .tbl .eff{color:#087F5B;font-weight:700}
-  .tbl .out{color:#C49A45;font-weight:600}
-  .tbl .ca{color:#4D9A91}
-  .tbl .dim{color:#ccc}
-  .tbl .sav{font-size:10px;color:#087F5B}
-  .tbl .qi{color:#315B72;font-size:11px}
-  .tbl .tag{font-size:8px;font-weight:600;padding:1px 5px;border-radius:4px;display:inline-block}
-  .tbl .disc{font-size:8px;color:#4A465F}
-  .foot{font-size:9px;color:#bbb;margin-bottom:14px}
+  .tbl .sub{font-size:9px;color:#999;margin-top:1px}
+  .tbl .tag{font-size:7px;font-weight:600;padding:1px 4px;border-radius:3px;display:inline-block;vertical-align:middle}
+  .eff{color:#087F5B;font-weight:700}
+  .out{color:#C49A45}
+  .inp{color:#315B72}
+  .ca{color:#4D9A91}
+  .dim{color:#ccc}
+  .qi{color:#315B72}
+  .best-cell{background:#edf7f1 !important}
 
-  /* ── Layer 2: Workload configurator ── */
-  .config{background:#fff;border-radius:12px;border:1px solid #eaeae8;margin-bottom:16px;overflow:hidden}
-  .config-toggle{padding:10px 16px;font-size:11px;color:#888;cursor:pointer;display:flex;align-items:center;justify-content:space-between}
-  .config-toggle:hover{background:#fafaf8}
-  .config-toggle .label{font-size:9px;text-transform:uppercase;letter-spacing:.06em;color:#C49A45;font-weight:600}
-  .config-body{padding:14px 16px;border-top:1px solid #f0f0f0;display:none}
-  .config.open .config-body{display:block}
-  .presets{display:flex;gap:5px;margin-bottom:12px}
-  .preset{padding:4px 10px;border-radius:6px;font-size:10px;font-weight:600;cursor:pointer;border:1px solid #e5e5e5;background:#fff;color:#888}
-  .preset.on{background:#4D9A91;color:#fff;border-color:#4D9A91}
-  .sliders{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px}
-  .sl label{display:block;font-size:9px;color:#888;margin-bottom:2px}
-  .sl .row{display:flex;align-items:center;gap:6px}
-  .sl .row .v{font-size:12px;font-weight:700;width:48px}
-  .sl input[type=range]{flex:1;accent-color:#4D9A91}
+  .right{display:flex;flex-direction:column;gap:14px}
+  .card{background:#fff;border-radius:12px;border:1px solid #eaeae8;padding:14px;overflow:hidden}
+  .card h4{font-size:8px;text-transform:uppercase;letter-spacing:.06em;color:#888;margin-bottom:10px;font-weight:600}
 
-  /* ── Layer 3: Market intelligence ── */
-  .intel{background:#fff;border-radius:12px;border:1px solid #eaeae8;margin-bottom:16px;overflow:hidden}
-  .intel-toggle{padding:10px 16px;font-size:11px;color:#888;cursor:pointer;display:flex;align-items:center;justify-content:space-between}
-  .intel-toggle:hover{background:#fafaf8}
-  .intel-toggle .label{font-size:9px;text-transform:uppercase;letter-spacing:.06em;color:#315B72;font-weight:600}
-  .intel-body{padding:16px;border-top:1px solid #f0f0f0;display:none}
-  .intel.open .intel-body{display:block}
-  .intel-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
-  @media(max-width:800px){.intel-grid{grid-template-columns:1fr}}
-  .intel-card{padding:12px;background:#fafaf8;border-radius:10px}
-  .intel-card h5{font-size:9px;text-transform:uppercase;letter-spacing:.06em;color:#888;margin-bottom:8px}
-  .qr{display:flex;align-items:center;gap:5px;padding:4px 0;border-bottom:1px solid #f0f0f0;font-size:11px}
-  .qr:last-of-type{border:0}
-  .qr .qn{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .qr .qb{width:50px;height:4px;background:#eee;border-radius:2px;overflow:hidden;flex-shrink:0}
-  .qr .qb div{height:100%;border-radius:2px}
-  .qr .qs{font-size:10px;font-weight:700;width:26px;text-align:right;flex-shrink:0}
-  .qr .qp{font-size:9px;color:#888;width:38px;text-align:right;flex-shrink:0}
-  .stat-row{display:flex;gap:16px;flex-wrap:wrap;font-size:11px;color:#888}
-  .stat-row b{color:#292F35}
+  /* DOM */
+  .depth-row{display:flex;align-items:center;gap:5px;margin-bottom:4px}
+  .depth-row .p{font-size:9px;width:44px;text-align:right;color:#888;flex-shrink:0}
+  .depth-row .bar{flex:1;height:18px;background:#fafaf8;border-radius:3px;overflow:hidden;position:relative}
+  .depth-row .bar .fill{height:100%;border-radius:3px;display:flex;align-items:center;padding-left:5px;transition:width .3s}
+  .depth-row .bar .fill span{font-size:8px;font-weight:600;color:#fff;white-space:nowrap}
+  .depth-row .n{font-size:9px;color:#888;width:140px;flex-shrink:0}
+  .depth-row.best .p{color:#087F5B;font-weight:600}
+
+  /* chart */
+  .chart-area{height:140px;background:#fafaf8;border-radius:8px;overflow:hidden;position:relative}
+  .chart-labels{display:flex;justify-content:space-between;font-size:8px;color:#aaa;margin-top:3px;padding:0 2px}
+
+  /* trades */
+  .trade{display:flex;align-items:center;gap:5px;padding:4px 0;border-bottom:1px solid #f5f5f3;font-size:10px}
+  .trade:last-child{border:0}
+  .trade .tdot{width:4px;height:4px;border-radius:50%;flex-shrink:0}
+  .trade .ttime{color:#bbb;width:38px;flex-shrink:0}
+  .trade .tmodel{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#555}
+  .trade .tprice{color:#C49A45;font-weight:600;width:40px;text-align:right;flex-shrink:0}
+
+  .spot{display:flex;align-items:center;gap:12px;padding:8px 12px;background:#fff;border-radius:10px;border:1px solid #eaeae8;margin-bottom:16px;font-size:11px;color:#888;flex-wrap:wrap}
+  .spot .dot{width:5px;height:5px;border-radius:50%;background:#087F5B;animation:p 2s infinite}
+  @keyframes p{0%,100%{opacity:1}50%{opacity:.3}}
+  .spot .sep{color:#ddd}
+
+  .foot{font-size:9px;color:#bbb;margin-top:8px}
 </style>
 </head>
 <body>
@@ -118,267 +100,550 @@
   </div>
 
   <div class="content">
+    <div class="spot">
+      <span class="dot"></span> <span style="color:#087F5B">Live</span>
+      <span class="sep">|</span> 7 providers online
+      <span class="sep">|</span> 12 models
+      <span class="sep">|</span> <span style="color:#C49A45">1,247 fills / 24h</span>
+      <span style="flex:1"></span>
+      <span style="font-size:9px;color:#bbb">Updated 2s ago</span>
+    </div>
 
-    <!-- ═══ LAYER 0: Recommendation ═══ -->
-    <div class="rec">
-      <div class="text">
-        <div class="above">Recommended for general use</div>
-        <div class="model-name">Claude Sonnet 4.6</div>
-        <div class="via">via IE: home-m2-max &middot; Hardened+ &middot; E2E encrypted</div>
+    <!-- Model selector: command palette -->
+    <div style="position:relative;margin-bottom:16px">
+      <div id="modelInput" onclick="document.getElementById('modelDropdown').style.display='flex';document.getElementById('modelSearch').focus()"
+        style="display:flex;align-items:center;gap:8px;padding:8px 14px;background:#fff;border-radius:10px;border:1px solid #eaeae8;cursor:pointer;transition:border-color .15s">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#aaa" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <span id="selectedModel" style="font-size:13px;font-weight:600;color:#292F35">Llama 3.1 70B Instruct</span>
+        <span style="font-size:10px;color:#aaa;margin-left:auto">438 models</span>
+        <span style="font-size:9px;color:#bbb;background:#f0f0f0;padding:1px 5px;border-radius:4px">&#x2318;K</span>
       </div>
-      <div class="quality">
-        <div class="score m">30.1</div>
-        <div class="bar-bg"><div class="bar-fg" style="width:48%"></div></div>
-        <div class="label">intelligence</div>
-      </div>
-      <div class="cost">
-        <div class="price m">~$0.008</div>
-        <div class="per">per typical message</div>
-      </div>
-      <div class="actions">
-        <a href="#" class="primary">Use this</a>
-        <a href="#" class="secondary">See alternatives</a>
+
+      <div id="modelDropdown" style="display:none;position:absolute;top:calc(100% + 4px);left:0;right:0;z-index:100;background:#fff;border-radius:12px;border:1px solid #ddd;box-shadow:0 12px 40px rgba(0,0,0,0.12);max-height:480px;overflow:hidden;flex-direction:column">
+        <div style="padding:8px 12px;border-bottom:1px solid #f0f0f0">
+          <input id="modelSearch" type="text" placeholder="Search models... (llama 70b, qwen, deepseek, claude)" oninput="applyFilters()"
+            style="width:100%;border:none;outline:none;font-size:13px;color:#292F35;background:transparent">
+        </div>
+        <div id="filterBar" style="padding:6px 12px;border-bottom:1px solid #f0f0f0;display:flex;gap:4px;flex-wrap:wrap;align-items:center">
+          <span style="font-size:8px;text-transform:uppercase;letter-spacing:.06em;color:#aaa;margin-right:2px">Filter</span>
+        </div>
+        <div id="modelList" style="overflow-y:auto;max-height:360px;padding:4px 0"></div>
       </div>
     </div>
 
-    <!-- Model selector -->
-    <div class="tabs">
-      <div class="tab on">Claude Sonnet 4.6</div>
-      <div class="tab">GPT-4.1 Mini</div>
-      <div class="tab">Llama 3.1 8B</div>
-      <div class="tab">DeepSeek R1</div>
-      <div class="tab">Gemini 2.5 Pro</div>
-      <div class="tab">Claude Haiku 4.5</div>
-      <div class="tab">GPT-4o Mini</div>
+    <div class="hdr">
+      <h1>Llama 3.1 70B Instruct</h1>
+      <span class="stat">Best <b class="m" style="color:#087F5B">$0.35</b> /Mtok out</span>
+      <span class="stat">Spread <b class="m" style="color:#D77A2F">$0.35 — $0.90</b> (157%)</span>
+      <span class="stat"><b>7</b> providers</span>
+    </div>
+    <div class="caps">
+      <span style="background:#eef7f0;color:#087F5B;">open-weight</span>
+      <span style="background:#eef7f0;color:#087F5B;">131k ctx</span>
+      <span style="background:#eef7f0;color:#087F5B;">tools</span>
+      <span style="background:#f0f4f8;color:#315B72;">Code: 5.4</span>
     </div>
 
-    <!-- ═══ LAYER 1: Comparison table ═══ -->
-    <div class="tbl">
-      <table>
-        <thead><tr>
-          <th style="width:200px">Provider</th>
-          <th>Eff. cost*</th>
-          <th>Output</th>
-          <th>Cache disc.</th>
-          <th>Quality</th>
-          <th>vs best</th>
-        </tr></thead>
-        <tbody>
-          <!-- Same model: Claude Sonnet 4.6 -->
-          <tr class="ie">
-            <td>
-              <div class="name" style="color:#C49A45">IE: home-m2-max</div>
-              <div class="sub">
-                <span class="tag" style="background:#FDF6EC;color:#C49A45;">Hardened+</span>
-                <span class="tag" style="background:#eef3f7;color:#315B72;">E2E</span>
-                65 t/s
-              </div>
-            </td>
-            <td class="m eff">$0.0082</td>
-            <td class="m out">$15.00</td>
-            <td class="m ca">-90% <span class="disc">($0.30)</span></td>
-            <td class="m qi">30.1</td>
-            <td class="sav">—</td>
-          </tr>
-          <tr>
-            <td>
-              <div class="name">OpenRouter</div>
-              <div class="sub">Aggregated &middot; multiple backends</div>
-            </td>
-            <td class="m eff">$0.0082</td>
-            <td class="m out">$15.00</td>
-            <td class="m ca">-90% <span class="disc">($0.30)</span></td>
-            <td class="m qi">30.1</td>
-            <td class="sav">same</td>
-          </tr>
-          <tr>
-            <td>
-              <div class="name">Anthropic API</div>
-              <div class="sub">Direct &middot; cache write $3.75/Mtok</div>
-            </td>
-            <td class="m eff">$0.0082</td>
-            <td class="m out">$15.00</td>
-            <td class="m ca">-90% <span class="disc">($0.30)</span></td>
-            <td class="m qi">30.1</td>
-            <td class="sav">same</td>
-          </tr>
+    <div class="grid">
+      <!-- ── TABLE ── -->
+      <div class="tbl">
+        <table>
+          <thead><tr>
+            <th style="width:170px">Provider</th>
+            <th>Input <span class="arr">&#x25B5;</span></th>
+            <th>Cache <span class="arr">&#x25B5;</span></th>
+            <th>Output <span class="arr">&#x25BC;</span></th>
+            <th>Quality</th>
+            <th>TPS</th>
+          </tr></thead>
+          <tbody>
+            <!-- Sorted by output price ascending -->
+            <tr class="ie">
+              <td>
+                <div class="name" style="color:#C49A45">IE: home-m4-max</div>
+                <div class="sub">
+                  <span class="tag" style="background:#FDF6EC;color:#C49A45;">Hardened+</span>
+                  <span class="tag" style="background:#eef3f7;color:#315B72;">E2E</span>
+                  Q4_K_M
+                </div>
+              </td>
+              <td class="m inp">$0.30</td>
+              <td class="m ca">$0.08</td>
+              <td class="m out best-cell" style="font-weight:700">$0.35</td>
+              <td class="m qi">5.4</td>
+              <td class="m" style="color:#4D9A91">22</td>
+            </tr>
+            <tr>
+              <td><div class="name">DeepInfra</div><div class="sub">Hosted &middot; FP8</div></td>
+              <td class="m inp">$0.35</td>
+              <td class="m dim">—</td>
+              <td class="m out">$0.40</td>
+              <td class="m qi">5.4</td>
+              <td class="m dim">—</td>
+            </tr>
+            <tr>
+              <td><div class="name">OpenRouter</div><div class="sub">Aggregated</div></td>
+              <td class="m inp">$0.40</td>
+              <td class="m dim">—</td>
+              <td class="m out">$0.40</td>
+              <td class="m qi">5.4</td>
+              <td class="m dim">—</td>
+            </tr>
+            <tr>
+              <td><div class="name">Groq</div><div class="sub">Hosted &middot; LPU</div></td>
+              <td class="m inp">$0.59</td>
+              <td class="m dim">—</td>
+              <td class="m out">$0.79</td>
+              <td class="m qi">5.4</td>
+              <td class="m dim">—</td>
+            </tr>
+            <tr>
+              <td><div class="name">Together AI</div><div class="sub">Hosted &middot; Turbo</div></td>
+              <td class="m inp">$0.88</td>
+              <td class="m dim">—</td>
+              <td class="m out">$0.88</td>
+              <td class="m qi">5.4</td>
+              <td class="m dim">—</td>
+            </tr>
+            <tr>
+              <td><div class="name">Fireworks AI</div><div class="sub">Hosted &middot; Serverless</div></td>
+              <td class="m inp">$0.90</td>
+              <td class="m dim">—</td>
+              <td class="m out">$0.90</td>
+              <td class="m qi">5.4</td>
+              <td class="m dim">—</td>
+            </tr>
+            <tr>
+              <td><div class="name">NousResearch</div><div class="sub">Hermes 3 variant</div></td>
+              <td class="m inp">$0.70</td>
+              <td class="m dim">—</td>
+              <td class="m out">$0.70</td>
+              <td class="m dim">—</td>
+              <td class="m dim">—</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
 
-          <!-- Alternatives -->
-          <tr class="sep"><td colspan="6">Cheaper alternatives</td></tr>
+      <!-- ── RIGHT COLUMN ── -->
+      <div class="right">
 
-          <tr>
-            <td><div class="name" style="color:#666">GPT-4.1</div><div class="sub">OpenAI &middot; 1M ctx</div></td>
-            <td class="m eff">$0.0044</td>
-            <td class="m">$8.00</td>
-            <td class="m ca">-75% <span class="disc">($0.50)</span></td>
-            <td class="m dim">—</td>
-            <td class="sav">-46%</td>
-          </tr>
-          <tr>
-            <td><div class="name" style="color:#666">Gemini 2.5 Pro</div><div class="sub">Google &middot; 1M ctx &middot; reason $10</div></td>
-            <td class="m eff">$0.0053</td>
-            <td class="m">$10.00</td>
-            <td class="m ca">-75% <span class="disc">($0.31)</span></td>
-            <td class="m qi">16.1</td>
-            <td class="sav">-35%</td>
-          </tr>
-          <tr>
-            <td><div class="name" style="color:#666">Claude Haiku 4.5</div><div class="sub">Anthropic &middot; 200k ctx</div></td>
-            <td class="m eff">$0.0027</td>
-            <td class="m">$5.00</td>
-            <td class="m ca">-90% <span class="disc">($0.10)</span></td>
-            <td class="m qi">16.9</td>
-            <td class="sav">-67%</td>
-          </tr>
-          <tr>
-            <td><div class="name" style="color:#666">DeepSeek R1</div><div class="sub">Open-weight &middot; 66k ctx</div></td>
-            <td class="m eff">$0.0012</td>
-            <td class="m">$2.19</td>
-            <td class="m ca">-75% <span class="disc">($0.14)</span></td>
-            <td class="m qi">11.4</td>
-            <td class="sav">-85%</td>
-          </tr>
-          <tr>
-            <td><div class="name" style="color:#666">GPT-4o Mini</div><div class="sub">OpenAI &middot; 128k ctx</div></td>
-            <td class="m eff">$0.0003</td>
-            <td class="m">$0.60</td>
-            <td class="m ca">-50% <span class="disc">($0.075)</span></td>
-            <td class="m dim">—</td>
-            <td class="sav">-96%</td>
-          </tr>
-        </tbody>
-      </table>
+        <!-- DOM: 3-column (input / cache / output), clickable sort -->
+        <div class="card" style="padding-bottom:10px">
+          <h4>Depth of market — three-tier pricing</h4>
+          <div id="dom3" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
+            <!-- Columns built by JS -->
+          </div>
+          <div style="font-size:8px;color:#aaa;margin-top:8px">
+            Cheapest at bottom (best ask). Bars = relative supply at each price level.
+            "—" means that provider doesn't publish this price tier. Click header to highlight.
+          </div>
+        </div>
+
+<script>
+(function(){
+  // Provider data for Llama 3.1 70B
+  const provs = [
+    { name:'IE: home-m4-max', inp:0.30, cache:0.08, out:0.35, color:'#C49A45' },
+    { name:'DeepInfra',       inp:0.35, cache:null,  out:0.40, color:'#4D9A91' },
+    { name:'OpenRouter',      inp:0.40, cache:null,  out:0.40, color:'#315B72' },
+    { name:'Groq',            inp:0.59, cache:null,  out:0.79, color:'#D77A2F' },
+    { name:'NousResearch',    inp:0.70, cache:null,  out:0.70, color:'#888' },
+    { name:'Together AI',     inp:0.88, cache:null,  out:0.88, color:'#D77A2F' },
+    { name:'Fireworks AI',    inp:0.90, cache:null,  out:0.90, color:'#C83A32' },
+  ];
+
+  const tiers = [
+    { key:'inp',   label:'Input',  color:'#315B72' },
+    { key:'cache', label:'Cache read', color:'#4D9A91' },
+    { key:'out',   label:'Output', color:'#C49A45' },
+  ];
+
+  const container = document.getElementById('dom3');
+
+  function buildColumn(tier) {
+    const col = document.createElement('div');
+
+    // Header
+    const hdr = document.createElement('div');
+    hdr.style.cssText = 'font-size:9px;text-transform:uppercase;letter-spacing:.05em;font-weight:700;padding:4px 0 6px;cursor:pointer;user-select:none;text-align:center;border-bottom:2px solid '+tier.color;
+    hdr.style.color = tier.color;
+    hdr.textContent = tier.label + ' $/Mtok';
+    col.appendChild(hdr);
+
+    // Collect prices, group by level
+    const levels = {};
+    let maxProviders = 0;
+    let hasAny = false;
+    provs.forEach(p => {
+      const v = p[tier.key];
+      if (v === null) return;
+      hasAny = true;
+      const k = v.toFixed(3);
+      if (!levels[k]) levels[k] = { price: v, providers: [] };
+      levels[k].providers.push(p);
+      if (levels[k].providers.length > maxProviders) maxProviders = levels[k].providers.length;
+    });
+
+    if (!hasAny) {
+      const msg = document.createElement('div');
+      msg.style.cssText = 'font-size:10px;color:#ccc;padding:12px 0;text-align:center';
+      msg.textContent = 'Only IE publishes cache pricing';
+      col.appendChild(msg);
+
+      // Show just IE's cache
+      const ie = provs[0];
+      if (ie[tier.key] !== null) {
+        const row = document.createElement('div');
+        row.style.cssText = 'display:flex;align-items:center;gap:4px;padding:4px 0';
+        row.innerHTML = '<span class="m" style="font-size:9px;width:36px;text-align:right;color:#087F5B;font-weight:600">$'+ie[tier.key].toFixed(2)+'</span>'
+          + '<div style="flex:1;height:14px;background:#fafaf8;border-radius:3px;overflow:hidden"><div style="height:100%;width:100%;background:#087F5B;border-radius:3px"></div></div>'
+          + '<span style="font-size:8px;color:#C49A45;font-weight:600">IE</span>';
+        col.appendChild(row);
+      }
+      return col;
+    }
+
+    // Sort levels: expensive at top, cheap at bottom
+    const sorted = Object.values(levels).sort((a, b) => b.price - a.price);
+    const maxProv = Math.max(maxProviders, 1);
+
+    sorted.forEach(level => {
+      const row = document.createElement('div');
+      row.style.cssText = 'display:flex;align-items:center;gap:4px;padding:3px 0';
+
+      const isBest = level === sorted[sorted.length - 1];
+      const priceColor = isBest ? '#087F5B' : (level === sorted[0] ? '#C83A32' : '#888');
+
+      const barW = Math.max(20, (level.providers.length / maxProv) * 100);
+      const barColor = isBest ? '#087F5B' : level.providers[0].color;
+
+      const names = level.providers.map(p => p.name.replace('IE: home-m4-max','IE')).join(', ');
+      const nameColor = level.providers.some(p => p.name.includes('IE')) ? '#C49A45' : '#888';
+
+      row.innerHTML = '<span class="m" style="font-size:9px;width:36px;text-align:right;flex-shrink:0;color:'+priceColor+';font-weight:'+(isBest?'700':'400')+'">$'+level.price.toFixed(2)+'</span>'
+        + '<div style="flex:1;height:14px;background:#fafaf8;border-radius:3px;overflow:hidden"><div style="height:100%;width:'+barW+'%;background:'+barColor+';border-radius:3px"></div></div>'
+        + '<span style="font-size:8px;color:'+nameColor+';width:80px;flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+level.providers.length+' '+names+'</span>';
+      col.appendChild(row);
+    });
+
+    return col;
+  }
+
+  tiers.forEach(t => container.appendChild(buildColumn(t)));
+})();
+</script>
+
+        <!-- Price over time: interactive -->
+        <div class="card" style="padding-bottom:8px">
+          <h4>Llama 3.1 70B — provider prices (30d)</h4>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px" id="legend"></div>
+          <div style="position:relative">
+            <canvas id="chart" width="540" height="280" style="width:100%;height:140px;border-radius:8px;background:#fafaf8;cursor:crosshair"></canvas>
+            <div id="tooltip" style="display:none;position:absolute;pointer-events:none;background:#292F35;color:#fff;font-size:10px;padding:4px 8px;border-radius:5px;white-space:nowrap;z-index:10"></div>
+            <div id="crossV" style="display:none;position:absolute;top:0;width:1px;height:100%;background:#888;opacity:0.3;pointer-events:none;z-index:5"></div>
+            <div id="crossH" style="display:none;position:absolute;left:0;height:1px;width:100%;background:#888;opacity:0.3;pointer-events:none;z-index:5"></div>
+          </div>
+          <div class="chart-labels"><span>30d ago</span><span>15d</span><span>Today</span></div>
+          <div style="font-size:8px;color:#aaa;margin-top:4px">Output $/Mtok. Hover for details. Click legend to toggle. IE provider entered 15d ago.</div>
+        </div>
+
+<script>
+(function(){
+  const providers = [
+    { name:'Fireworks', color:'#C83A32', prices: Array(30).fill(0.90) },
+    { name:'Together',  color:'#D77A2F', prices: Array(30).fill(0.88) },
+    { name:'Groq',      color:'#D77A2F', prices: Array(30).fill(0.79), dash:true },
+    { name:'Nous',      color:'#888888', prices: Array(30).fill(0.70) },
+    { name:'OpenRouter', color:'#315B72', prices: Array(30).fill(0.40) },
+    { name:'DeepInfra', color:'#4D9A91', prices: Array(30).fill(0.40) },
+    { name:'IE: home-m4-max', color:'#C49A45', prices: [...Array(15).fill(null), ...Array(15).fill(0.35)], thick:true },
+  ];
+  const hidden = new Set();
+  const canvas = document.getElementById('chart');
+  const ctx = canvas.getContext('2d');
+  const tip = document.getElementById('tooltip');
+  const crossV = document.getElementById('crossV');
+  const crossH = document.getElementById('crossH');
+  const legend = document.getElementById('legend');
+
+  const W = canvas.width, H = canvas.height;
+  const PAD = {t:10, r:44, b:18, l:4};
+  const pW = W - PAD.l - PAD.r, pH = H - PAD.t - PAD.b;
+  const yMin = 0, yMax = 1.0;
+
+  function yToCanvas(v){ return PAD.t + pH * (1 - (v - yMin)/(yMax - yMin)); }
+  function xToCanvas(i){ return PAD.l + (i / 29) * pW; }
+
+  // Legend
+  providers.forEach((p,i) => {
+    const el = document.createElement('span');
+    el.style.cssText = 'font-size:9px;font-weight:600;cursor:pointer;padding:2px 6px;border-radius:4px;user-select:none;transition:opacity .15s;border:1px solid '+p.color;
+    el.style.color = p.color;
+    el.style.background = p.color+'11';
+    el.textContent = p.name;
+    el.onclick = () => { hidden.has(i) ? hidden.delete(i) : hidden.add(i); el.style.opacity = hidden.has(i) ? '0.3' : '1'; draw(); };
+    legend.appendChild(el);
+  });
+
+  function draw(){
+    ctx.clearRect(0,0,W,H);
+    // Grid
+    ctx.strokeStyle='#e0e0e0'; ctx.lineWidth=0.5;
+    [0.25,0.50,0.75,1.0].forEach(v => {
+      const y = yToCanvas(v);
+      ctx.beginPath(); ctx.moveTo(PAD.l,y); ctx.lineTo(W-PAD.r,y); ctx.stroke();
+    });
+    // Y labels
+    ctx.fillStyle='#999'; ctx.font='16px SF Mono,Menlo,monospace'; ctx.textAlign='left';
+    [0,0.25,0.50,0.75,1.0].forEach(v => {
+      ctx.fillText('$'+v.toFixed(2), W-PAD.r+4, yToCanvas(v)+4);
+    });
+    // Lines
+    providers.forEach((p,pi) => {
+      if(hidden.has(pi)) return;
+      ctx.strokeStyle = p.color;
+      ctx.lineWidth = p.thick ? 3 : 1.5;
+      if(p.dash) ctx.setLineDash([6,4]); else ctx.setLineDash([]);
+      ctx.beginPath();
+      let started = false;
+      p.prices.forEach((v,i) => {
+        if(v === null) return;
+        const x = xToCanvas(i), y = yToCanvas(v);
+        if(!started){ ctx.moveTo(x,y); started=true; } else ctx.lineTo(x,y);
+      });
+      ctx.stroke();
+      ctx.setLineDash([]);
+      // Entry dot for IE
+      if(p.prices[0]===null){
+        const firstIdx = p.prices.findIndex(v=>v!==null);
+        if(firstIdx>=0){
+          ctx.fillStyle=p.color;
+          ctx.beginPath(); ctx.arc(xToCanvas(firstIdx), yToCanvas(p.prices[firstIdx]), 4, 0, Math.PI*2); ctx.fill();
+        }
+      }
+    });
+  }
+  draw();
+
+  // Hover
+  canvas.addEventListener('mousemove', e => {
+    const rect = canvas.getBoundingClientRect();
+    const mx = (e.clientX - rect.left) * (W / rect.width);
+    const my = (e.clientY - rect.top) * (H / rect.height);
+    const day = Math.round((mx - PAD.l) / pW * 29);
+    if(day < 0 || day > 29){ tip.style.display='none'; crossV.style.display='none'; crossH.style.display='none'; return; }
+
+    // Find closest provider at this day
+    let best = null, bestDist = Infinity;
+    providers.forEach((p,pi) => {
+      if(hidden.has(pi) || p.prices[day]===null) return;
+      const py = yToCanvas(p.prices[day]);
+      const dist = Math.abs(my - py);
+      if(dist < bestDist){ bestDist=dist; best={p,v:p.prices[day],py}; }
+    });
+
+    const pxX = (e.clientX - rect.left);
+    const pxY = (e.clientY - rect.top);
+    crossV.style.display='block'; crossV.style.left=pxX+'px';
+    crossH.style.display='block'; crossH.style.top=pxY+'px';
+
+    if(best && bestDist < 30 * (H / rect.height)){
+      tip.style.display='block';
+      tip.style.left=(pxX+10)+'px'; tip.style.top=(pxY-24)+'px';
+      tip.style.borderLeft='3px solid '+best.p.color;
+      const daysAgo = 29 - day;
+      tip.innerHTML = '<b style="color:'+best.p.color+'">'+best.p.name+'</b><br>$'+best.v.toFixed(2)+'/Mtok'+(daysAgo>0?' &middot; '+daysAgo+'d ago':' &middot; today');
+    } else {
+      tip.style.display='none';
+    }
+  });
+  canvas.addEventListener('mouseleave', () => {
+    tip.style.display='none'; crossV.style.display='none'; crossH.style.display='none';
+  });
+})();
+</script>
+
+        <!-- Recent fills -->
+        <div class="card">
+          <h4>Recent fills — Llama 3.1 70B</h4>
+          <div class="trade">
+            <div class="tdot" style="background:#087F5B"></div>
+            <div class="ttime m">14:23</div>
+            <div class="tmodel">IE: home-m4-max</div>
+            <div class="tprice m">$0.35</div>
+          </div>
+          <div class="trade">
+            <div class="tdot" style="background:#087F5B"></div>
+            <div class="ttime m">14:21</div>
+            <div class="tmodel">IE: home-m4-max</div>
+            <div class="tprice m">$0.35</div>
+          </div>
+          <div class="trade">
+            <div class="tdot" style="background:#087F5B"></div>
+            <div class="ttime m">14:18</div>
+            <div class="tmodel">DeepInfra</div>
+            <div class="tprice m">$0.40</div>
+          </div>
+          <div class="trade">
+            <div class="tdot" style="background:#087F5B"></div>
+            <div class="ttime m">14:15</div>
+            <div class="tmodel">OpenRouter</div>
+            <div class="tprice m">$0.40</div>
+          </div>
+          <div class="trade">
+            <div class="tdot" style="background:#C83A32"></div>
+            <div class="ttime m">14:12</div>
+            <div class="tmodel">IE: home-m4-max</div>
+            <div class="tprice m">$0.35</div>
+          </div>
+        </div>
+
+      </div>
     </div>
+
     <div class="foot">
-      * Effective cost per request: 2,000 input / 75% cache / 400 output tokens (chatbot preset).
-      Cache disc. = cache read price discount vs input price. Quality = Artificial Analysis intelligence index.
+      Click column headers to sort. Prices $/Mtok. Cache = cache read price (IE provider offers 73% cache discount vs input).
+      Quality = Artificial Analysis coding index. TPS = observed tokens/sec for IE providers.
+      Data: OpenRouter API + IE static reference prices + IE provider network.
     </div>
 
-    <!-- ═══ LAYER 2: Workload configurator ═══ -->
-    <div class="config open" onclick="this.classList.toggle('open')">
-      <div class="config-toggle">
-        <span class="label">Customize workload</span>
-        <span style="font-size:10px">Changing this re-sorts the table above</span>
-      </div>
-      <div class="config-body" onclick="event.stopPropagation()">
-        <div class="presets">
-          <div class="preset on">Chatbot</div>
-          <div class="preset">Code</div>
-          <div class="preset">RAG</div>
-          <div class="preset">Agent</div>
-          <div class="preset">Custom</div>
-        </div>
-        <div class="sliders">
-          <div class="sl">
-            <label>Input tokens</label>
-            <div class="row"><div class="v m">2,000</div><input type="range" min="100" max="10000" value="2000"></div>
-          </div>
-          <div class="sl">
-            <label>Cache hit rate</label>
-            <div class="row"><div class="v m" style="color:#4A465F">75%</div><input type="range" min="0" max="95" value="75" style="accent-color:#4A465F"></div>
-          </div>
-          <div class="sl">
-            <label>Output tokens</label>
-            <div class="row"><div class="v m">400</div><input type="range" min="50" max="4000" value="400"></div>
-          </div>
-        </div>
-      </div>
-    </div>
+<script>
+// Close dropdown on outside click
+document.addEventListener('click', e => {
+  const dd = document.getElementById('modelDropdown');
+  const inp = document.getElementById('modelInput');
+  if (dd && !dd.contains(e.target) && !inp.contains(e.target)) dd.style.display='none';
+});
 
-    <!-- ═══ LAYER 3: Market intelligence ═══ -->
-    <div class="intel" onclick="this.classList.toggle('open')">
-      <div class="intel-toggle">
-        <span class="label">Market intelligence</span>
-        <span style="font-size:10px">Pareto frontiers, sensitivity, full pricing</span>
-      </div>
-      <div class="intel-body" onclick="event.stopPropagation()">
-        <div class="intel-grid">
+const ALL_MODELS = [
+  { name:'Llama 3.1 8B Instruct',  vendor:'Meta',      family:'Llama',    params:'8B',  price:0.08,  quality:null, cache:true,  open:true,  ctx:'131k', provs:2 },
+  { name:'Llama 3.1 70B Instruct', vendor:'Meta',      family:'Llama',    params:'70B', price:0.35,  quality:5.4,  cache:true,  open:true,  ctx:'131k', provs:7 },
+  { name:'Hermes 3 Llama 70B',     vendor:'Nous',      family:'Llama',    params:'70B', price:0.70,  quality:null, cache:false, open:true,  ctx:'131k', provs:1 },
+  { name:'Qwen 2.5 7B Instruct',   vendor:'Alibaba',   family:'Qwen',     params:'7B',  price:0.06,  quality:null, cache:false, open:true,  ctx:'32k',  provs:1 },
+  { name:'Qwen 2.5 72B Instruct',  vendor:'Alibaba',   family:'Qwen',     params:'72B', price:1.20,  quality:null, cache:false, open:true,  ctx:'32k',  provs:3 },
+  { name:'Qwen 3 32B',             vendor:'Alibaba',   family:'Qwen',     params:'32B', price:0.80,  quality:null, cache:false, open:true,  ctx:'128k', provs:1 },
+  { name:'DeepSeek R1',             vendor:'DeepSeek',  family:'DeepSeek', params:'671B MoE', price:2.50, quality:11.4, cache:false, open:true, ctx:'66k', provs:3 },
+  { name:'DeepSeek V4 Flash',       vendor:'DeepSeek',  family:'DeepSeek', params:'MoE', price:0.28,  quality:24.2, cache:true,  open:true,  ctx:'128k', provs:2 },
+  { name:'DeepSeek V4 Pro',         vendor:'DeepSeek',  family:'DeepSeek', params:'MoE', price:1.91,  quality:30.4, cache:true,  open:true,  ctx:'128k', provs:1 },
+  { name:'Claude Sonnet 4.6',       vendor:'Anthropic', family:'Claude',   params:'—',   price:15.00, quality:30.1, cache:true,  open:false, ctx:'200k', provs:3 },
+  { name:'Claude Haiku 4.5',        vendor:'Anthropic', family:'Claude',   params:'—',   price:5.00,  quality:16.9, cache:true,  open:false, ctx:'200k', provs:2 },
+  { name:'Claude Opus 5.5',         vendor:'Anthropic', family:'Claude',   params:'—',   price:75.00, quality:57.6, cache:true,  open:false, ctx:'200k', provs:2 },
+  { name:'GPT-4o Mini',             vendor:'OpenAI',    family:'GPT',      params:'—',   price:0.60,  quality:null, cache:true,  open:false, ctx:'128k', provs:2 },
+  { name:'GPT-4.1 Mini',            vendor:'OpenAI',    family:'GPT',      params:'—',   price:1.60,  quality:null, cache:true,  open:false, ctx:'1M',   provs:2 },
+  { name:'GPT-4.1',                 vendor:'OpenAI',    family:'GPT',      params:'—',   price:8.00,  quality:null, cache:true,  open:false, ctx:'1M',   provs:2 },
+  { name:'GPT-6.1 Sol',             vendor:'OpenAI',    family:'GPT',      params:'—',   price:20.00, quality:51.8, cache:true,  open:false, ctx:'200k', provs:1 },
+  { name:'Gemini 2.0 Flash',        vendor:'Google',    family:'Gemini',   params:'—',   price:0.40,  quality:null, cache:true,  open:false, ctx:'1M',   provs:2 },
+  { name:'Gemini 2.5 Pro',          vendor:'Google',    family:'Gemini',   params:'—',   price:10.00, quality:16.1, cache:true,  open:false, ctx:'1M',   provs:2 },
+  { name:'Mistral Nemo',            vendor:'Mistral',   family:'Mistral',  params:'12B', price:0.10,  quality:null, cache:false, open:true,  ctx:'128k', provs:1 },
+  { name:'Mistral Large 2',         vendor:'Mistral',   family:'Mistral',  params:'123B',price:7.50,  quality:null, cache:true,  open:true,  ctx:'128k', provs:1 },
+  { name:'Gemma 3 27B',             vendor:'Google',    family:'Gemma',    params:'27B', price:0.20,  quality:null, cache:false, open:true,  ctx:'128k', provs:1 },
+  { name:'Phi-4',                   vendor:'Microsoft', family:'Phi',      params:'14B', price:0.07,  quality:null, cache:false, open:true,  ctx:'16k',  provs:1 },
+  { name:'GLM 5.3 Flash',           vendor:'Z.ai',      family:'GLM',      params:'—',   price:0.20,  quality:41.8, cache:true,  open:false, ctx:'128k', provs:1 },
+];
 
-          <!-- Quality vs Price -->
-          <div class="intel-card">
-            <h5>Quality vs effective cost (Pareto frontier)</h5>
-            <div class="qr">
-              <div class="qn" style="font-weight:600;color:#C49A45">Claude Sonnet 4.6</div>
-              <div class="qb"><div style="width:48%;background:#C49A45"></div></div>
-              <div class="qs m" style="color:#C49A45">30.1</div>
-              <div class="qp m">$0.0082</div>
-            </div>
-            <div class="qr">
-              <div class="qn">Claude Haiku 4.5</div>
-              <div class="qb"><div style="width:27%;background:#4D9A91"></div></div>
-              <div class="qs m">16.9</div>
-              <div class="qp m">$0.0027</div>
-            </div>
-            <div class="qr">
-              <div class="qn">Gemini 2.5 Pro</div>
-              <div class="qb"><div style="width:26%;background:#4D9A91"></div></div>
-              <div class="qs m">16.1</div>
-              <div class="qp m">$0.0053</div>
-            </div>
-            <div class="qr">
-              <div class="qn">DeepSeek R1</div>
-              <div class="qb"><div style="width:18%;background:#087F5B"></div></div>
-              <div class="qs m">11.4</div>
-              <div class="qp m">$0.0012</div>
-            </div>
-            <div style="font-size:9px;color:#aaa;margin-top:6px">
-              Only Pareto-optimal models shown (no dominated options).
-              6 models on the chatbot frontier out of 136 with scores.
-            </div>
-          </div>
+// ── Filter state ──
+const filters = { open: null, cache: null, family: null, sizeMin: null, sizeMax: null, priceMax: null, hasQuality: null };
+const FAMILIES = [...new Set(ALL_MODELS.map(m=>m.family))].sort();
+function parseSize(s) { if (!s || s==='—') return null; const m=s.match(/([\d.]+)B/i); return m?parseFloat(m[1]):null; }
 
-          <!-- Cache sensitivity -->
-          <div class="intel-card">
-            <h5>Does cache rate change the winner?</h5>
-            <div style="font-size:11px;color:#666;line-height:1.6">
-              <b>At 20% cache (RAG):</b> rankings shift — models without cache pricing
-              become relatively cheaper. Mistral Nemo wins on raw cost.<br><br>
-              <b>At 75% cache (chatbot):</b> models with 90% cache discount dominate.
-              Claude and DeepSeek benefit most.<br><br>
-              <b>At 85% cache (agent):</b> cache pricing is the dominant cost factor.
-              The effective input cost drops to ~10% of the headline price.<br><br>
-              <span style="color:#aaa">Tip: switch to RAG or Agent preset above to see
-              the table re-sort.</span>
-            </div>
-          </div>
+// Build filter chips
+(function(){
+  const bar=document.getElementById('filterBar');
+  function chip(label,bgOff,colorOn,bgOn,fn){
+    const el=document.createElement('span');
+    el.style.cssText='font-size:9px;font-weight:600;padding:2px 7px;border-radius:5px;cursor:pointer;user-select:none;transition:all .12s;border:1px solid transparent;background:'+bgOff+';color:#888';
+    el.dataset.on='0'; el.textContent=label;
+    el.onclick=e=>{e.stopPropagation();fn(el);};
+    bar.appendChild(el); return el;
+  }
+  const openC=chip('Open-weight','#f5f5f3','#087F5B','#edf7f1',el=>{
+    if(filters.open===true){filters.open=null;el.style.background='#f5f5f3';el.style.color='#888';el.style.borderColor='transparent';}
+    else{filters.open=true;el.style.background='#edf7f1';el.style.color='#087F5B';el.style.borderColor='#087F5B44';closC.style.background='#f5f5f3';closC.style.color='#888';closC.style.borderColor='transparent';}
+    applyFilters();
+  });
+  const closC=chip('Proprietary','#f5f5f3','#4A465F','#f3eef7',el=>{
+    if(filters.open===false){filters.open=null;el.style.background='#f5f5f3';el.style.color='#888';el.style.borderColor='transparent';}
+    else{filters.open=false;el.style.background='#f3eef7';el.style.color='#4A465F';el.style.borderColor='#4A465F44';openC.style.background='#f5f5f3';openC.style.color='#888';openC.style.borderColor='transparent';}
+    applyFilters();
+  });
+  bar.appendChild(Object.assign(document.createElement('span'),{style:'width:1px;height:14px;background:#e5e5e5;margin:0 2px'}));
+  chip('Cache discount','#f5f5f3','#4D9A91','#e8f5f3',el=>{
+    filters.cache=filters.cache?null:true;el.style.background=filters.cache?'#e8f5f3':'#f5f5f3';el.style.color=filters.cache?'#4D9A91':'#888';el.style.borderColor=filters.cache?'#4D9A9144':'transparent';applyFilters();
+  });
+  chip('Benchmarked','#f5f5f3','#315B72','#eef3f7',el=>{
+    filters.hasQuality=filters.hasQuality?null:true;el.style.background=filters.hasQuality?'#eef3f7':'#f5f5f3';el.style.color=filters.hasQuality?'#315B72':'#888';el.style.borderColor=filters.hasQuality?'#315B7244':'transparent';applyFilters();
+  });
+  bar.appendChild(Object.assign(document.createElement('span'),{style:'width:1px;height:14px;background:#e5e5e5;margin:0 2px'}));
+  const sl=document.createElement('span');sl.style.cssText='font-size:8px;color:#aaa';sl.textContent='Size:';bar.appendChild(sl);
+  ['<7B','7-30B','30-100B','100B+'].forEach(r=>{
+    chip(r,'#f5f5f3','#C49A45','#fdf6ec',el=>{
+      const was=el.dataset.on==='1';
+      bar.querySelectorAll('span').forEach(s=>{if(['<7B','7-30B','30-100B','100B+'].includes(s.textContent)){s.style.background='#f5f5f3';s.style.color='#888';s.style.borderColor='transparent';s.dataset.on='0';}});
+      if(was){filters.sizeMin=null;filters.sizeMax=null;}
+      else{el.style.background='#fdf6ec';el.style.color='#C49A45';el.style.borderColor='#C49A4544';el.dataset.on='1';
+        if(r==='<7B'){filters.sizeMin=0;filters.sizeMax=7;}else if(r==='7-30B'){filters.sizeMin=7;filters.sizeMax=30;}else if(r==='30-100B'){filters.sizeMin=30;filters.sizeMax=100;}else{filters.sizeMin=100;filters.sizeMax=99999;}}
+      applyFilters();
+    });
+  });
+  bar.appendChild(Object.assign(document.createElement('span'),{style:'width:1px;height:14px;background:#e5e5e5;margin:0 2px'}));
+  const pl=document.createElement('span');pl.style.cssText='font-size:8px;color:#aaa';pl.textContent='Max $:';bar.appendChild(pl);
+  ['$1','$5','$15'].forEach(cap=>{
+    chip(cap,'#f5f5f3','#C83A32','#fef2f2',el=>{
+      const was=el.dataset.on==='1';
+      bar.querySelectorAll('span').forEach(s=>{if(['$1','$5','$15'].includes(s.textContent)){s.style.background='#f5f5f3';s.style.color='#888';s.style.borderColor='transparent';s.dataset.on='0';}});
+      if(was){filters.priceMax=null;}else{el.style.background='#fef2f2';el.style.color='#C83A32';el.style.borderColor='#C83A3244';el.dataset.on='1';filters.priceMax=parseFloat(cap.replace('$',''));}
+      applyFilters();
+    });
+  });
+  bar.appendChild(Object.assign(document.createElement('span'),{style:'width:1px;height:14px;background:#e5e5e5;margin:0 2px'}));
+  const fs=document.createElement('select');fs.style.cssText='font-size:9px;border:1px solid #e5e5e5;border-radius:5px;padding:2px 4px;color:#888;background:#f5f5f3;cursor:pointer;outline:none';
+  fs.innerHTML='<option value="">All families</option>'+FAMILIES.map(f=>'<option>'+f+'</option>').join('');
+  fs.onchange=()=>{filters.family=fs.value||null;applyFilters();};bar.appendChild(fs);
+})();
 
-          <!-- Market stats -->
-          <div class="intel-card">
-            <h5>Market structure</h5>
-            <div class="stat-row">
-              <span><b>438</b> models with pricing</span>
-              <span><b>59</b> vendors</span>
-            </div>
-            <div class="stat-row" style="margin-top:6px">
-              <span><b>300</b> (68%) have cache read pricing</span>
-              <span><b>96</b> have cache write pricing</span>
-            </div>
-            <div class="stat-row" style="margin-top:6px">
-              <span><b>136</b> have intelligence scores</span>
-              <span><b>167</b> have coding scores</span>
-            </div>
-            <div class="stat-row" style="margin-top:6px">
-              <span>Median cache discount: <b>90%</b></span>
-              <span>Pareto frontier: <b>6-9</b> models per workload</span>
-            </div>
-          </div>
+function applyFilters(){
+  const q=(document.getElementById('modelSearch').value||'').toLowerCase().trim();
+  const tokens=q?q.split(/\s+/):[];
+  renderModels(ALL_MODELS.filter(m=>{
+    if(tokens.length){const h=(m.name+' '+m.vendor+' '+m.family+' '+m.params).toLowerCase();if(!tokens.every(t=>h.includes(t)))return false;}
+    if(filters.open===true&&!m.open)return false;
+    if(filters.open===false&&m.open)return false;
+    if(filters.cache&&!m.cache)return false;
+    if(filters.hasQuality&&!m.quality)return false;
+    if(filters.sizeMin!==null){const s=parseSize(m.params);if(s===null||s<filters.sizeMin||s>=filters.sizeMax)return false;}
+    if(filters.priceMax&&m.price>filters.priceMax)return false;
+    if(filters.family&&m.family!==filters.family)return false;
+    return true;
+  }));
+}
 
-          <!-- What IE shows -->
-          <div class="intel-card">
-            <h5>What this page shows that others don't</h5>
-            <div style="font-size:11px;color:#666;line-height:1.6">
-              <b style="color:#087F5B">Effective cost</b> — real per-request cost at your cache rate and token mix.<br>
-              <b style="color:#4D9A91">Cache pricing</b> — 68% of models have it, median 90% discount. OR hides it.<br>
-              <b style="color:#315B72">Quality scores</b> — AI Analysis benchmarks next to prices.<br>
-              <b style="color:#C49A45">Workload presets</b> — different task types produce different rankings.<br>
-              <b style="color:#4A465F">Cache write costs</b> — Anthropic/Google charge to write; hidden elsewhere.
-            </div>
-          </div>
-
-        </div>
-      </div>
-    </div>
-
+function renderModels(models){
+  const list=document.getElementById('modelList');list.innerHTML='';
+  const groups={};models.forEach(m=>{if(!groups[m.family])groups[m.family]=[];groups[m.family].push(m);});
+  const order=Object.entries(groups).sort((a,b)=>Math.min(...a[1].map(x=>x.price))-Math.min(...b[1].map(x=>x.price)));
+  const cd=document.createElement('div');cd.style.cssText='padding:4px 14px;font-size:9px;color:#aaa';
+  cd.textContent=models.length+' model'+(models.length!==1?'s':'')+' match'+(models.length===1?'es':'');list.appendChild(cd);
+  order.forEach(([family,fmodels])=>{
+    const hdr=document.createElement('div');hdr.style.cssText='padding:4px 14px 2px;font-size:8px;text-transform:uppercase;letter-spacing:.08em;color:#aaa;font-weight:600;margin-top:2px';
+    hdr.textContent=family+' ('+fmodels.length+')';list.appendChild(hdr);
+    fmodels.sort((a,b)=>a.price-b.price).forEach(m=>{
+      const row=document.createElement('div');row.style.cssText='display:flex;align-items:center;gap:8px;padding:6px 14px;cursor:pointer;transition:background .1s;border-radius:6px;margin:0 4px';
+      row.onmouseenter=()=>row.style.background='#fafaf8';row.onmouseleave=()=>row.style.background='';
+      row.onclick=()=>{document.getElementById('selectedModel').textContent=m.name;document.getElementById('modelDropdown').style.display='none';document.getElementById('modelSearch').value='';applyFilters();};
+      let b='';
+      if(m.open)b+='<span style="font-size:7px;font-weight:600;padding:1px 4px;border-radius:3px;background:#edf7f1;color:#087F5B">open</span>';
+      else b+='<span style="font-size:7px;font-weight:600;padding:1px 4px;border-radius:3px;background:#f3eef7;color:#4A465F">prop</span>';
+      if(m.cache)b+='<span style="font-size:7px;font-weight:600;padding:1px 4px;border-radius:3px;background:#e8f5f3;color:#4D9A91">-cache$</span>';
+      if(m.quality)b+='<span style="font-size:7px;font-weight:600;padding:1px 4px;border-radius:3px;background:#f0f4f8;color:#315B72">&#9733; '+m.quality+'</span>';
+      row.innerHTML='<div style="flex:1;min-width:0"><div style="font-size:12px;font-weight:600;color:#292F35;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+m.name+'</div><div style="font-size:9px;color:#999">'+m.vendor+(m.params!=='—'?' &middot; '+m.params:'')+' &middot; '+m.ctx+' &middot; '+m.provs+'p</div></div><div style="display:flex;gap:3px;flex-shrink:0;align-items:center">'+b+'</div><div class="m" style="font-size:11px;font-weight:700;color:#C49A45;width:50px;text-align:right;flex-shrink:0">$'+(m.price<1?m.price.toFixed(2):m.price.toFixed(0))+'</div>';
+      list.appendChild(row);
+    });
+  });
+  if(!models.length)list.innerHTML='<div style="padding:20px;text-align:center;color:#bbb;font-size:12px">No models match your filters</div>';
+}
+applyFilters();
+</script>
   </div>
 </div>
 </body>
