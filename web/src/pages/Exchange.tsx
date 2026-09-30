@@ -504,6 +504,7 @@ export function Exchange() {
   const { data: stats } = useSWR('stats', api.stats, { refreshInterval: 5000 })
   const { data: repData } = useSWR('reputation', api.reputation, { refreshInterval: 10000 })
   const { data: traceData } = useSWR('traces', api.traces, { refreshInterval: 5000 })
+  const { data: refData } = useSWR('refPrices', api.referencePrices, { refreshInterval: 30000 })
 
   const models = (marketData?.models || []) as MarketModel[]
   const allProviders = provData?.providers || []
@@ -511,8 +512,19 @@ export function Exchange() {
   const traces = traceData?.traces || []
   const recentTrades = [...traces].reverse().slice(0, 8)
 
+  // Build reference-price model families for the market view (always available)
+  const refFamilies: Array<{ family_key: string; display_name: string; prices: any[]; provider_count: number }> =
+    (refData?.models || [])
+      .filter((f: any) => f.prices && f.prices.length > 0)
+      .sort((a: any, b: any) => (b.provider_count || b.prices.length) - (a.provider_count || a.prices.length))
+
+  // Merge: IE provider models + reference families that aren't already covered
+  const ieModelKeys = new Set(models.map(m => m.canonical_id))
+  const extraRefFamilies = refFamilies.filter(f => !ieModelKeys.has(f.family_key))
+
   // Filter state
   const [selectedModel, setSelectedModel] = useState('')
+  const [selectedRefFamily, setSelectedRefFamily] = useState('')
   const [selectedQuant, setSelectedQuant] = useState('')
   const [minTrust, setMinTrust] = useState('hardened')
   const [priceCeiling, setPriceCeiling] = useState('0.15')
@@ -520,9 +532,14 @@ export function Exchange() {
   const [expandedProviderId, setExpandedProviderId] = useState<string | null>(null)
   const [showMarketContext, setShowMarketContext] = useState(false)
 
-  // Resolve selected model
+  // Resolve selected model — IE models first, then reference families
   const activeModel = selectedModel || (models.length > 0 ? models[0].model : '')
   const modelData = models.find(m => m.model === activeModel)
+  const activeRefFamily = (!modelData && selectedRefFamily)
+    ? refFamilies.find(f => f.family_key === selectedRefFamily)
+    : (!modelData && !selectedRefFamily && extraRefFamilies.length > 0 && models.length === 0)
+      ? extraRefFamilies[0]
+      : null
 
   // Quantizations and capabilities
   const quantizations = modelData ? [...new Set(modelData.providers.map(p => p.quantization).filter(Boolean))] : []
@@ -580,13 +597,13 @@ export function Exchange() {
     return parts.join(' · ')
   }
 
-  // Empty state
-  if (marketData && models.length === 0) {
+  // Empty state — only show if BOTH IE providers and reference data are empty
+  if (marketData && models.length === 0 && refFamilies.length === 0) {
     return (
       <div className="max-w-2xl mx-auto text-center py-16">
         <img src="/logo-icon.svg" alt="IE" className="w-16 h-16 mx-auto mb-6 opacity-20" />
         <h2 className="text-xl font-bold mb-3" style={{ color: C.blueBlack }}>The exchange is quiet</h2>
-        <p className="text-sm mb-8" style={{ color: '#888' }}>No providers connected.</p>
+        <p className="text-sm mb-8" style={{ color: '#888' }}>No providers connected and no reference data loaded yet.</p>
         <div className="bg-white rounded-2xl border border-gray-200/40 p-6 text-left max-w-sm mx-auto">
           <div className="rounded-xl p-4 font-mono text-xs space-y-1" style={{ background: C.blueBlack, color: C.warmWhite }}>
             <div><span style={{ color: '#666' }}>$</span> pip install ie-provider</div>
@@ -610,12 +627,33 @@ export function Exchange() {
             <div className="flex flex-wrap gap-1.5">
               {models.map(m => (
                 <button key={m.model}
-                  onClick={() => { setSelectedModel(m.model); setSelectedQuant(''); setSelectedProviderId(''); setExpandedProviderId(null) }}
+                  onClick={() => { setSelectedModel(m.model); setSelectedRefFamily(''); setSelectedQuant(''); setSelectedProviderId(''); setExpandedProviderId(null) }}
                   className="text-[11px] font-medium px-3 py-1.5 rounded-lg transition-colors truncate max-w-full"
-                  style={{ background: activeModel === m.model ? C.blueBlack : 'transparent', color: activeModel === m.model ? '#fff' : '#888', border: `1px solid ${activeModel === m.model ? C.blueBlack : '#e5e5e5'}` }}
+                  style={{ background: activeModel === m.model && !activeRefFamily ? C.blueBlack : 'transparent', color: activeModel === m.model && !activeRefFamily ? '#fff' : '#888', border: `1px solid ${activeModel === m.model && !activeRefFamily ? C.blueBlack : '#e5e5e5'}` }}
                 >{m.model}</button>
               ))}
             </div>
+            {/* Reference families (external providers) */}
+            {extraRefFamilies.length > 0 && (
+              <>
+                <div className="text-[10px] uppercase tracking-wider mt-3 mb-1" style={{ color: C.turquoise }}>
+                  External Market
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {extraRefFamilies.slice(0, 20).map(f => (
+                    <button key={f.family_key}
+                      onClick={() => { setSelectedRefFamily(f.family_key); setSelectedModel(''); setSelectedQuant(''); setSelectedProviderId(''); setExpandedProviderId(null) }}
+                      className="text-[11px] font-medium px-3 py-1.5 rounded-lg transition-colors truncate max-w-full"
+                      style={{
+                        background: activeRefFamily?.family_key === f.family_key ? C.deepBlue : 'transparent',
+                        color: activeRefFamily?.family_key === f.family_key ? '#fff' : '#888',
+                        border: `1px solid ${activeRefFamily?.family_key === f.family_key ? C.deepBlue : '#e5e5e5'}`,
+                      }}
+                    >{f.display_name} <span className="text-[9px] opacity-60">({f.prices.length})</span></button>
+                  ))}
+                </div>
+              </>
+            )}
           </div>
 
           {/* Quantization */}
@@ -698,7 +736,105 @@ export function Exchange() {
           <FillsTicker traces={traces} />
         </div>
 
-        {/* Market depth header with model summary */}
+        {/* Reference market view (when viewing external providers, no IE providers for this model) */}
+        {activeRefFamily && (
+          <div className="space-y-5">
+            <div>
+              <div className="text-[10px] uppercase tracking-wider font-medium mb-1" style={{ color: C.turquoise }}>External Market</div>
+              <h2 className="text-xl font-bold" style={{ color: C.blueBlack }}>{activeRefFamily.display_name}</h2>
+              <div className="flex items-center gap-3 mt-1.5 flex-wrap text-xs" style={{ color: '#888' }}>
+                <span>{activeRefFamily.prices.length} offers across providers</span>
+                {activeRefFamily.prices.filter((p: any) => p.source === 'inference-exchange').length > 0 && (
+                  <span style={{ color: C.gold }}>Available on IE</span>
+                )}
+              </div>
+              {/* Spread for reference family */}
+              {(() => {
+                const outPrices = activeRefFamily.prices.map((p: any) => p.price_output).filter((p: number) => p > 0)
+                if (outPrices.length < 2) return null
+                const min = Math.min(...outPrices)
+                const max = Math.max(...outPrices)
+                const pct = min > 0 ? Math.round((max / min - 1) * 100) : 0
+                const barPct = Math.min(pct, 500) / 5
+                return (
+                  <div className="flex items-center gap-3 mt-2">
+                    <span className="text-[10px] uppercase tracking-wider" style={{ color: '#aaa' }}>Spread</span>
+                    <span className="text-xs font-mono" style={{ color: C.green }}>${min.toFixed(2)}</span>
+                    <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ background: '#f0f0f0', maxWidth: 120 }}>
+                      <div className="h-full rounded-full" style={{
+                        width: `${Math.max(5, barPct)}%`,
+                        background: pct > 200 ? C.red : pct > 50 ? C.orange : C.green,
+                      }} />
+                    </div>
+                    <span className="text-xs font-mono" style={{ color: C.red }}>${max.toFixed(2)}</span>
+                    <span className="text-[10px] font-semibold" style={{ color: pct > 200 ? C.red : pct > 50 ? C.orange : C.green }}>{pct}%</span>
+                  </div>
+                )
+              })()}
+            </div>
+
+            {/* Offer table for reference family */}
+            <div className="bg-white rounded-2xl border border-gray-200/40 overflow-hidden">
+              <div className="grid grid-cols-12 gap-2 px-5 py-3 text-[10px] uppercase tracking-wider border-b border-gray-100" style={{ color: '#aaa' }}>
+                <div className="col-span-3">Provider</div>
+                <div className="col-span-3">Model</div>
+                <div className="col-span-2 text-right">Input</div>
+                <div className="col-span-2 text-right">Cache</div>
+                <div className="col-span-2 text-right">Output</div>
+              </div>
+              {activeRefFamily.prices
+                .sort((a: any, b: any) => a.price_output - b.price_output)
+                .map((p: any, i: number) => {
+                  const isIE = p.source === 'inference-exchange'
+                  const cachePct = p.price_input > 0 && p.price_cache > 0
+                    ? cacheDiscount(p.price_input, p.price_cache) : 0
+                  return (
+                    <div key={i} className="grid grid-cols-12 gap-2 px-5 py-3 items-center border-b border-gray-50"
+                      style={{ background: isIE ? '#fdf6ec' : 'transparent', borderLeft: isIE ? `3px solid ${C.gold}` : '3px solid transparent' }}>
+                      <div className="col-span-3 min-w-0">
+                        <div className="text-sm font-medium truncate" style={{ color: isIE ? C.gold : C.blueBlack }}>
+                          {providerName(p.source)}
+                        </div>
+                        <div className="flex items-center gap-1 mt-0.5 flex-wrap">
+                          {isIE && <span className="text-[8px] px-1 rounded" style={{ background: '#fdf6ec', color: C.gold }}>IE</span>}
+                          {p.trust_level && (
+                            <span className="text-[8px] px-1 rounded" style={{
+                              background: (TRUST_COLORS[p.trust_level] || TRUST_COLORS.open).bg,
+                              color: (TRUST_COLORS[p.trust_level] || TRUST_COLORS.open).text,
+                            }}>{(TRUST_COLORS[p.trust_level] || TRUST_COLORS.open).label}</span>
+                          )}
+                          {p.encrypted && <span className="text-[8px] px-1 rounded" style={{ background: '#eef3f7', color: C.deepBlue }}>E2E</span>}
+                          {cachePct > 0 && (
+                            <span className="text-[8px] px-1 rounded" style={{ background: '#f3eef7', color: C.indigo }}>-{cachePct}% cache</span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="col-span-3 text-xs truncate" style={{ color: '#888' }}>{p.display_name || p.model_id}</div>
+                      <div className="col-span-2 text-right text-xs font-mono" style={{ color: C.deepBlue }}>
+                        {p.price_input > 0 ? `$${p.price_input.toFixed(2)}` : '—'}
+                      </div>
+                      <div className="col-span-2 text-right text-xs font-mono" style={{ color: p.price_cache > 0 ? C.turquoise : '#ddd' }}>
+                        {p.price_cache > 0 ? `$${p.price_cache < 0.1 ? p.price_cache.toFixed(3) : p.price_cache.toFixed(2)}` : '—'}
+                      </div>
+                      <div className="col-span-2 text-right text-sm font-semibold font-mono" style={{ color: C.gold }}>
+                        ${p.price_output.toFixed(2)}
+                      </div>
+                    </div>
+                  )
+                })}
+            </div>
+
+            {/* Note about IE */}
+            {activeRefFamily.prices.every((p: any) => p.source !== 'inference-exchange') && (
+              <div className="rounded-xl px-4 py-3 text-xs" style={{ background: '#fdf6ec', color: '#8a7d60', border: `1px solid ${C.gold}33` }}>
+                This model is not yet available on InferenceExchange. Connect a provider to offer it with E2E encryption and trust verification.
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Market depth header with model summary (IE providers) */}
+        {!activeRefFamily && (<>
         <div>
           <div className="text-[10px] uppercase tracking-wider font-medium mb-1" style={{ color: C.gold }}>Market Depth</div>
           <h2 className="text-xl font-bold" style={{ color: C.blueBlack }}>{activeModel || 'Select a model'}</h2>
@@ -900,6 +1036,9 @@ export function Exchange() {
             )}
           </div>
         )}
+
+        {/* End of IE provider section */}
+        </>)}
 
         <div className="text-xs" style={{ color: '#aaa' }}>The market is a tool, not the interface.</div>
       </div>
