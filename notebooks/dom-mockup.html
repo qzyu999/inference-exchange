@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>IE Exchange — v5 (design-doc driven)</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{background:#F5F5F1;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;color:#292F35;font-size:13px}
+  .m{font-family:'SF Mono',Menlo,Consolas,monospace}
+
+  .page{display:flex;min-height:100vh}
+
+  /* sidebar */
+  .side{width:220px;background:#292F35;padding:16px 12px;flex-shrink:0}
+  .side .logo{font-size:12px;font-weight:700;color:#C49A45;margin-bottom:18px}
+  .side .lbl{font-size:7px;text-transform:uppercase;letter-spacing:.1em;color:#555;margin:12px 0 4px 6px}
+  .side a{display:block;padding:6px 8px;border-radius:6px;font-size:11px;color:#777;text-decoration:none;margin-bottom:1px}
+  .side a:hover{background:rgba(255,255,255,.04)}
+  .side a.on{background:rgba(196,154,69,.1);color:#C49A45}
+
+  .content{flex:1;padding:20px 28px;max-width:960px}
+
+  /* ── Layer 0: Recommendation ── */
+  .rec{background:#fff;border-radius:12px;border:1px solid #eaeae8;padding:16px 20px;margin-bottom:16px;display:flex;align-items:center;gap:20px}
+  .rec .text{flex:1}
+  .rec .text .above{font-size:10px;color:#888;margin-bottom:4px}
+  .rec .text .model-name{font-size:17px;font-weight:700}
+  .rec .text .via{font-size:12px;color:#888;margin-top:2px}
+  .rec .cost{text-align:right}
+  .rec .cost .price{font-size:22px;font-weight:700;color:#087F5B}
+  .rec .cost .per{font-size:10px;color:#888}
+  .rec .quality{text-align:center;width:80px}
+  .rec .quality .bar-bg{width:60px;height:6px;background:#f0f0f0;border-radius:3px;margin:4px auto 2px}
+  .rec .quality .bar-fg{height:6px;border-radius:3px;background:#315B72}
+  .rec .quality .score{font-size:11px;font-weight:700;color:#315B72}
+  .rec .quality .label{font-size:8px;color:#aaa}
+  .rec .actions{display:flex;flex-direction:column;gap:6px}
+  .rec .actions a{display:block;padding:6px 14px;border-radius:7px;font-size:11px;font-weight:600;text-decoration:none;text-align:center}
+  .rec .actions .primary{background:#292F35;color:#fff}
+  .rec .actions .secondary{border:1px solid #ddd;color:#888}
+
+  /* model tabs */
+  .tabs{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:14px}
+  .tab{padding:4px 10px;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;border:1px solid #e5e5e5;background:#fff;color:#888}
+  .tab.on{background:#292F35;color:#fff;border-color:#292F35}
+
+  /* ── Layer 1: Comparison table ── */
+  .tbl{background:#fff;border-radius:12px;border:1px solid #eaeae8;overflow-x:auto;margin-bottom:6px}
+  .tbl table{width:100%;border-collapse:collapse;min-width:660px}
+  .tbl th{font-size:8px;text-transform:uppercase;letter-spacing:.06em;color:#aaa;padding:8px 10px;text-align:right;border-bottom:1px solid #f0f0f0;font-weight:600;position:sticky;top:0;background:#fff}
+  .tbl th:first-child{text-align:left}
+  .tbl td{padding:9px 10px;border-bottom:1px solid #fafaf8;text-align:right;font-size:12px}
+  .tbl td:first-child{text-align:left}
+  .tbl tr:hover{background:#fafaf8}
+  .tbl tr.ie{background:#fdf6ec}
+  .tbl tr.ie:hover{background:#fdf6ec}
+  .tbl tr.ie td:first-child{border-left:3px solid #C49A45}
+  .tbl tr.sep td{padding:4px 10px;font-size:8px;text-transform:uppercase;letter-spacing:.06em;color:#bbb;background:#fafaf8;border-bottom:1px solid #f0f0f0}
+  .tbl .name{font-weight:600;font-size:12px}
+  .tbl .sub{font-size:9px;color:#999}
+  .tbl .eff{color:#087F5B;font-weight:700}
+  .tbl .out{color:#C49A45;font-weight:600}
+  .tbl .ca{color:#4D9A91}
+  .tbl .dim{color:#ccc}
+  .tbl .sav{font-size:10px;color:#087F5B}
+  .tbl .qi{color:#315B72;font-size:11px}
+  .tbl .tag{font-size:8px;font-weight:600;padding:1px 5px;border-radius:4px;display:inline-block}
+  .tbl .disc{font-size:8px;color:#4A465F}
+  .foot{font-size:9px;color:#bbb;margin-bottom:14px}
+
+  /* ── Layer 2: Workload configurator ── */
+  .config{background:#fff;border-radius:12px;border:1px solid #eaeae8;margin-bottom:16px;overflow:hidden}
+  .config-toggle{padding:10px 16px;font-size:11px;color:#888;cursor:pointer;display:flex;align-items:center;justify-content:space-between}
+  .config-toggle:hover{background:#fafaf8}
+  .config-toggle .label{font-size:9px;text-transform:uppercase;letter-spacing:.06em;color:#C49A45;font-weight:600}
+  .config-body{padding:14px 16px;border-top:1px solid #f0f0f0;display:none}
+  .config.open .config-body{display:block}
+  .presets{display:flex;gap:5px;margin-bottom:12px}
+  .preset{padding:4px 10px;border-radius:6px;font-size:10px;font-weight:600;cursor:pointer;border:1px solid #e5e5e5;background:#fff;color:#888}
+  .preset.on{background:#4D9A91;color:#fff;border-color:#4D9A91}
+  .sliders{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px}
+  .sl label{display:block;font-size:9px;color:#888;margin-bottom:2px}
+  .sl .row{display:flex;align-items:center;gap:6px}
+  .sl .row .v{font-size:12px;font-weight:700;width:48px}
+  .sl input[type=range]{flex:1;accent-color:#4D9A91}
+
+  /* ── Layer 3: Market intelligence ── */
+  .intel{background:#fff;border-radius:12px;border:1px solid #eaeae8;margin-bottom:16px;overflow:hidden}
+  .intel-toggle{padding:10px 16px;font-size:11px;color:#888;cursor:pointer;display:flex;align-items:center;justify-content:space-between}
+  .intel-toggle:hover{background:#fafaf8}
+  .intel-toggle .label{font-size:9px;text-transform:uppercase;letter-spacing:.06em;color:#315B72;font-weight:600}
+  .intel-body{padding:16px;border-top:1px solid #f0f0f0;display:none}
+  .intel.open .intel-body{display:block}
+  .intel-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  @media(max-width:800px){.intel-grid{grid-template-columns:1fr}}
+  .intel-card{padding:12px;background:#fafaf8;border-radius:10px}
+  .intel-card h5{font-size:9px;text-transform:uppercase;letter-spacing:.06em;color:#888;margin-bottom:8px}
+  .qr{display:flex;align-items:center;gap:5px;padding:4px 0;border-bottom:1px solid #f0f0f0;font-size:11px}
+  .qr:last-of-type{border:0}
+  .qr .qn{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .qr .qb{width:50px;height:4px;background:#eee;border-radius:2px;overflow:hidden;flex-shrink:0}
+  .qr .qb div{height:100%;border-radius:2px}
+  .qr .qs{font-size:10px;font-weight:700;width:26px;text-align:right;flex-shrink:0}
+  .qr .qp{font-size:9px;color:#888;width:38px;text-align:right;flex-shrink:0}
+  .stat-row{display:flex;gap:16px;flex-wrap:wrap;font-size:11px;color:#888}
+  .stat-row b{color:#292F35}
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="side">
+    <div class="logo">Inference Exchange</div>
+    <div class="lbl">Use</div><a href="#">Chat</a>
+    <div class="lbl">Market</div><a href="#" class="on">Exchange</a><a href="#">Models</a><a href="#">Providers</a>
+    <div class="lbl">Understand</div><a href="#">Traces</a><a href="#">Billing</a>
+    <div class="lbl">Operate</div><a href="#">Provider Dashboard</a><a href="#">API Keys</a>
+  </div>
+
+  <div class="content">
+
+    <!-- ═══ LAYER 0: Recommendation ═══ -->
+    <div class="rec">
+      <div class="text">
+        <div class="above">Recommended for general use</div>
+        <div class="model-name">Claude Sonnet 4.6</div>
+        <div class="via">via IE: home-m2-max &middot; Hardened+ &middot; E2E encrypted</div>
+      </div>
+      <div class="quality">
+        <div class="score m">30.1</div>
+        <div class="bar-bg"><div class="bar-fg" style="width:48%"></div></div>
+        <div class="label">intelligence</div>
+      </div>
+      <div class="cost">
+        <div class="price m">~$0.008</div>
+        <div class="per">per typical message</div>
+      </div>
+      <div class="actions">
+        <a href="#" class="primary">Use this</a>
+        <a href="#" class="secondary">See alternatives</a>
+      </div>
+    </div>
+
+    <!-- Model selector -->
+    <div class="tabs">
+      <div class="tab on">Claude Sonnet 4.6</div>
+      <div class="tab">GPT-4.1 Mini</div>
+      <div class="tab">Llama 3.1 8B</div>
+      <div class="tab">DeepSeek R1</div>
+      <div class="tab">Gemini 2.5 Pro</div>
+      <div class="tab">Claude Haiku 4.5</div>
+      <div class="tab">GPT-4o Mini</div>
+    </div>
+
+    <!-- ═══ LAYER 1: Comparison table ═══ -->
+    <div class="tbl">
+      <table>
+        <thead><tr>
+          <th style="width:200px">Provider</th>
+          <th>Eff. cost*</th>
+          <th>Output</th>
+          <th>Cache disc.</th>
+          <th>Quality</th>
+          <th>vs best</th>
+        </tr></thead>
+        <tbody>
+          <!-- Same model: Claude Sonnet 4.6 -->
+          <tr class="ie">
+            <td>
+              <div class="name" style="color:#C49A45">IE: home-m2-max</div>
+              <div class="sub">
+                <span class="tag" style="background:#FDF6EC;color:#C49A45;">Hardened+</span>
+                <span class="tag" style="background:#eef3f7;color:#315B72;">E2E</span>
+                65 t/s
+              </div>
+            </td>
+            <td class="m eff">$0.0082</td>
+            <td class="m out">$15.00</td>
+            <td class="m ca">-90% <span class="disc">($0.30)</span></td>
+            <td class="m qi">30.1</td>
+            <td class="sav">—</td>
+          </tr>
+          <tr>
+            <td>
+              <div class="name">OpenRouter</div>
+              <div class="sub">Aggregated &middot; multiple backends</div>
+            </td>
+            <td class="m eff">$0.0082</td>
+            <td class="m out">$15.00</td>
+            <td class="m ca">-90% <span class="disc">($0.30)</span></td>
+            <td class="m qi">30.1</td>
+            <td class="sav">same</td>
+          </tr>
+          <tr>
+            <td>
+              <div class="name">Anthropic API</div>
+              <div class="sub">Direct &middot; cache write $3.75/Mtok</div>
+            </td>
+            <td class="m eff">$0.0082</td>
+            <td class="m out">$15.00</td>
+            <td class="m ca">-90% <span class="disc">($0.30)</span></td>
+            <td class="m qi">30.1</td>
+            <td class="sav">same</td>
+          </tr>
+
+          <!-- Alternatives -->
+          <tr class="sep"><td colspan="6">Cheaper alternatives</td></tr>
+
+          <tr>
+            <td><div class="name" style="color:#666">GPT-4.1</div><div class="sub">OpenAI &middot; 1M ctx</div></td>
+            <td class="m eff">$0.0044</td>
+            <td class="m">$8.00</td>
+            <td class="m ca">-75% <span class="disc">($0.50)</span></td>
+            <td class="m dim">—</td>
+            <td class="sav">-46%</td>
+          </tr>
+          <tr>
+            <td><div class="name" style="color:#666">Gemini 2.5 Pro</div><div class="sub">Google &middot; 1M ctx &middot; reason $10</div></td>
+            <td class="m eff">$0.0053</td>
+            <td class="m">$10.00</td>
+            <td class="m ca">-75% <span class="disc">($0.31)</span></td>
+            <td class="m qi">16.1</td>
+            <td class="sav">-35%</td>
+          </tr>
+          <tr>
+            <td><div class="name" style="color:#666">Claude Haiku 4.5</div><div class="sub">Anthropic &middot; 200k ctx</div></td>
+            <td class="m eff">$0.0027</td>
+            <td class="m">$5.00</td>
+            <td class="m ca">-90% <span class="disc">($0.10)</span></td>
+            <td class="m qi">16.9</td>
+            <td class="sav">-67%</td>
+          </tr>
+          <tr>
+            <td><div class="name" style="color:#666">DeepSeek R1</div><div class="sub">Open-weight &middot; 66k ctx</div></td>
+            <td class="m eff">$0.0012</td>
+            <td class="m">$2.19</td>
+            <td class="m ca">-75% <span class="disc">($0.14)</span></td>
+            <td class="m qi">11.4</td>
+            <td class="sav">-85%</td>
+          </tr>
+          <tr>
+            <td><div class="name" style="color:#666">GPT-4o Mini</div><div class="sub">OpenAI &middot; 128k ctx</div></td>
+            <td class="m eff">$0.0003</td>
+            <td class="m">$0.60</td>
+            <td class="m ca">-50% <span class="disc">($0.075)</span></td>
+            <td class="m dim">—</td>
+            <td class="sav">-96%</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="foot">
+      * Effective cost per request: 2,000 input / 75% cache / 400 output tokens (chatbot preset).
+      Cache disc. = cache read price discount vs input price. Quality = Artificial Analysis intelligence index.
+    </div>
+
+    <!-- ═══ LAYER 2: Workload configurator ═══ -->
+    <div class="config open" onclick="this.classList.toggle('open')">
+      <div class="config-toggle">
+        <span class="label">Customize workload</span>
+        <span style="font-size:10px">Changing this re-sorts the table above</span>
+      </div>
+      <div class="config-body" onclick="event.stopPropagation()">
+        <div class="presets">
+          <div class="preset on">Chatbot</div>
+          <div class="preset">Code</div>
+          <div class="preset">RAG</div>
+          <div class="preset">Agent</div>
+          <div class="preset">Custom</div>
+        </div>
+        <div class="sliders">
+          <div class="sl">
+            <label>Input tokens</label>
+            <div class="row"><div class="v m">2,000</div><input type="range" min="100" max="10000" value="2000"></div>
+          </div>
+          <div class="sl">
+            <label>Cache hit rate</label>
+            <div class="row"><div class="v m" style="color:#4A465F">75%</div><input type="range" min="0" max="95" value="75" style="accent-color:#4A465F"></div>
+          </div>
+          <div class="sl">
+            <label>Output tokens</label>
+            <div class="row"><div class="v m">400</div><input type="range" min="50" max="4000" value="400"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ LAYER 3: Market intelligence ═══ -->
+    <div class="intel" onclick="this.classList.toggle('open')">
+      <div class="intel-toggle">
+        <span class="label">Market intelligence</span>
+        <span style="font-size:10px">Pareto frontiers, sensitivity, full pricing</span>
+      </div>
+      <div class="intel-body" onclick="event.stopPropagation()">
+        <div class="intel-grid">
+
+          <!-- Quality vs Price -->
+          <div class="intel-card">
+            <h5>Quality vs effective cost (Pareto frontier)</h5>
+            <div class="qr">
+              <div class="qn" style="font-weight:600;color:#C49A45">Claude Sonnet 4.6</div>
+              <div class="qb"><div style="width:48%;background:#C49A45"></div></div>
+              <div class="qs m" style="color:#C49A45">30.1</div>
+              <div class="qp m">$0.0082</div>
+            </div>
+            <div class="qr">
+              <div class="qn">Claude Haiku 4.5</div>
+              <div class="qb"><div style="width:27%;background:#4D9A91"></div></div>
+              <div class="qs m">16.9</div>
+              <div class="qp m">$0.0027</div>
+            </div>
+            <div class="qr">
+              <div class="qn">Gemini 2.5 Pro</div>
+              <div class="qb"><div style="width:26%;background:#4D9A91"></div></div>
+              <div class="qs m">16.1</div>
+              <div class="qp m">$0.0053</div>
+            </div>
+            <div class="qr">
+              <div class="qn">DeepSeek R1</div>
+              <div class="qb"><div style="width:18%;background:#087F5B"></div></div>
+              <div class="qs m">11.4</div>
+              <div class="qp m">$0.0012</div>
+            </div>
+            <div style="font-size:9px;color:#aaa;margin-top:6px">
+              Only Pareto-optimal models shown (no dominated options).
+              6 models on the chatbot frontier out of 136 with scores.
+            </div>
+          </div>
+
+          <!-- Cache sensitivity -->
+          <div class="intel-card">
+            <h5>Does cache rate change the winner?</h5>
+            <div style="font-size:11px;color:#666;line-height:1.6">
+              <b>At 20% cache (RAG):</b> rankings shift — models without cache pricing
+              become relatively cheaper. Mistral Nemo wins on raw cost.<br><br>
+              <b>At 75% cache (chatbot):</b> models with 90% cache discount dominate.
+              Claude and DeepSeek benefit most.<br><br>
+              <b>At 85% cache (agent):</b> cache pricing is the dominant cost factor.
+              The effective input cost drops to ~10% of the headline price.<br><br>
+              <span style="color:#aaa">Tip: switch to RAG or Agent preset above to see
+              the table re-sort.</span>
+            </div>
+          </div>
+
+          <!-- Market stats -->
+          <div class="intel-card">
+            <h5>Market structure</h5>
+            <div class="stat-row">
+              <span><b>438</b> models with pricing</span>
+              <span><b>59</b> vendors</span>
+            </div>
+            <div class="stat-row" style="margin-top:6px">
+              <span><b>300</b> (68%) have cache read pricing</span>
+              <span><b>96</b> have cache write pricing</span>
+            </div>
+            <div class="stat-row" style="margin-top:6px">
+              <span><b>136</b> have intelligence scores</span>
+              <span><b>167</b> have coding scores</span>
+            </div>
+            <div class="stat-row" style="margin-top:6px">
+              <span>Median cache discount: <b>90%</b></span>
+              <span>Pareto frontier: <b>6-9</b> models per workload</span>
+            </div>
+          </div>
+
+          <!-- What IE shows -->
+          <div class="intel-card">
+            <h5>What this page shows that others don't</h5>
+            <div style="font-size:11px;color:#666;line-height:1.6">
+              <b style="color:#087F5B">Effective cost</b> — real per-request cost at your cache rate and token mix.<br>
+              <b style="color:#4D9A91">Cache pricing</b> — 68% of models have it, median 90% discount. OR hides it.<br>
+              <b style="color:#315B72">Quality scores</b> — AI Analysis benchmarks next to prices.<br>
+              <b style="color:#C49A45">Workload presets</b> — different task types produce different rankings.<br>
+              <b style="color:#4A465F">Cache write costs</b> — Anthropic/Google charge to write; hidden elsewhere.
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+</body>
+</html>
