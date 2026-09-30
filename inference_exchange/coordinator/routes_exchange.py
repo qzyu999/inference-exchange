@@ -581,9 +581,16 @@ async def get_reference_prices(model: str = "", source: str = ""):
             "display_name": entry.display_name,
             "price_input": entry.input_per_mtok,
             "price_output": entry.output_per_mtok,
+            "price_cache_read": entry.cache_per_mtok,
+            "price_cache_write": entry.cache_write_per_mtok,
             "context_length": entry.context_length,
             "comparison_type": "same_model" if entry.family else "alternative",
             "quantization": entry.quantization or None,
+            "intelligence_index": entry.intelligence_index,
+            "coding_index": entry.coding_index,
+            "agentic_index": entry.agentic_index,
+            "reasoning_price": entry.reasoning_per_mtok if entry.reasoning_per_mtok > 0 else None,
+            "web_search_price": entry.web_search_price if entry.web_search_price > 0 else None,
         })
 
     # Inject IE exchange prices for each family

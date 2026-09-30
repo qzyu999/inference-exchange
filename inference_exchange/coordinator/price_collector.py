@@ -73,8 +73,17 @@ class PriceEntry:
     input_per_mtok: float
     output_per_mtok: float
     cache_per_mtok: float = 0  # 0 = provider doesn't offer cache pricing
+    cache_write_per_mtok: float = 0  # write-to-cache price (Anthropic/Google)
     context_length: int = 0
     quantization: str = ""
+    # Benchmark scores (from OpenRouter's Artificial Analysis data)
+    intelligence_index: float | None = None
+    coding_index: float | None = None
+    agentic_index: float | None = None
+    # Additional pricing dimensions
+    image_per_mtok: float = 0
+    web_search_price: float = 0
+    reasoning_per_mtok: float = 0  # internal reasoning/thinking token price
     fetched_at: float = field(default_factory=time.time)
 
 
@@ -90,14 +99,18 @@ class PriceFetcher:
 
 
 class OpenRouterFetcher(PriceFetcher):
-    """Fetch live prices from OpenRouter's public API."""
+    """Fetch live prices from OpenRouter's public API.
+
+    Captures three-tier pricing (input/cache-read/output), benchmark scores
+    (Artificial Analysis intelligence/coding/agentic indices), and additional
+    pricing dimensions (image, web search, reasoning tokens).
+    """
     source = "openrouter"
     ttl = 1800  # 30 min
 
     async def fetch(self) -> list[PriceEntry]:
         entries = []
         try:
-            # Try with certs first, fall back to no-verify for broken SSL
             data = None
             for client_fn in [_make_client, _make_client_no_verify]:
                 try:
@@ -121,6 +134,20 @@ class OpenRouterFetcher(PriceFetcher):
                 if prompt_price <= 0 and completion_price <= 0:
                     continue
 
+                # Three-tier: input, cache read, output
+                cache_read = float(pricing.get("input_cache_read", "0") or "0")
+                cache_write = float(pricing.get("input_cache_write", "0") or "0")
+                image_price = float(pricing.get("image", "0") or "0")
+                web_search = float(pricing.get("web_search", "0") or "0")
+                reasoning = float(pricing.get("internal_reasoning", "0") or "0")
+
+                # Benchmark scores
+                benchmarks = m.get("benchmarks", {})
+                aa = benchmarks.get("artificial_analysis", {}) if benchmarks else {}
+                intel_idx = aa.get("intelligence_index") if aa else None
+                coding_idx = aa.get("coding_index") if aa else None
+                agentic_idx = aa.get("agentic_index") if aa else None
+
                 info = parse_model_info(model_id)
                 entries.append(PriceEntry(
                     source=self.source,
@@ -130,10 +157,17 @@ class OpenRouterFetcher(PriceFetcher):
                     family_key=info["canonical_id"],
                     input_per_mtok=round(prompt_price * 1_000_000, 4),
                     output_per_mtok=round(completion_price * 1_000_000, 4),
+                    cache_per_mtok=round(cache_read * 1_000_000, 4),
+                    cache_write_per_mtok=round(cache_write * 1_000_000, 4),
                     context_length=m.get("context_length", 0),
+                    intelligence_index=intel_idx,
+                    coding_index=coding_idx,
+                    agentic_index=agentic_idx,
+                    image_per_mtok=round(image_price * 1_000_000, 4),
+                    web_search_price=web_search,
+                    reasoning_per_mtok=round(reasoning * 1_000_000, 4),
                 ))
-
-            logger.info(f"OpenRouter: fetched {len(entries)} models")
+            logger.info(f"OpenRouter: fetched {len(entries)} models with three-tier pricing + benchmarks")
         except Exception as e:
             logger.warning(f"OpenRouter fetch failed: {e}")
         return entries
@@ -334,12 +368,8 @@ class PriceCollector:
 
     def __init__(self, store=None):
         self._fetchers: list[PriceFetcher] = [
-            # OpenRouter and Together now require auth for their public APIs.
-            # Static prices from DirectAPIFetcher cover the same providers
-            # with manually verified pricing. Re-enable live fetchers when
-            # we add API key support for these sources.
-            # OpenRouterFetcher(),
-            # TogetherFetcher(),
+            OpenRouterFetcher(),
+            # TogetherFetcher(),  # requires auth
             DirectAPIFetcher(),
         ]
         self._cache: dict[tuple[str, str], PriceEntry] = {}  # (source, model_id) → PriceEntry
