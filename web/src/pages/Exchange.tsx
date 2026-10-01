@@ -131,8 +131,15 @@ function PriceChart({ offerRows, modelName }: { offerRows: OfferRow[]; modelName
     const ctx = canvas.getContext('2d')
     if (!ctx) return
 
-    const W = canvas.width, H = canvas.height
-    const PAD = { t: 10, r: 44, b: 18, l: 4 }
+    // DPR-aware sizing to prevent text distortion
+    const dpr = window.devicePixelRatio || 1
+    const rect = canvas.getBoundingClientRect()
+    canvas.width = rect.width * dpr
+    canvas.height = rect.height * dpr
+    ctx.scale(dpr, dpr)
+
+    const W = rect.width, H = rect.height
+    const PAD = { t: 8, r: 40, b: 14, l: 4 }
     const pW = W - PAD.l - PAD.r, pH = H - PAD.t - PAD.b
 
     const yC = (v: number) => PAD.t + pH * (1 - v / yMax)
@@ -150,10 +157,10 @@ function PriceChart({ offerRows, modelName }: { offerRows: OfferRow[]; modelName
 
     // Y labels
     ctx.fillStyle = '#999'
-    ctx.font = '16px SF Mono,Menlo,monospace'
+    ctx.font = '9px SF Mono,Menlo,monospace'
     ctx.textAlign = 'left'
     for (const f of [0, 0.25, 0.5, 0.75, 1]) {
-      ctx.fillText('$' + (yMax * f).toFixed(2), W - PAD.r + 4, yC(yMax * f) + 4)
+      ctx.fillText('$' + (yMax * f).toFixed(2), W - PAD.r + 4, yC(yMax * f) + 3)
     }
 
     // Lines
@@ -188,11 +195,11 @@ function PriceChart({ offerRows, modelName }: { offerRows: OfferRow[]; modelName
     const canvas = canvasRef.current
     if (!canvas) return
     const rect = canvas.getBoundingClientRect()
-    const W = canvas.width, H = canvas.height
-    const PAD = { t: 10, r: 44, b: 18, l: 4 }
+    const W = rect.width, H = rect.height
+    const PAD = { t: 8, r: 40, b: 14, l: 4 }
     const pW = W - PAD.l - PAD.r, pH = H - PAD.t - PAD.b
-    const mx = (e.clientX - rect.left) * (W / rect.width)
-    const my = (e.clientY - rect.top) * (H / rect.height)
+    const mx = e.clientX - rect.left
+    const my = e.clientY - rect.top
     const day = Math.round((mx - PAD.l) / pW * 29)
     if (day < 0 || day > 29) { setTooltip(null); return }
 
@@ -206,7 +213,7 @@ function PriceChart({ offerRows, modelName }: { offerRows: OfferRow[]; modelName
       if (d < bestDist) { bestDist = d; best = { p, v: p.prices[day]! } }
     })
 
-    if (best && bestDist < 30 * (H / rect.height)) {
+    if (best && bestDist < 25) {
       const px = e.clientX - rect.left
       const py = e.clientY - rect.top
       const da = 29 - day
@@ -250,8 +257,8 @@ function PriceChart({ offerRows, modelName }: { offerRows: OfferRow[]; modelName
 
       {providers.length > 0 ? (
         <div ref={containerRef} style={{ position: 'relative' }}>
-          <canvas ref={canvasRef} width={540} height={280}
-            style={{ width: '100%', height: 140, borderRadius: 8, background: '#fafaf8', cursor: 'crosshair' }}
+          <canvas ref={canvasRef}
+            style={{ width: '100%', height: 160, borderRadius: 8, background: '#fafaf8', cursor: 'crosshair', display: 'block' }}
             onMouseMove={handleMove}
             onMouseLeave={() => setTooltip(null)}
           />
@@ -532,7 +539,7 @@ export function Exchange() {
         if (!v || v <= 0) continue
         const k = v.toFixed(3)
         if (!levels[k]) levels[k] = { price: v, providers: [] }
-        levels[k].providers.push({ name: r.isIE ? 'IE' : r.name, isIE: r.isIE })
+        levels[k].providers.push({ name: r.isIE ? 'Inference Exchange' : r.name, isIE: r.isIE })
       }
       return Object.values(levels).sort((a, b) => b.price - a.price) // expensive at top
     }
