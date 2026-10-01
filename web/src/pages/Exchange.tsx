@@ -1,7 +1,6 @@
 import useSWR from 'swr'
 import { api } from '../lib/api'
 import { useState, useMemo, useRef, useEffect } from 'react'
-import { Link } from 'react-router-dom'
 import { C, TRUST_COLORS } from '../lib/theme'
 
 // ─── Constants ───────────────────────────────────────────────
@@ -204,23 +203,24 @@ function PriceChart({ offerRows, modelName }: { offerRows: OfferRow[]; modelName
     if (day < 0 || day > 29) { setTooltip(null); return }
 
     const yC = (v: number) => PAD.t + pH * (1 - v / yMax)
-    let best: { p: typeof providers[0]; v: number } | null = null
+    let bestIdx = -1
     let bestDist = Infinity
     providers.forEach((p, pi) => {
       if (hiddenIdx.has(pi) || p.prices[day] === null) return
-      const py = yC(p.prices[day]!)
-      const d = Math.abs(my - py)
-      if (d < bestDist) { bestDist = d; best = { p, v: p.prices[day]! } }
+      const d = Math.abs(my - yC(p.prices[day] as number))
+      if (d < bestDist) { bestDist = d; bestIdx = pi }
     })
 
-    if (best && bestDist < 25) {
+    if (bestIdx >= 0 && bestDist < 25) {
+      const bp = providers[bestIdx]
+      const bv = bp.prices[day] as number
       const px = e.clientX - rect.left
       const py = e.clientY - rect.top
       const da = 29 - day
       setTooltip({
         x: px + 10, y: py - 24,
-        text: `${best.p.name}  $${best.v.toFixed(2)}/Mtok ${TIER_META[tier].label.toLowerCase()}${da > 0 ? ` · ${da}d ago` : ' · today'}`,
-        color: best.p.color,
+        text: `${bp.name}  $${bv.toFixed(2)}/Mtok ${TIER_META[tier].label.toLowerCase()}${da > 0 ? ` · ${da}d ago` : ' · today'}`,
+        color: bp.color,
       })
     } else {
       setTooltip(null)
@@ -310,11 +310,9 @@ export function Exchange() {
   const { data: stats } = useSWR('stats', api.stats, { refreshInterval: 5000 })
   const { data: traceData } = useSWR('traces', api.traces, { refreshInterval: 5000 })
   const { data: refData } = useSWR('refPrices', () => api.referencePrices(), { refreshInterval: 30000 })
-  const { data: repData } = useSWR('reputation', api.reputation, { refreshInterval: 10000 })
 
   const models = (marketData?.models || []) as MarketModel[]
   const traces = traceData?.traces || []
-  const repMap = new Map((repData?.reputation || []).map((r: any) => [r.provider_id, r]))
 
   const refFamilies: Array<{ family_key: string; display_name: string; prices: any[]; provider_count: number }> =
     (refData?.models || []).filter((f: any) => f.prices?.length > 0)
@@ -733,7 +731,7 @@ export function Exchange() {
       <div style={{ display: 'flex', gap: 4, marginBottom: 16, flexWrap: 'wrap' }}>
         {activeUnified?.open && <CapBadge bg="#eef7f0" color={C.green}>open-weight</CapBadge>}
         {!activeUnified?.open && activeUnified && <CapBadge bg="#f3eef7" color={C.indigo}>proprietary</CapBadge>}
-        {caps?.context_length > 0 && <CapBadge bg="#eef7f0" color={C.green}>{formatCtx(caps.context_length)} ctx</CapBadge>}
+        {caps && caps.context_length > 0 && <CapBadge bg="#eef7f0" color={C.green}>{formatCtx(caps.context_length)} ctx</CapBadge>}
         {caps?.supports_tool_calling && <CapBadge bg="#eef7f0" color={C.green}>tools</CapBadge>}
         {caps?.supports_vision && <CapBadge bg="#f3eef7" color={C.indigo}>vision</CapBadge>}
         {activeUnified?.codingIndex != null && (
@@ -811,6 +809,14 @@ export function Exchange() {
               <div style={{ fontSize: 8, color: '#aaa', marginTop: 8 }}>
                 Cheapest at bottom (best ask). Bars = relative supply at each price level.
               </div>
+              {offerRows.length > 0 && (
+                <div style={{ fontSize: 8, color: '#999', marginTop: 6, paddingTop: 6, borderTop: '1px solid #f0f0f0' }}>
+                  <b style={{ color: '#666' }}>Abbreviations: </b>
+                  {[...new Set(offerRows.map(r => r.name))]
+                    .map(n => `${providerAbbr(n)} = ${n}`)
+                    .join(' · ')}
+                </div>
+              )}
             </div>
 
             {/* Interactive price chart */}
@@ -833,8 +839,11 @@ export function Exchange() {
                   <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
                     <div style={{ width: 4, height: 4, borderRadius: '50%', background: ok ? C.green : C.red, flexShrink: 0 }} />
                     <div style={{ fontFamily: 'SF Mono,Menlo,Consolas,monospace', color: '#bbb', width: 52, flexShrink: 0 }}>{time}</div>
-                    <div style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: '#555', fontWeight: 500 }}>
-                      {t.selected_provider || t.model}
+                    <div style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 500 }}>
+                      <span style={{ color: C.gold }}>Inference Exchange</span>
+                      {t.selected_provider && (
+                        <span style={{ color: '#aaa', fontWeight: 400 }}> · {t.selected_provider}</span>
+                      )}
                     </div>
                   </div>
                   {/* Row 2: in / cache / out rates ($/Mtok) */}
@@ -982,7 +991,7 @@ function DOMColumn({ label, unit, color, levels, emptyMsg, offerRows }: {
             <div style={{ flex: 1, height: 14, background: '#fafaf8', borderRadius: 3, overflow: 'hidden' }}>
               <div style={{ height: '100%', width: '100%', background: C.green, borderRadius: 3 }} />
             </div>
-            <span style={{ fontSize: 8, color: C.gold, fontWeight: 600 }}>IE</span>
+            <span title="Inference Exchange" style={{ fontSize: 8, color: C.gold, fontWeight: 600 }}>1 IE</span>
           </div>
         )}
       </div>
@@ -1002,7 +1011,8 @@ function DOMColumn({ label, unit, color, levels, emptyMsg, offerRows }: {
         const barW = Math.max(20, (level.providers.length / maxProviders) * 100)
         const priceColor = isBest ? C.green : (i === 0 ? C.red : '#888')
         const hasIE = level.providers.some(p => p.isIE)
-        const names = level.providers.map(p => p.name).join(', ')
+        const names = level.providers.map(p => providerAbbr(p.name)).join(', ')
+        const fullNames = level.providers.map(p => p.name).join(', ')
         return (
           <div key={level.price} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '3px 0' }}>
             <span style={{
@@ -1017,7 +1027,7 @@ function DOMColumn({ label, unit, color, levels, emptyMsg, offerRows }: {
                 background: isBest ? C.green : (hasIE ? C.gold : color),
               }} />
             </div>
-            <span style={{
+            <span title={fullNames} style={{
               fontSize: 8, color: hasIE ? C.gold : '#888', width: 80, flexShrink: 0,
               overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
             }}>
@@ -1034,6 +1044,16 @@ function DOMColumn({ label, unit, color, levels, emptyMsg, offerRows }: {
 }
 
 // ─── Utility ─────────────────────────────────────────────────
+
+const PROVIDER_ABBR: Record<string, string> = {
+  'Inference Exchange': 'IE', OpenRouter: 'OR', DeepInfra: 'DI', 'Fireworks AI': 'FW',
+  'Together AI': 'TG', Groq: 'GQ', OpenAI: 'OAI', Anthropic: 'ANT', Google: 'GG',
+  DeepSeek: 'DS', NousResearch: 'NR', Mistral: 'MI', 'Alibaba Cloud': 'AL', Microsoft: 'MS',
+}
+
+function providerAbbr(name: string): string {
+  return PROVIDER_ABBR[name] || name.replace(/[^A-Za-z]/g, '').slice(0, 2).toUpperCase()
+}
 
 function guessFamily(name: string): string {
   const lower = name.toLowerCase()
