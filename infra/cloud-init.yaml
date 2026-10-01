@@ -1,0 +1,13 @@
+#cloud-config
+# Installs Docker and checks out the repo. Secrets are NOT provisioned here:
+# copy deploy/.env onto the host out-of-band, then run `docker compose up` (see infra/README.md).
+package_update: true
+packages:
+  - ca-certificates
+  - curl
+  - git
+runcmd:
+  - curl -fsSL https://get.docker.com | sh
+  - git clone ${repo_url} /opt/inference-exchange
+  - git -C /opt/inference-exchange checkout ${git_ref}
+  - ufw allow 22/tcp && ufw allow 80/tcp && ufw allow 443 && ufw --force enable

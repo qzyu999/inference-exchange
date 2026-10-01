@@ -26,6 +26,13 @@ Thumbs.db
 # Environment / secrets
 .env
 .env.local
+deploy/.env
+
+# OpenTofu / Terraform
+infra/.terraform/
+infra/*.tfstate*
+infra/backend.hcl
+infra/*.tfvars
 
 # Models (large files)
 models/

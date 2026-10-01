@@ -1,0 +1,35 @@
+{
+	email {$ACME_EMAIL}
+}
+
+{$IE_DOMAIN} {
+	encode zstd gzip
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+		X-Frame-Options DENY
+		-Server
+	}
+
+	# Metrics are scraped on the internal network only
+	@metrics path /metrics
+	respond @metrics 404
+
+	# API, SSE, and WebSockets go to the coordinator
+	@api path /v1/* /ws/* /health /readiness
+	handle @api {
+		reverse_proxy coordinator:8000 {
+			# SSE: stream tokens as they arrive
+			flush_interval -1
+		}
+	}
+
+	# Everything else is the React SPA
+	handle {
+		root * /srv/web
+		try_files {path} /index.html
+		file_server
+	}
+}

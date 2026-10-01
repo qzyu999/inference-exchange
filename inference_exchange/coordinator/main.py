@@ -25,6 +25,8 @@ from .dependencies import set_auth, set_billing, set_event_bus, set_hub, set_rep
 from .audit_log import AuditLog
 from .capability_resolver import ModelCapabilityCache
 from .price_collector import PriceCollector
+from .metrics import metrics_middleware
+from .metrics import router as metrics_router
 from .oauth_github import router as github_router
 from .routes_admin import router as admin_router
 from .routes_auth import router as auth_router
@@ -262,8 +264,11 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
 
-    # CORS: allow same-origin + configured origins
+    # CORS + CSRF origin allowlist. IE_PUBLIC_URL is the deployed origin; IE_ALLOWED_ORIGINS adds extras (comma-separated).
     ALLOWED_ORIGINS = {"http://localhost:3000", "http://localhost:8000"}
+    for origin in [os.environ.get("IE_PUBLIC_URL", "")] + os.environ.get("IE_ALLOWED_ORIGINS", "").split(","):
+        if origin.strip():
+            ALLOWED_ORIGINS.add(origin.strip().rstrip("/"))
     app.add_middleware(
         CORSMiddleware,
         allow_origins=list(ALLOWED_ORIGINS),
@@ -292,6 +297,8 @@ def create_app() -> FastAPI:
             return await call_next(request)
 
     app.add_middleware(CSRFMiddleware)
+    app.middleware("http")(metrics_middleware)
+    app.include_router(metrics_router)
 
     # Mount consumer API routers
     app.include_router(auth_router)
