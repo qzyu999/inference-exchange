@@ -84,6 +84,218 @@ function fmtPrice(p: number): string {
   return `$${p.toFixed(2)}`
 }
 
+// ─── Interactive Price Chart ─────────────────────────────────
+
+const CHART_COLORS = [C.gold, C.turquoise, C.deepBlue, C.orange, C.red, '#888', C.indigo, C.green, C.maroon]
+
+type PriceTier = 'output' | 'input' | 'cache'
+const TIER_META: Record<PriceTier, { label: string; color: string; key: keyof OfferRow }> = {
+  output: { label: 'Output', color: C.gold, key: 'priceOutput' },
+  input: { label: 'Input', color: C.deepBlue, key: 'priceInput' },
+  cache: { label: 'Cache', color: C.turquoise, key: 'priceCache' },
+}
+
+function PriceChart({ offerRows, modelName }: { offerRows: OfferRow[]; modelName: string }) {
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
+  const [tier, setTier] = useState<PriceTier>('output')
+  const [hiddenIdx, setHiddenIdx] = useState<Set<number>>(new Set())
+  const [tooltip, setTooltip] = useState<{ x: number; y: number; text: string; color: string } | null>(null)
+
+  const tierKey = TIER_META[tier].key
+  const providers = useMemo(() =>
+    offerRows.filter(r => {
+      const v = r[tierKey] as number
+      return v > 0
+    }).map((r, i) => ({
+      name: r.name,
+      price: r[tierKey] as number,
+      color: r.isIE ? C.gold : CHART_COLORS[i % CHART_COLORS.length],
+      isIE: r.isIE,
+      // Flat line for 30 days (current price). IE starts at day 15.
+      prices: r.isIE
+        ? [...Array(15).fill(null), ...Array(15).fill(r[tierKey] as number)]
+        : Array(30).fill(r[tierKey] as number),
+    })),
+  [offerRows, tierKey])
+
+  const yMax = useMemo(() => {
+    const vals = providers.map(p => p.price)
+    return vals.length ? Math.max(...vals) * 1.15 : 1
+  }, [providers])
+
+  // Draw
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas || providers.length === 0) return
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+
+    const W = canvas.width, H = canvas.height
+    const PAD = { t: 10, r: 44, b: 18, l: 4 }
+    const pW = W - PAD.l - PAD.r, pH = H - PAD.t - PAD.b
+
+    const yC = (v: number) => PAD.t + pH * (1 - v / yMax)
+    const xC = (i: number) => PAD.l + (i / 29) * pW
+
+    ctx.clearRect(0, 0, W, H)
+
+    // Grid
+    ctx.strokeStyle = '#e0e0e0'
+    ctx.lineWidth = 0.5
+    for (const f of [0.25, 0.5, 0.75, 1]) {
+      const y = yC(yMax * f)
+      ctx.beginPath(); ctx.moveTo(PAD.l, y); ctx.lineTo(W - PAD.r, y); ctx.stroke()
+    }
+
+    // Y labels
+    ctx.fillStyle = '#999'
+    ctx.font = '16px SF Mono,Menlo,monospace'
+    ctx.textAlign = 'left'
+    for (const f of [0, 0.25, 0.5, 0.75, 1]) {
+      ctx.fillText('$' + (yMax * f).toFixed(2), W - PAD.r + 4, yC(yMax * f) + 4)
+    }
+
+    // Lines
+    providers.forEach((p, pi) => {
+      if (hiddenIdx.has(pi)) return
+      ctx.strokeStyle = p.color
+      ctx.lineWidth = p.isIE ? 3 : 1.5
+      ctx.setLineDash(p.isIE ? [] : [6, 4])
+      ctx.beginPath()
+      let started = false
+      p.prices.forEach((v: number | null, i: number) => {
+        if (v === null) return
+        const x = xC(i), y = yC(v)
+        if (!started) { ctx.moveTo(x, y); started = true } else ctx.lineTo(x, y)
+      })
+      ctx.stroke()
+      ctx.setLineDash([])
+
+      // Entry dot for IE
+      if (p.prices[0] === null) {
+        const fi = p.prices.findIndex((v: number | null) => v !== null)
+        if (fi >= 0) {
+          ctx.fillStyle = p.color
+          ctx.beginPath(); ctx.arc(xC(fi), yC(p.prices[fi]!), 4, 0, Math.PI * 2); ctx.fill()
+        }
+      }
+    })
+  }, [providers, yMax, hiddenIdx, tier])
+
+  // Hover
+  const handleMove = (e: React.MouseEvent) => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const rect = canvas.getBoundingClientRect()
+    const W = canvas.width, H = canvas.height
+    const PAD = { t: 10, r: 44, b: 18, l: 4 }
+    const pW = W - PAD.l - PAD.r, pH = H - PAD.t - PAD.b
+    const mx = (e.clientX - rect.left) * (W / rect.width)
+    const my = (e.clientY - rect.top) * (H / rect.height)
+    const day = Math.round((mx - PAD.l) / pW * 29)
+    if (day < 0 || day > 29) { setTooltip(null); return }
+
+    const yC = (v: number) => PAD.t + pH * (1 - v / yMax)
+    let best: { p: typeof providers[0]; v: number } | null = null
+    let bestDist = Infinity
+    providers.forEach((p, pi) => {
+      if (hiddenIdx.has(pi) || p.prices[day] === null) return
+      const py = yC(p.prices[day]!)
+      const d = Math.abs(my - py)
+      if (d < bestDist) { bestDist = d; best = { p, v: p.prices[day]! } }
+    })
+
+    if (best && bestDist < 30 * (H / rect.height)) {
+      const px = e.clientX - rect.left
+      const py = e.clientY - rect.top
+      const da = 29 - day
+      setTooltip({
+        x: px + 10, y: py - 24,
+        text: `${best.p.name}  $${best.v.toFixed(2)}/Mtok ${TIER_META[tier].label.toLowerCase()}${da > 0 ? ` · ${da}d ago` : ' · today'}`,
+        color: best.p.color,
+      })
+    } else {
+      setTooltip(null)
+    }
+  }
+
+  const toggleProvider = (idx: number) => {
+    setHiddenIdx(prev => {
+      const next = new Set(prev)
+      next.has(idx) ? next.delete(idx) : next.add(idx)
+      return next
+    })
+  }
+
+  return (
+    <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #eaeae8', padding: 14, paddingBottom: 8, overflow: 'hidden' }}>
+      <h4 style={{ fontSize: 8, textTransform: 'uppercase', letterSpacing: '.06em', color: '#888', marginBottom: 8, fontWeight: 600 }}>
+        {modelName} — provider prices (30d)
+      </h4>
+
+      {/* Tier tabs */}
+      <div style={{ display: 'flex', gap: 4, marginBottom: 8 }}>
+        {(['output', 'input', 'cache'] as PriceTier[]).map(t => (
+          <span key={t} onClick={() => setTier(t)} style={{
+            fontSize: 9, fontWeight: 600, padding: '3px 8px', borderRadius: 5, cursor: 'pointer',
+            background: tier === t ? TIER_META[t].color : '#f5f5f3',
+            color: tier === t ? '#fff' : '#888',
+            border: `1px solid ${tier === t ? TIER_META[t].color : '#e5e5e5'}`,
+          }}>
+            {TIER_META[t].label}
+          </span>
+        ))}
+      </div>
+
+      {providers.length > 0 ? (
+        <div ref={containerRef} style={{ position: 'relative' }}>
+          <canvas ref={canvasRef} width={540} height={280}
+            style={{ width: '100%', height: 140, borderRadius: 8, background: '#fafaf8', cursor: 'crosshair' }}
+            onMouseMove={handleMove}
+            onMouseLeave={() => setTooltip(null)}
+          />
+          {tooltip && (
+            <div style={{
+              position: 'absolute', left: tooltip.x, top: tooltip.y,
+              background: '#292F35', color: '#fff', fontSize: 10, padding: '4px 8px',
+              borderRadius: 5, whiteSpace: 'nowrap', pointerEvents: 'none', zIndex: 10,
+              borderLeft: `3px solid ${tooltip.color}`,
+            }}>
+              {tooltip.text}
+            </div>
+          )}
+
+          {/* Legend */}
+          <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', marginTop: 6 }}>
+            {providers.map((p, i) => (
+              <span key={i} onClick={() => toggleProvider(i)} style={{
+                fontSize: 9, fontWeight: 600, padding: '2px 6px', borderRadius: 4,
+                cursor: 'pointer', userSelect: 'none',
+                border: `1px solid ${p.color}`, color: p.color, background: p.color + '11',
+                opacity: hiddenIdx.has(i) ? 0.3 : 1, transition: 'opacity .15s',
+              }}>
+                {p.name}
+              </span>
+            ))}
+          </div>
+
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 8, color: '#aaa', marginTop: 2 }}>
+            <span>30d ago</span><span>Today</span>
+          </div>
+          <div style={{ fontSize: 8, color: '#aaa', marginTop: 4 }}>
+            Hover for details. Click legend to toggle. Historical data fills in as the coordinator collects snapshots.
+          </div>
+        </div>
+      ) : (
+        <div style={{ fontSize: 11, color: '#ccc', padding: '12px 0', textAlign: 'center' }}>
+          No {TIER_META[tier].label.toLowerCase()} pricing data for this tier
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ─── Main ────────────────────────────────────────────────────
 
 export function Exchange() {
@@ -592,67 +804,8 @@ export function Exchange() {
             </div>
           </div>
 
-          {/* Card 2: Price chart (placeholder — needs historical data from PriceCollector) */}
-          <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #eaeae8', padding: 14, overflow: 'hidden' }}>
-            <h4 style={{ fontSize: 8, textTransform: 'uppercase', letterSpacing: '.06em', color: '#888', marginBottom: 10, fontWeight: 600 }}>
-              {activeUnified?.name || 'Model'} — provider prices
-            </h4>
-            {offerRows.length > 0 ? (
-              <div style={{ position: 'relative' }}>
-                <svg viewBox="0 0 280 120" style={{ width: '100%', height: 120, background: '#fafaf8', borderRadius: 8 }}>
-                  {/* Grid lines */}
-                  <line x1="0" y1="30" x2="280" y2="30" stroke="#e5e5e5" strokeWidth="0.5" />
-                  <line x1="0" y1="60" x2="280" y2="60" stroke="#e5e5e5" strokeWidth="0.5" />
-                  <line x1="0" y1="90" x2="280" y2="90" stroke="#e5e5e5" strokeWidth="0.5" />
-
-                  {/* Price lines for each provider — current snapshot as flat lines */}
-                  {(() => {
-                    const prices = offerRows.filter(r => r.priceOutput > 0).map(r => r.priceOutput)
-                    if (prices.length === 0) return null
-                    const pMax = Math.max(...prices) * 1.1
-                    const pMin = 0
-                    const y = (p: number) => 10 + (1 - (p - pMin) / (pMax - pMin)) * 100
-                    const colors = [C.gold, C.turquoise, C.deepBlue, C.orange, C.red, '#888', C.indigo]
-                    return offerRows.filter(r => r.priceOutput > 0).map((r, i) => {
-                      const yPos = y(r.priceOutput)
-                      const col = r.isIE ? C.gold : colors[i % colors.length]
-                      return (
-                        <g key={i}>
-                          <line x1={r.isIE ? 140 : 0} y1={yPos} x2="280" y2={yPos}
-                            stroke={col} strokeWidth={r.isIE ? 2.5 : 1.5}
-                            strokeDasharray={r.isIE ? '' : '4'} />
-                          {r.isIE && <circle cx="140" cy={yPos} r="3" fill={col} />}
-                          <text x="3" y={yPos - 3} fontSize="7" fill={col}>
-                            {r.name.substring(0, 16)} ${r.priceOutput.toFixed(2)}
-                          </text>
-                        </g>
-                      )
-                    })
-                  })()}
-
-                  {/* Y axis labels */}
-                  {(() => {
-                    const prices = offerRows.filter(r => r.priceOutput > 0).map(r => r.priceOutput)
-                    if (prices.length === 0) return null
-                    const pMax = Math.max(...prices) * 1.1
-                    return [0, 0.25, 0.5, 0.75, 1].map(frac => {
-                      const val = pMax * (1 - frac)
-                      return <text key={frac} x="274" y={10 + frac * 100 + 3} fontSize="6" fill="#aaa" textAnchor="end">${val.toFixed(2)}</text>
-                    })
-                  })()}
-                </svg>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 8, color: '#aaa', marginTop: 3, padding: '0 2px' }}>
-                  <span>30d ago</span>
-                  <span>Today</span>
-                </div>
-                <div style={{ fontSize: 8, color: '#aaa', marginTop: 4 }}>
-                  Current prices shown as lines. Historical trends require the coordinator to collect snapshots over time.
-                </div>
-              </div>
-            ) : (
-              <div style={{ fontSize: 11, color: '#ccc', padding: '12px 0', textAlign: 'center' }}>Select a model to see pricing</div>
-            )}
-          </div>
+          {/* Card 2: Interactive price chart with tier tabs */}
+          <PriceChart offerRows={offerRows} modelName={activeUnified?.name || 'Model'} />
 
           {/* Card 3: Recent fills */}
           <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #eaeae8', padding: 14, overflow: 'hidden' }}>
