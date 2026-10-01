@@ -10,7 +10,7 @@ const PROVIDER_NAMES: Record<string, string> = {
   openai: 'OpenAI', anthropic: 'Anthropic', google: 'Google', deepseek: 'DeepSeek',
   deepinfra: 'DeepInfra', groq: 'Groq', fireworks: 'Fireworks AI',
   together: 'Together AI', openrouter: 'OpenRouter', alibaba: 'Alibaba Cloud',
-  'inference-exchange': 'IE', nousresearch: 'NousResearch', mistral: 'Mistral',
+  'inference-exchange': 'Inference Exchange', nousresearch: 'NousResearch', mistral: 'Mistral',
   'z.ai': 'Z.ai', microsoft: 'Microsoft',
 }
 function providerName(s: string): string {
