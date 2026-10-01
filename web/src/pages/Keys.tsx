@@ -28,6 +28,12 @@ export function Keys() {
     }
   }
 
+  async function revokeKey(keyId: string, name: string) {
+    if (!window.confirm(`Revoke "${name}"? Apps using it will stop working.`)) return
+    await api.revokeKey(keyId)
+    mutate()
+  }
+
   function copyKey(key: string) {
     navigator.clipboard.writeText(key)
     setCopied(true)
@@ -147,11 +153,21 @@ export function Keys() {
                       {k.requests_made.toLocaleString()} req
                     </div>
                   </div>
-                  <div className="text-xs" style={{ color: '#bbb' }}>
-                    {k.last_used_at
-                      ? new Date(k.last_used_at * 1000).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
-                      : 'never'
-                    }
+                  <div className="flex items-center gap-3">
+                    <div className="text-xs" style={{ color: '#bbb' }}>
+                      {k.last_used_at
+                        ? new Date(k.last_used_at * 1000).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+                        : 'never'
+                      }
+                    </div>
+                    <button
+                      onClick={() => revokeKey(k.key_id, k.name)}
+                      className="text-xs font-medium"
+                      style={{ color: C.red }}
+                      aria-label={`Revoke key ${k.name}`}
+                    >
+                      Revoke
+                    </button>
                   </div>
                 </div>
               ))}

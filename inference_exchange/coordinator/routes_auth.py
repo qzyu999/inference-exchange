@@ -90,15 +90,22 @@ def verify_jwt(token: str) -> dict | None:
 def resolve_user_from_request(request: Request) -> dict | None:
     """Extract user from JWT cookie or Authorization header."""
     # Check cookie first (web console)
-    token = request.cookies.get("ie_session")
+    token = request.cookies.get(SESSION_COOKIE)
     if not token:
         # Check Authorization header (Bearer <jwt>)
         auth = request.headers.get("authorization", "")
         if auth.lower().startswith("bearer ") and not auth[7:].startswith("sk-ie-"):
             token = auth[7:]
-    if token:
-        return verify_jwt(token)
-    return None
+    if not token:
+        return None
+    payload = verify_jwt(token)
+    if not payload:
+        return None
+    # Reject sessions issued before the last logout / revocation
+    current = get_store().get_session_version(payload.get("user_id", ""))
+    if current is None or payload.get("sv", 0) != current:
+        return None
+    return payload
 
 
 def resolve_consumer_id(request: Request) -> str:
@@ -117,6 +124,18 @@ def is_admin_request(request: Request) -> bool:
     return not is_production() and not get_store().has_users()
 
 
+def anonymous_inference_blocked(consumer_id: str) -> bool:
+    """In prod, the shared anonymous account cannot run inference."""
+    return is_production() and consumer_id == DEFAULT_CONSUMER_ID
+
+
+def sign_in_required_response() -> JSONResponse:
+    return JSONResponse(
+        {"error": {"message": "Sign in or use an API key to run inference.", "type": "authentication_required"}},
+        status_code=401,
+    )
+
+
 def admin_required_response() -> JSONResponse:
     return JSONResponse({"error": "Admin access required"}, status_code=403)
 
@@ -125,13 +144,35 @@ def _role_for(email: str, stored_role: str = "consumer") -> str:
     return "admin" if email.lower().strip() in admin_emails() else stored_role
 
 
+SESSION_COOKIE = "ie_session"
+SESSION_TTL_SECONDS = 86400
+
+
 def _session_token(user: dict) -> str:
     return create_jwt({
         "user_id": user["user_id"],
         "email": user["email"],
         "name": user["name"],
         "role": _role_for(user["email"], user.get("role", "consumer")),
+        "sv": user.get("session_version", 0),
     })
+
+
+def _set_session(response, user: dict) -> None:
+    response.set_cookie(
+        SESSION_COOKIE, _session_token(user),
+        httponly=True, samesite="lax", secure=is_production(), max_age=SESSION_TTL_SECONDS,
+    )
+
+
+def password_auth_enabled() -> bool:
+    """Email/password auth: on in dev, off in prod unless IE_PASSWORD_AUTH=1."""
+    default = "0" if is_production() else "1"
+    return _os.environ.get("IE_PASSWORD_AUTH", default) == "1"
+
+
+def _password_auth_disabled() -> JSONResponse:
+    return JSONResponse({"error": "Password sign-in is disabled. Use GitHub."}, status_code=403)
 
 
 # --- Signup / Login ---
@@ -150,6 +191,8 @@ class LoginRequest(BaseModel):
 @router.post("/v1/auth/signup")
 async def signup(req: SignupRequest, request: Request):
     """Create a new user account with email + password."""
+    if not password_auth_enabled():
+        return _password_auth_disabled()
     if not _check_auth_rate(request.client.host if request.client else "unknown"):
         return JSONResponse({"error": "Too many attempts. Try again in a few minutes."}, status_code=429)
 
@@ -166,8 +209,6 @@ async def signup(req: SignupRequest, request: Request):
     except ValueError as e:
         return JSONResponse({"error": str(e)}, status_code=409)
 
-    token = _session_token(user)
-
     response = JSONResponse({
         "user_id": user["user_id"],
         "email": user["email"],
@@ -176,13 +217,15 @@ async def signup(req: SignupRequest, request: Request):
         "balance_usd": 10.0,
         "note": "Welcome! You have $10.00 in free credits.",
     })
-    response.set_cookie("ie_session", token, httponly=True, samesite="lax", max_age=86400)
+    _set_session(response, user)
     return response
 
 
 @router.post("/v1/auth/login")
 async def login(req: LoginRequest, request: Request):
     """Login with email + password. Returns JWT in cookie."""
+    if not password_auth_enabled():
+        return _password_auth_disabled()
     if not _check_auth_rate(request.client.host if request.client else "unknown"):
         return JSONResponse({"error": "Too many attempts. Try again in a few minutes."}, status_code=429)
 
@@ -190,8 +233,6 @@ async def login(req: LoginRequest, request: Request):
     user = store.authenticate_user(req.email, req.password)
     if not user:
         return JSONResponse({"error": "Invalid email or password"}, status_code=401)
-
-    token = _session_token(user)
 
     # Get account info
     account = store.get_account(user["user_id"])
@@ -203,14 +244,47 @@ async def login(req: LoginRequest, request: Request):
         "name": user["name"],
         "balance_usd": round(balance, 6),
     })
-    response.set_cookie("ie_session", token, httponly=True, samesite="lax", max_age=86400)
+    _set_session(response, user)
     return response
 
 
 @router.post("/v1/auth/logout")
-async def logout():
+async def logout(request: Request):
+    """Sign out everywhere: bumps the session version so all issued JWTs stop working."""
+    user = resolve_user_from_request(request)
+    if user:
+        get_store().bump_session_version(user["user_id"])
     response = JSONResponse({"ok": True})
-    response.delete_cookie("ie_session")
+    response.delete_cookie(SESSION_COOKIE)
+    return response
+
+
+@router.get("/v1/auth/config")
+async def auth_config():
+    """Which sign-in methods the UI should offer."""
+    from .oauth_github import github_configured
+    return {"github": github_configured(), "password": password_auth_enabled()}
+
+
+@router.delete("/v1/auth/keys/{key_id}")
+async def revoke_api_key(key_id: str, request: Request):
+    user = resolve_user_from_request(request)
+    if not user:
+        return JSONResponse({"error": "Sign in required"}, status_code=401)
+    if not get_store().revoke_api_key(user["user_id"], key_id):
+        return JSONResponse({"error": "Key not found"}, status_code=404)
+    return {"ok": True, "key_id": key_id}
+
+
+@router.delete("/v1/auth/account")
+async def delete_account(request: Request):
+    """Delete the caller's account, keys, and balance (#57)."""
+    user = resolve_user_from_request(request)
+    if not user:
+        return JSONResponse({"error": "Sign in required"}, status_code=401)
+    get_store().delete_user(user["user_id"])
+    response = JSONResponse({"ok": True})
+    response.delete_cookie(SESSION_COOKIE)
     return response
 
 

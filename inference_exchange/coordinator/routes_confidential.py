@@ -90,6 +90,10 @@ async def confidential_infer(request: ConfidentialInferenceRequest, raw_request:
     consumer_id = user_info["user_id"] if user_info else auth.resolve_consumer(
         raw_request.headers.get("authorization"))
 
+    from .routes_auth import anonymous_inference_blocked, sign_in_required_response
+    if anonymous_inference_blocked(consumer_id):
+        return sign_in_required_response()
+
     # Rate limit
     if not _rate_limiter.allow(consumer_id):
         raise RateLimitExceeded()

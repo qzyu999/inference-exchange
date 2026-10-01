@@ -1,7 +1,16 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
+import useSWR from 'swr'
+import { api } from '../lib/api'
 import { useAuth } from '../lib/auth'
 import { C } from '../lib/theme'
+
+const OAUTH_ERRORS: Record<string, string> = {
+  state: 'Sign-in expired or was tampered with. Please try again.',
+  github: 'GitHub sign-in failed. Please try again.',
+  account_too_new: 'Your GitHub account is too new to sign up during the alpha.',
+  email_taken: 'That email already has a password account. Sign in with your password instead.',
+}
 
 export function Login() {
   const [mode, setMode] = useState<'login' | 'signup'>('login')
@@ -15,6 +24,11 @@ export function Login() {
 
   const { login, signup } = useAuth()
   const navigate = useNavigate()
+  const [params] = useSearchParams()
+  const oauthError = OAUTH_ERRORS[params.get('error') || '']
+  const { data: authConfig } = useSWR('authConfig', api.authConfig)
+  const passwordEnabled = authConfig?.password ?? true
+  const githubEnabled = authConfig?.github ?? false
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -89,6 +103,37 @@ export function Login() {
             : 'Get $10 in free credits to start.'}
         </p>
 
+        {oauthError && (
+          <div role="alert" className="text-xs px-3 py-2 rounded-xl mb-3" style={{ background: '#fdf5f4', color: '#B7443B' }}>
+            {oauthError}
+          </div>
+        )}
+
+        {githubEnabled && (
+          <a
+            href="/v1/auth/github/login"
+            className="block w-full py-2.5 rounded-xl text-sm font-medium text-center transition-colors"
+            style={{ background: C.blueBlack, color: '#fff' }}
+          >
+            Continue with GitHub
+          </a>
+        )}
+
+        {githubEnabled && passwordEnabled && (
+          <div className="flex items-center gap-3 my-4">
+            <div className="flex-1 border-t border-gray-100" />
+            <span className="text-xs" style={{ color: '#ccc' }}>or</span>
+            <div className="flex-1 border-t border-gray-100" />
+          </div>
+        )}
+
+        {!githubEnabled && !passwordEnabled && (
+          <div className="text-xs px-3 py-2 rounded-xl" style={{ background: '#fdf6ec', color: C.gold }}>
+            Sign-in is not configured on this server.
+          </div>
+        )}
+
+        {passwordEnabled && <>
         <form onSubmit={handleSubmit} className="space-y-3">
           {mode === 'signup' && (
             <div>
@@ -132,22 +177,6 @@ export function Login() {
           </button>
         </form>
 
-        {/* Divider */}
-        <div className="flex items-center gap-3 my-4">
-          <div className="flex-1 border-t border-gray-100" />
-          <span className="text-xs" style={{ color: '#ccc' }}>or</span>
-          <div className="flex-1 border-t border-gray-100" />
-        </div>
-
-        {/* GitHub placeholder */}
-        <button
-          disabled
-          className="w-full py-2.5 rounded-xl text-sm font-medium border transition-colors"
-          style={{ color: C.blueBlack, borderColor: '#ddd' }}
-        >
-          Continue with GitHub
-        </button>
-
         {/* Toggle mode */}
         <div className="text-center mt-4">
           {mode === 'login' ? (
@@ -160,6 +189,7 @@ export function Login() {
             </button>
           )}
         </div>
+        </>}
       </div>
     </div>
   )

@@ -8,6 +8,7 @@ DB location: ~/.inference-exchange/exchange.db
 """
 
 import hashlib
+import hmac
 import logging
 import os
 import secrets
@@ -185,6 +186,18 @@ class Store:
         if any(c not in columns for c in new_tx_columns):
             self._conn.commit()
 
+        # GitHub OAuth identity + server-side session revocation (#69)
+        user_columns = {row[1] for row in self._conn.execute("PRAGMA table_info(users)").fetchall()}
+        if "github_id" not in user_columns:
+            self._conn.execute("ALTER TABLE users ADD COLUMN github_id TEXT")
+        if "session_version" not in user_columns:
+            self._conn.execute("ALTER TABLE users ADD COLUMN session_version INTEGER NOT NULL DEFAULT 0")
+        self._conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_github_id ON users(github_id)")
+        key_columns = {row[1] for row in self._conn.execute("PRAGMA table_info(api_keys)").fetchall()}
+        if "revoked_at" not in key_columns:
+            self._conn.execute("ALTER TABLE api_keys ADD COLUMN revoked_at REAL")
+        self._conn.commit()
+
         # Add cache_per_mtok column to reference_prices (added for three-tier comparison)
         ref_columns = {row[1] for row in self._conn.execute("PRAGMA table_info(reference_prices)").fetchall()}
         if "cache_per_mtok" not in ref_columns:
@@ -262,7 +275,7 @@ class Store:
             return None
         key_hash = hashlib.sha256(raw_key.encode()).hexdigest()
         row = self._conn.execute(
-            "SELECT * FROM api_keys WHERE key_hash = ?", (key_hash,)
+            "SELECT * FROM api_keys WHERE key_hash = ? AND revoked_at IS NULL", (key_hash,)
         ).fetchone()
         if row:
             self._conn.execute(
@@ -514,9 +527,11 @@ class Store:
             return None
 
         stored = row["password_hash"]
+        if ":" not in stored:  # OAuth-only account, no password set
+            return None
         salt, expected_hash = stored.split(":", 1)
         actual_hash = _h.sha256(f"{salt}:{password}".encode()).hexdigest()
-        if actual_hash != expected_hash:
+        if not hmac.compare_digest(actual_hash, expected_hash):
             return None
 
         # Update last login
@@ -531,7 +546,60 @@ class Store:
             "email": row["email"],
             "name": row["name"],
             "role": row["role"],
+            "session_version": row["session_version"],
         }
+
+    def upsert_github_user(self, github_id: str, login: str, email: str, name: str) -> tuple[dict, bool]:
+        """Find or create the user for a GitHub identity. Returns (user, created)."""
+        row = self._conn.execute("SELECT * FROM users WHERE github_id = ?", (github_id,)).fetchone()
+        now = time.time()
+        if row:
+            self._conn.execute("UPDATE users SET last_login_at = ? WHERE user_id = ?", (now, row["user_id"]))
+            self._conn.commit()
+            return {k: row[k] for k in ("user_id", "email", "name", "role", "session_version")}, False
+
+        user_id = f"user-{secrets.token_hex(4)}"
+        # GitHub may hide the email; fall back to a unique placeholder so the UNIQUE constraint holds
+        email = (email or f"{login}@users.noreply.github.com").lower().strip()
+        name = name or login
+        try:
+            self._conn.execute(
+                "INSERT INTO users (user_id, email, password_hash, name, created_at, last_login_at, github_id) VALUES (?, ?, '', ?, ?, ?, ?)",
+                (user_id, email, name, now, now, github_id),
+            )
+        except sqlite3.IntegrityError:
+            raise ValueError(f"Email already registered with a password account: {email}")
+        self._conn.execute(
+            "INSERT INTO accounts (account_id, name, balance_micro, created_at) VALUES (?, ?, ?, ?)",
+            (user_id, name, 10 * MICRO_PER_DOLLAR, now),
+        )
+        self._conn.commit()
+        logger.info(f"GitHub user created: {login} -> {user_id}")
+        return {"user_id": user_id, "email": email, "name": name, "role": "consumer", "session_version": 0}, True
+
+    def get_session_version(self, user_id: str) -> int | None:
+        row = self._conn.execute("SELECT session_version FROM users WHERE user_id = ?", (user_id,)).fetchone()
+        return row["session_version"] if row else None
+
+    def bump_session_version(self, user_id: str) -> None:
+        """Invalidate every session issued to this user."""
+        self._conn.execute("UPDATE users SET session_version = session_version + 1 WHERE user_id = ?", (user_id,))
+        self._conn.commit()
+
+    def revoke_api_key(self, user_id: str, key_id: str) -> bool:
+        cur = self._conn.execute(
+            "UPDATE api_keys SET revoked_at = ? WHERE consumer_id = ? AND key_id = ? AND revoked_at IS NULL",
+            (time.time(), user_id, key_id),
+        )
+        self._conn.commit()
+        return cur.rowcount > 0
+
+    def delete_user(self, user_id: str) -> None:
+        """Delete identity, keys, and balance. Transactions keep the opaque user_id only."""
+        self._conn.execute("DELETE FROM api_keys WHERE consumer_id = ?", (user_id,))
+        self._conn.execute("DELETE FROM users WHERE user_id = ?", (user_id,))
+        self._conn.execute("DELETE FROM accounts WHERE account_id = ?", (user_id,))
+        self._conn.commit()
 
     def get_user(self, user_id: str) -> dict | None:
         row = self._conn.execute(
@@ -546,7 +614,7 @@ class Store:
     def get_user_api_keys(self, user_id: str) -> list[dict]:
         """Get all API keys belonging to a user."""
         rows = self._conn.execute(
-            "SELECT key_id, name, created_at, last_used_at, requests_made FROM api_keys WHERE consumer_id = ?",
+            "SELECT key_id, name, created_at, last_used_at, requests_made FROM api_keys WHERE consumer_id = ? AND revoked_at IS NULL",
             (user_id,)
         ).fetchall()
         return [dict(r) for r in rows]

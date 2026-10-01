@@ -156,5 +156,10 @@ export const api = {
   recentEvents: () => get<{ events: Array<{ type: string; timestamp: number; [key: string]: any }> }>('/v1/exchange/events/recent'),
   market: () => get<{ models: any[]; total_providers: number; total_models: number }>('/v1/exchange/market'),
   referencePrices: (model?: string) => get<{ models: any[]; sources: string[]; last_updated: Record<string, string> }>(`/v1/exchange/reference-prices${model ? `?model=${encodeURIComponent(model)}` : ''}`),
+  authConfig: () => get<{ github: boolean; password: boolean }>('/v1/auth/config'),
+  revokeKey: async (keyId: string) => {
+    const r = await fetch(`${BASE}/v1/auth/keys/${encodeURIComponent(keyId)}`, { method: 'DELETE', credentials: 'include' })
+    if (!r.ok) throw new Error(`${r.status}: ${await r.text()}`)
+  },
   myKeys: () => get<{ keys: Array<{ key_id: string; name: string; created_at: number; last_used_at: number | null; requests_made: number }> }>('/v1/auth/keys'),
 }

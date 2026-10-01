@@ -104,7 +104,8 @@ export function Chat() {
 
       const resp = await fetch('/v1/chat/completions', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+        // Signed-in users authenticate with the session cookie; the key is a dev/anonymous fallback
+        headers: { 'Content-Type': 'application/json', ...(apiKey ? { 'Authorization': `Bearer ${apiKey}` } : {}) },
         credentials: 'include',
         body: JSON.stringify(body),
         signal: controller.signal,

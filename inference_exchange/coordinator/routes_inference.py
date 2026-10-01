@@ -199,12 +199,15 @@ async def chat_completions(request: ChatCompletionRequest, raw_request: Request)
         return JSONResponse({"error": {"message": validation_error, "type": "invalid_request"}}, status_code=400)
 
     # Resolve consumer identity from auth header or JWT
-    from .routes_auth import resolve_user_from_request
+    from .routes_auth import anonymous_inference_blocked, resolve_user_from_request, sign_in_required_response
     user_info = resolve_user_from_request(raw_request)
     if user_info:
         consumer_id = user_info["user_id"]
     else:
         consumer_id = auth.resolve_consumer(raw_request.headers.get("authorization"))
+
+    if anonymous_inference_blocked(consumer_id):
+        return sign_in_required_response()
 
     # Rate limit check
     if not _rate_limiter.allow(consumer_id):

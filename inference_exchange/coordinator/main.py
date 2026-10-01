@@ -25,6 +25,7 @@ from .dependencies import set_auth, set_billing, set_event_bus, set_hub, set_rep
 from .audit_log import AuditLog
 from .capability_resolver import ModelCapabilityCache
 from .price_collector import PriceCollector
+from .oauth_github import router as github_router
 from .routes_admin import router as admin_router
 from .routes_auth import router as auth_router
 from .routes_confidential import router as confidential_router
@@ -294,6 +295,7 @@ def create_app() -> FastAPI:
 
     # Mount consumer API routers
     app.include_router(auth_router)
+    app.include_router(github_router)
     app.include_router(exchange_router)
     app.include_router(admin_router)
     app.include_router(handshake_router)
