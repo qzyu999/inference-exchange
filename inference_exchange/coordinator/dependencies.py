@@ -46,10 +46,26 @@ _request_traces: list[dict] = []
 MAX_TRACES = 100
 
 
-def _add_trace(trace: dict):
+TRACE_OWNER_KEY = "_consumer_id"
+
+
+def _add_trace(trace: dict, consumer_id: str | None = None):
+    trace[TRACE_OWNER_KEY] = consumer_id
     _request_traces.append(trace)
     if len(_request_traces) > MAX_TRACES:
         _request_traces.pop(0)
+
+
+def traces_for(consumer_id: str | None, limit: int = 30) -> list[dict]:
+    """Recent traces, newest first. consumer_id=None returns all traces (admin view)."""
+    out = []
+    for t in reversed(_request_traces):
+        if consumer_id is not None and t.get(TRACE_OWNER_KEY) != consumer_id:
+            continue
+        out.append({k: v for k, v in t.items() if k != TRACE_OWNER_KEY})
+        if len(out) >= limit:
+            break
+    return out
 
 
 # --- Global singletons (injected from main.py at startup) ---

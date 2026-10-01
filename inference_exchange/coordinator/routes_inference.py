@@ -265,7 +265,7 @@ async def chat_completions(request: ChatCompletionRequest, raw_request: Request)
                 "status": "queue_full",
                 "reason": f"Queue full ({hub.QUEUE_MAX_DEPTH} pending)",
                 "providers_evaluated": hub.provider_count,
-            })
+            }, consumer_id)
             raise QueueFull(hub.QUEUE_MAX_DEPTH)
 
         # Wait for a provider to be assigned (up to timeout)
@@ -282,7 +282,7 @@ async def chat_completions(request: ChatCompletionRequest, raw_request: Request)
                 "status": "queue_timeout",
                 "reason": f"No provider available after {hub.QUEUE_TIMEOUT_SECONDS}s wait",
                 "providers_evaluated": hub.provider_count,
-            })
+            }, consumer_id)
             raise QueueTimeout(hub.QUEUE_TIMEOUT_SECONDS)
 
         # Provider was assigned by the dispatch loop
@@ -357,7 +357,7 @@ async def chat_completions(request: ChatCompletionRequest, raw_request: Request)
             "encrypted": bool(provider.encryption_public_key),
             "scoring": scoring_details,
             "providers_evaluated": len(scoring_details),
-        })
+        }, consumer_id)
 
         # Publish match event
         bus = get_event_bus()
@@ -486,7 +486,7 @@ async def chat_completions(request: ChatCompletionRequest, raw_request: Request)
         "encrypted": bool(provider.encryption_public_key),
         "scoring": scoring_details,
         "providers_evaluated": len(scoring_details),
-    })
+    }, consumer_id)
 
     # Publish match event
     bus = get_event_bus()

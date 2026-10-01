@@ -11,7 +11,7 @@ from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from inference_exchange.config import CoordinatorConfig
+from inference_exchange.config import CoordinatorConfig, is_production
 from inference_exchange.shared.protocol import (
     AttestationResponse,
     HeartbeatMessage,
@@ -30,7 +30,7 @@ from .routes_confidential import router as confidential_router
 from .routes_exchange import router as exchange_router
 from .routes_handshake import router as handshake_router
 from .routes_inference import router as inference_router
-from .event_bus import EventBus
+from .event_bus import EventBus, public_event
 from .model_registry import ModelRegistry
 from .provider_hub import ProviderHub
 from .reputation import ReputationTracker
@@ -199,6 +199,10 @@ async def attestation_challenge_loop(hub: ProviderHub):
 
 
 def create_app() -> FastAPI:
+    import os
+    if is_production() and not os.environ.get("IE_JWT_SECRET"):
+        raise RuntimeError("IE_JWT_SECRET must be set when IE_ENV=prod (sessions would not survive restarts)")
+
     # SQLite-backed store (persists across restarts)
     store = Store()
     hub = ProviderHub()
@@ -444,7 +448,7 @@ def create_app() -> FastAPI:
         try:
             while True:
                 event = await queue.get()
-                await ws.send_json(event)
+                await ws.send_json(public_event(event))
         except WebSocketDisconnect:
             pass
         except Exception:
@@ -460,7 +464,8 @@ def create_app() -> FastAPI:
             "providers": hub.provider_count,
             "models": hub.available_models,
         }
-        if raw_request.query_params.get("include_key") == "1":
+        # Shared anonymous key, dev only; in prod users must sign in
+        if raw_request.query_params.get("include_key") == "1" and not is_production():
             result["default_api_key"] = auth.default_key
         return result
 
@@ -468,23 +473,6 @@ def create_app() -> FastAPI:
     async def readiness():
         """Readiness probe for orchestrators (Fly.io, k8s)."""
         return {"ready": True, "providers": hub.provider_count}
-
-    # Alpha-only: reset balance (dummy money)
-    @app.post("/v1/auth/reset-balance")
-    async def reset_balance(raw_request: Request):
-        """Reset the authenticated user's balance to $10 (alpha only, dummy money)."""
-        from .routes_auth import resolve_user_from_request
-        user_info = resolve_user_from_request(raw_request)
-        if user_info:
-            consumer_id = user_info["user_id"]
-        else:
-            consumer_id = auth.resolve_consumer(raw_request.headers.get("authorization"))
-        store._conn.execute(
-            "UPDATE accounts SET balance_micro = ? WHERE account_id = ?",
-            (10 * 1_000_000, consumer_id),
-        )
-        store._conn.commit()
-        return {"ok": True, "balance_usd": 10.0, "note": "Balance reset to $10.00 (alpha dummy credits)"}
 
     # Serve web UI at root
     app.mount("/", StaticFiles(directory=str(STATIC_DIR), html=True), name="static")

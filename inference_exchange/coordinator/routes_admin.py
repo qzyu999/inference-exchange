@@ -8,7 +8,6 @@ Admin endpoints require either:
 import time
 
 from fastapi import APIRouter, Request
-from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from .dependencies import (
@@ -17,8 +16,9 @@ from .dependencies import (
     get_billing,
     get_hub,
     get_store,
+    traces_for,
 )
-from .routes_auth import resolve_user_from_request
+from .routes_auth import admin_required_response, is_admin_request
 
 router = APIRouter()
 
@@ -26,12 +26,8 @@ router = APIRouter()
 @router.get("/v1/admin/state")
 async def get_admin_state(request: Request):
     """Full system state dump for the admin dashboard."""
-    # In dev mode (no users), allow. In prod, require admin role.
-    store = get_store()
-    user = resolve_user_from_request(request)
-    has_users = bool(store._conn.execute("SELECT 1 FROM users LIMIT 1").fetchone())
-    if has_users and (not user or user.get("role") != "admin"):
-        return JSONResponse({"error": "Admin access required"}, status_code=403)
+    if not is_admin_request(request):
+        return admin_required_response()
 
     hub = get_hub()
     billing = get_billing()
@@ -133,7 +129,7 @@ async def get_admin_state(request: Request):
             "recent": recent_bills,
             "platform_fee_percent": billing.PLATFORM_FEE_PERCENT,
         },
-        "traces": list(reversed(_request_traces[-20:])),
+        "traces": traces_for(None, limit=20),
     }
 
 
@@ -142,15 +138,19 @@ class CreateProviderTokenRequest(BaseModel):
 
 
 @router.post("/v1/admin/provider-tokens")
-async def create_provider_token(request: CreateProviderTokenRequest):
+async def create_provider_token(body: CreateProviderTokenRequest, request: Request):
     """Create a new provider auth token. The token is shown once."""
+    if not is_admin_request(request):
+        return admin_required_response()
     store = get_store()
-    raw_token = store.create_provider_token(request.name)
-    return {"token": raw_token, "name": request.name}
+    raw_token = store.create_provider_token(body.name)
+    return {"token": raw_token, "name": body.name}
 
 
 @router.get("/v1/admin/provider-tokens")
-async def list_provider_tokens():
+async def list_provider_tokens(request: Request):
     """List all provider tokens (without the raw token values)."""
+    if not is_admin_request(request):
+        return admin_required_response()
     store = get_store()
     return {"tokens": store.list_provider_tokens()}

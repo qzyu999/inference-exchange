@@ -9,6 +9,7 @@ DB location: ~/.inference-exchange/exchange.db
 
 import hashlib
 import logging
+import os
 import secrets
 import sqlite3
 import time
@@ -20,6 +21,7 @@ logger = logging.getLogger(__name__)
 
 DB_DIR = Path.home() / ".inference-exchange"
 DB_PATH = DB_DIR / "exchange.db"
+DEFAULT_CONSUMER_ID = "default-consumer"
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS accounts (
@@ -129,8 +131,10 @@ class Store:
 
     PLATFORM_FEE_PERCENT = 10
 
-    def __init__(self, db_path: Path = DB_PATH):
-        DB_DIR.mkdir(parents=True, exist_ok=True)
+    def __init__(self, db_path: Path | None = None):
+        if db_path is None:
+            db_path = Path(os.environ.get("IE_DB_PATH", str(DB_PATH)))
+        db_path.parent.mkdir(parents=True, exist_ok=True)
         self._db_path = db_path
         self._conn = sqlite3.connect(str(db_path), check_same_thread=False)
         self._conn.row_factory = sqlite3.Row
@@ -272,10 +276,10 @@ class Store:
     def resolve_consumer(self, authorization: str | None) -> str:
         """Resolve consumer_id from Authorization header."""
         if not authorization:
-            return "default-consumer"
+            return DEFAULT_CONSUMER_ID
         key = authorization[7:] if authorization.lower().startswith("bearer ") else authorization
         result = self.validate_key(key)
-        return result["consumer_id"] if result else "default-consumer"
+        return result["consumer_id"] if result else DEFAULT_CONSUMER_ID
 
     def list_keys(self) -> list[dict]:
         rows = self._conn.execute("SELECT key_id, name, consumer_id, created_at, last_used_at, requests_made FROM api_keys").fetchall()
@@ -535,6 +539,9 @@ class Store:
             (user_id,)
         ).fetchone()
         return dict(row) if row else None
+
+    def has_users(self) -> bool:
+        return bool(self._conn.execute("SELECT 1 FROM users LIMIT 1").fetchone())
 
     def get_user_api_keys(self, user_id: str) -> list[dict]:
         """Get all API keys belonging to a user."""

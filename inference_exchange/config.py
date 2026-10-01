@@ -1,8 +1,20 @@
 """Configuration for coordinator and provider."""
 
+import os
 from pathlib import Path
 
 from pydantic import BaseModel
+
+
+def is_production() -> bool:
+    """True when IE_ENV is 'prod' or 'production'. Read at call time so tests can override it."""
+    return os.environ.get("IE_ENV", "dev").strip().lower() in ("prod", "production")
+
+
+def admin_emails() -> set[str]:
+    """Emails granted admin via IE_ADMIN_EMAILS (comma-separated)."""
+    raw = os.environ.get("IE_ADMIN_EMAILS", "")
+    return {e.strip().lower() for e in raw.split(",") if e.strip()}
 
 
 # Default model for local testing — small enough to run on any machine

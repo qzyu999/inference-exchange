@@ -122,7 +122,7 @@ async def confidential_infer(request: ConfidentialInferenceRequest, raw_request:
             "model": request.model,
             "status": "no_provider",
             "confidential": True,
-        })
+        }, consumer_id)
         raise NoProviderAvailable()
 
     # CB-3: build an InferenceRequest with NO plaintext — relay the envelope as-is
@@ -151,7 +151,7 @@ async def confidential_infer(request: ConfidentialInferenceRequest, raw_request:
         "confidential": True,
         "selected_provider": provider.name,
         "encrypted": True,
-    })
+    }, consumer_id)
 
     if request.stream:
         return StreamingResponse(

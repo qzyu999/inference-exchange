@@ -9,7 +9,10 @@ from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
+from inference_exchange.config import admin_emails, is_production
+
 from .dependencies import get_auth, get_billing, get_store
+from .store import DEFAULT_CONSUMER_ID
 
 router = APIRouter()
 
@@ -98,6 +101,39 @@ def resolve_user_from_request(request: Request) -> dict | None:
     return None
 
 
+def resolve_consumer_id(request: Request) -> str:
+    """Caller's consumer id: JWT user > API key > shared default consumer."""
+    user_info = resolve_user_from_request(request)
+    if user_info:
+        return user_info["user_id"]
+    return get_auth().resolve_consumer(request.headers.get("authorization"))
+
+
+def is_admin_request(request: Request) -> bool:
+    """Admin = JWT with role=admin. In dev, also allowed while no users exist yet."""
+    user = resolve_user_from_request(request)
+    if user and user.get("role") == "admin":
+        return True
+    return not is_production() and not get_store().has_users()
+
+
+def admin_required_response() -> JSONResponse:
+    return JSONResponse({"error": "Admin access required"}, status_code=403)
+
+
+def _role_for(email: str, stored_role: str = "consumer") -> str:
+    return "admin" if email.lower().strip() in admin_emails() else stored_role
+
+
+def _session_token(user: dict) -> str:
+    return create_jwt({
+        "user_id": user["user_id"],
+        "email": user["email"],
+        "name": user["name"],
+        "role": _role_for(user["email"], user.get("role", "consumer")),
+    })
+
+
 # --- Signup / Login ---
 
 class SignupRequest(BaseModel):
@@ -130,8 +166,7 @@ async def signup(req: SignupRequest, request: Request):
     except ValueError as e:
         return JSONResponse({"error": str(e)}, status_code=409)
 
-    # Create JWT
-    token = create_jwt({"user_id": user["user_id"], "email": user["email"], "name": user["name"]})
+    token = _session_token(user)
 
     response = JSONResponse({
         "user_id": user["user_id"],
@@ -156,7 +191,7 @@ async def login(req: LoginRequest, request: Request):
     if not user:
         return JSONResponse({"error": "Invalid email or password"}, status_code=401)
 
-    token = create_jwt({"user_id": user["user_id"], "email": user["email"], "name": user["name"]})
+    token = _session_token(user)
 
     # Get account info
     account = store.get_account(user["user_id"])
@@ -238,7 +273,10 @@ async def create_api_key(request: Request):
         raw_key = store.create_api_key_for_user(user_info["user_id"], name)
         return {"api_key": raw_key, "consumer_id": user_info["user_id"], "name": name}
 
-    # Otherwise, create a standalone key with new account
+    # Anonymous key creation mints a new funded account each time; dev only
+    if is_production():
+        return JSONResponse({"error": "Sign in to create API keys"}, status_code=401)
+
     auth = get_auth()
     billing = get_billing()
     raw_key, consumer_id = auth.create_key(name=name)
@@ -259,5 +297,20 @@ async def list_api_keys(request: Request):
     if user_info:
         keys = store.get_user_api_keys(user_info["user_id"])
         return {"keys": keys}
-    auth = get_auth()
-    return {"keys": auth.list_keys()}
+    return {"keys": []}
+
+
+@router.post("/v1/auth/reset-balance")
+async def reset_balance(request: Request):
+    """Reset the caller's balance to $10 (alpha only, dummy money)."""
+    consumer_id = resolve_consumer_id(request)
+    # The shared anonymous account must not be resettable by anyone in prod
+    if is_production() and consumer_id == DEFAULT_CONSUMER_ID:
+        return JSONResponse({"error": "Sign in to reset your balance"}, status_code=401)
+    store = get_store()
+    store._conn.execute(
+        "UPDATE accounts SET balance_micro = ? WHERE account_id = ?",
+        (10 * 1_000_000, consumer_id),
+    )
+    store._conn.commit()
+    return {"ok": True, "balance_usd": 10.0, "note": "Balance reset to $10.00 (alpha dummy credits)"}

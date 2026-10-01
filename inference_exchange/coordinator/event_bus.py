@@ -21,6 +21,14 @@ EVENT_TYPES = frozenset({
 # Maximum number of recent events kept for catch-up
 MAX_HISTORY = 50
 
+# Fields that link an event to a user or a request; never sent to public subscribers
+PRIVATE_EVENT_FIELDS = frozenset({"consumer_id", "request_id"})
+
+
+def public_event(event: dict) -> dict:
+    """Copy of *event* safe for the public feed."""
+    return {k: v for k, v in event.items() if k not in PRIVATE_EVENT_FIELDS}
+
 
 class EventBus:
     """Simple async pub/sub: subscribers receive events via asyncio.Queue."""

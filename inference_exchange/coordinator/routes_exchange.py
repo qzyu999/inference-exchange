@@ -6,7 +6,6 @@ import time
 from fastapi import APIRouter, Request
 
 from .dependencies import (
-    _request_traces,
     get_auth,
     get_billing,
     get_event_bus,
@@ -14,7 +13,9 @@ from .dependencies import (
     get_price_collector,
     get_reputation_tracker,
     get_tps_tracker,
+    traces_for,
 )
+from .event_bus import public_event
 
 router = APIRouter()
 
@@ -257,9 +258,12 @@ async def get_depth():
 
 
 @router.get("/v1/exchange/traces")
-async def get_traces():
-    """Full decision traces for recent requests — shows the matching engine's reasoning."""
-    return {"traces": list(reversed(_request_traces[-30:]))}
+async def get_traces(request: Request):
+    """Caller's own decision traces (admins see all)."""
+    from .routes_auth import is_admin_request, resolve_consumer_id
+    if is_admin_request(request):
+        return {"traces": traces_for(None)}
+    return {"traces": traces_for(resolve_consumer_id(request))}
 
 
 @router.get("/v1/exchange/tps")
@@ -282,7 +286,7 @@ async def get_recent_events():
     bus = get_event_bus()
     if bus is None:
         return {"events": []}
-    return {"events": bus.recent_events(50)}
+    return {"events": [public_event(e) for e in bus.recent_events(50)]}
 
 
 @router.get("/v1/exchange/models/search")
@@ -435,8 +439,11 @@ async def get_market_data():
 
 @router.get("/v1/exchange/provider-earnings")
 async def get_provider_earnings(request: Request):
-    """Provider earnings summary. Query by provider_id or get all."""
+    """Provider earnings summary. Query by provider_id or get all. Admin only until provider accounts exist (#53)."""
     from .dependencies import get_store
+    from .routes_auth import admin_required_response, is_admin_request
+    if not is_admin_request(request):
+        return admin_required_response()
     store = get_store()
 
     provider_id = request.query_params.get("provider_id", "")
