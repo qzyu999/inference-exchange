@@ -474,7 +474,7 @@ export function Exchange() {
     if (activeIEModel) {
       for (const p of activeIEModel.providers) {
         rows.push({
-          name: p.name, source: 'ie', isIE: true,
+          name: 'Inference Exchange', source: 'ie', isIE: true,
           priceInput: p.price_input, priceCache: p.price_cache, priceOutput: p.price_output,
           quality: activeUnified?.codingIndex || null, tps: p.tps > 0 ? p.tps : null,
           trust: p.trust, encrypted: p.encrypted, quantization: p.quantization,
