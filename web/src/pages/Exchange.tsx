@@ -243,7 +243,7 @@ function PriceChart({ offerRows, modelName }: { offerRows: OfferRow[]; modelName
 
       {/* Tier tabs */}
       <div style={{ display: 'flex', gap: 4, marginBottom: 8 }}>
-        {(['output', 'input', 'cache'] as PriceTier[]).map(t => (
+        {(['input', 'cache', 'output'] as PriceTier[]).map(t => (
           <span key={t} onClick={() => setTier(t)} style={{
             fontSize: 9, fontWeight: 600, padding: '3px 8px', borderRadius: 5, cursor: 'pointer',
             background: tier === t ? TIER_META[t].color : '#f5f5f3',
