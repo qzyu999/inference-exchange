@@ -101,6 +101,7 @@ export interface Trace {
   selected_price?: number
   selected_trust?: string
   encrypted?: boolean
+  cost_usd?: number
   scoring?: Array<{
     name: string
     price: number
