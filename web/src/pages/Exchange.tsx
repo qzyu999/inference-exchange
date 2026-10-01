@@ -787,49 +787,82 @@ export function Exchange() {
           </table>
         </div>
 
-        {/* ── Below table: DOM + Recent fills in a row ── */}
+        {/* ── Below table: [DOM + Chart stacked] left | [Fills] right ── */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 280px', gap: 14 }}>
-          {/* Card 1: 3-column DOM */}
-          <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #eaeae8', padding: 14, overflow: 'hidden' }}>
-            <h4 style={{ fontSize: 8, textTransform: 'uppercase', letterSpacing: '.06em', color: '#888', marginBottom: 10, fontWeight: 600 }}>
-              Depth of market — three-tier pricing
-            </h4>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, minWidth: 0 }}>
-              <DOMColumn label="Input" unit="$/Mtok" color={C.deepBlue} levels={domData.input} />
-              <DOMColumn label="Cache read" unit="$/Mtok" color={C.turquoise} levels={domData.cache} emptyMsg="Only IE publishes cache pricing" offerRows={offerRows} />
-              <DOMColumn label="Output" unit="$/Mtok" color={C.gold} levels={domData.output} />
+          {/* Left: DOM stacked on chart */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            {/* 3-column DOM */}
+            <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #eaeae8', padding: 14, overflow: 'hidden' }}>
+              <h4 style={{ fontSize: 8, textTransform: 'uppercase', letterSpacing: '.06em', color: '#888', marginBottom: 10, fontWeight: 600 }}>
+                Depth of market — three-tier pricing
+              </h4>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, minWidth: 0 }}>
+                <DOMColumn label="Input" unit="$/Mtok" color={C.deepBlue} levels={domData.input} />
+                <DOMColumn label="Cache read" unit="$/Mtok" color={C.turquoise} levels={domData.cache} emptyMsg="Only IE publishes cache pricing" offerRows={offerRows} />
+                <DOMColumn label="Output" unit="$/Mtok" color={C.gold} levels={domData.output} />
+              </div>
+              <div style={{ fontSize: 8, color: '#aaa', marginTop: 8 }}>
+                Cheapest at bottom (best ask). Bars = relative supply at each price level.
+              </div>
             </div>
-            <div style={{ fontSize: 8, color: '#aaa', marginTop: 8 }}>
-              Cheapest at bottom (best ask). Bars = relative supply at each price level.
-            </div>
+
+            {/* Interactive price chart */}
+            <PriceChart offerRows={offerRows} modelName={activeUnified?.name || 'Model'} />
           </div>
 
-          {/* Card 2: Interactive price chart with tier tabs */}
-          <PriceChart offerRows={offerRows} modelName={activeUnified?.name || 'Model'} />
-
-          {/* Card 3: Recent fills */}
+          {/* Right: Recent fills with in/cache/out details */}
           <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #eaeae8', padding: 14, overflow: 'hidden' }}>
             <h4 style={{ fontSize: 8, textTransform: 'uppercase', letterSpacing: '.06em', color: '#888', marginBottom: 10, fontWeight: 600 }}>
               Recent fills
             </h4>
             {recentFills.length > 0 ? recentFills.map((t: any) => {
               const ok = ['completed', 'matched', 'matched_from_queue'].includes(t.status)
-              const time = new Date(t.timestamp * 1000).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
+              const time = new Date(t.timestamp * 1000).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit' })
               return (
                 <div key={t.request_id} style={{
-                  display: 'flex', alignItems: 'center', gap: 5, padding: '4px 0',
-                  borderBottom: '1px solid #f5f5f3', fontSize: 10,
+                  padding: '6px 0', borderBottom: '1px solid #f5f5f3', fontSize: 10,
                 }}>
-                  <div style={{ width: 4, height: 4, borderRadius: '50%', background: ok ? C.green : C.red, flexShrink: 0 }} />
-                  <div style={{ fontFamily: 'SF Mono,Menlo,Consolas,monospace', color: '#bbb', width: 38, flexShrink: 0 }}>{time}</div>
-                  <div style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: '#555' }}>
-                    {t.selected_provider || t.model}
-                  </div>
-                  {t.selected_price != null && (
-                    <div style={{ fontFamily: 'SF Mono,Menlo,Consolas,monospace', color: C.gold, fontWeight: 600, width: 40, textAlign: 'right', flexShrink: 0 }}>
-                      ${t.selected_price.toFixed(2)}
+                  {/* Row 1: status, time, model, price */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                    <div style={{ width: 4, height: 4, borderRadius: '50%', background: ok ? C.green : C.red, flexShrink: 0 }} />
+                    <div style={{ fontFamily: 'SF Mono,Menlo,Consolas,monospace', color: '#bbb', width: 52, flexShrink: 0 }}>{time}</div>
+                    <div style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: '#555', fontWeight: 500 }}>
+                      {t.selected_provider || t.model}
                     </div>
-                  )}
+                  </div>
+                  {/* Row 2: in/cache/out breakdown */}
+                  <div style={{ display: 'flex', gap: 6, marginTop: 3, marginLeft: 9 }}>
+                    {t.selected_price != null && (
+                      <span style={{ fontFamily: 'SF Mono,Menlo,Consolas,monospace', fontSize: 9 }}>
+                        <span style={{ color: C.deepBlue }}>in</span> <span style={{ color: '#555' }}>${(t.input_tokens != null ? (t.input_tokens / 1e6 * (t.selected_price * 0.2 || 0)).toFixed(4) : '—')}</span>
+                      </span>
+                    )}
+                    {t.cached_tokens > 0 && (
+                      <span style={{ fontFamily: 'SF Mono,Menlo,Consolas,monospace', fontSize: 9 }}>
+                        <span style={{ color: C.turquoise }}>cache</span> <span style={{ color: '#555' }}>{t.cached_tokens} tok</span>
+                      </span>
+                    )}
+                    {t.selected_price != null && (
+                      <span style={{ fontFamily: 'SF Mono,Menlo,Consolas,monospace', fontSize: 9, marginLeft: 'auto' }}>
+                        <span style={{ color: C.gold }}>out</span> <span style={{ color: C.gold, fontWeight: 600 }}>${t.selected_price.toFixed(2)}</span>
+                      </span>
+                    )}
+                  </div>
+                  {/* Row 3: trust + tokens */}
+                  <div style={{ display: 'flex', gap: 4, marginTop: 2, marginLeft: 9, fontSize: 9, color: '#aaa' }}>
+                    {t.selected_trust && (
+                      <span style={{
+                        fontSize: 8, fontWeight: 600, padding: '1px 4px', borderRadius: 3,
+                        background: (TRUST_COLORS[t.selected_trust] || TRUST_COLORS.open).bg,
+                        color: (TRUST_COLORS[t.selected_trust] || TRUST_COLORS.open).text,
+                      }}>
+                        {(TRUST_COLORS[t.selected_trust] || TRUST_COLORS.open).label}
+                      </span>
+                    )}
+                    {t.encrypted && <span style={{ fontSize: 8, fontWeight: 600, padding: '1px 4px', borderRadius: 3, background: '#eef3f7', color: C.deepBlue }}>E2E</span>}
+                    {t.input_tokens > 0 && <span>{t.input_tokens} in</span>}
+                    {t.output_tokens > 0 && <span>{t.output_tokens} out</span>}
+                  </div>
                 </div>
               )
             }) : (
