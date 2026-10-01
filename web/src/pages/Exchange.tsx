@@ -90,7 +90,7 @@ export function Exchange() {
   const { data: marketData } = useSWR('market', api.market, { refreshInterval: 5000 })
   const { data: stats } = useSWR('stats', api.stats, { refreshInterval: 5000 })
   const { data: traceData } = useSWR('traces', api.traces, { refreshInterval: 5000 })
-  const { data: refData } = useSWR('refPrices', api.referencePrices, { refreshInterval: 30000 })
+  const { data: refData } = useSWR('refPrices', () => api.referencePrices(), { refreshInterval: 30000 })
   const { data: repData } = useSWR('reputation', api.reputation, { refreshInterval: 10000 })
 
   const models = (marketData?.models || []) as MarketModel[]
@@ -194,10 +194,9 @@ export function Exchange() {
   // 3. Fuzzy match on display name
   const activeRefFamily = (() => {
     if (!activeKey) return null
-    console.log('[Exchange] Looking for ref family:', activeKey, 'in', refFamilies.length, 'families')
     // Exact match
     const exact = refFamilies.find(f => f.family_key === activeKey)
-    if (exact) { console.log('[Exchange] Exact match found:', exact.family_key, exact.prices?.length, 'prices'); return exact }
+    if (exact) return exact
     // Key substring match (e.g. "llama-3.1-70b" matches "llama-3.1-70b-instruct")
     const keyLower = activeKey.toLowerCase()
     const keyMatch = refFamilies.find(f => {
@@ -272,7 +271,6 @@ export function Exchange() {
     }
     // Reference prices
     if (activeRefFamily) {
-      console.log('[Exchange] Adding ref prices from', activeRefFamily.family_key, ':', activeRefFamily.prices?.length)
       for (const p of activeRefFamily.prices) {
         // Skip IE entries from reference (already in IE list)
         if (p.source === 'inference-exchange') continue
