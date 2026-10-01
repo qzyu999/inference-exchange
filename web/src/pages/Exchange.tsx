@@ -837,25 +837,15 @@ export function Exchange() {
                       {t.selected_provider || t.model}
                     </div>
                   </div>
-                  {/* Row 2: price rate + tokens */}
-                  <div style={{ display: 'flex', gap: 6, marginTop: 3, marginLeft: 9, fontSize: 9 }}>
-                    {t.selected_price != null && (
-                      <span style={{ fontFamily: 'SF Mono,Menlo,Consolas,monospace' }}>
-                        <span style={{ color: C.gold, fontWeight: 600 }}>${t.selected_price.toFixed(2)}</span>
-                        <span style={{ color: '#aaa' }}>/Mtok out</span>
-                      </span>
-                    )}
-                    {t.input_tokens > 0 && (
-                      <span style={{ color: '#aaa' }}>{t.input_tokens} in</span>
-                    )}
-                    {t.cached_tokens > 0 && (
-                      <span style={{ fontFamily: 'SF Mono,Menlo,Consolas,monospace', color: C.turquoise }}>
-                        {t.cached_tokens} cached
-                      </span>
-                    )}
-                    {t.output_tokens > 0 && (
-                      <span style={{ color: '#aaa' }}>{t.output_tokens} out</span>
-                    )}
+                  {/* Row 2: in / cache / out rates ($/Mtok) */}
+                  <div style={{ display: 'flex', gap: 8, marginTop: 3, marginLeft: 9, fontSize: 9, fontFamily: 'SF Mono,Menlo,Consolas,monospace' }}>
+                    <span><span style={{ color: C.deepBlue }}>in </span>
+                      <span style={{ color: '#555' }}>{t.selected_price_input > 0 ? `$${t.selected_price_input.toFixed(2)}` : '—'}</span></span>
+                    <span><span style={{ color: C.turquoise }}>cache </span>
+                      <span style={{ color: '#555' }}>{t.selected_price_cache > 0 ? `$${t.selected_price_cache.toFixed(2)}` : '—'}</span></span>
+                    <span><span style={{ color: C.gold }}>out </span>
+                      <span style={{ color: C.gold, fontWeight: 600 }}>{t.selected_price != null ? `$${t.selected_price.toFixed(2)}` : '—'}</span></span>
+                    <span style={{ color: '#bbb', marginLeft: 'auto' }}>/Mtok</span>
                   </div>
                   {/* Row 3: trust + tokens */}
                   <div style={{ display: 'flex', gap: 4, marginTop: 2, marginLeft: 9, fontSize: 9, color: '#aaa' }}>
