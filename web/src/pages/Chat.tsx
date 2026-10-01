@@ -5,7 +5,7 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { api } from '../lib/api'
 import { useAuth } from '../lib/auth'
-import { C, TRUST_COLORS } from '../lib/theme'
+import { C, TRUST_CLAIM_NOTE, TRUST_COLORS } from '../lib/theme'
 
 interface Message {
   role: 'user' | 'assistant'
@@ -33,7 +33,7 @@ const TRUST_LEVELS = [
   { value: 'open', label: 'Any' },
   { value: 'contained', label: 'Contained' },
   { value: 'hardened', label: 'Hardened+' },
-  { value: 'confidential', label: 'Confidential' },
+  // 'confidential' hidden: no provider can pass App Attest admission yet (#22, #25)
 ]
 
 export function Chat() {
@@ -376,6 +376,7 @@ export function Chat() {
                     )
                   })}
                 </div>
+                <div className="text-[10px] mt-1.5" style={{ color: '#aaa' }}>{TRUST_CLAIM_NOTE}</div>
               </div>
 
               <div>

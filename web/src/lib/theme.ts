@@ -31,6 +31,9 @@ export const C = {
   pageText: '#292F35',
 } as const
 
+// Trust levels are claimed by providers and not yet independently verified (see #1). Say so wherever they are shown.
+export const TRUST_CLAIM_NOTE = 'Self-reported by the provider. Independent verification is not live yet.'
+
 export const TRUST_COLORS: Record<string, { bg: string; text: string; label: string }> = {
   open: { bg: '#F3F3F3', text: '#888', label: 'Open' },
   contained: { bg: '#EEF3F7', text: C.deepBlue, label: 'Contained' },

@@ -101,6 +101,12 @@ class TestTraceAndEventPrivacy:
         traces = c.get("/v1/exchange/traces").json()["traces"]
         assert traces and all(dependencies.TRACE_OWNER_KEY not in t for t in traces)
 
+    def test_unverified_trust_is_labelled_self_reported(self):
+        from types import SimpleNamespace
+        from inference_exchange.coordinator.routes_exchange import trust_record
+        p = SimpleNamespace(capabilities=SimpleNamespace(trust_level=SimpleNamespace(value="hardened")), verified_trust_level=None)
+        assert trust_record(p) == {"claimed": "hardened", "verified": None, "basis": "self_reported"}
+
     def test_public_event_strips_identifiers(self):
         ev = {"type": "billing", "consumer_id": "u", "request_id": "r", "provider": "p", "cost_usd": 0.1}
         assert public_event(ev) == {"type": "billing", "provider": "p", "cost_usd": 0.1}

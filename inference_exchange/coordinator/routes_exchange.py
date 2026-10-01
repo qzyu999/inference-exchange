@@ -20,6 +20,12 @@ from .event_bus import public_event
 router = APIRouter()
 
 
+def trust_record(p) -> dict:
+    """Claimed vs verified trust, kept separate so clients never mistake a claim for evidence."""
+    verified = p.verified_trust_level
+    return {"claimed": p.capabilities.trust_level.value, "verified": verified, "basis": "attested" if verified else "self_reported"}
+
+
 @router.get("/v1/models")
 async def list_models():
     """List available models (OpenAI-compatible).
@@ -58,6 +64,7 @@ async def list_providers():
             "name": p.name,
             "models": p.capabilities.models,
             "trust_level": p.capabilities.trust_level.value,
+            "trust": trust_record(p),
             "hardware": p.capabilities.hardware,
             "price_input": p.capabilities.price_per_mtok_input,
             "price_output": p.capabilities.price_per_mtok_output,

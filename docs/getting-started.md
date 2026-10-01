@@ -38,6 +38,14 @@ Open **http://localhost:3000** → Chat → Send a message.
 
 The coordinator auto-creates a default API key on startup (shown in logs). The web UI picks it up automatically.
 
+### No model? Use the mock provider
+
+```bash
+python -m inference_exchange.provider --mock --trust hardened
+```
+
+Streams canned replies at `--mock-tps` (default 50) tokens/sec. No model download or llama-cpp needed. Use `--models a,b` to advertise several model names.
+
 ---
 
 ## Topology 2: Two Machines (coordinator + remote provider)
@@ -122,7 +130,7 @@ curl -X POST http://localhost:8000/v1/auth/keys \
 
 ---
 
-## Topology 3: Cloud Coordinator (planned)
+## Topology 3: Cloud Coordinator
 
 Coordinator deployed on a cloud VM, providers and consumers connect from anywhere.
 
@@ -134,13 +142,21 @@ Coordinator deployed on a cloud VM, providers and consumers connect from anywher
 └─────────┘        └──────────────────┘        └─────────┘
 ```
 
-This topology needs:
-- TLS termination (nginx/caddy in front of the coordinator)
-- Domain name + certificate
-- The web UI built and served by the coordinator (or deployed to a CDN)
-- Provider tokens for authenticated admission
+`deploy/docker-compose.yml` runs Caddy (automatic TLS, serves the web UI, proxies the API), the coordinator, and Litestream (continuous SQLite backup). `infra/` provisions the VM with OpenTofu. See `infra/README.md` for the full walkthrough and runbook.
 
-Setup guide: coming soon. The Docker Compose in the repo (`docker-compose.yml`) is a starting point for the coordinator deployment.
+Configuration lives in `deploy/.env` (template: `deploy/.env.example`):
+
+| Variable | Purpose |
+|---|---|
+| `IE_ENV=prod` | Strict mode: no anonymous inference, no shared default key, admin requires a role, password sign-in off |
+| `IE_JWT_SECRET` | Required in prod; sessions survive restarts |
+| `IE_GITHUB_CLIENT_ID` / `IE_GITHUB_CLIENT_SECRET` | GitHub OAuth app. Callback: `https://<domain>/v1/auth/github/callback` |
+| `IE_GITHUB_MIN_AGE_DAYS` | Reject GitHub accounts younger than N days |
+| `IE_ADMIN_EMAILS` | Comma-separated emails granted the admin role |
+| `IE_PASSWORD_AUTH=1` | Re-enable email/password sign-in in prod |
+| `IE_METRICS_TOKEN` | Bearer token for `/metrics` (Caddy also blocks it publicly) |
+
+Providers need a token: sign in as an admin, then `POST /v1/admin/provider-tokens`.
 
 ---
 
@@ -160,6 +176,9 @@ Setup guide: coming soon. The Docker Compose in the repo (`docker-compose.yml`) 
 - The default model (Qwen 2.5 0.5B) is ~400MB from HuggingFace.
 - If behind a proxy, set `HF_HUB_DOWNLOAD_TIMEOUT` and `HTTPS_PROXY` env vars.
 - Or manually download and place in `~/.inference-exchange/models/`.
+
+### Admin endpoints return 403
+- Admin is open in dev only until the first user signs up. After that, add your email to `IE_ADMIN_EMAILS` and sign in again.
 
 ### Web UI shows blank/errors
 - The web UI (`:3000`) proxies API calls to the coordinator (`:8000`). If the coordinator isn't running, you'll see proxy errors in the console.

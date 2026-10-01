@@ -35,7 +35,8 @@ createRoot(document.getElementById('root')!).render(
             <Route path="/login" element={<Login />} />
             <Route path="/admin" element={<Admin />} />
             <Route path="/trace" element={<Trace />} />
-            <Route path="/dashboard" element={<ProviderDashboard />} />
+            {/* Provider dashboard is a stub with fake data; hidden until #53 lands */}
+            {import.meta.env.DEV && <Route path="/dashboard" element={<ProviderDashboard />} />}
             <Route path="*" element={<NotFound />} />
           </Route>
         </Routes>

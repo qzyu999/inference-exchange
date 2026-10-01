@@ -1,6 +1,6 @@
 # Alpha Known Limitations
 
-Last updated: September 2026
+Last updated: October 2026
 
 This document lists what works, what doesn't, and what's planned for the Inference Exchange alpha release. If you hit something not listed here, file an issue.
 
@@ -18,7 +18,7 @@ This document lists what works, what doesn't, and what's planned for the Inferen
 - Minimum trust level filtering (`ocip_min_confidence`)
 - Maximum price constraint (`ocip_max_price`)
 - Request queuing when all providers are busy (50 depth, 30s timeout)
-- Full decision traces available via `/v1/exchange/traces`
+- Decision traces for your own requests via `/v1/exchange/traces` (admins see all)
 
 ### Billing
 - Per-token billing (input + output, separate rates)
@@ -47,7 +47,7 @@ This document lists what works, what doesn't, and what's planned for the Inferen
 - Exchange page with model market cards, reference pricing, live trade feed
 - Billing page with balance and transaction history
 - API key management page
-- Login/signup with JWT sessions
+- GitHub sign-in (email/password in dev), server-side logout, API key revocation, account deletion
 
 ### Reference pricing
 - Live price fetching from OpenRouter and Together AI
@@ -57,10 +57,19 @@ This document lists what works, what doesn't, and what's planned for the Inferen
 
 ## What Doesn't Work (Known Issues)
 
-### No TLS
-- All communication is plaintext HTTP/WS. E2E encryption protects prompt content but metadata (which model, token counts, billing) is visible on the wire.
-- **Impact**: Fine for LAN testing. Not safe for public internet use.
-- **Plan**: Add TLS termination (nginx/caddy) for cloud deployment (#34 Topology 3).
+### Trust levels are self-reported
+- A provider declares its own trust level at registration. The coordinator does not yet verify L2 evidence, and no provider can pass L3 (App Attest) admission yet.
+- **Impact**: "Hardened" means the operator claims it. A malicious operator can claim L2 and see prompts. The API exposes this as `trust.basis: "self_reported"` and the UI labels it.
+- **Plan**: Coordinator-assigned trust from evidence (#1, #19, #22, #25).
+
+### Browser chat trusts the served JavaScript
+- The web UI is served by the coordinator. A compromised coordinator could ship JS that reads prompts before encryption.
+- **Impact**: The SDK path can be hardened against this; the browser path cannot yet.
+- **Plan**: SRI, CSP, published bundle hashes, and a pinned client (#68).
+
+### TLS only via the deploy stack
+- `deploy/docker-compose.yml` terminates TLS with Caddy. Running the coordinator directly (`make dev`) is plain HTTP/WS.
+- **Impact**: Only use the deploy stack on the public internet.
 
 ### No provider hardening in dev mode
 - Providers run as plain Python processes (L0/L1 trust). The L2 hardened runtime exists (`provider-hardened/`) but isn't the default dev path.
@@ -77,24 +86,18 @@ This document lists what works, what doesn't, and what's planned for the Inferen
 - **Impact**: Fine for alpha testing with a handful of providers. Won't handle hundreds.
 - **Plan**: Beta/Future milestone.
 
-### Pricing comparison is output-only
-- Reference pricing comparison only looks at output token price, not input or cache pricing.
-- **Impact**: Comparisons can be misleading for workloads with heavy input (long contexts).
-- **Plan**: Full input/output/cache comparison (#42).
+### Price ceiling is output-only
+- `ocip_max_price` filters on output price only. The chat UI's input/cache sliders are not sent.
+- **Plan**: Three-tier ceilings (#52).
 
-### No cache pricing
-- The OCIP protocol doesn't include cache token pricing. Providers can't advertise discounts for KV cache hits.
-- **Impact**: No session-affinity pricing benefit. Each request is priced the same regardless of cache state.
-- **Plan**: Add cache pricing to protocol and billing (#42, #30).
+### Billing is post-pay
+- The only pre-check is balance > 0, so a balance can go slightly negative. Cancelled streams are billed in full once the provider finishes; failed or timed-out requests are not billed.
 
-### Limited model metadata
-- `ProviderCapabilities` doesn't include context length, function calling, vision support, or JSON mode.
-- **Impact**: Consumers can't filter by capability. All models look the same in terms of features.
-- **Plan**: Extend capabilities (#43).
+### No context-length check
+- Requests longer than the provider's context fail at the provider instead of being rejected up front (#32).
 
-### No fallback routing
-- If the selected provider fails mid-request, the request fails. No automatic retry to another provider.
-- **Impact**: Occasional failures when providers disconnect or error during inference.
+### Limited fallback routing
+- If sending to a provider fails, there is one retry on another provider. A failure mid-stream is not retried.
 - **Plan**: Fallback routing (#13, #26).
 
 ### Audit log is append-only file
@@ -117,4 +120,4 @@ These are explicitly deferred:
 - Hardware benchmark admission (Beta: #36)
 - Electricity cost modeling (Future: #31)
 - Cache-aware routing (Future: #33)
-- Docker/cloud deployment automation (later in #34)
+- Real payments and provider payouts (#44)

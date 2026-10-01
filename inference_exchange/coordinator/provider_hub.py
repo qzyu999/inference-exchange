@@ -58,6 +58,13 @@ class ConnectedProvider:
         return True
 
     @property
+    def verified_trust_level(self) -> str | None:
+        """Trust level backed by evidence, or None. Single hook point for L2/L3 verification (#1)."""
+        if self.requires_app_attest and self.admitted:
+            return self.capabilities.trust_level.value
+        return None
+
+    @property
     def load_factor(self) -> float:
         if self.capabilities.max_concurrent == 0:
             return 1.0
