@@ -830,22 +830,24 @@ export function Exchange() {
                       {t.selected_provider || t.model}
                     </div>
                   </div>
-                  {/* Row 2: in/cache/out breakdown */}
-                  <div style={{ display: 'flex', gap: 6, marginTop: 3, marginLeft: 9 }}>
+                  {/* Row 2: price rate + tokens */}
+                  <div style={{ display: 'flex', gap: 6, marginTop: 3, marginLeft: 9, fontSize: 9 }}>
                     {t.selected_price != null && (
-                      <span style={{ fontFamily: 'SF Mono,Menlo,Consolas,monospace', fontSize: 9 }}>
-                        <span style={{ color: C.deepBlue }}>in</span> <span style={{ color: '#555' }}>${(t.input_tokens != null ? (t.input_tokens / 1e6 * (t.selected_price * 0.2 || 0)).toFixed(4) : '—')}</span>
+                      <span style={{ fontFamily: 'SF Mono,Menlo,Consolas,monospace' }}>
+                        <span style={{ color: C.gold, fontWeight: 600 }}>${t.selected_price.toFixed(2)}</span>
+                        <span style={{ color: '#aaa' }}>/Mtok out</span>
                       </span>
+                    )}
+                    {t.input_tokens > 0 && (
+                      <span style={{ color: '#aaa' }}>{t.input_tokens} in</span>
                     )}
                     {t.cached_tokens > 0 && (
-                      <span style={{ fontFamily: 'SF Mono,Menlo,Consolas,monospace', fontSize: 9 }}>
-                        <span style={{ color: C.turquoise }}>cache</span> <span style={{ color: '#555' }}>{t.cached_tokens} tok</span>
+                      <span style={{ fontFamily: 'SF Mono,Menlo,Consolas,monospace', color: C.turquoise }}>
+                        {t.cached_tokens} cached
                       </span>
                     )}
-                    {t.selected_price != null && (
-                      <span style={{ fontFamily: 'SF Mono,Menlo,Consolas,monospace', fontSize: 9, marginLeft: 'auto' }}>
-                        <span style={{ color: C.gold }}>out</span> <span style={{ color: C.gold, fontWeight: 600 }}>${t.selected_price.toFixed(2)}</span>
-                      </span>
+                    {t.output_tokens > 0 && (
+                      <span style={{ color: '#aaa' }}>{t.output_tokens} out</span>
                     )}
                   </div>
                   {/* Row 3: trust + tokens */}
