@@ -8,8 +8,7 @@ import sys
 from inference_exchange.config import ProviderConfig
 
 from .agent import ProviderAgent
-from .inference import InferenceEngine, find_model_path
-from .model_identity import get_model_identity
+from .mock_engine import DEFAULT_MOCK_MODEL, MockEngine
 
 logging.basicConfig(
     level=logging.INFO,
@@ -35,6 +34,8 @@ def main():
     parser.add_argument("--tps", type=float, default=0, help="Advertised tokens/sec (0=auto-measure)")
     parser.add_argument("--hardware", default=None, help="Hardware label (e.g. apple-m4-pro)")
     parser.add_argument("--models", default=None, help="Comma-separated model names to advertise (overrides auto-detect)")
+    parser.add_argument("--mock", action="store_true", help="Serve canned responses; no model or llama-cpp needed")
+    parser.add_argument("--mock-tps", type=float, default=50.0, help="Mock streaming speed (tokens/sec)")
     args = parser.parse_args()
 
     config = ProviderConfig(
@@ -46,27 +47,35 @@ def main():
         max_concurrent=args.max_concurrent,
     )
 
-    # Find model
-    model_path = config.model_path or find_model_path()
-    if model_path is None:
-        logger.error(
-            "No model found. Run 'python -m inference_exchange download-model' first."
+    if args.mock:
+        model_names = args.models.split(",") if args.models else [DEFAULT_MOCK_MODEL]
+        engine = MockEngine(model_name=model_names[0], tps=args.mock_tps)
+        identity = {}
+        logger.info(f"Mock provider: advertising {model_names} at ~{args.mock_tps} tok/s")
+    else:
+        # Lazy import: llama-cpp is only needed for real inference
+        from .inference import InferenceEngine, find_model_path
+        from .model_identity import get_model_identity
+
+        model_path = config.model_path or find_model_path()
+        if model_path is None:
+            logger.error(
+                "No model found. Run 'python -m inference_exchange download-model' first, or use --mock."
+            )
+            sys.exit(1)
+
+        engine = InferenceEngine(
+            model_path=model_path,
+            n_ctx=config.n_ctx,
+            n_gpu_layers=config.n_gpu_layers,
         )
-        sys.exit(1)
 
-    # Load inference engine
-    engine = InferenceEngine(
-        model_path=model_path,
-        n_ctx=config.n_ctx,
-        n_gpu_layers=config.n_gpu_layers,
-    )
-
-    # Read model identity from GGUF file
-    identity = get_model_identity(model_path)
-    model_names = args.models.split(",") if args.models else [identity["name"]]
-    logger.info(f"Model identity: {identity['name']} ({identity['architecture']}, {identity['quantization']})")
-    logger.info(f"  File hash: {identity['file_hash'][:16]}...")
-    logger.info(f"  Advertising as: {model_names}")
+        # Read model identity from GGUF file
+        identity = get_model_identity(model_path)
+        model_names = args.models.split(",") if args.models else [identity["name"]]
+        logger.info(f"Model identity: {identity['name']} ({identity['architecture']}, {identity['quantization']})")
+        logger.info(f"  File hash: {identity['file_hash'][:16]}...")
+        logger.info(f"  Advertising as: {model_names}")
 
     # Run agent with pricing
     agent = ProviderAgent(

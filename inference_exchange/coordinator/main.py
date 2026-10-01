@@ -3,6 +3,7 @@
 import asyncio
 import json
 import logging
+import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -199,7 +200,6 @@ async def attestation_challenge_loop(hub: ProviderHub):
 
 
 def create_app() -> FastAPI:
-    import os
     if is_production() and not os.environ.get("IE_JWT_SECRET"):
         raise RuntimeError("IE_JWT_SECRET must be set when IE_ENV=prod (sessions would not survive restarts)")
 
@@ -234,9 +234,11 @@ def create_app() -> FastAPI:
         task = asyncio.create_task(attestation_challenge_loop(hub))
         logger.info("Attestation challenge loop started (interval=5m, timeout=30s)")
 
-        # Start reference price collector
-        price_task = price_collector.start()
-        logger.info("Price collector started (interval=30m)")
+        # Start reference price collector (IE_PRICE_COLLECTOR=0 disables outbound fetches, e.g. tests/CI)
+        price_task = None
+        if os.environ.get("IE_PRICE_COLLECTOR", "1") != "0":
+            price_task = price_collector.start()
+            logger.info("Price collector started (interval=30m)")
 
         yield
 
@@ -246,10 +248,11 @@ def create_app() -> FastAPI:
             await task
         except asyncio.CancelledError:
             pass
-        try:
-            await price_task
-        except asyncio.CancelledError:
-            pass
+        if price_task is not None:
+            try:
+                await price_task
+            except asyncio.CancelledError:
+                pass
 
     app = FastAPI(
         title="Inference Exchange",

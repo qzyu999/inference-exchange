@@ -35,8 +35,6 @@ from inference_exchange.shared.protocol import (
     TrustLevel,
 )
 
-from .inference import InferenceEngine
-
 logger = logging.getLogger(__name__)
 
 
@@ -46,7 +44,7 @@ class ProviderAgent:
     def __init__(
         self,
         config: ProviderConfig,
-        engine: InferenceEngine,
+        engine,  # InferenceEngine or MockEngine
         price_per_mtok_input: float = 0.05,
         price_per_mtok_output: float = 0.20,
         price_per_mtok_cache: float = 0,
