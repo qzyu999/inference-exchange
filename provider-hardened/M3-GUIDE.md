@@ -343,8 +343,8 @@ Dismiss it. The lldb prompt showing "no target" means the attach
 was blocked -- that's the success case.
 
 **Model download fails (no access to Hugging Face):**
-Download the model on a different device and copy it to the Mac. Or use Ollama models already
-on disk at `~/.ollama/models/blobs/`.
+Download the model on a different device and copy it to the Mac. Or
+use Ollama models already on disk at `~/.ollama/models/blobs/`.
 
 **PyInstaller `--onefile` fails with "different Team IDs":**
 macOS Sequoia is strict about dylib signatures in `--onefile` mode

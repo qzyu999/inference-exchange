@@ -25,41 +25,30 @@ FETCH_INTERVAL = 1800  # 30 minutes
 PRUNE_DAYS = 90
 
 
-def _ssl_context():
-    """Return SSL verify setting for httpx.
+FETCH_TIMEOUT_SECONDS = 15
+FETCH_ATTEMPTS = 2
 
-    Tries certifi CA bundle first. If SSL verification is broken (common
-    on macOS pyenv builds with no system CA store), falls back to
-    verify=False for these non-sensitive public API price fetches.
-    """
+
+def _ca_bundle() -> str | bool:
+    """CA bundle for TLS verification: certifi if installed, else the system store."""
     try:
-        import os
         import certifi
-        ca_path = certifi.where()
-        if "SSL_CERT_FILE" not in os.environ:
-            os.environ["SSL_CERT_FILE"] = ca_path
-        return ca_path
+        return certifi.where()
     except ImportError:
         return True
 
 
-def _make_client(timeout: int = 15) -> httpx.AsyncClient:
-    """Create an httpx async client with SSL configured.
-
-    Tries certifi certs first. If that fails on first use, the fetcher
-    catches the SSL error and retries with verify=False. These are
-    public read-only pricing APIs — no credentials are sent.
-    """
-    return httpx.AsyncClient(timeout=timeout, verify=_ssl_context())
-
-
-def _make_client_no_verify(timeout: int = 15) -> httpx.AsyncClient:
-    """Fallback client that skips SSL verification."""
-    return httpx.AsyncClient(timeout=timeout, verify=False)
-
-
-# Initialize SSL certs at import time so all httpx calls benefit
-_ssl_context()
+async def _get_json(url: str) -> dict | list | None:
+    """GET a public JSON endpoint with TLS verification. Returns None if unreachable."""
+    for attempt in range(FETCH_ATTEMPTS):
+        try:
+            async with httpx.AsyncClient(timeout=FETCH_TIMEOUT_SECONDS, verify=_ca_bundle()) as client:
+                resp = await client.get(url)
+                if resp.status_code == 200:
+                    return resp.json()
+        except httpx.HTTPError as e:
+            logger.debug(f"⏳ {url} attempt {attempt + 1} failed: {e}")
+    return None
 
 
 @dataclass
@@ -166,16 +155,7 @@ class OpenRouterFetcher(PriceFetcher):
 
     async def fetch(self) -> list[PriceEntry]:
         try:
-            data = None
-            for client_fn in [_make_client, _make_client_no_verify]:
-                try:
-                    async with client_fn(timeout=15) as client:
-                        resp = await client.get("https://openrouter.ai/api/v1/models")
-                        if resp.status_code == 200:
-                            data = resp.json()
-                            break
-                except Exception:
-                    continue
+            data = await _get_json("https://openrouter.ai/api/v1/models")
             if data:
                 entries = self._parse_models(data.get("data", []))
                 logger.info(f"OpenRouter: fetched {len(entries)} models live")
@@ -195,16 +175,7 @@ class TogetherFetcher(PriceFetcher):
     async def fetch(self) -> list[PriceEntry]:
         entries = []
         try:
-            data = None
-            for client_fn in [_make_client, _make_client_no_verify]:
-                try:
-                    async with client_fn(timeout=15) as client:
-                        resp = await client.get("https://api.together.xyz/v1/models")
-                        if resp.status_code == 200:
-                            data = resp.json()
-                            break
-                except Exception:
-                    continue
+            data = await _get_json("https://api.together.xyz/v1/models")
 
             if not data:
                 logger.warning("Together: all fetch attempts failed")
