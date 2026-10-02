@@ -16,5 +16,6 @@ infra/.terraform
 infra/*.tfstate*
 figma-screens
 docs/figma-screens
+docs/archive/*.png
 notebooks
 provider-hardened/llama.cpp

@@ -150,8 +150,12 @@ ocip_agent/               # Production OCIP agent (E2E encryption, attestation)
 provider-hardened/        # L2 hardening (PT_DENY_ATTACH, codesign)
 web/                      # React + Three.js frontend
 tests/                    # Test suite (290+ tests)
-docs/                     # Design docs, threat model, architecture
+docs/                     # Principles, requirements, architecture (also at /docs in the app)
 ```
+
+## Documentation
+
+Start at [docs/README.md](docs/README.md), or open `/docs` in the web app. [Principles](docs/principles.md) and [requirements](docs/requirements/README.md) are the source of truth; the code implements them, and CI checks that each implemented requirement has a passing test.
 
 ## Status
 

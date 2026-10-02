@@ -16,6 +16,7 @@ import { Login } from './pages/Login'
 import { Admin } from './pages/Admin'
 import { Trace } from './pages/Trace'
 import { ProviderDashboard } from './pages/ProviderDashboard'
+import { Docs } from './pages/Docs'
 import { NotFound } from './pages/NotFound'
 
 createRoot(document.getElementById('root')!).render(
@@ -35,6 +36,7 @@ createRoot(document.getElementById('root')!).render(
             <Route path="/login" element={<Login />} />
             <Route path="/admin" element={<Admin />} />
             <Route path="/trace" element={<Trace />} />
+            <Route path="/docs/*" element={<Docs />} />
             {/* Provider dashboard is a stub with fake data; hidden until #53 lands */}
             {import.meta.env.DEV && <Route path="/dashboard" element={<ProviderDashboard />} />}
             <Route path="*" element={<NotFound />} />

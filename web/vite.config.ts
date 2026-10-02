@@ -15,6 +15,8 @@ export default defineConfig({
   },
   server: {
     port: 3000,
+    // /docs bundles ../docs/**/*.md
+    fs: { allow: ['..'] },
     proxy: {
       '/v1': 'http://localhost:8000',
       '/ws': { target: 'ws://localhost:8000', ws: true },

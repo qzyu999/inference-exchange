@@ -85,6 +85,17 @@ class TestKeysAndAdmin:
         assert c.get("/v1/admin/state").status_code == 200
 
 
+class TestProviderTokens:
+    def test_provider_without_token_rejected_once_tokens_exist(self, make_client):
+        from starlette.websockets import WebSocketDisconnect
+        c = make_client()
+        dependencies.get_store().create_provider_token("p")
+        with pytest.raises(WebSocketDisconnect) as exc:
+            with c.websocket_connect("/ws/provider") as ws:
+                ws.receive_text()
+        assert exc.value.code == 4003
+
+
 class TestTraceAndEventPrivacy:
     def test_traces_scoped_to_caller(self, make_client):
         c = make_client()

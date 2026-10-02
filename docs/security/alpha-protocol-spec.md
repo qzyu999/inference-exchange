@@ -862,7 +862,7 @@ The following are explicitly out of scope for the Public Alpha:
 - [L2 Threat Model](threat-model.md)
 - [PCC Comparison](pcc-comparison.md)
 - [Architecture](../architecture.md)
-- [System Design](../system-design.md)
+- [System Design](../archive/system-design.md)
 - Alpha Definition of Done: [Issue #1](https://github.com/qzyu999/inference-exchange/issues/1)
 - [Apple App Attest](https://developer.apple.com/documentation/devicecheck/establishing-your-app-s-integrity)
 - [Apple Hardened Runtime](https://developer.apple.com/documentation/security/hardened-runtime)

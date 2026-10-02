@@ -48,6 +48,17 @@ jobs:
           cache-dependency-path: web/package-lock.json
       - run: npm ci
       - run: npm run build
+      - run: node src/lib/docs.test.mjs
+
+  requirements:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Every implemented requirement has an existing test
+        run: python scripts/check_requirements.py
 
   deploy-images:
     runs-on: ubuntu-latest

@@ -20,6 +20,7 @@ const PRIMARY_NAV = [
 const ACCOUNT_NAV = [
   { path: '/billing', label: 'Billing', icon: BillingIcon },
   { path: '/keys', label: 'API keys', icon: KeysIcon },
+  { path: '/docs', label: 'Docs', icon: DocsIcon },
   { path: '/admin', label: 'Settings', icon: SettingsIcon },
 ]
 
@@ -89,6 +90,15 @@ function KeysIcon({ className }: { className?: string }) {
       <path d="M11.5 2l4.5 4.5-7 7-4.5-4.5 7-7z" />
       <path d="M2 16l3-3" />
       <path d="M9 4.5l4.5 4.5" />
+    </svg>
+  )
+}
+
+function DocsIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M4 2.5h7l3 3v10H4z" />
+      <path d="M11 2.5v3h3M6.5 9h5M6.5 12h5" />
     </svg>
   )
 }
@@ -198,7 +208,7 @@ export function Layout() {
           <NavItem
             key={item.path}
             {...item}
-            active={location.pathname === item.path}
+            active={location.pathname === item.path || (item.path === '/docs' && location.pathname.startsWith('/docs'))}
           />
         ))}
       </nav>
@@ -336,10 +346,11 @@ const PAGE_META: Record<string, { title: string; subtitle: string }> = {
   '/admin': { title: 'Settings', subtitle: 'System configuration and diagnostics.' },
   '/trace': { title: 'Request trace', subtitle: 'Inspect the evidence behind a completed request.' },
   '/dashboard': { title: 'Provider', subtitle: 'The provider side is about turning hardware into a transparent economic offer.' },
+  '/docs': { title: 'Docs', subtitle: 'Principles and requirements. The code implements these.' },
 }
 
 function PageTitle({ pathname }: { pathname: string }) {
-  const meta = PAGE_META[pathname]
+  const meta = PAGE_META[pathname.startsWith('/docs') ? '/docs' : pathname]
   if (!meta) return null
 
   const gradient =

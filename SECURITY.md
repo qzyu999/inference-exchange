@@ -35,6 +35,7 @@ Do **not** open a public GitHub issue for security vulnerabilities.
 
 The current alpha scope is defined in:
 
+- [Principles](docs/principles.md) and [Requirements](docs/requirements/README.md)
 - [L2 Threat Model](docs/security/threat-model.md)
 - [Alpha Protocol Spec](docs/security/alpha-protocol-spec.md)
 - [PCC Comparison](docs/security/pcc-comparison.md)
