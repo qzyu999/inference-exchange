@@ -19,6 +19,7 @@ If the code and a requirement disagree, the code is wrong, or the requirement mu
 | [Principles](principles.md) | The base rules of the system |
 | [Requirements](requirements/README.md) | Testable rules for each area |
 | [Architecture](architecture.md) | The system as it is now |
+| [Design review](design-review.md) | A formal model of the system and the review findings (not normative) |
 | [Decisions](decisions/README.md) | Why the project chose each option |
 | [Status](status.md) | What works and the known limits |
 | [Getting started](guides/getting-started.md) | Run the system on your computer or a server |
