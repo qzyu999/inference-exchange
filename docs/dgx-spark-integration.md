@@ -1,7 +1,7 @@
 # NVIDIA DGX Spark Integration — Hardware Security & Provider Architecture
 
 **Status:** Research & proposal for issue creation
-**Related docs:** [apple-silicon-hardening.md](apple-silicon-hardening.md), [linux-hardening.md](linux-hardening.md), [windows-hardening.md](windows-hardening.md), [threat-model.md](threat-model.md), [primitives-matrix.md](primitives-matrix.md)
+**Related docs:** [Apple Silicon hardening (archived)](archive/apple-silicon-hardening.md), [Linux hardening (archived)](archive/linux-hardening.md), [Windows hardening (archived)](archive/windows-hardening.md), [current threat model](security/threat-model.md), [primitives matrix (archived)](archive/primitives-matrix.md)
 
 ---
 
