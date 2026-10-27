@@ -69,6 +69,9 @@ class ChatCompletionRequest(BaseModel):
 
     def validate_inputs(self) -> str | None:
         """Return error message if invalid, None if OK."""
+        # ROUTE-001 / P1: unknown trust labels must not silently become "open".
+        if self.ocip_min_confidence not in ("open", "contained", "hardened", "confidential"):
+            return "ocip_min_confidence must be one of: open, contained, hardened, confidential"
         if not self.messages:
             return "Messages cannot be empty"
         if len(self.messages) > 100:
