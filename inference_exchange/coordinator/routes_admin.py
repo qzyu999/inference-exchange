@@ -8,6 +8,7 @@ Admin endpoints require either:
 import time
 
 from fastapi import APIRouter, Request
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from .dependencies import (
@@ -154,3 +155,64 @@ async def list_provider_tokens(request: Request):
         return admin_required_response()
     store = get_store()
     return {"tokens": store.list_provider_tokens()}
+
+
+# --- Account moderation (#111, AUTH-017) ---
+
+def _admin_actor(request: Request) -> str:
+    """Who performed an admin action, for the audit trail."""
+    from .routes_auth import resolve_user_from_request
+    user = resolve_user_from_request(request)
+    if not user:
+        return "dev-admin"
+    return user.get("email") or user["user_id"]
+
+
+class SuspendRequest(BaseModel):
+    reason: str
+    # None = permanent ban
+    duration_seconds: float | None = None
+
+
+class UnsuspendRequest(BaseModel):
+    reason: str = ""
+
+
+@router.get("/v1/admin/accounts")
+async def list_accounts(request: Request):
+    """Account metadata for operators. No prompts, no key material."""
+    if not is_admin_request(request):
+        return admin_required_response()
+    return {"accounts": get_store().list_users_for_admin()}
+
+
+@router.post("/v1/admin/accounts/{user_id}/suspend")
+async def suspend_account(user_id: str, body: SuspendRequest, request: Request):
+    """Suspend (temporary) or ban (permanent) an account. Ends its sessions; its keys stop working."""
+    if not is_admin_request(request):
+        return admin_required_response()
+    if not body.reason.strip():
+        return JSONResponse({"error": "A reason is required"}, status_code=400)
+    if body.duration_seconds is not None and body.duration_seconds <= 0:
+        return JSONResponse({"error": "duration_seconds must be positive, or null for a permanent ban"}, status_code=400)
+    result = get_store().suspend_user(user_id, body.reason.strip(), _admin_actor(request), body.duration_seconds)
+    if result is None:
+        return JSONResponse({"error": "Account not found"}, status_code=404)
+    return {"ok": True, "suspension": result}
+
+
+@router.post("/v1/admin/accounts/{user_id}/unsuspend")
+async def unsuspend_account(user_id: str, body: UnsuspendRequest, request: Request):
+    if not is_admin_request(request):
+        return admin_required_response()
+    if not get_store().unsuspend_user(user_id, body.reason.strip(), _admin_actor(request)):
+        return JSONResponse({"error": "Account not found"}, status_code=404)
+    return {"ok": True}
+
+
+@router.get("/v1/admin/account-actions")
+async def list_account_actions(request: Request, user_id: str | None = None):
+    """Audit trail of suspend, ban, and unsuspend actions."""
+    if not is_admin_request(request):
+        return admin_required_response()
+    return {"actions": get_store().list_account_actions(user_id)}

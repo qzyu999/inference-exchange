@@ -119,6 +119,16 @@ CREATE TABLE IF NOT EXISTS reference_prices (
     fetched_at REAL NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS account_actions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id TEXT NOT NULL,
+    action TEXT NOT NULL,
+    reason TEXT NOT NULL DEFAULT '',
+    suspended_until REAL,
+    actor TEXT NOT NULL,
+    timestamp REAL NOT NULL
+);
+
 CREATE INDEX IF NOT EXISTS idx_ref_family_key ON reference_prices(family_key, fetched_at);
 CREATE INDEX IF NOT EXISTS idx_ref_source ON reference_prices(source, fetched_at);
 """
@@ -193,6 +203,11 @@ class Store:
         if "session_version" not in user_columns:
             self._conn.execute("ALTER TABLE users ADD COLUMN session_version INTEGER NOT NULL DEFAULT 0")
         self._conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_github_id ON users(github_id)")
+        # Account suspension (#111)
+        if "suspended_until" not in user_columns:
+            self._conn.execute("ALTER TABLE users ADD COLUMN suspended_until REAL")
+        if "suspension_reason" not in user_columns:
+            self._conn.execute("ALTER TABLE users ADD COLUMN suspension_reason TEXT NOT NULL DEFAULT ''")
         key_columns = {row[1] for row in self._conn.execute("PRAGMA table_info(api_keys)").fetchall()}
         if "revoked_at" not in key_columns:
             self._conn.execute("ALTER TABLE api_keys ADD COLUMN revoked_at REAL")
@@ -600,6 +615,94 @@ class Store:
         self._conn.execute("DELETE FROM users WHERE user_id = ?", (user_id,))
         self._conn.execute("DELETE FROM accounts WHERE account_id = ?", (user_id,))
         self._conn.commit()
+
+    # --- Account suspension (#111) ---
+
+    # suspended_until at or above this value means a permanent ban
+    PERMANENT_SUSPENSION = 1e18
+
+    def suspend_user(self, user_id: str, reason: str, actor: str, duration_seconds: float | None) -> dict | None:
+        """Suspend a user. duration_seconds=None is a permanent ban. Ends all sessions."""
+        if not self.get_user(user_id):
+            return None
+        now = time.time()
+        until = self.PERMANENT_SUSPENSION if duration_seconds is None else now + duration_seconds
+        self._conn.execute(
+            "UPDATE users SET suspended_until = ?, suspension_reason = ?, session_version = session_version + 1 WHERE user_id = ?",
+            (until, reason, user_id),
+        )
+        self._conn.execute(
+            "INSERT INTO account_actions (user_id, action, reason, suspended_until, actor, timestamp) VALUES (?, ?, ?, ?, ?, ?)",
+            (user_id, "ban" if duration_seconds is None else "suspend", reason, until, actor, now),
+        )
+        self._conn.commit()
+        logger.info(f"Account {user_id} suspended by {actor}")
+        return self.get_suspension(user_id)
+
+    def unsuspend_user(self, user_id: str, reason: str, actor: str) -> bool:
+        cur = self._conn.execute(
+            "UPDATE users SET suspended_until = NULL, suspension_reason = '' WHERE user_id = ?", (user_id,),
+        )
+        if cur.rowcount == 0:
+            return False
+        self._conn.execute(
+            "INSERT INTO account_actions (user_id, action, reason, actor, timestamp) VALUES (?, 'unsuspend', ?, ?, ?)",
+            (user_id, reason, actor, time.time()),
+        )
+        self._conn.commit()
+        logger.info(f"Account {user_id} unsuspended by {actor}")
+        return True
+
+    def get_suspension(self, user_id: str) -> dict | None:
+        """Active suspension for this account, or None. An expired suspension is inactive."""
+        row = self._conn.execute(
+            "SELECT suspended_until, suspension_reason FROM users WHERE user_id = ?", (user_id,),
+        ).fetchone()
+        if not row or row["suspended_until"] is None or row["suspended_until"] <= time.time():
+            return None
+        permanent = row["suspended_until"] >= self.PERMANENT_SUSPENSION
+        return {
+            "user_id": user_id,
+            "reason": row["suspension_reason"],
+            "permanent": permanent,
+            "suspended_until": None if permanent else row["suspended_until"],
+        }
+
+    def list_users_for_admin(self, limit: int = 500) -> list[dict]:
+        """Account metadata for operators. No password hashes, no key material."""
+        rows = self._conn.execute(
+            """SELECT u.user_id, u.email, u.name, u.role, u.created_at, u.last_login_at,
+                      u.suspended_until, u.suspension_reason,
+                      (SELECT COUNT(*) FROM api_keys k WHERE k.consumer_id = u.user_id AND k.revoked_at IS NULL) AS active_keys,
+                      (SELECT MAX(k.last_used_at) FROM api_keys k WHERE k.consumer_id = u.user_id) AS key_last_used_at,
+                      a.requests_made, a.tokens_consumed
+               FROM users u LEFT JOIN accounts a ON a.account_id = u.user_id
+               ORDER BY u.created_at DESC LIMIT ?""",
+            (limit,),
+        ).fetchall()
+        now = time.time()
+        result = []
+        for r in rows:
+            d = dict(r)
+            until = d.pop("suspended_until")
+            d["suspended"] = until is not None and until > now
+            d["suspension_permanent"] = d["suspended"] and until >= self.PERMANENT_SUSPENSION
+            d["suspended_until"] = until if d["suspended"] and not d["suspension_permanent"] else None
+            if not d["suspended"]:
+                d["suspension_reason"] = ""
+            result.append(d)
+        return result
+
+    def list_account_actions(self, user_id: str | None = None, limit: int = 200) -> list[dict]:
+        if user_id:
+            rows = self._conn.execute(
+                "SELECT * FROM account_actions WHERE user_id = ? ORDER BY timestamp DESC LIMIT ?", (user_id, limit),
+            ).fetchall()
+        else:
+            rows = self._conn.execute(
+                "SELECT * FROM account_actions ORDER BY timestamp DESC LIMIT ?", (limit,),
+            ).fetchall()
+        return [dict(r) for r in rows]
 
     def get_user(self, user_id: str) -> dict | None:
         row = self._conn.execute(

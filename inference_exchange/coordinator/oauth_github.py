@@ -129,6 +129,8 @@ async def github_callback(request: Request, code: str = "", state: str = ""):
         )
     except ValueError:
         return _login_error("email_taken")
+    if get_store().get_suspension(user["user_id"]):
+        return _login_error("suspended")
 
     logger.info(f"✅ GitHub sign-in: {gh.get('login')} ({'new' if created else 'returning'}) at {int(time.time())}")
     response = RedirectResponse("/chat", status_code=302)
