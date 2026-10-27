@@ -57,6 +57,16 @@ def test_revoked_session_cookie_does_not_fall_back_to_shared_account(prod_client
         assert response.json()["error"]["code"] == "invalid_api_key"
 
 
+def test_matcher_refuses_unknown_confidence_even_outside_http_validation():
+    from inference_exchange.coordinator.provider_hub import ProviderHub
+
+    hub = ProviderHub()
+    with pytest.raises(KeyError):
+        hub.select_provider("default", min_confidence="Hardened")
+    with pytest.raises(ValueError):
+        hub.explain_no_match("default", min_confidence="Hardened")
+
+
 def test_production_rejects_provider_without_token_on_empty_database(prod_client):
     assert Store().list_provider_tokens() == []
     with pytest.raises(WebSocketDisconnect) as exc:
