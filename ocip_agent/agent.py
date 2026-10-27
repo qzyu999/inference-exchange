@@ -249,7 +249,7 @@ class OCIPAgent:
         price_output: float = 0.15,
         price_input: float = 0.05,
         price_cache: float = 0,
-        trust_level: str = "hardened",
+        trust_level: str = "open",
         n_gpu_layers: int = -1,
         provider_token: str = "",
         max_concurrent: int = 2,
@@ -664,7 +664,7 @@ def main():
     parser.add_argument("--price-output", type=float, default=0.15)
     parser.add_argument("--price-input", type=float, default=0.05, help="$/Mtok for input tokens")
     parser.add_argument("--price-cache", type=float, default=0, help="$/Mtok for cached input tokens (0 = same as input)")
-    parser.add_argument("--trust", default="hardened")
+    parser.add_argument("--trust", default="open")
     parser.add_argument("--n-gpu-layers", type=int, default=-1)
     parser.add_argument("--token", default="", help="Provider auth token (pt-ie-...)")
     parser.add_argument("--llama-server", default="", help="Path to llama-server binary (uses native server for cache reporting)")
