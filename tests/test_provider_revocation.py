@@ -106,7 +106,8 @@ class TestQuarantine:
         assert hub.select_provider("m", min_confidence="open").provider_id == pid
 
     def test_admin_quarantine_endpoint(self, admin):
-        with admin.websocket_connect("/ws/provider") as ws:
+        token = admin.post("/v1/admin/provider-tokens", json={"name": "quarantine-test"}).json()["token"]
+        with admin.websocket_connect(f"/ws/provider?token={token}") as ws:
             ws.send_json(_register_msg())
             pid = ws.receive_json()["provider_id"]
             r = admin.post(f"/v1/admin/providers/{pid}/quarantine", json={"reason": "spam"})
