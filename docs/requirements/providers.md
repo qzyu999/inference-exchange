@@ -72,3 +72,15 @@ MUST: When a provider disconnects during a request, its reputation decreases.
 - Principle: P3
 - Status: implemented
 - Verified by: tests/test_disconnect_handling.py::TestReputationDisconnect::test_record_disconnect_decreases_score
+
+### PROV-010: Operators can remove a provider
+
+MUST: An admin can revoke a provider token. After revocation, the coordinator rejects a connection with that token. The coordinator also disconnects each connected provider that used the token.
+
+MUST: An admin can quarantine a connected provider without a restart. The system does not send new requests to a quarantined provider. An admin can release the provider.
+
+Note: A request that is in progress on a disconnected provider gets the error `provider_disconnected`.
+
+- Principle: P6
+- Status: implemented
+- Verified by: tests/test_provider_revocation.py::TestTokenRevocation::test_revoked_token_refused_at_handshake, tests/test_provider_revocation.py::TestTokenRevocation::test_revoke_disconnects_live_provider, tests/test_provider_revocation.py::TestTokenRevocation::test_revoking_only_token_does_not_reopen_access, tests/test_provider_revocation.py::TestQuarantine::test_quarantined_provider_not_selected, tests/test_provider_revocation.py::TestQuarantine::test_admin_quarantine_endpoint, tests/test_provider_revocation.py::TestProviderControlsNeedAdmin::test_non_admin_denied

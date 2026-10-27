@@ -213,6 +213,12 @@ class Store:
             self._conn.execute("ALTER TABLE api_keys ADD COLUMN revoked_at REAL")
         self._conn.commit()
 
+        # Provider token revocation (#113)
+        pt_columns = {row[1] for row in self._conn.execute("PRAGMA table_info(provider_tokens)").fetchall()}
+        if "revoked_at" not in pt_columns:
+            self._conn.execute("ALTER TABLE provider_tokens ADD COLUMN revoked_at REAL")
+            self._conn.commit()
+
         # Add cache_per_mtok column to reference_prices (added for three-tier comparison)
         ref_columns = {row[1] for row in self._conn.execute("PRAGMA table_info(reference_prices)").fetchall()}
         if "cache_per_mtok" not in ref_columns:
@@ -464,7 +470,7 @@ class Store:
             return None
         token_hash = hashlib.sha256(raw_token.encode()).hexdigest()
         row = self._conn.execute(
-            "SELECT * FROM provider_tokens WHERE token_hash = ?", (token_hash,)
+            "SELECT * FROM provider_tokens WHERE token_hash = ? AND revoked_at IS NULL", (token_hash,)
         ).fetchone()
         if row:
             self._conn.execute(
@@ -477,9 +483,19 @@ class Store:
 
     def list_provider_tokens(self) -> list[dict]:
         rows = self._conn.execute(
-            "SELECT token_id, name, created_at, last_used_at, connections FROM provider_tokens"
+            "SELECT token_id, name, created_at, last_used_at, connections, revoked_at FROM provider_tokens"
         ).fetchall()
         return [dict(r) for r in rows]
+
+    def revoke_provider_token(self, token_id: str) -> bool:
+        cur = self._conn.execute(
+            "UPDATE provider_tokens SET revoked_at = ? WHERE token_id = ? AND revoked_at IS NULL",
+            (time.time(), token_id),
+        )
+        self._conn.commit()
+        if cur.rowcount:
+            logger.warning(f"Provider token revoked: {token_id}")
+        return cur.rowcount > 0
 
 
     # --- User accounts ---

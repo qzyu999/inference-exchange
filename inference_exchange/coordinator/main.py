@@ -342,12 +342,14 @@ def create_app() -> FastAPI:
 
         # Authenticate provider via token (query param or first-message field)
         token = ws.query_params.get("token", "")
+        token_id = ""
         if token:
             token_info = store.validate_provider_token(token)
             if not token_info:
                 await ws.close(code=4003, reason="Invalid provider token")
                 return
-            logger.info(f"Provider authenticated: {token_info['name']} ({token_info['token_id']})")
+            token_id = token_info["token_id"]
+            logger.info(f"Provider authenticated: {token_info['name']} ({token_id})")
         else:
             # Allow unauthenticated in dev mode (no tokens exist yet)
             token_count = len(store.list_provider_tokens())
@@ -367,6 +369,7 @@ def create_app() -> FastAPI:
 
             reg = RegisterMessage(**data)
             provider_id = hub.register_provider(ws, reg)
+            hub._providers[provider_id].token_id = token_id
 
             # Send registration confirmation
             confirmed = RegisteredMessage(

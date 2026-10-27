@@ -68,6 +68,9 @@ async def get_admin_state(request: Request):
             "uptime_seconds": int(time.time() - p.connected_at),
             "last_heartbeat": p.last_heartbeat,
             "seconds_since_heartbeat": int(time.time() - p.last_heartbeat),
+            "token_id": p.token_id,
+            "quarantined": p.quarantined,
+            "quarantine_reason": p.quarantine_reason,
         })
 
     # Matching engine config (must match matching/strategy.py compute_score)
@@ -265,3 +268,53 @@ async def clear_request_queue(request: Request):
         return admin_required_response()
     cleared = get_hub().clear_queue()
     return {"ok": True, "cleared": cleared}
+
+
+# --- Provider revocation and quarantine (#113, PROV-010) ---
+
+class QuarantineRequest(BaseModel):
+    reason: str = ""
+
+
+@router.delete("/v1/admin/provider-tokens/{token_id}")
+async def revoke_provider_token(token_id: str, request: Request):
+    """Revoke a provider token and disconnect every provider that uses it."""
+    if not is_admin_request(request):
+        return admin_required_response()
+    if not get_store().revoke_provider_token(token_id):
+        return JSONResponse({"error": "Token not found or already revoked"}, status_code=404)
+    hub = get_hub()
+    disconnected = []
+    for provider_id in hub.providers_with_token(token_id):
+        if await hub.force_disconnect(provider_id, "Provider token revoked"):
+            disconnected.append(provider_id)
+    return {"ok": True, "token_id": token_id, "disconnected": disconnected}
+
+
+@router.post("/v1/admin/providers/{provider_id}/quarantine")
+async def quarantine_provider(provider_id: str, body: QuarantineRequest, request: Request):
+    """Remove a connected provider from routing at once. It stays connected."""
+    if not is_admin_request(request):
+        return admin_required_response()
+    if not get_hub().set_quarantine(provider_id, True, body.reason.strip()):
+        return JSONResponse({"error": "Provider not connected"}, status_code=404)
+    return {"ok": True, "provider_id": provider_id, "quarantined": True}
+
+
+@router.post("/v1/admin/providers/{provider_id}/release")
+async def release_provider(provider_id: str, request: Request):
+    if not is_admin_request(request):
+        return admin_required_response()
+    if not get_hub().set_quarantine(provider_id, False):
+        return JSONResponse({"error": "Provider not connected"}, status_code=404)
+    return {"ok": True, "provider_id": provider_id, "quarantined": False}
+
+
+@router.post("/v1/admin/providers/{provider_id}/disconnect")
+async def disconnect_provider(provider_id: str, request: Request):
+    """Close a provider connection. In-flight requests get provider_disconnected."""
+    if not is_admin_request(request):
+        return admin_required_response()
+    if not await get_hub().force_disconnect(provider_id):
+        return JSONResponse({"error": "Provider not connected"}, status_code=404)
+    return {"ok": True, "provider_id": provider_id}
