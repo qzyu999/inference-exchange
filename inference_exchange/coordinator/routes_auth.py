@@ -112,16 +112,44 @@ class InvalidCredentials(Exception):
     """The caller sent an Authorization header that does not authenticate."""
 
 
+class AccountSuspended(Exception):
+    """The caller authenticated, but an operator suspended the account (AUTH-017)."""
+
+    def __init__(self, suspension: dict):
+        super().__init__(suspension.get("reason", ""))
+        self.suspension = suspension
+
+
+def account_suspended_response(suspension: dict) -> JSONResponse:
+    if suspension.get("permanent"):
+        message = "This account is suspended."
+    else:
+        until = time.strftime("%Y-%m-%d %H:%M UTC", time.gmtime(suspension["suspended_until"]))
+        message = f"This account is suspended until {until}."
+    return JSONResponse(
+        {"error": {"message": message, "type": "permission_error", "code": "account_suspended"}},
+        status_code=403,
+    )
+
+
+def _check_not_suspended(consumer_id: str) -> str:
+    suspension = get_store().get_suspension(consumer_id)
+    if suspension:
+        raise AccountSuspended(suspension)
+    return consumer_id
+
+
 def resolve_caller(request: Request) -> str:
     """Caller's consumer id: session JWT > API key > shared anonymous account.
 
     The anonymous account is used only when the caller sends no Authorization
     header. An invalid, revoked, or expired credential raises InvalidCredentials;
     it never falls back to the anonymous account (AUTH-016).
+    A suspended account raises AccountSuspended for every credential (AUTH-017).
     """
     user_info = resolve_user_from_request(request)
     if user_info:
-        return user_info["user_id"]
+        return _check_not_suspended(user_info["user_id"])
     authorization = request.headers.get("authorization", "").strip()
     if not authorization:
         return DEFAULT_CONSUMER_ID
@@ -129,7 +157,7 @@ def resolve_caller(request: Request) -> str:
     key_info = get_auth().validate_key(token)
     if not key_info:
         raise InvalidCredentials()
-    return key_info["consumer_id"]
+    return _check_not_suspended(key_info["consumer_id"])
 
 
 def invalid_credentials_response() -> JSONResponse:
@@ -265,6 +293,9 @@ async def login(req: LoginRequest, request: Request):
     user = store.authenticate_user(req.email, req.password)
     if not user:
         return JSONResponse({"error": "Invalid email or password"}, status_code=401)
+    suspension = store.get_suspension(user["user_id"])
+    if suspension:
+        return account_suspended_response(suspension)
 
     # Get account info
     account = store.get_account(user["user_id"])
@@ -328,7 +359,7 @@ async def get_current_user(request: Request):
     # Try JWT session first (web console)
     user_info = resolve_user_from_request(request)
     if user_info:
-        user_id = user_info["user_id"]
+        user_id = _check_not_suspended(user_info["user_id"])
         account = store.get_account(user_id)
         keys = store.get_user_api_keys(user_id)
         return {
@@ -375,6 +406,7 @@ async def create_api_key(request: Request):
     # If user is logged in via JWT, create key tied to their account
     user_info = resolve_user_from_request(request)
     if user_info:
+        _check_not_suspended(user_info["user_id"])
         raw_key = store.create_api_key_for_user(user_info["user_id"], name)
         return {"api_key": raw_key, "consumer_id": user_info["user_id"], "name": name}
 

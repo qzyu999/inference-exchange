@@ -299,11 +299,21 @@ def create_app() -> FastAPI:
     app.add_middleware(CSRFMiddleware)
 
     # AUTH-016: a bad credential is a 401 on every endpoint, never an anonymous fallback
-    from .routes_auth import InvalidCredentials, invalid_credentials_response
+    from .routes_auth import (
+        AccountSuspended,
+        InvalidCredentials,
+        account_suspended_response,
+        invalid_credentials_response,
+    )
 
     @app.exception_handler(InvalidCredentials)
     async def _invalid_credentials(_request: Request, _exc: InvalidCredentials):
         return invalid_credentials_response()
+
+    # AUTH-017: a suspended account is a 403 for every session and API key
+    @app.exception_handler(AccountSuspended)
+    async def _account_suspended(_request: Request, exc: AccountSuspended):
+        return account_suspended_response(exc.suspension)
 
     app.middleware("http")(metrics_middleware)
     app.include_router(metrics_router)

@@ -129,3 +129,17 @@ MUST NOT: The system uses the shared anonymous account for a request with an inv
 - Principle: P6
 - Status: implemented
 - Verified by: tests/test_invalid_credentials.py::TestInvalidCredentials::test_unknown_key_rejected, tests/test_invalid_credentials.py::TestInvalidCredentials::test_revoked_key_rejected, tests/test_invalid_credentials.py::TestInvalidCredentials::test_expired_bearer_jwt_rejected, tests/test_auth_sessions.py::TestKeysAndAccount::test_revoked_key_stops_working
+
+### AUTH-017: Operators can suspend an account
+
+MUST: An admin can suspend an account for a time period, or ban it permanently. The admin must give a reason. The system records the action, the reason, the admin, and the time.
+
+MUST: While an account is suspended, the system returns HTTP 403 for each request from that account. This applies to every session and every API key of the account, also after a coordinator restart.
+
+MUST: A suspension ends all existing sessions of the account. A temporary suspension ends automatically. An admin can remove a suspension.
+
+Note: A request that is in progress when the suspension starts can complete.
+
+- Principle: P6
+- Status: implemented
+- Verified by: tests/test_account_suspension.py::TestSuspension::test_suspended_key_is_denied, tests/test_account_suspension.py::TestSuspension::test_suspension_ends_sessions, tests/test_account_suspension.py::TestSuspension::test_temporary_suspension_expires, tests/test_account_suspension.py::TestSuspension::test_unsuspend_restores_access, tests/test_account_suspension.py::TestSuspension::test_actions_are_audited, tests/test_account_suspension.py::TestSuspension::test_non_admin_cannot_suspend, tests/test_account_suspension.py::TestSuspension::test_suspension_survives_restart
