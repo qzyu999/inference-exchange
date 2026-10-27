@@ -84,13 +84,10 @@ async def confidential_infer(request: ConfidentialInferenceRequest, raw_request:
     hub = get_hub()
     auth = get_auth()
 
-    # Authenticate consumer
-    from .routes_auth import resolve_user_from_request
-    user_info = resolve_user_from_request(raw_request)
-    consumer_id = user_info["user_id"] if user_info else auth.resolve_consumer(
-        raw_request.headers.get("authorization"))
+    # Authenticate consumer (raises InvalidCredentials -> 401 for a bad key)
+    from .routes_auth import anonymous_inference_blocked, resolve_caller, sign_in_required_response
+    consumer_id = resolve_caller(raw_request)
 
-    from .routes_auth import anonymous_inference_blocked, sign_in_required_response
     if anonymous_inference_blocked(consumer_id):
         return sign_in_required_response()
 

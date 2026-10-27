@@ -198,13 +198,9 @@ async def chat_completions(request: ChatCompletionRequest, raw_request: Request)
         from fastapi.responses import JSONResponse
         return JSONResponse({"error": {"message": validation_error, "type": "invalid_request"}}, status_code=400)
 
-    # Resolve consumer identity from auth header or JWT
-    from .routes_auth import anonymous_inference_blocked, resolve_user_from_request, sign_in_required_response
-    user_info = resolve_user_from_request(raw_request)
-    if user_info:
-        consumer_id = user_info["user_id"]
-    else:
-        consumer_id = auth.resolve_consumer(raw_request.headers.get("authorization"))
+    # Resolve consumer identity (raises InvalidCredentials -> 401 for a bad key)
+    from .routes_auth import anonymous_inference_blocked, resolve_caller, sign_in_required_response
+    consumer_id = resolve_caller(raw_request)
 
     if anonymous_inference_blocked(consumer_id):
         return sign_in_required_response()

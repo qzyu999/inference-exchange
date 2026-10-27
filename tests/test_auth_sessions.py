@@ -53,8 +53,9 @@ class TestKeysAndAccount:
         assert client.delete(f"/v1/auth/keys/{key_id}").status_code == 200
         assert client.get("/v1/auth/keys").json()["keys"] == []
         client.cookies.clear()
-        me = client.get("/v1/auth/me", headers={"authorization": f"Bearer {key}"}).json()
-        assert me["consumer_id"] == "default-consumer"
+        r = client.get("/v1/auth/me", headers={"authorization": f"Bearer {key}"})
+        assert r.status_code == 401
+        assert r.json()["error"]["code"] == "invalid_api_key"
 
     def test_cannot_revoke_other_users_key(self, client):
         signup(client, "a@example.com")

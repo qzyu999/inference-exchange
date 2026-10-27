@@ -108,12 +108,44 @@ def resolve_user_from_request(request: Request) -> dict | None:
     return payload
 
 
-def resolve_consumer_id(request: Request) -> str:
-    """Caller's consumer id: JWT user > API key > shared default consumer."""
+class InvalidCredentials(Exception):
+    """The caller sent an Authorization header that does not authenticate."""
+
+
+def resolve_caller(request: Request) -> str:
+    """Caller's consumer id: session JWT > API key > shared anonymous account.
+
+    The anonymous account is used only when the caller sends no Authorization
+    header. An invalid, revoked, or expired credential raises InvalidCredentials;
+    it never falls back to the anonymous account (AUTH-016).
+    """
     user_info = resolve_user_from_request(request)
     if user_info:
         return user_info["user_id"]
-    return get_auth().resolve_consumer(request.headers.get("authorization"))
+    authorization = request.headers.get("authorization", "").strip()
+    if not authorization:
+        return DEFAULT_CONSUMER_ID
+    token = authorization[7:].strip() if authorization.lower().startswith("bearer ") else authorization
+    key_info = get_auth().validate_key(token)
+    if not key_info:
+        raise InvalidCredentials()
+    return key_info["consumer_id"]
+
+
+def invalid_credentials_response() -> JSONResponse:
+    return JSONResponse(
+        {"error": {
+            "message": "Invalid, revoked, or expired credentials. Sign in again or create a new API key.",
+            "type": "invalid_request_error",
+            "code": "invalid_api_key",
+        }},
+        status_code=401,
+    )
+
+
+def resolve_consumer_id(request: Request) -> str:
+    """Caller's consumer id. Raises InvalidCredentials for a bad Authorization header."""
+    return resolve_caller(request)
 
 
 def is_admin_request(request: Request) -> bool:
@@ -125,7 +157,7 @@ def is_admin_request(request: Request) -> bool:
 
 
 def anonymous_inference_blocked(consumer_id: str) -> bool:
-    """In prod, the shared anonymous account cannot run inference."""
+    """In prod, the shared anonymous account cannot run inference or read private data."""
     return is_production() and consumer_id == DEFAULT_CONSUMER_ID
 
 
@@ -310,10 +342,9 @@ async def get_current_user(request: Request):
             "api_keys": len(keys),
         }
 
-    # Fall back to API key auth
-    auth = get_auth()
+    # Fall back to API key auth (raises InvalidCredentials for a bad key)
     billing = get_billing()
-    consumer_id = auth.resolve_consumer(request.headers.get("authorization"))
+    consumer_id = resolve_caller(request)
     account = billing.get_or_create_consumer(consumer_id)
     if isinstance(account, dict):
         return {
