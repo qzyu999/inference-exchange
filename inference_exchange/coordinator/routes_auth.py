@@ -12,6 +12,7 @@ from pydantic import BaseModel
 from inference_exchange.config import admin_emails, is_production
 
 from .dependencies import get_auth, get_billing, get_store
+from .operator_controls import get_controls
 from .store import DEFAULT_CONSUMER_ID
 
 router = APIRouter()
@@ -231,6 +232,13 @@ def password_auth_enabled() -> bool:
     return _os.environ.get("IE_PASSWORD_AUTH", default) == "1"
 
 
+def signup_disabled_response() -> JSONResponse:
+    return JSONResponse(
+        {"error": "New sign-ups are paused. Existing accounts can still sign in.", "code": "signup_disabled"},
+        status_code=403,
+    )
+
+
 def _password_auth_disabled() -> JSONResponse:
     return JSONResponse({"error": "Password sign-in is disabled. Use GitHub."}, status_code=403)
 
@@ -253,6 +261,8 @@ async def signup(req: SignupRequest, request: Request):
     """Create a new user account with email + password."""
     if not password_auth_enabled():
         return _password_auth_disabled()
+    if get_controls().signup_disabled:
+        return signup_disabled_response()
     if not _check_auth_rate(request.client.host if request.client else "unknown"):
         return JSONResponse({"error": "Too many attempts. Try again in a few minutes."}, status_code=429)
 

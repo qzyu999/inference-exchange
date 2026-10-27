@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+import os
 import secrets
 import time
 from dataclasses import dataclass, field
@@ -112,6 +113,7 @@ class PendingRequest:
     min_confidence: str = "open"
     max_price: float | None = None
     session_id: str | None = None
+    cleared: bool = False
 
 
 class ProviderHub:
@@ -119,6 +121,9 @@ class ProviderHub:
     QUEUE_TIMEOUT_SECONDS = 30.0
 
     def __init__(self):
+        # Operator overrides (#112): IE_QUEUE_MAX_DEPTH, IE_QUEUE_TIMEOUT_SECONDS
+        self.QUEUE_MAX_DEPTH = int(os.environ.get("IE_QUEUE_MAX_DEPTH", self.QUEUE_MAX_DEPTH))
+        self.QUEUE_TIMEOUT_SECONDS = float(os.environ.get("IE_QUEUE_TIMEOUT_SECONDS", self.QUEUE_TIMEOUT_SECONDS))
         self._providers: dict[str, ConnectedProvider] = {}
         self._response_queues: dict[str, asyncio.Queue] = {}
         self._next_provider_id = 0
@@ -258,6 +263,21 @@ class ProviderHub:
     @property
     def pending_queue_size(self) -> int:
         return self._pending_queue.qsize()
+
+    def clear_queue(self) -> int:
+        """Fail every queued request (operator action). Returns the number cleared."""
+        cleared = 0
+        while not self._pending_queue.empty():
+            try:
+                pending = self._pending_queue.get_nowait()
+            except asyncio.QueueEmpty:
+                break
+            pending.cleared = True
+            pending.event.set()
+            cleared += 1
+        if cleared:
+            logger.warning(f"Request queue cleared by operator ({cleared} requests)")
+        return cleared
 
     async def _try_dispatch_queued(self, freed_provider_id: str | None = None):
         if self._pending_queue.empty():

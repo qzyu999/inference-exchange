@@ -216,3 +216,52 @@ async def list_account_actions(request: Request, user_id: str | None = None):
     if not is_admin_request(request):
         return admin_required_response()
     return {"actions": get_store().list_account_actions(user_id)}
+
+
+# --- Operator controls (#112, OPS-008/009/010) ---
+
+class ControlsUpdate(BaseModel):
+    inference_paused: bool | None = None
+    signup_disabled: bool | None = None
+    max_concurrent_per_account: int | None = None
+
+
+def _controls_view() -> dict:
+    from .operator_controls import get_controls
+    hub = get_hub()
+    return {
+        **get_controls().snapshot(),
+        "queue_length": hub.pending_queue_size,
+        "queue_max_depth": hub.QUEUE_MAX_DEPTH,
+        "queue_timeout_seconds": hub.QUEUE_TIMEOUT_SECONDS,
+        "providers_connected": hub.provider_count,
+        "runtime_changes_persist": False,
+    }
+
+
+@router.get("/v1/admin/controls")
+async def get_operator_controls(request: Request):
+    if not is_admin_request(request):
+        return admin_required_response()
+    return _controls_view()
+
+
+@router.post("/v1/admin/controls")
+async def update_operator_controls(body: ControlsUpdate, request: Request):
+    """Change pause, signup, and concurrency at runtime. Resets to env values on restart."""
+    if not is_admin_request(request):
+        return admin_required_response()
+    if body.max_concurrent_per_account is not None and body.max_concurrent_per_account < 0:
+        return JSONResponse({"error": "max_concurrent_per_account must be 0 (no limit) or more"}, status_code=400)
+    from .operator_controls import get_controls
+    get_controls().update(_admin_actor(request), **body.model_dump())
+    return _controls_view()
+
+
+@router.post("/v1/admin/queue/clear")
+async def clear_request_queue(request: Request):
+    """Fail every queued request with 503 queue_cleared. Requests already on a provider continue."""
+    if not is_admin_request(request):
+        return admin_required_response()
+    cleared = get_hub().clear_queue()
+    return {"ok": True, "cleared": cleared}

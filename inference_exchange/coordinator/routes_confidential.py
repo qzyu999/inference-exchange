@@ -36,7 +36,6 @@ from inference_exchange.shared.protocol import (
 from .dependencies import (
     _add_trace,
     _rate_limiter,
-    get_auth,
     get_billing,
     get_event_bus,
     get_hub,
@@ -81,9 +80,6 @@ async def confidential_infer(request: ConfidentialInferenceRequest, raw_request:
             status_code=400,
         )
 
-    hub = get_hub()
-    auth = get_auth()
-
     # Authenticate consumer (raises InvalidCredentials -> 401 for a bad key)
     from .routes_auth import anonymous_inference_blocked, resolve_caller, sign_in_required_response
     consumer_id = resolve_caller(raw_request)
@@ -94,6 +90,14 @@ async def confidential_infer(request: ConfidentialInferenceRequest, raw_request:
     # Rate limit
     if not _rate_limiter.allow(consumer_id):
         raise RateLimitExceeded()
+
+    from .operator_controls import run_guarded
+    return await run_guarded(consumer_id, lambda: _relay_confidential(request, consumer_id))
+
+
+async def _relay_confidential(request: "ConfidentialInferenceRequest", consumer_id: str):
+    """Match a provider and relay the envelope. Runs inside a concurrency slot."""
+    hub = get_hub()
 
     # Balance check
     from .dependencies import get_store

@@ -12,9 +12,11 @@ from pydantic import BaseModel
 
 from inference_exchange.shared.crypto import encrypt_json
 from inference_exchange.shared.errors import (
+    InferencePaused,
     NoProviderAvailable,
     ProviderError,
     ProviderTimeout,
+    QueueCleared,
     QueueFull,
     QueueTimeout,
     RateLimitExceeded,
@@ -29,13 +31,13 @@ from inference_exchange.shared.protocol import (
 from .dependencies import (
     _add_trace,
     _rate_limiter,
-    get_auth,
     get_billing,
     get_event_bus,
     get_hub,
     get_reputation_tracker,
     get_tps_tracker,
 )
+from .operator_controls import get_controls, run_guarded
 
 logger = logging.getLogger(__name__)
 
@@ -189,9 +191,6 @@ def _make_billing_callback(
 @router.post("/v1/chat/completions")
 async def chat_completions(request: ChatCompletionRequest, raw_request: Request):
     """OpenAI-compatible chat completions endpoint."""
-    hub = get_hub()
-    auth = get_auth()
-
     # Input validation
     validation_error = request.validate_inputs()
     if validation_error:
@@ -205,9 +204,19 @@ async def chat_completions(request: ChatCompletionRequest, raw_request: Request)
     if anonymous_inference_blocked(consumer_id):
         return sign_in_required_response()
 
+    if get_controls().inference_paused:
+        raise InferencePaused()
+
     # Rate limit check
     if not _rate_limiter.allow(consumer_id):
         raise RateLimitExceeded()
+
+    return await run_guarded(consumer_id, lambda: _route_and_dispatch(request, consumer_id))
+
+
+async def _route_and_dispatch(request: ChatCompletionRequest, consumer_id: str):
+    """Match a provider (or queue) and relay the request. Runs inside a concurrency slot."""
+    hub = get_hub()
 
     # Balance check: reject if consumer has no credits
     from .dependencies import get_store
@@ -283,6 +292,9 @@ async def chat_completions(request: ChatCompletionRequest, raw_request: Request)
                 "providers_evaluated": hub.provider_count,
             }, consumer_id)
             raise QueueTimeout(hub.QUEUE_TIMEOUT_SECONDS)
+
+        if pending.cleared:
+            raise QueueCleared()
 
         # Provider was assigned by the dispatch loop
         provider = pending.provider
