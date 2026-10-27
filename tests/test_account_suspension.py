@@ -57,8 +57,8 @@ class TestSuspension:
         admin, user, info = setup
         assert user.get("/v1/auth/me").json().get("user_id") == info["user_id"]
         _suspend(admin, info["user_id"])
-        # The old session cookie no longer authenticates; with no other credential it is anonymous
-        assert "user_id" not in user.get("/v1/auth/me").json()
+        # The old session cookie is invalid, and private account data needs auth in prod.
+        assert user.get("/v1/auth/me").status_code == 401
         assert user.post("/v1/chat/completions", json=CHAT).status_code == 401
 
     def test_suspended_user_cannot_sign_in(self, setup):
