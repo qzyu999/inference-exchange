@@ -47,6 +47,11 @@ class ConnectedProvider:
     last_attestation: float = 0.0
     pending_challenge_nonce: str | None = None
     challenge_sent_at: float = 0.0
+    # Provider token used to connect ("" = unauthenticated dev connection) (#113)
+    token_id: str = ""
+    # Operator removed this provider from routing; it stays connected (#113)
+    quarantined: bool = False
+    quarantine_reason: str = ""
 
     @property
     def requires_app_attest(self) -> bool:
@@ -180,6 +185,30 @@ class ProviderHub:
             return orphaned_requests
         return []
 
+    def set_quarantine(self, provider_id: str, quarantined: bool, reason: str = "") -> bool:
+        provider = self._providers.get(provider_id)
+        if provider is None:
+            return False
+        provider.quarantined = quarantined
+        provider.quarantine_reason = reason if quarantined else ""
+        logger.warning(f"Provider {provider.name} ({provider_id}) {'quarantined' if quarantined else 'released'}")
+        return True
+
+    async def force_disconnect(self, provider_id: str, reason: str = "Disconnected by operator") -> bool:
+        """Close a provider's WebSocket and fail its in-flight requests."""
+        provider = self._providers.get(provider_id)
+        if provider is None:
+            return False
+        self.disconnect_provider(provider_id)
+        try:
+            await provider.ws.close(code=4003, reason=reason)
+        except Exception as e:  # socket may already be gone
+            logger.debug(f"Close of {provider_id} failed: {e}")
+        return True
+
+    def providers_with_token(self, token_id: str) -> list[str]:
+        return [pid for pid, p in self._providers.items() if token_id and p.token_id == token_id]
+
     def select_provider(self, model: str, preference: str = "balanced",
                         min_confidence: str = "open", max_price: float | None = None,
                         session_id: str | None = None, reputation_fn=None) -> ConnectedProvider | None:
@@ -203,6 +232,9 @@ class ProviderHub:
         for p in self._providers.values():
             # Confidential providers are invisible to routing until App Attest admission succeeds.
             if not p.admitted:
+                continue
+            # Operator quarantine (PROV-010)
+            if p.quarantined:
                 continue
             rep = reputation_fn(p.provider_id) if reputation_fn else 1.0
             offers.append(ProviderOffer(
