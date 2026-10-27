@@ -16,6 +16,13 @@ class NoProviderAvailable(OCIPError):
         super().__init__(503, "no_provider_available", message)
 
 
+class NoCompatibleProvider(OCIPError):
+    """No connected provider can serve the request's hard constraints (ROUTE-010)."""
+
+    def __init__(self, code: str, message: str):
+        super().__init__(503, code, message)
+
+
 class ConfidenceUnavailable(OCIPError):
     def __init__(self, level: str, model: str):
         super().__init__(

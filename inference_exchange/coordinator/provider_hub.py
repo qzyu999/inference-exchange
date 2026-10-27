@@ -262,6 +262,52 @@ class ProviderHub:
                 return self._providers[winner_id]
         return None
 
+    def explain_no_match(self, model: str, min_confidence: str = "open",
+                         max_price: float | None = None) -> dict | None:
+        """Why no connected provider could ever serve this request, ignoring current load.
+
+        Returns None when at least one routable provider meets every hard constraint
+        (it may only be busy, so the request can queue). Otherwise returns
+        {"code", "message"} for an immediate, explicit error (ROUTE-010).
+        Never relaxes a constraint: the caller decides whether to lower trust (P1).
+        """
+        levels = ["open", "contained", "hardened", "confidential"]
+        need = levels.index(min_confidence) if min_confidence in levels else 0
+        routable = [p for p in self._providers.values() if p.admitted and not p.quarantined]
+        if not routable:
+            return {
+                "code": "no_provider_available",
+                "message": "No provider is online right now. Try again later.",
+            }
+        serving = [p for p in routable if model == "default" or model in p.capabilities.models]
+        if not serving:
+            available = sorted({m for p in routable for m in p.capabilities.models})
+            return {
+                "code": "model_not_available",
+                "message": f"No online provider serves model '{model}'. Available models: {', '.join(available)}. "
+                           "Use model 'default' to accept any model.",
+            }
+        trusted = [p for p in serving if levels.index(p.capabilities.trust_level.value) >= need]
+        if not trusted:
+            best = max((p.capabilities.trust_level.value for p in serving), key=levels.index)
+            return {
+                "code": "no_compatible_provider",
+                "message": f"No online provider meets ocip_min_confidence='{min_confidence}' for model '{model}'. "
+                           f"The highest available level is '{best}' (claimed by the provider, not verified). "
+                           f"To accept it, set ocip_min_confidence to '{best}' in the request.",
+            }
+        if max_price is not None:
+            priced = [p for p in trusted if p.capabilities.price_per_mtok_output <= max_price]
+            if not priced:
+                cheapest = min(p.capabilities.price_per_mtok_output for p in trusted)
+                return {
+                    "code": "no_compatible_provider",
+                    "message": f"No online provider meets ocip_max_price={max_price} for model '{model}' "
+                               f"at ocip_min_confidence='{min_confidence}'. The lowest price is {cheapest} per million "
+                               "output tokens.",
+                }
+        return None
+
     def create_response_queue(self, request_id: str) -> asyncio.Queue:
         queue: asyncio.Queue = asyncio.Queue()
         self._response_queues[request_id] = queue

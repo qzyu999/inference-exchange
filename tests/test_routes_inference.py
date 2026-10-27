@@ -50,9 +50,8 @@ class TestInferenceEndpointExists:
             "stream": False,
         })
         data = resp.json()
-        # Error detail has type + message structure
-        assert "detail" in data
-        assert "type" in data["detail"]
+        # OpenAI error shape: {"error": {"message", "type", "code"}} (ROUTE-011)
+        assert set(data["error"]) >= {"message", "type", "code"}
 
 
 class TestInputValidation:

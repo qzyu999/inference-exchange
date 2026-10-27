@@ -74,3 +74,23 @@ MUST NOT: The system sends a request to an external provider, unless the consume
 - Principle: P1, P5
 - Status: not-implemented
 - Issue: #67
+
+### ROUTE-010: Fail fast when no provider can match
+
+MUST: If no connected provider can serve the model, the minimum trust level, and the price ceiling of a request, the system returns HTTP 503 immediately. The request does not wait in the queue. The error message identifies the constraint that failed and the nearest available value.
+
+MUST NOT: The system lowers the trust level of the request to find a provider.
+
+Note: If a provider can serve the request but is busy, the request waits in the queue.
+
+- Principle: P1
+- Status: implemented
+- Verified by: tests/test_fail_fast_routing.py::TestEndpoint::test_hardened_default_with_open_provider_fails_fast, tests/test_fail_fast_routing.py::TestEndpoint::test_no_provider_fails_fast, tests/test_fail_fast_routing.py::TestEndpoint::test_trust_is_not_downgraded, tests/test_fail_fast_routing.py::TestExplainNoMatch::test_trust_mismatch_names_available_level, tests/test_fail_fast_routing.py::TestExplainNoMatch::test_unknown_model, tests/test_fail_fast_routing.py::TestExplainNoMatch::test_price_ceiling, tests/test_fail_fast_routing.py::TestExplainNoMatch::test_busy_compatible_provider_can_queue
+
+### ROUTE-011: Errors use the OpenAI format
+
+MUST: An inference error response has the body `{"error": {"message", "type", "code"}}`, so that an OpenAI SDK can show the message.
+
+- Principle: P2
+- Status: implemented
+- Verified by: tests/test_fail_fast_routing.py::TestOpenAIErrorShape::test_ocip_errors_use_openai_shape, tests/test_fail_fast_routing.py::TestOpenAIErrorShape::test_openai_sdk_reads_message
