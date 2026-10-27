@@ -153,6 +153,10 @@ def resolve_caller(request: Request) -> str:
         return _check_not_suspended(user_info["user_id"])
     authorization = request.headers.get("authorization", "").strip()
     if not authorization:
+        # An expired/revoked browser session is an invalid credential, not
+        # permission to read the shared anonymous account.
+        if request.cookies.get(SESSION_COOKIE):
+            raise InvalidCredentials()
         return DEFAULT_CONSUMER_ID
     token = authorization[7:].strip() if authorization.lower().startswith("bearer ") else authorization
     key_info = get_auth().validate_key(token)
@@ -173,8 +177,16 @@ def invalid_credentials_response() -> JSONResponse:
 
 
 def resolve_consumer_id(request: Request) -> str:
-    """Caller's consumer id. Raises InvalidCredentials for a bad Authorization header."""
+    """Caller's consumer id. Raises InvalidCredentials for a bad credential."""
     return resolve_caller(request)
+
+
+def resolve_private_caller(request: Request) -> str:
+    """Production account-data endpoints require an authenticated caller (P6)."""
+    consumer_id = resolve_caller(request)
+    if is_production() and consumer_id == DEFAULT_CONSUMER_ID:
+        raise InvalidCredentials()
+    return consumer_id
 
 
 def is_admin_request(request: Request) -> bool:
@@ -383,9 +395,9 @@ async def get_current_user(request: Request):
             "api_keys": len(keys),
         }
 
-    # Fall back to API key auth (raises InvalidCredentials for a bad key)
+    # Fall back to API key auth; production forbids anonymous account data.
     billing = get_billing()
-    consumer_id = resolve_caller(request)
+    consumer_id = resolve_private_caller(request)
     account = billing.get_or_create_consumer(consumer_id)
     if isinstance(account, dict):
         return {
