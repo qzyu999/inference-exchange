@@ -114,17 +114,10 @@ async def get_pricing():
 @router.get("/v1/exchange/balance")
 async def get_balance(request: Request):
     """Get consumer account balance."""
-    from .routes_auth import resolve_user_from_request
+    from .routes_auth import resolve_caller
 
-    auth = get_auth()
     billing = get_billing()
-
-    # Use JWT user if available
-    user_info = resolve_user_from_request(request)
-    if user_info:
-        consumer_id = user_info["user_id"]
-    else:
-        consumer_id = auth.resolve_consumer(request.headers.get("authorization"))
+    consumer_id = resolve_caller(request)
 
     account = billing.get_or_create_consumer(consumer_id)
     if isinstance(account, dict):
@@ -162,18 +155,11 @@ async def get_stats():
 @router.get("/v1/exchange/history")
 async def get_history(request: Request):
     """Recent transaction history (filtered by authenticated user)."""
-    from .routes_auth import resolve_user_from_request
+    from .routes_auth import resolve_caller
     from .dependencies import get_store
 
     store = get_store()
-    auth = get_auth()
-
-    # Determine consumer_id: JWT user > API key > default
-    user_info = resolve_user_from_request(request)
-    if user_info:
-        consumer_id = user_info["user_id"]
-    else:
-        consumer_id = auth.resolve_consumer(request.headers.get("authorization"))
+    consumer_id = resolve_caller(request)
 
     # Fetch per-user transactions
     rows = store._conn.execute(
@@ -267,10 +253,11 @@ async def get_depth():
 @router.get("/v1/exchange/traces")
 async def get_traces(request: Request):
     """Caller's own decision traces (admins see all)."""
-    from .routes_auth import is_admin_request, resolve_consumer_id
+    from .routes_auth import is_admin_request, resolve_caller
+    consumer_id = resolve_caller(request)  # a bad credential is a 401 before any admin check
     if is_admin_request(request):
         return {"traces": traces_for(None)}
-    return {"traces": traces_for(resolve_consumer_id(request))}
+    return {"traces": traces_for(consumer_id)}
 
 
 @router.get("/v1/exchange/tps")

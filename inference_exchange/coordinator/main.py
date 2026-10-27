@@ -297,6 +297,14 @@ def create_app() -> FastAPI:
             return await call_next(request)
 
     app.add_middleware(CSRFMiddleware)
+
+    # AUTH-016: a bad credential is a 401 on every endpoint, never an anonymous fallback
+    from .routes_auth import InvalidCredentials, invalid_credentials_response
+
+    @app.exception_handler(InvalidCredentials)
+    async def _invalid_credentials(_request: Request, _exc: InvalidCredentials):
+        return invalid_credentials_response()
+
     app.middleware("http")(metrics_middleware)
     app.include_router(metrics_router)
 

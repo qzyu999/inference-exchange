@@ -111,6 +111,11 @@ export function Chat() {
         signal: controller.signal,
       })
       if (!resp.ok) {
+        // A stored key can go stale (revoked, or the dev default key rotated on restart)
+        if (resp.status === 401 && apiKey) {
+          localStorage.removeItem('ie_api_key')
+          setApiKey('')
+        }
         const err = await resp.text()
         let friendlyError = `Error: ${resp.status}`
         try {

@@ -119,3 +119,13 @@ MUST: Each consumer has a separate request rate limit.
 - Principle: P6
 - Status: implemented
 - Verified by: tests/test_rate_limiter.py::TestConsumerIsolation::test_separate_buckets
+
+### AUTH-016: A bad credential is rejected
+
+MUST: If a request has an `Authorization` header that is not a valid session or a valid API key, the system returns HTTP 401. This applies to inference endpoints and to endpoints that return account data.
+
+MUST NOT: The system uses the shared anonymous account for a request with an invalid, revoked, or expired credential.
+
+- Principle: P6
+- Status: implemented
+- Verified by: tests/test_invalid_credentials.py::TestInvalidCredentials::test_unknown_key_rejected, tests/test_invalid_credentials.py::TestInvalidCredentials::test_revoked_key_rejected, tests/test_invalid_credentials.py::TestInvalidCredentials::test_expired_bearer_jwt_rejected, tests/test_auth_sessions.py::TestKeysAndAccount::test_revoked_key_stops_working
