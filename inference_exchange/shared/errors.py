@@ -52,6 +52,28 @@ class QueueTimeout(OCIPError):
         )
 
 
+class QueueCleared(OCIPError):
+    def __init__(self):
+        super().__init__(503, "queue_cleared", "An operator cleared the request queue. Try again later.")
+
+
+class InferencePaused(OCIPError):
+    def __init__(self):
+        super().__init__(
+            503, "inference_paused", "Inference is paused by the operator. Try again later."
+        )
+
+
+class ConcurrencyLimit(OCIPError):
+    def __init__(self, limit: int):
+        super().__init__(
+            429,
+            "concurrency_limit",
+            f"Too many simultaneous requests for this account (limit {limit}). "
+            "Wait for a request to finish.",
+        )
+
+
 class RateLimitExceeded(OCIPError):
     def __init__(self):
         super().__init__(

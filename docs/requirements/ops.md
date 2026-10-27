@@ -59,3 +59,31 @@ MUST: Each release has signed artifacts and published build provenance.
 - Principle: P4
 - Status: not-implemented
 - Issue: #68
+
+### OPS-008: Operators can pause inference
+
+MUST: An admin can pause inference without a restart. While inference is paused, the system returns HTTP 503 with the type `inference_paused` to each new inference request. A request that is in progress can complete. `IE_INFERENCE_PAUSED=1` pauses inference at start-up.
+
+- Principle: P6
+- Status: implemented
+- Verified by: tests/test_operator_controls.py::TestInferencePause::test_admin_pause_rejects_new_inference, tests/test_operator_controls.py::TestInferencePause::test_pause_from_env, tests/test_operator_controls.py::TestInferencePause::test_pause_covers_confidential_path, tests/test_operator_controls.py::TestControlsNeedAdmin::test_non_admin_denied
+
+### OPS-009: Operators can stop new sign-ups
+
+MUST: An admin can stop new sign-ups without a restart. While sign-ups are stopped, the system does not create a new account. An existing user can still sign in. `IE_SIGNUP_DISABLED=1` stops sign-ups at start-up.
+
+- Principle: P6
+- Status: implemented
+- Verified by: tests/test_operator_controls.py::TestSignupSwitch::test_signup_disabled_blocks_new_accounts_only, tests/test_operator_controls.py::TestSignupSwitch::test_signup_disabled_blocks_new_github_identity
+
+### OPS-010: Bounded load per account and in the queue
+
+MUST: The system limits the number of simultaneous inference requests for each account. The default limit is 2 (`IE_MAX_CONCURRENT_PER_ACCOUNT`). A request above the limit gets HTTP 429 with the type `concurrency_limit`.
+
+MUST: The request queue has a maximum length (`IE_QUEUE_MAX_DEPTH`) and a maximum wait (`IE_QUEUE_TIMEOUT_SECONDS`). An admin can clear the queue. A cleared request gets HTTP 503 with the type `queue_cleared`.
+
+Note: These limits protect providers from overload. They are not daily quotas.
+
+- Principle: P6
+- Status: implemented
+- Verified by: tests/test_operator_controls.py::TestConcurrencyLimit::test_extra_simultaneous_request_rejected, tests/test_operator_controls.py::TestConcurrencyLimit::test_limit_is_per_account, tests/test_operator_controls.py::TestConcurrencyLimit::test_slot_released_after_stream, tests/test_operator_controls.py::TestConcurrencyLimit::test_slot_released_after_failed_request, tests/test_operator_controls.py::TestQueueControls::test_queue_settings_from_env, tests/test_operator_controls.py::TestQueueControls::test_clear_queue_releases_waiters

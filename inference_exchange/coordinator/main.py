@@ -23,6 +23,7 @@ from inference_exchange.shared.protocol import (
 
 from .dependencies import set_auth, set_billing, set_event_bus, set_hub, set_reputation, set_store, set_tps_tracker, set_audit_log, set_price_collector
 from .audit_log import AuditLog
+from .operator_controls import reset_controls
 from .capability_resolver import ModelCapabilityCache
 from .price_collector import PriceCollector
 from .metrics import metrics_middleware
@@ -227,6 +228,9 @@ def create_app() -> FastAPI:
 
     audit_log = AuditLog()
     set_audit_log(audit_log)
+
+    # Operator controls read IE_INFERENCE_PAUSED / IE_SIGNUP_DISABLED / IE_MAX_CONCURRENT_PER_ACCOUNT
+    reset_controls()
 
     price_collector = PriceCollector(store=store)
     set_price_collector(price_collector)

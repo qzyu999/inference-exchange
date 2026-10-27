@@ -592,6 +592,9 @@ class Store:
         logger.info(f"GitHub user created: {login} -> {user_id}")
         return {"user_id": user_id, "email": email, "name": name, "role": "consumer", "session_version": 0}, True
 
+    def has_github_user(self, github_id: str) -> bool:
+        return bool(self._conn.execute("SELECT 1 FROM users WHERE github_id = ?", (github_id,)).fetchone())
+
     def get_session_version(self, user_id: str) -> int | None:
         row = self._conn.execute("SELECT session_version FROM users WHERE user_id = ?", (user_id,)).fetchone()
         return row["session_version"] if row else None

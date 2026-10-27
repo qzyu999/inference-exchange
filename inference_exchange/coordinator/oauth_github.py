@@ -22,6 +22,7 @@ from fastapi.responses import JSONResponse, RedirectResponse
 from inference_exchange.config import is_production
 
 from .dependencies import get_store
+from .operator_controls import get_controls
 from .routes_auth import _set_session
 
 logger = logging.getLogger(__name__)
@@ -123,8 +124,12 @@ async def github_callback(request: Request, code: str = "", state: str = ""):
     if min_age and gh.get("created_at") and _account_age_days(gh["created_at"]) < min_age:
         return _login_error("account_too_new")
 
+    store = get_store()
+    # OPS-009: while sign-up is paused, only an existing GitHub identity can sign in
+    if get_controls().signup_disabled and not store.has_github_user(str(gh["id"])):
+        return _login_error("signup_disabled")
     try:
-        user, created = get_store().upsert_github_user(
+        user, created = store.upsert_github_user(
             str(gh["id"]), gh.get("login", ""), gh.get("email", ""), gh.get("name") or "",
         )
     except ValueError:
