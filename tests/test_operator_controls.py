@@ -50,9 +50,9 @@ class TestInferencePause:
         admin, user, _ = clients
         assert admin.post("/v1/admin/controls", json={"inference_paused": True}).json()["inference_paused"]
         r = user.post("/v1/chat/completions", json=CHAT)
-        assert r.status_code == 503 and r.json()["detail"]["type"] == "inference_paused"
+        assert r.status_code == 503 and r.json()["error"]["type"] == "inference_paused"
         admin.post("/v1/admin/controls", json={"inference_paused": False})
-        assert user.post("/v1/chat/completions", json=CHAT).json()["detail"]["type"] != "inference_paused"
+        assert user.post("/v1/chat/completions", json=CHAT).json()["error"]["type"] != "inference_paused"
 
     def test_pause_from_env(self, env):
         env.setenv("IE_INFERENCE_PAUSED", "1")
@@ -64,7 +64,7 @@ class TestInferencePause:
         admin, user, _ = clients
         admin.post("/v1/admin/controls", json={"inference_paused": True})
         r = user.post("/v1/confidential/infer", json={"session_id": "s", "encrypted_envelope": {}})
-        assert r.status_code == 503 and r.json()["detail"]["type"] == "inference_paused"
+        assert r.status_code == 503 and r.json()["error"]["type"] == "inference_paused"
 
 
 class TestSignupSwitch:
@@ -103,7 +103,7 @@ class TestConcurrencyLimit:
         controls = get_controls()
         assert controls.try_acquire(info["user_id"])  # simulate one request in progress
         r = user.post("/v1/chat/completions", json=CHAT)
-        assert r.status_code == 429 and r.json()["detail"]["type"] == "concurrency_limit"
+        assert r.status_code == 429 and r.json()["error"]["type"] == "concurrency_limit"
         controls.release(info["user_id"])
         assert user.post("/v1/chat/completions", json=CHAT).status_code != 429
 

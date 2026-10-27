@@ -319,6 +319,18 @@ def create_app() -> FastAPI:
     async def _account_suspended(_request: Request, exc: AccountSuspended):
         return account_suspended_response(exc.suspension)
 
+    # ROUTE-011: OCIP errors use the OpenAI error shape, so OpenAI SDKs show the message
+    from fastapi.responses import JSONResponse
+
+    from inference_exchange.shared.errors import OCIPError
+
+    @app.exception_handler(OCIPError)
+    async def _ocip_error(_request: Request, exc: OCIPError):
+        return JSONResponse(
+            {"error": {"message": exc.detail["message"], "type": exc.detail["type"], "code": exc.detail["type"]}},
+            status_code=exc.status_code,
+        )
+
     app.middleware("http")(metrics_middleware)
     app.include_router(metrics_router)
 

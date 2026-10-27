@@ -13,6 +13,7 @@ from pydantic import BaseModel
 from inference_exchange.shared.crypto import encrypt_json
 from inference_exchange.shared.errors import (
     InferencePaused,
+    NoCompatibleProvider,
     NoProviderAvailable,
     ProviderError,
     ProviderTimeout,
@@ -243,7 +244,24 @@ async def _route_and_dispatch(request: ChatCompletionRequest, consumer_id: str):
         reputation_fn=get_reputation_tracker().get_score,
     )
     if provider is None:
-        # No provider available right now — try queuing
+        # ROUTE-010: if no provider could ever match, fail now instead of waiting in the queue
+        no_match = hub.explain_no_match(
+            request.model, min_confidence=request.ocip_min_confidence, max_price=request.ocip_max_price,
+        )
+        if no_match:
+            _add_trace({
+                "request_id": str(uuid.uuid4())[:8],
+                "timestamp": time.time(),
+                "model": request.model,
+                "min_confidence": request.ocip_min_confidence,
+                "max_price": request.ocip_max_price,
+                "status": no_match["code"],
+                "reason": no_match["message"],
+                "providers_evaluated": hub.provider_count,
+            }, consumer_id)
+            raise NoCompatibleProvider(no_match["code"], no_match["message"])
+
+        # Compatible providers exist but are busy — queue
         request_id = str(uuid.uuid4())
 
         # Build the inference request early so it's ready when dispatched
