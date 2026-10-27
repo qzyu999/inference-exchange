@@ -87,7 +87,11 @@ export const DOC_NAV: NavSection[] = [
   },
   {
     title: 'Guides',
-    items: [{ slug: 'guides/getting-started', label: 'Getting started' }],
+    items: [
+      { slug: 'guides/getting-started', label: 'Getting started' },
+      { slug: 'guides/python-sdk', label: 'Python SDK' },
+      { slug: 'guides/operator-playbook', label: 'Operator playbook' },
+    ],
   },
   {
     title: 'Decisions',

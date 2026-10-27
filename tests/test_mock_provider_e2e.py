@@ -95,3 +95,34 @@ def test_provider_reregisters_after_coordinator_restart(stack):
     stack.start()
     # Agent retries every 5s after a lost connection
     assert _wait(lambda: stack.provider_count() == 1, timeout=12)
+
+
+def test_python_sdk_guide_examples(stack):
+    """docs/guides/python-sdk.md examples work with the standard openai package (#115)."""
+    openai = pytest.importorskip("openai")
+    key = httpx.get(f"{stack.base}/health?include_key=1").json()["default_api_key"]
+    client = openai.OpenAI(api_key=key, base_url=f"{stack.base}/v1", max_retries=0)
+
+    assert "mock-model" in [m.id for m in client.models.list()]
+
+    result = client.chat.completions.create(
+        model="default", messages=[{"role": "user", "content": "Say hello."}],
+        max_tokens=64, extra_body={"ocip_min_confidence": "open"},
+    )
+    assert result.choices[0].message.content
+
+    stream = client.chat.completions.create(
+        model="default", messages=[{"role": "user", "content": "Count to five."}],
+        stream=True, extra_body={"ocip_min_confidence": "open"},
+    )
+    assert "".join(c.choices[0].delta.content or "" for c in stream if c.choices)
+
+    # The default (hardened) against an open-only pool fails fast with a readable message
+    with pytest.raises(openai.APIStatusError) as exc:
+        client.chat.completions.create(model="default", messages=[{"role": "user", "content": "hi"}])
+    assert exc.value.status_code == 503 and "ocip_min_confidence" in str(exc.value)
+
+    bad = openai.OpenAI(api_key="sk-ie-revoked", base_url=f"{stack.base}/v1", max_retries=0)
+    with pytest.raises(openai.AuthenticationError):
+        bad.chat.completions.create(model="default", messages=[{"role": "user", "content": "hi"}],
+                                    extra_body={"ocip_min_confidence": "open"})

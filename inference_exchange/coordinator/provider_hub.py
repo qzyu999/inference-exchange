@@ -223,7 +223,7 @@ class ProviderHub:
         order = InferenceOrder(
             order_id="select", consumer_id="", model=model,
             max_price_per_mtok=max_price if max_price is not None else float("inf"),
-            min_confidence=conf_map.get(min_confidence, ConfidenceLevel.OPEN),
+            min_confidence=conf_map[min_confidence],  # fail closed on unknown levels (P1)
             preference=pref_map.get(preference, RoutingPreference.BALANCED),
             session_affinity_provider_id=affinity_pid,
         )
@@ -272,7 +272,7 @@ class ProviderHub:
         Never relaxes a constraint: the caller decides whether to lower trust (P1).
         """
         levels = ["open", "contained", "hardened", "confidential"]
-        need = levels.index(min_confidence) if min_confidence in levels else 0
+        need = levels.index(min_confidence)  # ValueError, never downgrade to open (P1)
         routable = [p for p in self._providers.values() if p.admitted and not p.quarantined]
         if not routable:
             return {

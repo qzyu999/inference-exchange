@@ -363,12 +363,13 @@ def create_app() -> FastAPI:
             token_id = token_info["token_id"]
             logger.info(f"Provider authenticated: {token_info['name']} ({token_id})")
         else:
-            # Allow unauthenticated in dev mode (no tokens exist yet)
+            # P6: never grant unauthenticated provider access in production,
+            # including a fresh database with no provider tokens provisioned.
             token_count = len(store.list_provider_tokens())
-            if token_count > 0:
+            if is_production() or token_count > 0:
                 await ws.close(code=4003, reason="Provider token required. Create one via POST /v1/admin/provider-tokens")
                 return
-            # No tokens created yet -- open access (dev mode)
+            # Development only: allow bootstrap with an empty token table.
 
         try:
             # First message must be a registration

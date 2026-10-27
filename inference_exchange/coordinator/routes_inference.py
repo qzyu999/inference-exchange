@@ -58,7 +58,8 @@ class ChatCompletionRequest(BaseModel):
     messages: list[ChatMessage]
     max_tokens: int = 1024
     temperature: float = 0.7
-    stream: bool = True
+    # OpenAI default: a request without "stream" gets one JSON response (ROUTE-012)
+    stream: bool = False
     # OCIP routing preferences
     ocip_preference: str = "balanced"
     ocip_min_confidence: str = "hardened"
@@ -68,6 +69,9 @@ class ChatCompletionRequest(BaseModel):
 
     def validate_inputs(self) -> str | None:
         """Return error message if invalid, None if OK."""
+        # ROUTE-001 / P1: unknown trust labels must not silently become "open".
+        if self.ocip_min_confidence not in ("open", "contained", "hardened", "confidential"):
+            return "ocip_min_confidence must be one of: open, contained, hardened, confidential"
         if not self.messages:
             return "Messages cannot be empty"
         if len(self.messages) > 100:
