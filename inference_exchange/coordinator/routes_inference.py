@@ -58,7 +58,8 @@ class ChatCompletionRequest(BaseModel):
     messages: list[ChatMessage]
     max_tokens: int = 1024
     temperature: float = 0.7
-    stream: bool = True
+    # OpenAI default: a request without "stream" gets one JSON response (ROUTE-012)
+    stream: bool = False
     # OCIP routing preferences
     ocip_preference: str = "balanced"
     ocip_min_confidence: str = "hardened"

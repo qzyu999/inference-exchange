@@ -94,3 +94,11 @@ MUST: An inference error response has the body `{"error": {"message", "type", "c
 - Principle: P2
 - Status: implemented
 - Verified by: tests/test_fail_fast_routing.py::TestOpenAIErrorShape::test_ocip_errors_use_openai_shape, tests/test_fail_fast_routing.py::TestOpenAIErrorShape::test_openai_sdk_reads_message
+
+### ROUTE-012: The standard OpenAI SDK works
+
+MUST: The standard `openai` Python package can list models and send streaming and non-streaming chat completions to the coordinator, with `extra_body` for exchange options. A request without `stream` gets one JSON response, as in the OpenAI API.
+
+- Principle: P8
+- Status: implemented
+- Verified by: tests/test_mock_provider_e2e.py::test_python_sdk_guide_examples
