@@ -11,6 +11,8 @@ const OAUTH_ERRORS: Record<string, string> = {
   github: 'GitHub sign-in failed. Please try again.',
   account_too_new: 'Your GitHub account is too new to sign up during the alpha.',
   email_taken: 'That email already has a password account. Sign in with your password instead.',
+  signup_disabled: 'New alpha registrations are temporarily paused. Existing users can still sign in. Please try again later.',
+  suspended: 'This account is suspended. Please contact the Inference Exchange operator.',
 }
 
 export function Login() {
@@ -29,7 +31,7 @@ export function Login() {
   const oauthError = OAUTH_ERRORS[params.get('error') || '']
   const next = safeNextPath(params.get('next'))
   const { data: authConfig } = useSWR('authConfig', api.authConfig)
-  const passwordEnabled = authConfig?.password ?? true
+  const passwordEnabled = authConfig?.password ?? false
   const githubEnabled = authConfig?.github ?? false
 
   async function handleSubmit(e: React.FormEvent) {
