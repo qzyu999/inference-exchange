@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import useSWR from 'swr'
 import { api } from '../lib/api'
 import { useAuth } from '../lib/auth'
+import { githubLoginHref, safeNextPath } from '../lib/nav.js'
 import { C } from '../lib/theme'
 
 const OAUTH_ERRORS: Record<string, string> = {
@@ -26,6 +27,7 @@ export function Login() {
   const navigate = useNavigate()
   const [params] = useSearchParams()
   const oauthError = OAUTH_ERRORS[params.get('error') || '']
+  const next = safeNextPath(params.get('next'))
   const { data: authConfig } = useSWR('authConfig', api.authConfig)
   const passwordEnabled = authConfig?.password ?? true
   const githubEnabled = authConfig?.github ?? false
@@ -39,7 +41,7 @@ export function Login() {
       const result = await login(email, password)
       setLoading(false)
       if (result.ok) {
-        navigate('/chat')
+        navigate(next)
       } else {
         setError(result.error || 'Login failed')
       }
@@ -50,7 +52,7 @@ export function Login() {
         if (result.api_key) {
           setApiKey(result.api_key)
         } else {
-          navigate('/chat')
+          navigate(next)
         }
       } else {
         setError(result.error || 'Signup failed')
@@ -80,7 +82,7 @@ export function Login() {
           </button>
 
           <button
-            onClick={() => navigate('/chat')}
+            onClick={() => navigate(next)}
             className="w-full py-2.5 rounded-xl text-sm font-medium border transition-colors"
             style={{ color: '#888', borderColor: '#ddd' }}
           >
@@ -97,10 +99,10 @@ export function Login() {
         <h1 className="text-2xl font-bold" style={{ color: C.blueBlack }}>
           {mode === 'login' ? 'Welcome back' : 'Create an account'}
         </h1>
-        <p className="text-sm mt-1 mb-6" style={{ color: '#888' }}>
+        <p className="text-sm mt-1 mb-6" style={{ color: '#777' }}>
           {mode === 'login'
-            ? 'Use your developer account to access the exchange.'
-            : 'Get $10 in free credits to start.'}
+            ? 'Sign in to Inference Exchange to chat, create API keys and see billing. A Cloudflare email check is not an Inference Exchange account.'
+            : 'Get $10 in simulated alpha credits to start.'}
         </p>
 
         {oauthError && (
@@ -111,7 +113,7 @@ export function Login() {
 
         {githubEnabled && (
           <a
-            href="/v1/auth/github/login"
+            href={githubLoginHref(next)}
             className="block w-full py-2.5 rounded-xl text-sm font-medium text-center transition-colors"
             style={{ background: C.blueBlack, color: '#fff' }}
           >
