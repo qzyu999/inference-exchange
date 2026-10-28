@@ -5,7 +5,7 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { api } from '../lib/api'
 import { useAuth } from '../lib/auth'
-import { loginHref } from '../lib/nav.js'
+import { authState, loginHref } from '../lib/nav.js'
 import { formatUsd } from '../lib/money.js'
 import { C, TRUST_CLAIM_NOTE, TRUST_COLORS } from '../lib/theme'
 
@@ -187,10 +187,10 @@ export function Chat() {
   }
 
   // Guests may inspect the exchange, but cannot submit billable inference.
-  if (authLoading) {
+  if (authState(authLoading, user) === 'loading') {
     return <div role="status" className="py-16 text-center text-sm" style={{ color: '#888' }}>Checking sign-in…</div>
   }
-  if (!user) {
+  if (authState(authLoading, user) === 'signed-out') {
     return (
       <div className="max-w-xl mx-auto bg-white rounded-2xl border border-gray-200/60 p-8 md:p-12 text-center space-y-5">
         <h2 className="text-2xl font-bold" style={{ color: C.blueBlack }}>Sign in to start chatting</h2>
