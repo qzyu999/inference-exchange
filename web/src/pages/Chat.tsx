@@ -244,7 +244,7 @@ export function Chat() {
           <div className="flex-1" />
 
           <button
-            onClick={() => { setMessages([]); localStorage.removeItem(chatKey) }}
+            onClick={() => { setMessages([]); if (chatKey) localStorage.removeItem(chatKey) }}
             className="text-xs px-3 py-1.5 rounded-lg border transition-colors"
             style={{ color: '#888', borderColor: '#ddd' }}
           >
