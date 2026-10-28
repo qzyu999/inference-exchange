@@ -640,6 +640,120 @@ class Store:
         ).fetchall()
         return {row["billing_account_id"] for row in rows}
 
+
+    def list_owned_provider_nodes(self, owner_user_id: str) -> list[dict]:
+        """Return only nodes owned by this IE user. Do not return credentials."""
+        rows = self._conn.execute(
+            """SELECT n.node_id, n.billing_account_id, n.name, n.created_at,
+                      COALESCE(a.total_earned_micro, 0) AS ledger_earned_micro
+               FROM provider_nodes n
+               LEFT JOIN accounts a ON a.account_id = n.billing_account_id
+               WHERE n.owner_user_id = ?
+               ORDER BY n.created_at, n.node_id""",
+            (owner_user_id,),
+        ).fetchall()
+        return [dict(row) for row in rows]
+
+    def get_owned_provider_earnings(
+        self, owner_user_id: str, *, node_id: str | None = None,
+        limit: int = 50, before_id: int | None = None,
+    ) -> dict | None:
+        """Exact read-only ledger view. Return None if the node is not owned.
+
+        Do not derive earnings from balance_micro. Each provider account begins
+        with simulated credits unrelated to the amount earned from requests.
+        """
+        nodes = self.list_owned_provider_nodes(owner_user_id)
+        if node_id is not None:
+            nodes = [node for node in nodes if node["node_id"] == node_id]
+            if not nodes:
+                return None
+
+        if not 1 <= limit <= 100 or (before_id is not None and before_id < 1):
+            raise ValueError("Invalid pagination")
+
+        if not nodes:
+            return {
+                "summary": {
+                    "earned_micro": 0, "ledger_earned_micro": 0,
+                    "today_earned_micro": 0, "cost_micro": 0,
+                    "platform_fee_micro": 0, "requests_served": 0,
+                    "reconciled": True,
+                },
+                "by_node": [], "transactions": [], "next_before_id": None,
+            }
+
+        # Sum only the principals belonging to this owner. Never join a
+        # provider by its display name or transient WebSocket routing ID.
+        principals = [node["billing_account_id"] for node in nodes]
+        placeholders = ", ".join("?" for _ in principals)
+        utc_midnight = int(time.time() // 86400) * 86400
+        totals = self._conn.execute(
+            f"""SELECT provider_id, COUNT(*) AS requests_served,
+                       COALESCE(SUM(provider_earning_micro), 0) AS earned_micro,
+                       COALESCE(SUM(platform_fee_micro), 0) AS platform_fee_micro,
+                       COALESCE(SUM(cost_micro), 0) AS cost_micro,
+                       COALESCE(SUM(CASE WHEN timestamp >= ? THEN provider_earning_micro ELSE 0 END), 0)
+                           AS today_earned_micro
+                FROM transactions
+                WHERE provider_id IN ({placeholders})
+                GROUP BY provider_id""",
+            [utc_midnight, *principals],
+        ).fetchall()
+        per_principal = {row["provider_id"]: dict(row) for row in totals}
+        by_node = []
+        for node in nodes:
+            s = per_principal.get(node["billing_account_id"], {})
+            earned = s.get("earned_micro", 0)
+            ledger = node["ledger_earned_micro"]
+            by_node.append({
+                "node_id": node["node_id"],
+                "name": node["name"],
+                "earned_micro": earned,
+                "ledger_earned_micro": ledger,
+                "today_earned_micro": s.get("today_earned_micro", 0),
+                "platform_fee_micro": s.get("platform_fee_micro", 0),
+                "cost_micro": s.get("cost_micro", 0),
+                "requests_served": s.get("requests_served", 0),
+                "reconciled": earned == ledger,
+            })
+
+        summary = {
+            key: sum(item[key] for item in by_node)
+            for key in ("earned_micro", "ledger_earned_micro", "today_earned_micro",
+                        "platform_fee_micro", "cost_micro", "requests_served")
+        }
+        summary["reconciled"] = all(item["reconciled"] for item in by_node)
+
+        # Return only provider-side metadata. In particular, no consumer_id,
+        # request_id, session ID, prompt text, token hash, or raw token.
+        params = [owner_user_id]
+        filter_sql = ""
+        if node_id is not None:
+            filter_sql += " AND n.node_id = ?"
+            params.append(node_id)
+        if before_id is not None:
+            filter_sql += " AND t.id < ?"
+            params.append(before_id)
+        rows = self._conn.execute(
+            f"""SELECT t.id, n.node_id, t.timestamp, t.model,
+                       t.input_tokens, t.output_tokens, t.cached_tokens,
+                       t.cost_micro, t.provider_earning_micro, t.platform_fee_micro
+                FROM transactions t
+                JOIN provider_nodes n ON n.billing_account_id = t.provider_id
+                WHERE n.owner_user_id = ? {filter_sql}
+                ORDER BY t.id DESC LIMIT ?""",
+            [*params, limit + 1],
+        ).fetchall()
+        has_more = len(rows) > limit
+        page = [dict(row) for row in rows[:limit]]
+        return {
+            "summary": summary,
+            "by_node": by_node,
+            "transactions": page,
+            "next_before_id": page[-1]["id"] if has_more and page else None,
+        }
+
     def create_provider_token(self, name: str = "Provider") -> str:
         """Create a provider auth token. Returns the raw token (shown once)."""
         raw = self.PROVIDER_TOKEN_PREFIX + secrets.token_hex(16)

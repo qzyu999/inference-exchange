@@ -37,6 +37,7 @@ from .routes_confidential import router as confidential_router
 from .routes_exchange import router as exchange_router
 from .routes_handshake import router as handshake_router
 from .routes_inference import router as inference_router
+from .routes_provider import router as provider_owner_router
 from .event_bus import EventBus, public_event
 from .model_registry import ModelRegistry
 from .provider_hub import ProviderHub
@@ -347,6 +348,7 @@ def create_app() -> FastAPI:
     app.include_router(auth_router)
     app.include_router(github_router)
     app.include_router(exchange_router)
+    app.include_router(provider_owner_router)
     app.include_router(admin_router)
     app.include_router(handshake_router)
     app.include_router(confidential_router)
