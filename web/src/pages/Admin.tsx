@@ -2,6 +2,7 @@ import { useState } from 'react'
 import useSWR from 'swr'
 import { api } from '../lib/api'
 import { OperatorControlsPanel } from '../components/OperatorControlsPanel'
+import { loadAdminState } from '../lib/admin-controls.js'
 import { formatUsd, formatUsdPrecise } from '../lib/money.js'
 
 function JsonView({ data }: { data: unknown }) {
@@ -26,14 +27,13 @@ function Section({ title, count, children }: { title: string; count?: number; ch
 }
 
 export function Admin() {
-  const { data: state, error: stateErr, mutate: refreshState } = useSWR('adminState', api.adminState, { refreshInterval: 5000 })
+  const { data: state, error: stateErr, mutate: refreshState } = useSWR('adminState', loadAdminState, { refreshInterval: 5000 })
   const { data: stats } = useSWR('stats', api.stats, { refreshInterval: 3000 })
   const { data: tpsData } = useSWR('tps', api.tps, { refreshInterval: 5000 })
   const { data: repData } = useSWR('reputation', api.reputation, { refreshInterval: 5000 })
   const { data: telemetry } = useSWR('telemetry', api.telemetry, { refreshInterval: 5000 })
   const { data: traces } = useSWR('traces', api.traces, { refreshInterval: 3000 })
 
-  if (stateErr) return <div className="bg-red-50 rounded-2xl border border-red-200 p-5 text-red-600 text-sm">Failed to load: {stateErr.message}</div>
 
   return (
     <div className="space-y-4">
@@ -42,7 +42,20 @@ export function Admin() {
         <p className="text-sm text-gray-400 mt-1">System state and operations</p>
       </div>
 
-      {state && <OperatorControlsPanel providers={state.providers || []} refreshProviders={() => refreshState()} />}
+      {stateErr && (
+        <div role="alert" className="bg-amber-50 rounded-2xl border border-amber-200 p-4 text-amber-900 text-sm">
+          <strong>Admin system state is temporarily unavailable.</strong>
+          <span className="block mt-1">{stateErr.message}</span>
+          <span className="block mt-1">Operator controls below use a separate endpoint. Do not assume the provider list is complete.</span>
+          <button type="button" onClick={() => { void refreshState() }}
+            className="mt-3 rounded-lg border border-amber-500 px-3 py-1.5 font-semibold">
+            Retry admin state
+          </button>
+        </div>
+      )}
+      {!state && !stateErr && <p role="status" className="text-sm text-gray-500">Loading system state…</p>}
+      <OperatorControlsPanel providers={state?.providers || []}
+        providerListUnavailable={!state} refreshProviders={() => refreshState()} />
 
       {stats && (
         <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
