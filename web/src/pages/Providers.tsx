@@ -57,7 +57,7 @@ function ProviderEvidence({ p, reputation, tps }: { p: Provider; reputation?: Re
             </div>
             <div className="flex items-center gap-1.5">
               <span className="w-1.5 h-1.5 rounded-full" style={{ background: p.encrypted ? C.deepBlue : '#ddd' }} />
-              <span>{p.encrypted ? 'E2E encrypted' : 'No E2E'}</span>
+              <span>{p.encrypted ? 'Provider encryption key advertised' : 'No provider key advertised'}</span>
             </div>
             <div className="text-[10px] mt-1" style={{ color: '#aaa' }}>
               Uptime: {formatUptime(p.uptime_seconds)}
@@ -200,7 +200,7 @@ export function Providers() {
             </div>
           ))}
         </div>
-        <Link to="/providers" className="px-5 py-3 rounded-xl text-sm font-medium shrink-0" style={{ background: C.blueBlack, color: '#fff' }}>
+        <Link to="/provide" className="px-5 py-3 rounded-xl text-sm font-medium shrink-0" style={{ background: C.blueBlack, color: '#fff' }}>
           Run a provider
         </Link>
       </div>
@@ -209,7 +209,7 @@ export function Providers() {
       {providers.length > 0 && (
         <div className="flex items-center gap-4 text-xs flex-wrap" style={{ color: '#888' }}>
           <span>Capacity: <span className="font-semibold" style={{ color: C.blueBlack }}>{usedSlots}/{totalSlots}</span> slots</span>
-          {encryptedCount > 0 && <span><span className="font-semibold" style={{ color: C.deepBlue }}>{encryptedCount}</span> E2E</span>}
+          {encryptedCount > 0 && <span><span className="font-semibold" style={{ color: C.deepBlue }}>{encryptedCount}</span> keys advertised</span>}
           {avgTps > 0 && <span>Avg: <span className="font-semibold" style={{ color: C.turquoise }}>{avgTps.toFixed(1)}</span> tok/s</span>}
         </div>
       )}
@@ -256,7 +256,7 @@ export function Providers() {
                   </div>
                   <div className="flex items-center gap-1 mt-0.5 ml-3.5">
                     <span className="text-[10px] truncate" style={{ color: '#999' }}>{p.hardware || 'Unknown'}</span>
-                    {p.encrypted && <span className="text-[7px] px-1 rounded" style={{ background: '#eef3f7', color: C.deepBlue }}>E2E</span>}
+                    {p.encrypted && <span className="text-[7px] px-1 rounded" style={{ background: '#eef3f7', color: C.deepBlue }}>Key</span>}
                   </div>
                 </div>
 
