@@ -16,10 +16,11 @@ interface ProviderRow {
 const actionStyle = 'rounded-lg border border-gray-300 px-3 py-2 text-xs font-semibold disabled:opacity-40 hover:bg-gray-50'
 
 export function OperatorControlsPanel({
-  providers, refreshProviders,
+  providers, refreshProviders, providerListUnavailable = false,
 }: {
   providers: ProviderRow[]
   refreshProviders: () => Promise<unknown>
+  providerListUnavailable?: boolean
 }) {
   const { data, error, isLoading, mutate } = useSWR('admin/controls', loadOperatorControls, {
     refreshInterval: 5000,
@@ -130,7 +131,9 @@ export function OperatorControlsPanel({
 
           <div className="border-t border-gray-100 pt-4">
             <h3 className="font-semibold text-sm mb-2">Connected provider safety</h3>
-            {providers.length === 0 ? <p className="text-sm text-gray-500">No providers connected.</p> : (
+            {providerListUnavailable
+              ? <p role="status" className="text-sm text-amber-800">Provider inventory unavailable. Retry admin state before interpreting provider availability.</p>
+              : providers.length === 0 ? <p className="text-sm text-gray-500">No providers connected.</p> : (
               <div className="space-y-2">
                 {providers.map(p => (
                   <div key={p.provider_id} className="flex flex-wrap gap-3 items-center justify-between bg-gray-50 rounded-xl px-3 py-2">

@@ -34,7 +34,7 @@ try {
   assert.deepEqual(JSON.parse(calls[4].options.body), { reason: 'test quarantine' })
 
   globalThis.fetch = async () => ({
-    ok: false, status: 403, json: async () => ({ error: 'Admin access required' }),
+    ok: false, status: 403, headers: { get: () => 'application/json' }, json: async () => ({ error: 'Admin access required' }),
   })
   await assert.rejects(loadOperatorControls(), /HTTP 403: Admin access required/)
   await assert.rejects(updateOperatorControls({ signup_disabled: false }), /HTTP 403/)
@@ -43,7 +43,8 @@ try {
     ok: false, status: 502, json: async () => { throw new Error('HTML page with potentially sensitive details') },
   })
   await assert.rejects(clearOperatorQueue(), err => {
-    assert.equal(err.message, 'HTTP 502')
+    assert.match(err.message, /^HTTP 502:/)
+    assert.doesNotMatch(err.message, /HTML|DOCTYPE|potentially sensitive details/i)
     return true
   })
   console.log('admin controls API: happy/error paths and credential handling passed')

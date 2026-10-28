@@ -18,3 +18,5 @@ export function updateOperatorControls(changes: OperatorChanges): Promise<Operat
 export function clearOperatorQueue(): Promise<{ok: boolean; cleared: number}>
 export function quarantineProvider(providerId: string, reason: string): Promise<{ok: boolean; provider_id: string; quarantined: boolean}>
 export function releaseProvider(providerId: string): Promise<{ok: boolean; provider_id: string; quarantined: boolean}>
+
+export function loadAdminState(): Promise<any>

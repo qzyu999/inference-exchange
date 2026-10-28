@@ -1,3 +1,4 @@
+import { describeHttpFailure } from './http-error.js'
 // Browser-only operator API. Keep credentials in the HttpOnly IE session cookie.
 const BASE = import.meta.env?.VITE_API_BASE || ''
 // Cloudflare Access must independently protect admin paths on the deployed hostname.
@@ -10,18 +11,17 @@ async function request(path, { method = 'GET', body } = {}) {
       body: JSON.stringify(body),
     }),
   })
-  if (!response.ok) {
-    let message = `HTTP ${response.status}`
-    try {
-      const payload = await response.json()
-      const detail = payload?.error || payload?.detail
-      if (typeof detail === 'string') message += `: ${detail}`
-    } catch { /* Do not leak HTML error pages or opaque proxy responses. */ }
-    throw new Error(message)
+  if (!response.ok) throw new Error(await describeHttpFailure(response))
+  const type = response.headers?.get?.('content-type')?.toLowerCase() || ''
+  if (type && !type.includes('json')) throw new Error('Unexpected response from the coordinator. Retry when the origin recovers.')
+  try {
+    return await response.json()
+  } catch {
+    throw new Error('Invalid response from the coordinator. Retry when the origin recovers.')
   }
-  return response.json()
 }
 
+export const loadAdminState = () => request('/v1/admin/state')
 export const loadOperatorControls = () => request('/v1/admin/controls')
 export const updateOperatorControls = changes => request('/v1/admin/controls', { method: 'POST', body: changes })
 export const clearOperatorQueue = () => request('/v1/admin/queue/clear', { method: 'POST' })
