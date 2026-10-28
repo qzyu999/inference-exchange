@@ -9,7 +9,9 @@ import { C } from '../lib/theme'
 
 export function Keys() {
   const { user } = useAuth()
-  const { data, mutate } = useSWR('myKeys', api.myKeys)
+  // Scope cached key metadata to the authenticated user; never reuse it
+  // across sequential GitHub logins in the same browser.
+  const { data, mutate } = useSWR(user ? ['myKeys', user.user_id] : null, api.myKeys)
   const [newKeyName, setNewKeyName] = useState('')
   const [createdKey, setCreatedKey] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
