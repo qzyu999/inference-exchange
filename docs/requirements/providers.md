@@ -84,3 +84,17 @@ Note: A request that is in progress on a disconnected provider gets the error `p
 - Principle: P6
 - Status: implemented
 - Verified by: tests/test_provider_revocation.py::TestTokenRevocation::test_revoked_token_refused_at_handshake, tests/test_provider_revocation.py::TestTokenRevocation::test_revoke_disconnects_live_provider, tests/test_provider_revocation.py::TestTokenRevocation::test_revoking_only_token_does_not_reopen_access, tests/test_provider_revocation.py::TestQuarantine::test_quarantined_provider_not_selected, tests/test_provider_revocation.py::TestQuarantine::test_admin_quarantine_endpoint, tests/test_provider_revocation.py::TestProviderControlsNeedAdmin::test_non_admin_denied
+
+### PROV-011: Provider tokens are not in URLs or logs
+
+MUST: A provider agent sends its provider token in the `Authorization: Bearer` header of the WebSocket upgrade request. The agent does not put the token in the URL.
+
+MUST: The coordinator validates the token before it reads the registration message. It rejects a missing, unknown, or revoked token. It does not use the provider name or the claimed trust level as a credential.
+
+MUST NOT: The coordinator or the agents write a raw provider token to a log.
+
+Note: For migration, the coordinator also accepts `?token=` and logs a warning without the token. `IE_PROVIDER_URL_TOKEN=0` turns off this fallback. Header authentication does not verify trust levels (PROV-004).
+
+- Principle: P6
+- Status: implemented
+- Verified by: tests/test_provider_auth_transport.py::TestHeaderAuth::test_bearer_header_registers, tests/test_provider_auth_transport.py::TestHeaderAuth::test_bad_header_rejected, tests/test_provider_auth_transport.py::TestHeaderAuth::test_revoked_token_in_header_rejected, tests/test_provider_auth_transport.py::TestHeaderAuth::test_self_reported_name_is_not_a_credential, tests/test_provider_auth_transport.py::TestUrlFallback::test_legacy_url_token_still_works_and_warns_without_secret, tests/test_provider_auth_transport.py::TestUrlFallback::test_url_token_can_be_disabled, tests/test_provider_auth_transport.py::TestRedaction::test_filter_rewrites_formatted_record, tests/test_provider_auth_transport.py::TestAgentSendsHeader::test_agent_connects_with_header_and_url_has_no_token
