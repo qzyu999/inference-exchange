@@ -3,13 +3,15 @@
 All tests use temporary SQLite files. Never touch the live MBP A database.
 """
 import sqlite3
+import hashlib
+import time
 
 import pytest
 from fastapi.testclient import TestClient
 
 from inference_exchange.coordinator import dependencies
 from inference_exchange.coordinator.main import create_app
-from inference_exchange.coordinator.store import Store, MICRO_PER_DOLLAR
+from inference_exchange.coordinator.store import Store, SCHEMA
 from inference_exchange.shared.protocol import ProviderCapabilities, RegisterMessage
 
 
@@ -190,3 +192,43 @@ def test_legacy_accounts_stay_separate_from_new_principals(db):
     assert stable_id != "provider-1"
     assert store.get_account("provider-1")["total_earned_micro"] == 0
     assert store.get_account(stable_id)["total_earned_micro"] == 0
+
+
+def test_real_pre136_schema_is_migrated_in_place(db):
+    """Create a database that lacks every new #136 column (the live upgrade path)."""
+    raw_token = "pt-ie-" + "ab" * 16
+    token_hash = hashlib.sha256(raw_token.encode()).hexdigest()
+    legacy = (
+        SCHEMA
+        .replace("    connection_id TEXT NOT NULL DEFAULT '',\\n", "")
+        .replace("    provider_account_id TEXT,\\n", "")
+        .replace("    session_id TEXT,\\n", "")
+        .replace("    billing_account_id TEXT,\\n", "")
+    )
+    assert "connection_id TEXT" not in legacy
+    assert "billing_account_id TEXT" not in legacy
+    conn = sqlite3.connect(db)
+    conn.executescript(legacy)
+    conn.execute(
+        "INSERT INTO provider_tokens (token_hash, token_id, name, created_at) VALUES (?, ?, ?, ?)",
+        (token_hash, token_hash[:8], "original-mini", time.time()),
+    )
+    conn.execute(
+        "INSERT INTO accounts (account_id, name, balance_micro, created_at) VALUES (?, ?, ?, ?)",
+        ("provider-1", "Legacy mini", 10_000_321, time.time()),
+    )
+    conn.commit()
+    conn.close()
+
+    upgraded = Store(db_path=db)
+    principal = upgraded.validate_provider_token(raw_token)["billing_account_id"]
+    assert principal.startswith("provider-acct-")
+    assert principal != "provider-1"
+    assert upgraded.get_account("provider-1")["balance_micro"] == 10_000_321
+    cols = lambda table: {
+        row[1] for row in upgraded._conn.execute(f"PRAGMA table_info({table})")
+    }
+    assert "connection_id" in cols("transactions")
+    assert {"session_id", "provider_account_id"} <= cols("provider_history")
+    assert "billing_account_id" in cols("provider_tokens")
+    assert Store(db_path=db).validate_provider_token(raw_token)["billing_account_id"] == principal
