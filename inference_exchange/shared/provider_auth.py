@@ -82,8 +82,15 @@ class RedactSecretsFilter(logging.Filter):
             return True
         cleaned = redact(message)
         if cleaned != message:
-            record.msg = cleaned
-            record.args = ()
+            # Uvicorn's AccessFormatter unpacks a structured five-element
+            # tuple (client, method, path, protocol, status) *after* filters
+            # execute. Clearing that tuple causes access logging to crash.
+            if record.name == "uvicorn.access" and isinstance(record.args, tuple) and len(record.args) == 5:
+                record.msg = redact(str(record.msg))
+                record.args = tuple(redact(v) if isinstance(v, str) else v for v in record.args)
+            else:
+                record.msg = cleaned
+                record.args = ()
         return True
 
 
