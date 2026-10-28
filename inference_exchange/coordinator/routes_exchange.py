@@ -115,8 +115,10 @@ async def get_pricing():
 async def get_billing_config():
     """Public billing rules, so the UI does not hard-code them (BILL-009)."""
     from .store import MIN_CHARGE_MICRO, Store
+    from inference_exchange.config import is_production
 
     return {
+        "allow_balance_reset": not is_production(),
         "minimum_charge_micro": MIN_CHARGE_MICRO,
         "minimum_charge_usd": MIN_CHARGE_MICRO / 1_000_000,
         "platform_fee_percent": Store.PLATFORM_FEE_PERCENT,
