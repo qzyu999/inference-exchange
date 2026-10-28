@@ -51,6 +51,7 @@ jobs:
       - run: node src/lib/docs.test.mjs
       - run: node src/lib/money.test.mjs
       - run: node src/lib/nav.test.mjs
+      - run: node src/lib/key-creation.test.mjs
 
   requirements:
     runs-on: ubuntu-latest
