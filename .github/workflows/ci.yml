@@ -49,6 +49,7 @@ jobs:
       - run: npm ci
       - run: npm run build
       - run: node src/lib/docs.test.mjs
+      - run: node src/lib/money.test.mjs
 
   requirements:
     runs-on: ubuntu-latest

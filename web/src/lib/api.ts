@@ -82,6 +82,21 @@ export interface DepthLevel {
   max_confidence: string
 }
 
+export interface Transaction {
+  request_id: string
+  model: string
+  tokens: number
+  input_tokens?: number
+  output_tokens?: number
+  cached_tokens?: number
+  cost_usd: number
+  cost_micro?: number
+  provider_earning_micro?: number
+  platform_fee_micro?: number
+  minimum_applied?: boolean
+  timestamp: number
+}
+
 export interface Balance {
   consumer_id?: string
   user_id?: string
@@ -140,12 +155,13 @@ export interface TPSEntry {
 export const api = {
   health: () => get<HealthResponse>('/health?include_key=1'),
   me: () => get<Balance>('/v1/auth/me'),
+  billingConfig: () => get<{ minimum_charge_usd: number; minimum_charge_micro: number; platform_fee_percent: number; simulated_credits: boolean }>('/v1/exchange/billing-config'),
   stats: () => get<ExchangeStats>('/v1/exchange/stats'),
   providers: () => get<{ providers: Provider[] }>('/v1/exchange/providers'),
   pricing: () => get<{ pricing: PricingEntry[] }>('/v1/exchange/pricing'),
   depth: () => get<{ asks: DepthLevel[]; total_capacity: number; available_capacity: number }>('/v1/exchange/depth'),
   balance: () => get<Balance>('/v1/exchange/balance'),
-  history: () => get<{ transactions: Array<{ request_id: string; model: string; tokens: number; cost_usd: number; timestamp: number }> }>('/v1/exchange/history'),
+  history: () => get<{ transactions: Transaction[] }>('/v1/exchange/history'),
   traces: () => get<{ traces: Trace[] }>('/v1/exchange/traces'),
   reputation: () => get<{ reputation: ReputationEntry[] }>('/v1/exchange/reputation'),
   tps: () => get<{ tps_stats: TPSEntry[] }>('/v1/exchange/tps'),

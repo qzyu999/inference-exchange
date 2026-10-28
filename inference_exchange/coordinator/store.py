@@ -134,6 +134,7 @@ CREATE INDEX IF NOT EXISTS idx_ref_source ON reference_prices(source, fetched_at
 """
 
 MICRO_PER_DOLLAR = 1_000_000
+MIN_CHARGE_MICRO = 100  # BILL-004: $0.0001 per billed request
 KEY_PREFIX = "sk-ie-"
 
 
@@ -368,7 +369,7 @@ class Store:
         input_cost = int((fresh_input / 1_000_000) * price_per_mtok_input * MICRO_PER_DOLLAR)
         cache_cost = int((cached_tokens / 1_000_000) * cache_rate * MICRO_PER_DOLLAR)
         output_cost = int((output_tokens / 1_000_000) * price_per_mtok_output * MICRO_PER_DOLLAR)
-        total_cost = max(input_cost + cache_cost + output_cost, 100)  # Minimum $0.0001
+        total_cost = max(input_cost + cache_cost + output_cost, MIN_CHARGE_MICRO)  # BILL-004
 
         platform_fee = total_cost * self.PLATFORM_FEE_PERCENT // 100
         provider_earning = total_cost - platform_fee

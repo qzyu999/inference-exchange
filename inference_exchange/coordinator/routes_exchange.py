@@ -111,6 +111,19 @@ async def get_pricing():
     return {"pricing": list(pricing.values())}
 
 
+@router.get("/v1/exchange/billing-config")
+async def get_billing_config():
+    """Public billing rules, so the UI does not hard-code them (BILL-009)."""
+    from .store import MIN_CHARGE_MICRO, Store
+
+    return {
+        "minimum_charge_micro": MIN_CHARGE_MICRO,
+        "minimum_charge_usd": MIN_CHARGE_MICRO / 1_000_000,
+        "platform_fee_percent": Store.PLATFORM_FEE_PERCENT,
+        "simulated_credits": True,  # alpha: no real payments
+    }
+
+
 @router.get("/v1/exchange/balance")
 async def get_balance(request: Request):
     """Get consumer account balance."""
@@ -152,6 +165,14 @@ async def get_stats():
     }
 
 
+def _minimum_applied(row: dict) -> bool:
+    """True if the per-request minimum (BILL-004) set the charge, not the token prices."""
+    from .store import MIN_CHARGE_MICRO
+
+    token_cost = row.get("cost_input_micro", 0) + row.get("cost_output_micro", 0) + row.get("cost_cache_micro", 0)
+    return row["cost_micro"] == MIN_CHARGE_MICRO and token_cost < MIN_CHARGE_MICRO
+
+
 @router.get("/v1/exchange/history")
 async def get_history(request: Request):
     """Recent transaction history (filtered by authenticated user)."""
@@ -178,6 +199,11 @@ async def get_history(request: Request):
                 "cached_tokens": dict(r).get("cached_tokens", 0),
                 "tokens": dict(r)["input_tokens"] + dict(r)["output_tokens"],
                 "cost_usd": round(dict(r)["cost_micro"] / 1_000_000, 6),
+                # BILL-009: exact integer amounts, so clients sum without float drift
+                "cost_micro": dict(r)["cost_micro"],
+                "provider_earning_micro": dict(r)["provider_earning_micro"],
+                "platform_fee_micro": dict(r)["platform_fee_micro"],
+                "minimum_applied": _minimum_applied(dict(r)),
                 "cost_input_usd": round(dict(r).get("cost_input_micro", 0) / 1_000_000, 6),
                 "cost_output_usd": round(dict(r).get("cost_output_micro", 0) / 1_000_000, 6),
                 "cost_cache_usd": round(dict(r).get("cost_cache_micro", 0) / 1_000_000, 6),

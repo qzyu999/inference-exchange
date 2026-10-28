@@ -1,6 +1,7 @@
 import useSWR from 'swr'
 import { Link } from 'react-router-dom'
 import { api } from '../lib/api'
+import { formatUsd, formatUsdPrecise, microToUsd, sumMicro } from '../lib/money.js'
 import { C } from '../lib/theme'
 
 function formatTokens(n: number): string {
@@ -13,15 +14,22 @@ export function Billing() {
   const { data: balance, error: balErr } = useSWR('me', api.me, { refreshInterval: 5000 })
   const { data: history } = useSWR('history', api.history, { refreshInterval: 10000 })
   const { data: pricing } = useSWR('pricing', api.pricing, { refreshInterval: 15000 })
+  const { data: billingConfig } = useSWR('billingConfig', api.billingConfig)
+  const minCharge = billingConfig?.minimum_charge_usd ?? 0.0001
 
-  // Compute spend by model from transaction history
+  // Spend by model, summed in integer micro-USD (BILL-009)
   const transactions = history?.transactions || []
-  const spendByModel: Record<string, number> = {}
+  const microByModel: Record<string, number> = {}
   for (const t of transactions) {
-    const model = (t as any).model || 'unknown'
-    spendByModel[model] = (spendByModel[model] || 0) + ((t as any).cost_usd || 0)
+    const model = t.model || 'unknown'
+    microByModel[model] = (microByModel[model] || 0) + sumMicro([t])
   }
-  const totalSpent = balance?.total_spent_usd || Object.values(spendByModel).reduce((a, b) => a + b, 0)
+  const spendByModel: Record<string, number> = Object.fromEntries(
+    Object.entries(microByModel).map(([m, micro]) => [m, microToUsd(micro)]),
+  )
+  const listedSpent = microToUsd(sumMicro(transactions))
+  const minimumCount = transactions.filter(t => t.minimum_applied).length
+  const totalSpent = balance?.total_spent_usd || listedSpent
   const sortedModels = Object.entries(spendByModel).sort((a, b) => b[1] - a[1])
   const topModels = sortedModels.slice(0, 4)
   const otherSpend = sortedModels.slice(4).reduce((sum, [, v]) => sum + v, 0)
@@ -35,14 +43,17 @@ export function Billing() {
       {balance ? (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           {[
-            { label: 'Balance', value: `$${balance.balance_usd.toFixed(2)}`, color: C.green },
-            { label: 'Spent', value: `$${balance.total_spent_usd.toFixed(2)}`, color: C.blueBlack },
+            { label: 'Balance (simulated credits)', value: formatUsd(balance.balance_usd), exact: formatUsdPrecise(balance.balance_usd), color: C.green },
+            { label: 'Spent', value: formatUsd(balance.total_spent_usd), exact: formatUsdPrecise(balance.total_spent_usd), color: C.blueBlack },
             { label: 'Requests', value: balance.requests_made.toLocaleString(), color: C.blueBlack },
             { label: 'Tokens', value: formatTokens(balance.tokens_consumed), color: C.blueBlack },
           ].map(s => (
             <div key={s.label} className="bg-white rounded-2xl border border-gray-200/40 px-5 py-4">
-              <div className="text-2xl font-bold tracking-tight" style={{ color: s.color }}>{s.value}</div>
+              <div className="text-2xl font-bold tracking-tight" style={{ color: s.color }} title={s.exact}>{s.value}</div>
               <div className="text-[11px] mt-0.5" style={{ color: '#999' }}>{s.label}</div>
+              {s.exact && s.exact !== s.value && (
+                <div className="text-[10px] font-mono mt-0.5" style={{ color: '#888' }}>exact {s.exact}</div>
+              )}
             </div>
           ))}
         </div>
@@ -77,8 +88,8 @@ export function Billing() {
                 return (
                   <div key={model} className="flex items-center gap-3">
                     <span className="text-sm w-36 truncate" style={{ color: C.blueBlack }}>{model}</span>
-                    <span className="text-sm font-semibold w-14" style={{ color: C.gold }}>
-                      ${spend.toFixed(2)}
+                    <span className="text-sm font-semibold w-20" style={{ color: C.gold }}>
+                      {formatUsd(spend)}
                     </span>
                     <div className="flex-1 h-3 rounded-full overflow-hidden" style={{ background: '#eaeae8' }}>
                       <div
@@ -95,8 +106,8 @@ export function Billing() {
               {otherSpend > 0 && (
                 <div className="flex items-center gap-3">
                   <span className="text-sm w-36" style={{ color: '#999' }}>Other</span>
-                  <span className="text-sm font-semibold w-14" style={{ color: '#999' }}>
-                    ${otherSpend.toFixed(2)}
+                  <span className="text-sm font-semibold w-20" style={{ color: '#999' }}>
+                    {formatUsd(otherSpend)}
                   </span>
                   <div className="flex-1 h-3 rounded-full overflow-hidden" style={{ background: '#eaeae8' }}>
                     <div
@@ -149,7 +160,16 @@ export function Billing() {
 
             <div className="pt-3" style={{ borderTop: '1px solid #e5e5e3' }}>
               <div className="text-xs" style={{ color: '#888' }}>Provider share</div>
-              <div className="text-xl font-bold mt-0.5" style={{ color: C.green }}>90%</div>
+              <div className="text-xl font-bold mt-0.5" style={{ color: C.green }}>
+                {100 - (billingConfig?.platform_fee_percent ?? 10)}%
+              </div>
+            </div>
+            <div className="pt-3" style={{ borderTop: '1px solid #e5e5e3' }}>
+              <div className="text-xs" style={{ color: '#888' }}>Minimum per request</div>
+              <div className="text-xl font-bold mt-0.5" style={{ color: C.blueBlack }}>{formatUsd(minCharge)}</div>
+              <div className="text-[11px] mt-1 leading-snug" style={{ color: '#777' }}>
+                If the token cost of a request is less than this, you pay the minimum.
+              </div>
             </div>
           </div>
         </div>
@@ -187,7 +207,9 @@ export function Billing() {
                     {(t.cached_tokens || 0) > 0 ? (t.cached_tokens || 0).toLocaleString() : '—'}
                   </div>
                   <div className="col-span-1 text-right" style={{ color: C.gold }}>{(t.output_tokens || 0).toLocaleString()}</div>
-                  <div className="col-span-2 text-right font-semibold" style={{ color: C.red }}>-${(t.cost_usd || 0).toFixed(6)}</div>
+                  <div className="col-span-2 text-right font-semibold" style={{ color: C.red }} title={t.minimum_applied ? 'Minimum charge applied' : undefined}>
+                    -{formatUsdPrecise(t.cost_usd)}{t.minimum_applied && <span className="ml-1 text-[9px] font-normal" style={{ color: '#888' }}>min</span>}
+                  </div>
                   <div className="col-span-2 text-right">
                     {t.request_id && <Link to={`/trace?id=${t.request_id}`} className="text-[10px] font-medium" style={{ color: C.gold }}>View trace</Link>}
                   </div>
@@ -198,13 +220,28 @@ export function Billing() {
         ) : (
           <div className="text-sm text-center py-8" style={{ color: '#ccc' }}>No transactions yet</div>
         )}
+
+        {transactions.length > 0 && (
+          <div className="mt-3 pt-3 border-t border-gray-100 text-xs space-y-0.5" style={{ color: '#777' }}>
+            <div>
+              {transactions.length} listed {transactions.length === 1 ? 'charge' : 'charges'}: <span className="font-mono">{formatUsdPrecise(listedSpent)}</span>
+              {balance && <> · all-time spent: <span className="font-mono">{formatUsdPrecise(balance.total_spent_usd)}</span></>}
+              {balance && history && transactions.length < balance.requests_made && ' (the list shows the most recent 50)'}
+            </div>
+            {minimumCount > 0 && (
+              <div>{minimumCount} of these {minimumCount === 1 ? 'was' : 'were'} billed at the {formatUsd(minCharge)} minimum ("min").</div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Alpha reset CTA */}
       <div className="rounded-2xl border px-5 py-4 flex items-center justify-between" style={{ background: '#fdf6ec', borderColor: 'rgba(196,154,69,0.15)' }}>
         <div>
           <div className="text-sm font-semibold" style={{ color: C.blueBlack }}>Alpha credits</div>
-          <div className="text-xs" style={{ color: '#888' }}>Reset your balance anytime during the alpha.</div>
+          <div className="text-xs" style={{ color: '#888' }}>
+            Simulated credits, not real money. No payments are taken. Amounts are in USD, stored as whole micro-dollars ($0.000001). You can reset your balance during the alpha.
+          </div>
         </div>
         <button
           onClick={async () => {

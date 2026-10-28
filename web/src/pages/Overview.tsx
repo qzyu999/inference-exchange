@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import useSWR from 'swr'
 import { Link } from 'react-router-dom'
 import { api } from '../lib/api'
+import { formatUsd } from '../lib/money.js'
 import { C, TRUST_COLORS } from '../lib/theme'
 
 export function Overview() {
@@ -188,7 +189,7 @@ export function Overview() {
                 <span className="shrink-0" style={{ color: '#ccc' }}>{new Date(ev.timestamp * 1000).toLocaleTimeString()}</span>
                 <span style={{ color: eventColors[ev.type] || '#aaa' }}>{ev.type}</span>
                 {ev.provider && <span className="truncate">{ev.provider}</span>}
-                {ev.cost_usd != null && <span style={{ color: C.gold }}>${ev.cost_usd.toFixed(6)}</span>}
+                {ev.cost_usd != null && <span style={{ color: C.gold }}>{formatUsd(ev.cost_usd)}</span>}
               </div>
             )) : (
               <div className="text-xs text-center py-12 font-sans" style={{ color: '#ccc' }}>
