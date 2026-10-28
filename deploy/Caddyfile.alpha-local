@@ -22,7 +22,7 @@
     }
 
     # Never serve metrics or FastAPI debug artifacts through the public ingress.
-    @blocked path /metrics /openapi.json /redoc /docs
+    @blocked path /metrics /openapi.json /redoc
     handle @blocked {
         respond 404
     }
