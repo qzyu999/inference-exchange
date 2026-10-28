@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import useSWR from 'swr'
 import { Link } from 'react-router-dom'
 import { api, post } from '../lib/api'
@@ -9,23 +9,32 @@ import { C } from '../lib/theme'
 export function Keys() {
   const { user } = useAuth()
   const { data, mutate } = useSWR('myKeys', api.myKeys)
-  const { data: health } = useSWR('health', api.health)
   const [newKeyName, setNewKeyName] = useState('')
   const [createdKey, setCreatedKey] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
 
-  const defaultKey = user?.api_key || health?.default_api_key
+  const [createError, setCreateError] = useState('')
+  const [creating, setCreating] = useState(false)
+  // A raw secret is only shown immediately after a successful server response.
+  // Never restore a different account's locally cached key as an active key.
+  useEffect(() => { setCreatedKey(null); setCreateError('') }, [user?.user_id])
   const userKeys = data?.keys || []
 
   async function createKey() {
-    if (!newKeyName.trim()) return
+    if (!newKeyName.trim() || creating) return
+    setCreating(true)
+    setCreatedKey(null)
+    setCreateError('')
     try {
       const result = await post<{ api_key: string }>('/v1/auth/keys', { name: newKeyName.trim() })
+      if (!result.api_key?.startsWith('sk-ie-')) throw new Error('Server did not return an IE API key')
       setCreatedKey(result.api_key)
       setNewKeyName('')
-      mutate()
-    } catch {
-      if (defaultKey) { setCreatedKey(defaultKey); setNewKeyName('') }
+      await mutate()
+    } catch (error) {
+      setCreateError(error instanceof Error ? error.message : 'Key creation failed. Please try again.')
+    } finally {
+      setCreating(false)
     }
   }
 
@@ -52,33 +61,6 @@ export function Keys() {
 
   return (
     <div className="space-y-6">
-      {/* Active key */}
-      {defaultKey && (
-        <div className="bg-white rounded-2xl border border-gray-200/40 p-5">
-          <div className="text-[10px] uppercase tracking-wider font-medium mb-3" style={{ color: C.gold }}>
-            Active Key
-          </div>
-          <div className="flex items-center gap-3">
-            <code className="flex-1 text-lg font-mono tracking-wider" style={{ color: C.blueBlack }}>
-              {defaultKey.slice(0, 8)}{'·'.repeat(16)}
-            </code>
-            <span className="text-[10px] font-medium px-2.5 py-1 rounded-full" style={{ background: '#edf7f1', color: C.green }}>
-              Production
-            </span>
-            <button
-              onClick={() => copyKey(defaultKey)}
-              className="px-4 py-2 rounded-xl text-sm font-medium border transition-colors"
-              style={{ color: C.blueBlack, borderColor: '#ddd' }}
-            >
-              {copied ? 'Copied' : 'Copy'}
-            </button>
-          </div>
-          <div className="text-xs mt-2" style={{ color: '#999' }}>
-            Bearer token for OpenAI-compatible endpoints
-          </div>
-        </div>
-      )}
-
       {/* Two-column: Create + Your keys */}
       <div className="flex gap-5 flex-col lg:flex-row">
         {/* Create new key */}
@@ -111,11 +93,13 @@ export function Keys() {
 
             <button
               onClick={createKey}
+              disabled={creating}
               className="px-5 py-2.5 rounded-xl text-sm font-medium transition-colors mt-2"
               style={{ background: C.blueBlack, color: '#fff' }}
             >
-              Create key
+              {creating ? 'Creating…' : 'Create key'}
             </button>
+            {createError && <p role="alert" className="text-xs text-red-700 mt-2">Could not create key: {createError}</p>}
           </div>
 
           {createdKey && (
