@@ -1,12 +1,20 @@
 """The migration preflight must never mutate the original SQLite file."""
 
+import importlib.util
 import sqlite3
 from pathlib import Path
 
 import pytest
 
 from inference_exchange.coordinator.store import SCHEMA, Store
-from scripts.verify_provider_ownership_migration import PreflightError, backup_and_rehearse
+
+# The operator script is not part of the installable IE Python package.
+_script = Path(__file__).resolve().parents[1] / "scripts" / "verify_provider_ownership_migration.py"
+_spec = importlib.util.spec_from_file_location("ownership_preflight", _script)
+_preflight = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(_preflight)
+PreflightError = _preflight.PreflightError
+backup_and_rehearse = _preflight.backup_and_rehearse
 
 
 def _legacy_schema():
