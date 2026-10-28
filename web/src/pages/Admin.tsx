@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import useSWR from 'swr'
 import { api } from '../lib/api'
+import { OperatorControlsPanel } from '../components/OperatorControlsPanel'
 import { formatUsd, formatUsdPrecise } from '../lib/money.js'
 
 function JsonView({ data }: { data: unknown }) {
@@ -25,7 +26,7 @@ function Section({ title, count, children }: { title: string; count?: number; ch
 }
 
 export function Admin() {
-  const { data: state, error: stateErr } = useSWR('adminState', api.adminState, { refreshInterval: 5000 })
+  const { data: state, error: stateErr, mutate: refreshState } = useSWR('adminState', api.adminState, { refreshInterval: 5000 })
   const { data: stats } = useSWR('stats', api.stats, { refreshInterval: 3000 })
   const { data: tpsData } = useSWR('tps', api.tps, { refreshInterval: 5000 })
   const { data: repData } = useSWR('reputation', api.reputation, { refreshInterval: 5000 })
@@ -40,6 +41,8 @@ export function Admin() {
         <h1 className="text-2xl font-bold text-gray-900">Admin</h1>
         <p className="text-sm text-gray-400 mt-1">System state and operations</p>
       </div>
+
+      {state && <OperatorControlsPanel providers={state.providers || []} refreshProviders={() => refreshState()} />}
 
       {stats && (
         <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
