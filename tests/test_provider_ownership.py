@@ -192,6 +192,31 @@ def test_owned_token_suspension_disconnects_and_blocks_reconnect(setup):
         assert ws.receive_json()["type"] == "registered"
 
 
+
+def test_inconsistent_node_binding_fails_closed(setup):
+    root, admin, store, alice, bob = setup
+    token_a, principal_a = _token(admin, store)
+    token_b, principal_b = _token(admin, store)
+    assert _claim(admin, principal_a, alice).status_code == 200
+    assert _claim(admin, principal_b, bob).status_code == 200
+    node_b = store._conn.execute(
+        "SELECT node_id FROM provider_nodes WHERE billing_account_id = ?", (principal_b,),
+    ).fetchone()["node_id"]
+    # Simulate corrupted token metadata. An otherwise-valid token must never
+    # inherit a different node's owner while retaining its old ledger principal.
+    store._conn.execute(
+        "UPDATE provider_tokens SET node_id = ? WHERE billing_account_id = ?", (node_b, principal_a),
+    )
+    store._conn.commit()
+    with pytest.raises(WebSocketDisconnect) as exc:
+        with _connect(root, token_a) as ws:
+            ws.receive_text()
+    assert exc.value.code == 4003
+    assert store.provider_billing_principals_for_owner(alice["user_id"]) == {principal_a}
+    assert store.provider_billing_principals_for_owner(bob["user_id"]) == {principal_b}
+
+
+
 def test_unclaimed_legacy_token_still_connects(setup):
     root, admin, store, alice, bob = setup
     token, principal = _token(admin, store)

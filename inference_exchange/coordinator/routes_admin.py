@@ -170,12 +170,16 @@ class ProviderClaimRequest(BaseModel):
 
 
 @router.post("/v1/admin/provider-claims")
-async def claim_legacy_provider(body: ProviderClaimRequest, request: Request):
+async def claim_legacy_provider(request: Request):
     """Manually bind an unclaimed provider principal after verifying ownership off-band."""
     actor = resolve_user_from_request(request)
-    # Never rely on the permissive no-users dev admin bootstrap for ownership claims.
+    # Authenticate before parsing the body, including for malformed requests.
     if not actor or actor.get("role") != "admin" or not is_admin_request(request):
         return admin_required_response()
+    try:
+        body = ProviderClaimRequest.model_validate(await request.json())
+    except (ValueError, TypeError):
+        return JSONResponse({"error": "Invalid provider claim"}, status_code=422)
     try:
         result = get_store().claim_legacy_provider(
             body.billing_account_id, body.owner_user_id, actor["user_id"], body.reason,

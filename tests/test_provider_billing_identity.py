@@ -205,6 +205,13 @@ def test_real_pre136_schema_is_migrated_in_place(db):
         .replace("    session_id TEXT,\n", "")
         .replace("    billing_account_id TEXT,\n", "")
     )
+    # Remove the PR1 ownership tables to reproduce the real pre-#136 schema.
+    # Otherwise their new billing_account_id fields invalidate this legacy fixture.
+    legacy = legacy.replace("    node_id TEXT REFERENCES provider_nodes(node_id),\n", "")
+    start = legacy.index("CREATE TABLE IF NOT EXISTS provider_nodes (")
+    end = legacy.index("CREATE TABLE IF NOT EXISTS reference_prices (")
+    legacy = legacy[:start] + legacy[end:]
+
     assert "connection_id TEXT" not in legacy
     assert "billing_account_id TEXT" not in legacy
     conn = sqlite3.connect(db)
