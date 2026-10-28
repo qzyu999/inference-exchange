@@ -125,6 +125,7 @@ def test_invalid_slots_rejected(alpha, value):
     ("measured_tps", float("nan")),
     ("measured_tps", float("inf")),
     ("measured_tps", 10001),
+    ("measured_tps", 10**500),
     ("memory_gb", -1),
     ("memory_gb", float("inf")),
     ("context_length", -1),
@@ -173,7 +174,8 @@ def test_unverified_trust_rejected(alpha, trust):
 
 @pytest.mark.parametrize("hardware,fmt", [
     ("nvidia-dgx-spark", "gguf"), ("linux-arm64", "gguf"),
-    ("unknown", "gguf"), ("apple-m6", "safetensors"), ("apple-m6", ""),
+    ("unknown", "gguf"), ("apple-m7", "gguf"),
+    ("apple-m6", "safetensors"), ("apple-m6", ""),
 ])
 def test_unsupported_alpha_profile_rejected(alpha, hardware, fmt):
     client, _, token = alpha
