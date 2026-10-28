@@ -200,10 +200,10 @@ def test_real_pre136_schema_is_migrated_in_place(db):
     token_hash = hashlib.sha256(raw_token.encode()).hexdigest()
     legacy = (
         SCHEMA
-        .replace("    connection_id TEXT NOT NULL DEFAULT '',\\n", "")
-        .replace("    provider_account_id TEXT,\\n", "")
-        .replace("    session_id TEXT,\\n", "")
-        .replace("    billing_account_id TEXT,\\n", "")
+        .replace("    connection_id TEXT NOT NULL DEFAULT '',\n", "")
+        .replace("    provider_account_id TEXT,\n", "")
+        .replace("    session_id TEXT,\n", "")
+        .replace("    billing_account_id TEXT,\n", "")
     )
     assert "connection_id TEXT" not in legacy
     assert "billing_account_id TEXT" not in legacy
