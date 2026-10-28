@@ -356,6 +356,7 @@ def create_app() -> FastAPI:
     async def provider_websocket(ws: WebSocket):
         await ws.accept()
         provider_id: str | None = None
+        provider_session_id = ""
 
         # Authenticate provider (PROV-011, #125). Preferred: Authorization: Bearer
         # on the upgrade request. Migration fallback: ?token= for old agents,
@@ -402,6 +403,7 @@ def create_app() -> FastAPI:
             reg = RegisterMessage(**data)
             provider_id = hub.register_provider(ws, reg)
             live_provider = hub._providers[provider_id]
+            provider_session_id = live_provider.session_id
             live_provider.token_id = token_id
             # Bind new earnings to the authenticated credential, never the
             # self-reported name or reusable provider-N WebSocket ID.
@@ -511,9 +513,10 @@ def create_app() -> FastAPI:
             if provider_id:
                 live = hub._providers.get(provider_id)
                 name = live.name if live else provider_id
-                session_id = live.session_id if live else ""
                 hub.disconnect_provider(provider_id)
-                store.log_provider_disconnect(provider_id, session_id=session_id)
+                # Keep the session nonce even if admin force_disconnect already
+                # removed this connection from the in-memory hub (#136).
+                store.log_provider_disconnect(provider_id, session_id=provider_session_id)
                 event_bus.publish({
                     "type": "provider_disconnect",
                     "provider": name,
