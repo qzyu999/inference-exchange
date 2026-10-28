@@ -61,6 +61,7 @@ export function Chat() {
 
   const { data: modelsData } = useSWR('models', api.models)
   const { data: health } = useSWR('health', api.health)
+  const { data: providerData } = useSWR('providers', api.providers, { refreshInterval: 5000 })
 
   // Once authenticated, browser requests use the HttpOnly IE session cookie.
   // Never send an unvalidated localStorage key from an earlier account.
@@ -89,6 +90,13 @@ export function Chat() {
   const lastAssistant = [...messages].reverse().find(m => m.role === 'assistant' && m.content)
 
   const trustInfo = TRUST_COLORS[minTrust] || TRUST_COLORS.hardened
+  const trustOrder: Record<string, number> = { open: 0, contained: 1, hardened: 2, confidential: 3 }
+  // Show a trust mismatch before a request is sent; never silently weaken privacy.
+  const modelProviders = providerData?.providers?.filter(p =>
+    !model || model === 'default' || p.models.includes(model)
+  ) ?? []
+  const trustMismatch = minTrust !== 'open' && modelProviders.length > 0 &&
+    !modelProviders.some(p => (trustOrder[p.trust_level] ?? -1) >= (trustOrder[minTrust] ?? 99))
 
   async function send() {
     const text = input.trim()
@@ -233,6 +241,33 @@ export function Chat() {
           </button>
         </div>
 
+        {/* The public alpha may have only an L0 provider. Make that visible before the user sends. */}
+        {trustMismatch && (
+          <div className="flex flex-wrap items-center gap-2 px-4 py-3 mb-3 rounded-xl text-xs"
+            style={{ background: '#fdf6ec', color: C.blueBlack, border: '1px solid rgba(196,154,69,0.25)' }}>
+            <span className="flex-1 min-w-48">
+              No provider for this model currently meets your {trustInfo.label} minimum.
+              You can wait for a higher-trust provider, or explicitly allow an L0 provider for
+              nonsensitive testing. L0 providers can see prompts and responses.
+            </span>
+            <button
+              onClick={() => setMinTrust('open')}
+              className="font-semibold px-3 py-1.5 rounded-lg border shrink-0"
+              style={{ borderColor: C.gold, color: C.gold }}
+            >
+              Allow L0 (Any)
+            </button>
+          </div>
+        )}
+
+        {providerData && providerData.providers.length === 0 && (
+          <div className="px-4 py-2.5 mb-3 rounded-xl text-xs"
+            style={{ background: '#f5f5f4', color: '#777' }}>
+            No providers are connected. This experimental alpha may be offline while the
+            volunteer machines are asleep.
+          </div>
+        )}
+
         {/* Privacy downgrade warning */}
         {(minTrust === 'open' || minTrust === 'contained') && (
           <div className="flex items-center gap-2 px-4 py-2.5 mb-3 rounded-xl text-xs" style={{ background: '#fdf6ec', color: C.gold, border: '1px solid rgba(196,154,69,0.15)' }}>
@@ -247,6 +282,11 @@ export function Chat() {
             </button>
           </div>
         )}
+
+        <div className="text-[11px] mb-3" style={{ color: '#888' }}>
+          Browser chat uses TLS, not end-to-end encryption. The coordinator can read prompts
+          and responses regardless of the provider trust selection.
+        </div>
 
         {/* Messages */}
         <div ref={scrollRef} className="flex-1 overflow-y-auto space-y-4 pb-4">
