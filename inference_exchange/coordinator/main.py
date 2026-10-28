@@ -397,7 +397,7 @@ def create_app() -> FastAPI:
             # Development only: allow bootstrap with an empty token table.
 
         # A credential cannot exhaust admission with repeated reconnect attempts.
-        if token and not registration_guard.allow(token_id):
+        if token and not registration_guard.allow(token_info["token_hash"]):
             await ws.close(code=4008, reason="Too many registration attempts")
             return
         if not registration_guard.begin():
