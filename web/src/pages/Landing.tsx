@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom'
 import { api } from '../lib/api'
 import { C, GRADIENTS } from '../lib/theme'
 import { HeroScene } from '../components/HeroScene'
+import { LandingNav } from '../components/LandingNav'
 import { MineralAurora } from '../components/MineralAurora'
 
 // ─── Helpers ─────────────────────────────────────────────────
@@ -40,10 +41,12 @@ function ScrollOverlay({ progress }: { progress: number }) {
     peak: number
     to: number
   }[] = [
-    { text: 'Inference Exchange', sub: 'Supply meets demand', from: 0.0, peak: 0.08, to: 0.22 },
+    // Starts after the first-viewport intro fades (#107), so the two do not overlap
+    { text: 'Supply meets demand', from: 0.06, peak: 0.12, to: 0.22 },
     { text: 'Two forces converge', sub: 'Consumers bid. Providers offer. The exchange matches.', from: 0.15, peak: 0.25, to: 0.38 },
     { text: 'The intersection is the product', from: 0.32, peak: 0.42, to: 0.55 },
-    { text: 'End-to-end encrypted', sub: 'The coordinator never sees your data. X25519 forward secrecy on every request.', from: 0.48, peak: 0.58, to: 0.68 },
+    // #87/#107: match the real browser path. Do not claim E2E or verified trust.
+    { text: 'Trust is labelled, not assumed', sub: 'Providers report a trust level. The exchange shows it as claimed until evidence verifies it. Browser chat uses TLS; it is not end-to-end encrypted.', from: 0.48, peak: 0.58, to: 0.68 },
     { text: 'Providers compete. You benefit.', sub: 'Price, speed, privacy — the matching engine optimizes for what you care about.', from: 0.60, peak: 0.70, to: 0.80 },
     { text: 'Private AI inference, powered by everyone.', from: 0.75, peak: 0.83, to: 0.93 },
   ]
@@ -163,10 +166,10 @@ function LiveExchangeCard() {
 
       <div className="mt-5 pt-4" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
         <div className="text-[10px] uppercase tracking-wider font-medium" style={{ color: C.gold }}>
-          End-to-end encrypted
+          Trust levels are claims
         </div>
-        <div className="text-xs mt-0.5" style={{ color: '#8a8578' }}>
-          Coordinator never sees your prompt.
+        <div className="text-xs mt-0.5" style={{ color: '#a9a294' }}>
+          Shown as self-reported until verified. Browser chat uses TLS, not end-to-end encryption.
         </div>
       </div>
     </div>
@@ -181,7 +184,20 @@ export function Landing() {
   const [webglFailed, setWebglFailed] = useState(false)
   const [mouseX, setMouseX] = useState(0.5)
 
+  const [skipped, setSkipped] = useState(false)
+  const heroRef = useRef<HTMLDivElement>(null)
   const sequenceDone = progress >= 0.95
+  const heroVisible = webglFailed || sequenceDone || skipped
+  const introVisible = progress < 0.06 && !webglFailed
+
+  // Skip intro: show the product hero at once. Do not require the scroll story.
+  const skipIntro = () => {
+    setSkipped(true)
+    requestAnimationFrame(() => {
+      heroRef.current?.scrollIntoView({ behavior: 'auto', block: 'start' })
+      heroRef.current?.focus({ preventScroll: true })
+    })
+  }
 
   // Track mouse position for cursor-reactive aurora
   useEffect(() => {
@@ -194,13 +210,14 @@ export function Landing() {
 
   return (
     <>
+      <LandingNav />
       {/* ── Scroll sequence ──────────────────────────────── */}
       <div ref={scrollContainerRef} style={{ height: webglFailed ? '100vh' : '500vh' }} className="relative">
         <div className="sticky top-0 left-0 w-full h-screen overflow-hidden z-10">
           <HeroScene scrollProgress={progress} onInitFailed={() => setWebglFailed(true)} />
 
           {webglFailed && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center" style={{ background: C.black }}>
+            <div id="landing-main" className="absolute inset-0 pt-14 flex flex-col items-center justify-center" style={{ background: C.black }}>
               <img
                 src="/logo-icon.svg"
                 alt="Inference Exchange"
@@ -211,8 +228,8 @@ export function Landing() {
                 Private AI inference,{' '}
                 <span style={{ color: C.red }}>powered by everyone.</span>
               </h1>
-              <p className="text-base mt-4 max-w-md text-center px-6" style={{ color: '#8a8578' }}>
-                Providers compete to serve your requests. Prompts and responses are encrypted end-to-end.
+              <p className="text-base mt-4 max-w-md text-center px-6" style={{ color: '#a9a294' }}>
+                Providers compete to serve your requests. The exchange routes each request by price, speed and the trust level you choose.
               </p>
               <div className="flex gap-3 mt-8">
                 <Link to="/chat" className="px-6 py-3 rounded-2xl font-medium text-sm transition-colors" style={{ background: C.warmWhite, color: C.black }}>
@@ -227,15 +244,55 @@ export function Landing() {
 
           <ScrollOverlay progress={progress} />
 
-          <div
-            className="absolute bottom-8 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 z-30 transition-opacity duration-500"
-            style={{ opacity: progress < 0.05 ? 1 : 0 }}
-          >
-            <span className="text-xs tracking-wider uppercase" style={{ color: '#8a8578' }}>Scroll / explore</span>
-            <div className="w-5 h-8 rounded-full flex items-start justify-center p-1.5" style={{ border: `1px solid ${C.indigo}` }}>
-              <div className="w-1 h-2 rounded-full animate-bounce" style={{ background: C.warmWhite }} />
-            </div>
-          </div>
+          {/* First viewport: what IE is, and how to use it, with no scroll (#107 P0) */}
+          {!webglFailed && (
+            <section
+              id="landing-main"
+              aria-labelledby="landing-title"
+              className="absolute inset-x-0 top-14 bottom-0 z-30 flex flex-col items-center justify-center px-6 text-center transition-opacity duration-300"
+              style={{
+                opacity: introVisible ? 1 : 0,
+                visibility: introVisible ? 'visible' : 'hidden',
+                pointerEvents: introVisible ? 'auto' : 'none',
+              }}
+            >
+              <h1 id="landing-title" className="text-4xl md:text-6xl font-bold tracking-tight" style={{ color: C.warmWhite, textShadow: '0 2px 24px rgba(0,0,0,0.6)' }}>
+                Inference Exchange
+              </h1>
+              <p className="mt-4 max-w-xl text-base md:text-lg leading-relaxed" style={{ color: '#e6e0cf', textShadow: '0 1px 12px rgba(0,0,0,0.7)' }}>
+                An open market for AI inference. Send OpenAI-compatible requests; providers with spare hardware compete to serve them.
+              </p>
+              <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
+                <Link to="/chat" className="px-6 py-3 rounded-xl text-sm font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#E8C77A]" style={{ background: C.warmWhite, color: C.black }}>
+                  Start chatting
+                </Link>
+                <Link to="/providers" className="px-6 py-3 rounded-xl text-sm font-medium border focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#E8C77A]" style={{ color: C.warmWhite, borderColor: 'rgba(216,209,190,0.4)', background: 'rgba(14,16,24,0.5)' }}>
+                  Become a provider
+                </Link>
+                <Link to="/exchange" className="px-6 py-3 rounded-xl text-sm font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#E8C77A]" style={{ color: '#e6e0cf', background: 'rgba(14,16,24,0.5)' }}>
+                  Go to Exchange
+                </Link>
+              </div>
+              <div className="absolute bottom-8 flex items-center gap-4">
+                <button
+                  type="button"
+                  onClick={() => window.scrollBy({ top: window.innerHeight, behavior: 'smooth' })}
+                  className="text-xs tracking-wider uppercase px-3 py-2 rounded-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#E8C77A]"
+                  style={{ color: '#d8d1be' }}
+                >
+                  Scroll to explore ↓
+                </button>
+                <button
+                  type="button"
+                  onClick={skipIntro}
+                  className="text-xs tracking-wider uppercase px-3 py-2 rounded-lg border focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#E8C77A]"
+                  style={{ color: '#d8d1be', borderColor: 'rgba(216,209,190,0.3)' }}
+                >
+                  Skip intro
+                </button>
+              </div>
+            </section>
+          )}
         </div>
       </div>
 
@@ -247,28 +304,21 @@ export function Landing() {
 
       {/* ── Hero section (after scroll) ──────────────────── */}
       <div
-        className="relative z-10 min-h-screen flex flex-col overflow-hidden"
+        ref={heroRef}
+        tabIndex={-1}
+        aria-label="Inference Exchange product overview"
+        className="relative z-10 min-h-screen flex flex-col overflow-hidden pt-14 outline-none"
         style={{
           background: C.blueBlack,
-          opacity: webglFailed || sequenceDone ? 1 : 0,
-          transition: 'opacity 0.6s ease',
+          opacity: heroVisible ? 1 : 0,
+          // Hidden content must not take keyboard focus
+          visibility: heroVisible ? 'visible' : 'hidden',
+          transition: 'opacity 0.6s ease, visibility 0.6s',
         }}
       >
         {/* Living mineral aurora — cursor-reactive behind hero content */}
         <div className="absolute inset-0 z-0">
           <MineralAurora variant="dark" opacity={0.18} speed={0.0004} mouseX={mouseX} className="absolute inset-0" />
-        </div>
-        {/* Top bar */}
-        <div className="relative z-10 max-w-7xl mx-auto w-full px-6 md:px-10 py-5 flex items-center justify-between">
-          <Link to="/" className="flex items-center gap-2.5">
-            <img src="/logo-icon.svg" alt="IE" className="w-6 h-6" />
-            <span className="text-sm font-semibold uppercase tracking-wider mineral-spectrum-text">
-              Inference Exchange
-            </span>
-          </Link>
-          <span className="text-xs hidden sm:block" style={{ color: '#8a8578' }}>
-            Open protocol. Open marketplace.
-          </span>
         </div>
 
         {/* Hero content: headline left, live exchange card right */}
@@ -277,7 +327,7 @@ export function Landing() {
             <div className="flex flex-col lg:flex-row items-center justify-between gap-12 lg:gap-16">
             {/* Left: headline + CTAs */}
             <div className="flex-1 max-w-xl">
-              <h1 className="text-4xl md:text-5xl font-bold tracking-tight leading-[1.1]" style={{ color: C.warmWhite }}>
+              <h2 className="text-4xl md:text-5xl font-bold tracking-tight leading-[1.1]" style={{ color: C.warmWhite }}>
                 Private AI inference,
                 <br />
                 <span
@@ -286,7 +336,7 @@ export function Landing() {
                 >
                   powered by everyone.
                 </span>
-              </h1>
+              </h2>
 
               <p className="text-base mt-6 leading-relaxed max-w-md" style={{ color: '#8a8578' }}>
                 OpenAI-compatible inference with a live supply side.

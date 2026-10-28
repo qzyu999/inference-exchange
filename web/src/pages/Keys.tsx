@@ -3,6 +3,7 @@ import useSWR from 'swr'
 import { Link } from 'react-router-dom'
 import { api, post } from '../lib/api'
 import { useAuth } from '../lib/auth'
+import { loginHref } from '../lib/nav.js'
 import { C } from '../lib/theme'
 
 export function Keys() {
@@ -44,7 +45,7 @@ export function Keys() {
     return (
       <div className="max-w-md mx-auto text-center py-16">
         <div className="text-sm mb-3" style={{ color: '#888' }}>Sign in to manage API keys</div>
-        <Link to="/login" className="text-sm font-medium" style={{ color: C.gold }}>Sign in or create an account</Link>
+        <Link to={loginHref('/keys')} className="text-sm font-medium" style={{ color: C.gold }}>Sign in or create an account</Link>
       </div>
     )
   }
