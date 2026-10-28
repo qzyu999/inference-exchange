@@ -13,7 +13,9 @@ Tracking issue: [#123](https://github.com/qzyu999/inference-exchange/issues/123)
 | `/v1/exchange/balance`, `/history`, `/traces`, `/v1/auth/keys` | **No** | IE account authorization, never a shared anonymous identity |
 | `/ws/provider` | **No** | IE-issued provider token in the `Authorization: Bearer` upgrade header + capability/admission checks (PROV-011). See [Provider token migration](#provider-token-migration-125) |
 | `/admin`, `/v1/admin/*` | **Yes (owner only)** | Additional IE admin JWT role checks. No reliance on Cloudflare identity alone |
-| `/metrics`, `/openapi.json`, `/redoc` | Not routable | 404 at the loopback proxy |
+| `/metrics`, `/openapi.json`, `/redoc` | Not routable | 404 at the loopback proxy. The coordinator also returns 404 in production (OPS-011) |
+
+`tests/test_route_inventory.py` lists every coordinator route and its category (OPS-011). The test fails if a new route has no category.
 
 The static React pages may render when unauthenticated; API authorization must prevent sensitive operations. Do not equate page visibility with access to inference or data.
 
@@ -41,17 +43,20 @@ Caddy serves `127.0.0.1:8080`; the tunnel's existing `alpha.inferenceex.com` hos
 While the existing `alpha.inferenceex.com` root Access application is **still enabled**:
 
 1. Under **Zero Trust -> Access controls -> Applications**, create a self-hosted Access app for each protected exact path/pattern. Use owner-email-only **Allow** policies, never `Everyone`:
-   - `alpha.inferenceex.com/admin` (browser admin UI)
+   - `alpha.inferenceex.com/admin` (browser admin UI, exact path)
+   - `alpha.inferenceex.com/admin/*` (nested admin UI paths)
    - `alpha.inferenceex.com/v1/admin` (exact parent, if requested)
    - `alpha.inferenceex.com/v1/admin/*` (all nested admin API paths)
 2. Confirm Cloudflare's specific-path application matching takes precedence over the broader hostname app. Note the wildcard path **does not include the parent**. Do not use a wildcard hostname or a public `Bypass` policy to represent an operator allowlist.
 3. In a fresh browser, visit `/admin` and `/v1/admin/controls`. Confirm both require Cloudflare Access for your allowlisted email, then independently require a valid GitHub IE admin session. Try a different browser with no Access cookies; IE JSON 403 by itself does **not** demonstrate Cloudflare protection.
-4. Inspect **all** Tunnel public hostname routes and any DNS/origin reachability. An unrestricted `api-dev` or other alternate hostname leading to the same origin can bypass path-specific Access. Either keep those routes Access-protected, remove them, or enforce equivalent access controls.
+4. Record the **Protect with Access** origin setting (`originRequest.access.required`) of the `alpha.inferenceex.com` tunnel route. Do not change it yet. If it is on, cloudflared requires a Cloudflare Access JWT for **every** request on that route. Public OAuth, SDK calls, and provider WSS then fail after you remove the root Access app. See [origin parameters](https://developers.cloudflare.com/tunnel/reference/origin-parameters/).
+5. Inspect **all** Tunnel public hostname routes and any DNS/origin reachability. An unrestricted `api-dev` or other alternate hostname leading to the same origin can bypass path-specific Access. Either keep those routes Access-protected, remove them, or enforce equivalent access controls.
 
 Avoid putting Access in front of `/v1/auth/github/login`, `/v1/auth/github/callback`, `/v1/chat/completions`, or `/ws/provider` after the cutover. Standard users/providers should not encounter Cloudflare login screens.
 
 ## Cutover (manual, reversible; after tests)
 
+0. If the tunnel route has **Protect with Access** on (preflight step 4), plan its change with the root app removal. Turning it off removes origin JWT validation for **all** paths, including admin paths. Before you turn it off, confirm that no other hostname or route reaches the origin without Access. The IE admin role check stays in force.
 1. Once the specific admin-path apps are confirmed working, **remove the original root `alpha.inferenceex.com` Access app** (do not delete any of the admin-path apps). Keep the Cloudflare Tunnel and DNS published hostname unchanged.
 2. From a fresh incognito session with **no prior Cloudflare Access cookies**, test `/`, `/login`, `/v1/auth/config`, public market data and GitHub OAuth. Browser users should no longer see a Cloudflare PIN.
 3. Run `python3 scripts/check_alpha_access_boundary.py --url https://alpha.inferenceex.com` from a machine without Access cookies. It makes only anonymous requests; no keys/secrets are needed.

@@ -65,3 +65,17 @@ MUST: Accounts, balances, and transactions survive a coordinator restart.
 - Principle: P7
 - Status: implemented
 - Verified by: tests/test_store.py::TestPersistence::test_balance_survives_restart, tests/test_store.py::TestPersistence::test_transactions_survive_restart
+
+### BILL-009: Billing amounts are exact and disclosed
+
+MUST: The UI shows a nonzero amount with enough digits that it does not look like zero. It shows `$0.00` only for an exact zero. All billing pages use the same formatter (`web/src/lib/money.js`).
+
+MUST: `GET /v1/exchange/history` gives each charge in integer micro-USD (`cost_micro`, `provider_earning_micro`, `platform_fee_micro`). It also gives `minimum_applied`. `minimum_applied` is true when the BILL-004 minimum, not the token prices, set the charge.
+
+MUST: `GET /v1/exchange/billing-config` gives the minimum charge and the platform fee. The UI shows the minimum charge and labels alpha credits as simulated.
+
+Note: This requirement does not change what the system charges. A decision to change the minimum charge is a separate requirement change.
+
+- Principle: P7
+- Status: implemented
+- Verified by: tests/test_billing_disclosure.py::test_billing_config_discloses_minimum, tests/test_billing_disclosure.py::test_history_marks_minimum_and_has_exact_split, tests/test_billing_disclosure.py::test_accumulated_microcharges_reconcile_with_balance, web/src/lib/money.test.mjs

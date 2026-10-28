@@ -87,3 +87,17 @@ Note: These limits protect providers from overload. They are not daily quotas.
 - Principle: P6
 - Status: implemented
 - Verified by: tests/test_operator_controls.py::TestConcurrencyLimit::test_extra_simultaneous_request_rejected, tests/test_operator_controls.py::TestConcurrencyLimit::test_limit_is_per_account, tests/test_operator_controls.py::TestConcurrencyLimit::test_slot_released_after_stream, tests/test_operator_controls.py::TestConcurrencyLimit::test_slot_released_after_failed_request, tests/test_operator_controls.py::TestQueueControls::test_queue_settings_from_env, tests/test_operator_controls.py::TestQueueControls::test_clear_queue_releases_waiters
+
+### OPS-011: Each route has an ingress category
+
+MUST: Each coordinator route has one category: public, account, admin, provider, or ops. `tests/test_route_inventory.py` lists the routes. The test fails for a route that is not in the list.
+
+MUST: The coordinator enforces each category without help from a proxy. In production, an anonymous request to an account route gets HTTP 401. An admin route gets HTTP 401 or 403 without the admin role. `/ws/provider` closes with code 4003 without a valid provider token.
+
+MUST NOT: In production, the coordinator serves `/openapi.json`, `/docs` (Swagger UI), or `/redoc`. In production, `/metrics` returns HTTP 404 if `IE_METRICS_TOKEN` is not set.
+
+Note: Cloudflare Access on `/admin` and `/v1/admin/*` is an added edge control. The tests cannot verify it. See `docs/guides/alpha-access-rollout.md`.
+
+- Principle: P6
+- Status: implemented
+- Verified by: tests/test_route_inventory.py::test_every_route_is_classified, tests/test_route_inventory.py::test_account_routes_need_credentials_in_prod, tests/test_route_inventory.py::test_admin_routes_need_admin_in_prod, tests/test_route_inventory.py::test_provider_socket_needs_token_in_prod, tests/test_route_inventory.py::test_api_schema_and_docs_hidden_in_prod, tests/test_route_inventory.py::test_metrics_hidden_in_prod_without_token

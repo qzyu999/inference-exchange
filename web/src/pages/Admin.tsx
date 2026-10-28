@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import useSWR from 'swr'
 import { api } from '../lib/api'
+import { formatUsd, formatUsdPrecise } from '../lib/money.js'
 
 function JsonView({ data }: { data: unknown }) {
   return (
@@ -46,7 +47,7 @@ export function Admin() {
             { label: 'Providers', value: stats.providers_online },
             { label: 'Models', value: stats.models_available },
             { label: 'Requests', value: stats.total_requests },
-            { label: 'Volume', value: `$${stats.total_volume_usd.toFixed(4)}` },
+            { label: 'Volume', value: formatUsd(stats.total_volume_usd) },
             { label: 'Tokens', value: stats.total_tokens.toLocaleString() },
           ].map(s => (
             <div key={s.label} className="bg-white rounded-xl border border-gray-200/60 shadow-sm p-3 text-center">
@@ -67,8 +68,8 @@ export function Admin() {
               <tbody>{state.accounts.map((a: any) => (
                 <tr key={a.account_id} className="border-b border-gray-50">
                   <td className="py-2 font-mono text-xs text-gray-500">{a.consumer_id?.slice(0, 16) || a.account_id?.slice(0, 16)}</td>
-                  <td className="py-2 text-right text-emerald-600">${a.balance_usd.toFixed(4)}</td>
-                  <td className="py-2 text-right">${a.total_spent_usd.toFixed(4)}</td>
+                  <td className="py-2 text-right text-emerald-600">{formatUsdPrecise(a.balance_usd)}</td>
+                  <td className="py-2 text-right">{formatUsdPrecise(a.total_spent_usd)}</td>
                   <td className="py-2 text-right">{a.requests_made}</td>
                   <td className="py-2 text-right">{a.tokens_consumed?.toLocaleString()}</td>
                 </tr>
