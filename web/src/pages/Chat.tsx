@@ -5,6 +5,7 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { api } from '../lib/api'
 import { useAuth } from '../lib/auth'
+import { formatUsd } from '../lib/money.js'
 import { C, TRUST_CLAIM_NOTE, TRUST_COLORS } from '../lib/theme'
 
 interface Message {
@@ -288,7 +289,7 @@ export function Chat() {
                       {m.input_tokens != null && m.output_tokens != null && (
                         <span>{(m.input_tokens / 1000).toFixed(1)}k input · {(m.output_tokens / 1000).toFixed(1)}k output</span>
                       )}
-                      {m.cost_usd != null && <span>· ${m.cost_usd.toFixed(6)}</span>}
+                      {m.cost_usd != null && <span>· {formatUsd(m.cost_usd)}</span>}
                     </div>
                   )}
                 </div>
@@ -443,7 +444,7 @@ export function Chat() {
                   {lastAssistant.provider_name || 'Exchange provider'}
                 </div>
                 <div className="text-xs" style={{ color: '#888' }}>
-                  {lastAssistant.cost_usd != null && `$${lastAssistant.cost_usd.toFixed(4)} out`}
+                  {lastAssistant.cost_usd != null && `${formatUsd(lastAssistant.cost_usd)} out`}
                   {lastAssistant.provider_tps ? ` · ${lastAssistant.provider_tps} tok/s` : ''}
                 </div>
                 <Link
