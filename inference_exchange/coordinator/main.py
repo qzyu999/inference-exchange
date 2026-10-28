@@ -4,6 +4,7 @@ import asyncio
 import json
 import logging
 import os
+import secrets
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -400,7 +401,14 @@ def create_app() -> FastAPI:
 
             reg = RegisterMessage(**data)
             provider_id = hub.register_provider(ws, reg)
-            hub._providers[provider_id].token_id = token_id
+            live_provider = hub._providers[provider_id]
+            live_provider.token_id = token_id
+            # Bind new earnings to the authenticated credential, never the
+            # self-reported name or reusable provider-N WebSocket ID.
+            # Credential-free dev bootstrap gets a one-session account only.
+            live_provider.billing_account_id = (
+                token_info["billing_account_id"] if token else "provider-dev-" + secrets.token_hex(16)
+            )
 
             # Send registration confirmation
             confirmed = RegisteredMessage(
@@ -423,13 +431,15 @@ def create_app() -> FastAPI:
                     logger.warning(f"Capability resolution failed for {reg.provider_name}: {e}")
 
             # Create billing account + log connection
-            billing.get_or_create_provider(provider_id, reg.provider_name)
+            billing.get_or_create_provider(live_provider.billing_account_id, reg.provider_name)
             store.log_provider_connect(
                 provider_id, reg.provider_name,
                 reg.capabilities.hardware,
                 reg.capabilities.trust_level.value,
                 reg.capabilities.price_per_mtok_output,
                 reg.capabilities.measured_tps,
+                provider_account_id=live_provider.billing_account_id,
+                session_id=live_provider.session_id,
             )
 
             # Publish provider_connect event
@@ -499,9 +509,11 @@ def create_app() -> FastAPI:
             logger.error(f"Provider WebSocket error: {e}")
         finally:
             if provider_id:
-                name = hub._providers[provider_id].name if provider_id in hub._providers else provider_id
+                live = hub._providers.get(provider_id)
+                name = live.name if live else provider_id
+                session_id = live.session_id if live else ""
                 hub.disconnect_provider(provider_id)
-                store.log_provider_disconnect(provider_id)
+                store.log_provider_disconnect(provider_id, session_id=session_id)
                 event_bus.publish({
                     "type": "provider_disconnect",
                     "provider": name,
