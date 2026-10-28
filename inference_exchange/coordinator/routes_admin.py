@@ -52,6 +52,8 @@ async def get_admin_state(request: Request):
     for p in hub._providers.values():
         providers.append({
             "provider_id": p.provider_id,
+            "billing_account_id": p.billing_account_id,
+            "session_id": p.session_id,
             "name": p.name,
             "models": p.capabilities.models,
             "trust_level": p.capabilities.trust_level.value,
