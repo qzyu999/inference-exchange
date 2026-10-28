@@ -64,6 +64,7 @@ ROUTES = {
     ("POST", "/v1/admin/queue/clear"): ADMIN,
     ("GET", "/v1/admin/provider-tokens"): ADMIN,
     ("POST", "/v1/admin/provider-tokens"): ADMIN,
+    ("POST", "/v1/admin/provider-claims"): ADMIN,
     ("DELETE", "/v1/admin/provider-tokens/{token_id}"): ADMIN,
     ("POST", "/v1/admin/providers/{provider_id}/quarantine"): ADMIN,
     ("POST", "/v1/admin/providers/{provider_id}/release"): ADMIN,

@@ -153,3 +153,29 @@ MUST: The coordinator rejects invalid or revoked provider credentials before it 
 - Status: implemented
 - Verified by: tests/test_provider_registration_validation.py::test_real_uvicorn_rejects_frame_before_registration, tests/test_provider_registration_validation.py::test_main_enables_transport_ws_frame_cap, tests/test_provider_registration_validation.py::test_registration_guard_bounded_attempts_and_pending, tests/test_provider_registration_validation.py::test_missing_first_message_times_out, tests/test_provider_registration_validation.py::test_unknown_and_revoked_credentials_fail_before_read
 - Issue: #147
+
+### PROV-016: A user owns stable provider nodes
+
+MUST: An IE user can own more than one stable provider node. A provider node has one immutable owner and one stable provider billing principal. Each WebSocket connection has a separate session ID.
+
+MUST: A provider credential can refer to a node. Existing provider credentials remain unclaimed until an explicit binding. A schema migration does not change existing credential hashes, billing principals, balances, transactions, or provider sessions.
+
+MUST NOT: The system infer ownership from a provider name, hardware label, IP address, or ephemeral connection ID. Future credential rotation must retain the node billing principal and must have a separately approved requirement and test.
+
+- Principle: P2, P6, P7
+- Status: implemented
+- Verified by: tests/test_provider_ownership.py::test_claim_preserves_principal_and_allows_multiple_nodes, tests/test_provider_ownership.py::test_additive_migration_preserves_existing_ledger_and_unclaimed_token
+- Issue: #150
+
+### PROV-017: Legacy ownership claims are explicit and audited
+
+MUST: Only an authenticated IE administrator can assign an existing unclaimed, active provider principal to a GitHub-linked, unsuspended IE user. The admin states a reason. The system records the node, owner, administrator, action, and time. A second or conflicting claim fails without changing financial records.
+
+MUST: An owned provider credential is rejected when its owner is suspended or its node binding is invalid. Suspending its owner disconnects any live connections using that billing principal. Unclaimed legacy tokens retain their existing authentication behavior.
+
+MUST NOT: A claim accept, disclose, or rotate a raw provider credential.
+
+- Principle: P2, P6, P7, P9
+- Status: implemented
+- Verified by: tests/test_provider_ownership.py::test_claim_denied_for_unauthorized_or_invalid_owner, tests/test_provider_ownership.py::test_competing_claims_are_atomic, tests/test_provider_ownership.py::test_owned_token_suspension_disconnects_and_blocks_reconnect, tests/test_provider_ownership.py::test_unclaimed_legacy_token_still_connects
+- Issue: #150

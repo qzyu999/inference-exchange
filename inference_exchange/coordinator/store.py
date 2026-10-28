@@ -14,6 +14,7 @@ import os
 import secrets
 import sqlite3
 import time
+from contextlib import contextmanager
 from pathlib import Path
 
 from inference_exchange.config import MODELS_DIR
@@ -95,6 +96,7 @@ CREATE TABLE IF NOT EXISTS provider_tokens (
     token_id TEXT NOT NULL,
     name TEXT NOT NULL,
     billing_account_id TEXT,
+    node_id TEXT REFERENCES provider_nodes(node_id),
     created_at REAL NOT NULL,
     last_used_at REAL,
     connections INTEGER NOT NULL DEFAULT 0
@@ -109,6 +111,28 @@ CREATE TABLE IF NOT EXISTS users (
     created_at REAL NOT NULL,
     last_login_at REAL
 );
+
+CREATE TABLE IF NOT EXISTS provider_nodes (
+    node_id TEXT PRIMARY KEY,
+    owner_user_id TEXT NOT NULL REFERENCES users(user_id),
+    billing_account_id TEXT NOT NULL UNIQUE,
+    name TEXT NOT NULL,
+    created_at REAL NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS provider_ownership_actions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    node_id TEXT NOT NULL REFERENCES provider_nodes(node_id),
+    billing_account_id TEXT NOT NULL,
+    owner_user_id TEXT NOT NULL,
+    actor_user_id TEXT NOT NULL,
+    action TEXT NOT NULL,
+    reason TEXT NOT NULL,
+    timestamp REAL NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_provider_nodes_owner ON provider_nodes(owner_user_id);
+CREATE INDEX IF NOT EXISTS idx_provider_ownership_actions_node ON provider_ownership_actions(node_id, timestamp);
 
 CREATE TABLE IF NOT EXISTS reference_prices (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -140,6 +164,18 @@ CREATE INDEX IF NOT EXISTS idx_ref_source ON reference_prices(source, fetched_at
 MICRO_PER_DOLLAR = 1_000_000
 MIN_CHARGE_MICRO = 100  # BILL-004: $0.0001 per billed request
 KEY_PREFIX = "sk-ie-"
+
+
+class ProviderOwnershipError(Exception):
+    """Safe, public error for a rejected provider ownership claim."""
+
+    def __init__(self, message: str, status_code: int = 409):
+        super().__init__(message)
+        self.status_code = status_code
+
+
+class ProviderNodesExist(Exception):
+    """Do not delete a user while their provider nodes own billing history."""
 
 
 class Store:
@@ -224,6 +260,9 @@ class Store:
             self._conn.execute("ALTER TABLE provider_tokens ADD COLUMN revoked_at REAL")
         if "billing_account_id" not in pt_columns:
             self._conn.execute("ALTER TABLE provider_tokens ADD COLUMN billing_account_id TEXT")
+        if "node_id" not in pt_columns:
+            # Existing provider credentials remain unclaimed. Never guess ownership.
+            self._conn.execute("ALTER TABLE provider_tokens ADD COLUMN node_id TEXT REFERENCES provider_nodes(node_id)")
         # Every existing credential gets a stable, separate ledger principal. Do
         # not infer shared ownership from the provider's self-reported name and do
         # not merge legacy provider-N accounts or transactions (#136).
@@ -498,6 +537,109 @@ class Store:
 
     PROVIDER_TOKEN_PREFIX = "pt-ie-"
 
+    @contextmanager
+    def _ownership_write(self):
+        """Serialize ownership and account deletion writes across SQLite connections.
+
+        This uses BEGIN IMMEDIATE on a separate connection so that concurrent claims
+        cannot both pass a read-before-write check on the shared Store connection.
+        Full Store write synchronization is tracked separately in issue #84.
+        """
+        conn = sqlite3.connect(str(self._db_path), timeout=15.0)
+        conn.row_factory = sqlite3.Row
+        try:
+            conn.execute("PRAGMA foreign_keys=ON")
+            conn.execute("BEGIN IMMEDIATE")
+            yield conn
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            conn.close()
+
+    def claim_legacy_provider(
+        self, billing_account_id: str, owner_user_id: str, actor_user_id: str, reason: str,
+    ) -> dict:
+        """Admin-assisted one-time claim. Never accepts a raw provider token.
+
+        Preserve every existing principal, token hash, ledger amount, and session.
+        Claimed principal becomes the immutable accounting identity of this node.
+        """
+        reason = reason.strip()
+        if not reason or len(reason) > 500:
+            raise ProviderOwnershipError("A reason of 1-500 characters is required", 400)
+        if not billing_account_id.startswith("provider-acct-"):
+            raise ProviderOwnershipError("Provider billing principal not found", 404)
+
+        with self._ownership_write() as conn:
+            actor = conn.execute("SELECT user_id FROM users WHERE user_id = ?", (actor_user_id,)).fetchone()
+            if actor is None:
+                raise ProviderOwnershipError("Authenticated administrator required", 403)
+            owner = conn.execute(
+                "SELECT user_id, github_id, suspended_until FROM users WHERE user_id = ?",
+                (owner_user_id,),
+            ).fetchone()
+            if owner is None:
+                raise ProviderOwnershipError("IE user not found", 404)
+            if not owner["github_id"]:
+                raise ProviderOwnershipError("Owner must have a linked GitHub identity", 409)
+            if owner["suspended_until"] is not None and owner["suspended_until"] > time.time():
+                raise ProviderOwnershipError("Suspended users cannot claim provider nodes", 409)
+            token = conn.execute(
+                "SELECT token_hash, name, node_id, revoked_at FROM provider_tokens WHERE billing_account_id = ?",
+                (billing_account_id,),
+            ).fetchone()
+            if token is None:
+                raise ProviderOwnershipError("Provider billing principal not found", 404)
+            if token["revoked_at"] is not None:
+                raise ProviderOwnershipError("Revoked credentials cannot be claimed", 409)
+            if token["node_id"] is not None or conn.execute(
+                "SELECT 1 FROM provider_nodes WHERE billing_account_id = ?", (billing_account_id,)
+            ).fetchone():
+                raise ProviderOwnershipError("Provider billing principal is already claimed", 409)
+
+            node_id = "node-" + secrets.token_hex(16)
+            created_at = time.time()
+            conn.execute(
+                """INSERT INTO provider_nodes
+                   (node_id, owner_user_id, billing_account_id, name, created_at)
+                   VALUES (?, ?, ?, ?, ?)""",
+                (node_id, owner_user_id, billing_account_id, token["name"], created_at),
+            )
+            updated = conn.execute(
+                """UPDATE provider_tokens SET node_id = ?
+                   WHERE token_hash = ? AND node_id IS NULL AND revoked_at IS NULL""",
+                (node_id, token["token_hash"]),
+            )
+            if updated.rowcount != 1:
+                raise ProviderOwnershipError("Provider claim changed concurrently", 409)
+            conn.execute(
+                """INSERT INTO provider_ownership_actions
+                   (node_id, billing_account_id, owner_user_id, actor_user_id, action, reason, timestamp)
+                   VALUES (?, ?, ?, ?, 'claim', ?, ?)""",
+                (node_id, billing_account_id, owner_user_id, actor_user_id, reason, created_at),
+            )
+            return {
+                "node_id": node_id, "owner_user_id": owner_user_id,
+                "billing_account_id": billing_account_id, "name": token["name"],
+            }
+
+    def get_provider_node_owner(self, node_id: str, billing_account_id: str) -> str | None:
+        """A token must match both its node and its immutable billing principal."""
+        row = self._conn.execute(
+            "SELECT owner_user_id FROM provider_nodes WHERE node_id = ? AND billing_account_id = ?",
+            (node_id, billing_account_id),
+        ).fetchone()
+        return row["owner_user_id"] if row else None
+
+    def provider_billing_principals_for_owner(self, owner_user_id: str) -> set[str]:
+        rows = self._conn.execute(
+            "SELECT billing_account_id FROM provider_nodes WHERE owner_user_id = ?",
+            (owner_user_id,),
+        ).fetchall()
+        return {row["billing_account_id"] for row in rows}
+
     def create_provider_token(self, name: str = "Provider") -> str:
         """Create a provider auth token. Returns the raw token (shown once)."""
         raw = self.PROVIDER_TOKEN_PREFIX + secrets.token_hex(16)
@@ -681,11 +823,15 @@ class Store:
         return cur.rowcount > 0
 
     def delete_user(self, user_id: str) -> None:
-        """Delete identity, keys, and balance. Transactions keep the opaque user_id only."""
-        self._conn.execute("DELETE FROM api_keys WHERE consumer_id = ?", (user_id,))
-        self._conn.execute("DELETE FROM users WHERE user_id = ?", (user_id,))
-        self._conn.execute("DELETE FROM accounts WHERE account_id = ?", (user_id,))
-        self._conn.commit()
+        """Delete a consumer account, unless it still owns provider billing nodes."""
+        with self._ownership_write() as conn:
+            if conn.execute(
+                "SELECT 1 FROM provider_nodes WHERE owner_user_id = ? LIMIT 1", (user_id,)
+            ).fetchone():
+                raise ProviderNodesExist()
+            conn.execute("DELETE FROM api_keys WHERE consumer_id = ?", (user_id,))
+            conn.execute("DELETE FROM users WHERE user_id = ?", (user_id,))
+            conn.execute("DELETE FROM accounts WHERE account_id = ?", (user_id,) )
 
     # --- Account suspension (#111) ---
 
