@@ -31,6 +31,14 @@ def _create_source(path: Path, *, legacy: bool = False, empty_principal: bool = 
                 "VALUES ('provider-acct-fixture', 'provider', 10000080, 80, 1)"
             )
             con.execute(
+                "INSERT INTO accounts (account_id, name, balance_micro, created_at) "
+                "VALUES ('default-consumer', 'Default (anonymous)', 10000000, 1)"
+            )
+            con.execute(
+                "INSERT INTO api_keys (key_hash, key_id, consumer_id, name, created_at) "
+                "VALUES ('default-key-placeholder', 'default1', 'default-consumer', 'Default Key', 1)"
+            )
+            con.execute(
                 """INSERT INTO transactions
                    (request_id, consumer_id, provider_id, model, input_tokens, output_tokens,
                     cost_micro, provider_earning_micro, platform_fee_micro, timestamp)

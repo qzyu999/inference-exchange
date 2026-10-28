@@ -72,7 +72,10 @@ def _fingerprints(conn: sqlite3.Connection) -> tuple[dict, dict, dict]:
         select = ", ".join('"' + col.replace('"', '""') + '"' for col in columns)
         digest = hashlib.sha256()
         n = 0
-        for row in conn.execute(f'SELECT {select} FROM "{table}" ORDER BY rowid'):
+        # Existing Store rotates only the anonymous default API key at
+        # startup. Other consumer keys must remain byte-for-byte identical.
+        where = " WHERE consumer_id != 'default-consumer'" if table == "api_keys" else ""
+        for row in conn.execute(f'SELECT {select} FROM "{table}"{where} ORDER BY rowid'):
             # JSON is an unambiguous representation for IE's text/numeric columns.
             digest.update(json.dumps(row, separators=(",", ":"), ensure_ascii=True).encode())
             digest.update(b"\\n")
@@ -148,7 +151,10 @@ def backup_and_rehearse(db_path: Path, backup_dir: Path) -> dict:
                 for table, columns in original_columns.items():
                     select = ", ".join('"' + col.replace('"', '""') + '"' for col in columns)
                     digest = hashlib.sha256()
-                    for row in migrated.execute(f'SELECT {select} FROM "{table}" ORDER BY rowid'):
+                    where = " WHERE consumer_id != 'default-consumer'" if table == "api_keys" else ""
+                    for row in migrated.execute(
+                        f'SELECT {select} FROM "{table}"{where} ORDER BY rowid'
+                    ):
                         digest.update(json.dumps(row, separators=(",", ":"), ensure_ascii=True).encode())
                         digest.update(b"\\n")
                     after_hashes[table] = digest.hexdigest()
