@@ -23,7 +23,7 @@ MAX_INCOMPLETE_REGISTRATIONS = 32
 MAX_ATTEMPTS_PER_CREDENTIAL_PER_MINUTE = 20
 MAX_CREDENTIAL_BUCKETS = 1024
 
-_APPLE_HARDWARE = re.compile(r"apple-(?:silicon(?:-arm64)?|m[1-9][0-9]{0,2}(?:-[a-z0-9]+)*)\Z")
+_APPLE_HARDWARE = re.compile(r"apple-(?:silicon(?:-arm64)?|m[1-6](?:-[a-z0-9]+)*)\Z")
 
 
 class RegistrationRejected(ValueError):
@@ -58,7 +58,11 @@ def _bounded_text(value: object, maximum: int, *, allow_empty: bool = False) -> 
 
 
 def _bounded_number(value: object, maximum: float) -> None:
-    if type(value) not in (int, float) or not math.isfinite(value) or not 0 <= value <= maximum:
+    # Compare integers before converting to float. Large JSON integers can
+    # otherwise raise OverflowError instead of a safe registration rejection.
+    if type(value) not in (int, float) or not 0 <= value <= maximum:
+        _reject()
+    if type(value) is float and not math.isfinite(value):
         _reject()
 
 
