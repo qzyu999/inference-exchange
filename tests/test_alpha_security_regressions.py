@@ -79,7 +79,7 @@ def test_production_accepts_valid_provider_token(prod_client):
     token = Store().create_provider_token("alpha-test-provider")
     registration = RegisterMessage(
         provider_name="alpha-test-provider",
-        capabilities=ProviderCapabilities(models=["test-model"]),
+        capabilities=ProviderCapabilities(models=["test-model"], hardware="apple-m6", model_format="gguf"),
     )
     with prod_client.websocket_connect(f"/ws/provider?token={token}") as ws:
         ws.send_json(registration.model_dump())

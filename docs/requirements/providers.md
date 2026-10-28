@@ -40,6 +40,11 @@ MUST: The exchange admits only providers with verified L2 or higher.
 - Status: not-implemented
 - Issue: #1
 
+Note: The experimental private alpha admits L0/Open providers only for requests
+that allow L0/Open. This is an explicit exception to the L2 target.
+An L0 provider is not verified L2 or L3. This exception does not change the
+future higher-trust admission requirement.
+
 ### PROV-006: L3 needs App Attest
 
 MUST: A provider can serve confidential (L3) requests only after the coordinator verifies its App Attest admission.
@@ -113,3 +118,38 @@ Note: The current principal belongs to one provider credential, not yet to a Git
 - Status: implemented
 - Verified by: tests/test_provider_billing_identity.py::test_credential_principal_survives_reconnect_and_restart, tests/test_provider_billing_identity.py::test_two_credentials_same_display_name_never_cross_credit, tests/test_provider_billing_identity.py::test_legacy_migration_is_idempotent_and_preserves_balances, tests/test_provider_billing_identity.py::test_revoked_credential_cannot_rebind_or_connect
 - Issue: #136
+
+### PROV-013: Validate bounded provider registration
+
+MUST: Before the coordinator adds a provider to the hub, it rejects invalid registration JSON, malformed fields, oversized registrations, empty or duplicate model names, invalid metadata, nonfinite or negative prices, unreasonable prices, invalid capacity, and unsupported price units.
+
+MUST: A rejected registration does not change the provider hub, matching, request queue, or billing ledger. The coordinator closes the invalid connection with a fixed error. It does not log the registration payload.
+
+- Principle: P6, P7, P9
+- Status: implemented
+- Verified by: tests/test_provider_registration_validation.py::test_invalid_prices_rejected, tests/test_provider_registration_validation.py::test_invalid_slots_rejected, tests/test_provider_registration_validation.py::test_invalid_model_lists_rejected, tests/test_provider_registration_validation.py::test_malformed_json_rejected, tests/test_provider_registration_validation.py::test_rejected_registration_cannot_affect_other_provider_or_billing
+- Issue: #147
+
+### PROV-014: Admit only L0 in the initial production alpha
+
+MUST: The coordinator accepts an initial production-alpha registration only when the provider claims L0/Open and declares an Apple Silicon/macOS GGUF profile. The coordinator rejects a self-declared higher level.
+
+MUST NOT: The coordinator treats a provider hardware string, GGUF metadata, or encryption key as verified hardware or evidence of higher trust. Other platforms and higher-trust admission need separate verification.
+
+Note: Development mock-provider registrations remain available outside production. The initial alpha uses declared hardware labels as a scope filter, not remote attestation. The L2 admission target remains in PROV-005.
+
+- Principle: P1, P3, P6
+- Status: implemented
+- Verified by: tests/test_provider_registration_validation.py::test_valid_m6_l0_registration_and_matching, tests/test_provider_registration_validation.py::test_unverified_trust_rejected, tests/test_provider_registration_validation.py::test_unsupported_alpha_profile_rejected
+- Issue: #147
+
+### PROV-015: Bound WebSocket registration resources
+
+MUST: The coordinator configures an inbound WebSocket frame size limit at the transport boundary. It limits registration message bytes, incomplete concurrent registrations, registration wait time, and registration attempts per authenticated credential.
+
+MUST: The coordinator rejects invalid or revoked provider credentials before it reads a registration message.
+
+- Principle: P6, P8, P9
+- Status: implemented
+- Verified by: tests/test_provider_registration_validation.py::test_real_uvicorn_rejects_frame_before_registration, tests/test_provider_registration_validation.py::test_main_enables_transport_ws_frame_cap, tests/test_provider_registration_validation.py::test_registration_guard_bounded_attempts_and_pending, tests/test_provider_registration_validation.py::test_missing_first_message_times_out, tests/test_provider_registration_validation.py::test_unknown_and_revoked_credentials_fail_before_read
+- Issue: #147

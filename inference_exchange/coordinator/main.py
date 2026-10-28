@@ -40,6 +40,10 @@ from .routes_inference import router as inference_router
 from .event_bus import EventBus, public_event
 from .model_registry import ModelRegistry
 from .provider_hub import ProviderHub
+from .provider_registration import (
+    MAX_WS_FRAME_BYTES, REGISTER_TIMEOUT_SECONDS, RegistrationGuard,
+    RegistrationRejected, parse_provider_registration,
+)
 from .reputation import ReputationTracker
 from .store import Store
 from .tps_tracker import TPSTracker
@@ -349,7 +353,8 @@ def create_app() -> FastAPI:
     app.include_router(inference_router)
 
     # Provider WebSocket endpoint
-    WS_MAX_MESSAGE_SIZE = 1_000_000  # 1MB max per WS message
+    registration_guard = RegistrationGuard()
+    WS_MAX_MESSAGE_SIZE = MAX_WS_FRAME_BYTES
     WS_IDLE_TIMEOUT = 300  # 5 min idle = disconnect
 
     @app.websocket("/ws/provider")
@@ -391,17 +396,32 @@ def create_app() -> FastAPI:
                 return
             # Development only: allow bootstrap with an empty token table.
 
+        # A credential cannot exhaust admission with repeated reconnect attempts.
+        if token and not registration_guard.allow(token_info["token_hash"]):
+            await ws.close(code=4008, reason="Too many registration attempts")
+            return
+        if not registration_guard.begin():
+            await ws.close(code=1013, reason="Too many pending registrations")
+            return
+        registration_pending = True
+
         try:
-            # First message must be a registration
-            raw = await ws.receive_text()
-            data = json.loads(raw)
-
-            if data.get("type") != MessageType.REGISTER:
-                await ws.close(code=4001, reason="First message must be register")
+            # Registration is the first message. Reject it before modifying hub state.
+            try:
+                raw = await asyncio.wait_for(
+                    ws.receive_text(), timeout=REGISTER_TIMEOUT_SECONDS,
+                )
+            except asyncio.TimeoutError:
+                await ws.close(code=4008, reason="Registration timeout")
                 return
-
-            reg = RegisterMessage(**data)
+            try:
+                reg = parse_provider_registration(raw)
+            except RegistrationRejected:
+                await ws.close(code=4002, reason="Invalid provider registration")
+                return
             provider_id = hub.register_provider(ws, reg)
+            registration_guard.finish()
+            registration_pending = False
             live_provider = hub._providers[provider_id]
             provider_session_id = live_provider.session_id
             live_provider.token_id = token_id
@@ -510,6 +530,8 @@ def create_app() -> FastAPI:
         except Exception as e:
             logger.error(f"Provider WebSocket error: {e}")
         finally:
+            if registration_pending:
+                registration_guard.finish()
             if provider_id:
                 live = hub._providers.get(provider_id)
                 name = live.name if live else provider_id
@@ -573,6 +595,7 @@ def main():
         port=config.port,
         log_config=uvicorn_log_config(),  # redact ?token= in access logs (#125)
         timeout_graceful_shutdown=10,  # 10s drain for in-flight requests
+        ws_max_size=MAX_WS_FRAME_BYTES,  # enforce before receiving a full frame (#147)
     )
 
 

@@ -23,7 +23,7 @@ from test_mock_provider_e2e import Coordinator, _free_port, _wait
 def _register() -> dict:
     return RegisterMessage(
         provider_name="transport-test",
-        capabilities=ProviderCapabilities(models=["test-model"]),
+        capabilities=ProviderCapabilities(models=["test-model"], hardware="apple-m6", model_format="gguf"),
     ).model_dump()
 
 

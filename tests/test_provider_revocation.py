@@ -19,7 +19,7 @@ ADMIN = "admin@example.com"
 
 
 def _register_msg(name: str = "mini") -> dict:
-    return RegisterMessage(provider_name=name, capabilities=ProviderCapabilities(models=["m"])).model_dump()
+    return RegisterMessage(provider_name=name, capabilities=ProviderCapabilities(models=["m"], hardware="apple-m6", model_format="gguf")).model_dump()
 
 
 class FakeWS:

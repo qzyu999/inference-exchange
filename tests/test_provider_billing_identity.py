@@ -17,7 +17,7 @@ from inference_exchange.shared.protocol import ProviderCapabilities, RegisterMes
 
 def _register(name="m6-mac-mini"):
     return RegisterMessage(
-        provider_name=name, capabilities=ProviderCapabilities(models=["mock"]),
+        provider_name=name, capabilities=ProviderCapabilities(models=["mock"], hardware="apple-m6", model_format="gguf"),
     ).model_dump()
 
 
