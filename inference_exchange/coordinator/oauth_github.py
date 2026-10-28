@@ -33,6 +33,8 @@ TOKEN_URL = "https://github.com/login/oauth/access_token"
 API_URL = "https://api.github.com"
 STATE_COOKIE = "ie_oauth_state"
 STATE_TTL_SECONDS = 600
+NEXT_COOKIE = "ie_oauth_next"
+DEFAULT_NEXT = "/chat"
 HTTP_TIMEOUT_SECONDS = 10
 
 
@@ -43,6 +45,21 @@ def github_configured() -> bool:
 def _callback_url(request: Request) -> str:
     base = os.environ.get("IE_PUBLIC_URL", "").rstrip("/") or str(request.base_url).rstrip("/")
     return f"{base}/v1/auth/github/callback"
+
+
+def safe_next_path(value: str | None, default: str = DEFAULT_NEXT) -> str:
+    """Return a same-origin path for the post-sign-in redirect (AUTH-018).
+
+    Accept only an absolute path on this site. Reject a scheme, a host,
+    a protocol-relative URL ("//host"), a backslash, and control characters.
+    """
+    if not value or len(value) > 512 or not value.startswith("/") or value.startswith("//"):
+        return default
+    if "\\" in value or any(ord(ch) < 0x20 or ord(ch) == 0x7F for ch in value):
+        return default
+    if value.split("?", 1)[0].startswith(("/v1/", "/ws/")) or value in ("/login",):
+        return default
+    return value
 
 
 def _pkce_challenge(verifier: str) -> str:
@@ -69,12 +86,17 @@ async def github_login(request: Request):
         STATE_COOKIE, f"{state}.{verifier}",
         httponly=True, samesite="lax", secure=is_production(), max_age=STATE_TTL_SECONDS,
     )
+    response.set_cookie(
+        NEXT_COOKIE, safe_next_path(request.query_params.get("next")),
+        httponly=True, samesite="lax", secure=is_production(), max_age=STATE_TTL_SECONDS,
+    )
     return response
 
 
 def _login_error(reason: str) -> RedirectResponse:
     response = RedirectResponse(f"/login?error={reason}", status_code=302)
     response.delete_cookie(STATE_COOKIE)
+    response.delete_cookie(NEXT_COOKIE)
     return response
 
 
@@ -138,7 +160,9 @@ async def github_callback(request: Request, code: str = "", state: str = ""):
         return _login_error("suspended")
 
     logger.info(f"✅ GitHub sign-in: {gh.get('login')} ({'new' if created else 'returning'}) at {int(time.time())}")
-    response = RedirectResponse("/chat", status_code=302)
+    # Validate again on read: never trust the cookie value (AUTH-018)
+    response = RedirectResponse(safe_next_path(request.cookies.get(NEXT_COOKIE)), status_code=302)
     response.delete_cookie(STATE_COOKIE)
+    response.delete_cookie(NEXT_COOKIE)
     _set_session(response, user)
     return response
