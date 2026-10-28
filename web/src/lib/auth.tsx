@@ -44,9 +44,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (r.ok) {
         const data = await r.json()
         if (data.user_id) {
-          // Restore API key from localStorage if available
-          const savedKey = localStorage.getItem('ie_user_api_key')
-          setUser({ ...data, api_key: savedKey || undefined } as User)
+          // Session cookies authenticate browser requests. Never attach an
+          // unverified, unscoped localStorage key to this user's account.
+          localStorage.removeItem('ie_user_api_key')
+          localStorage.removeItem('ie_api_key')
+          setUser(data as User)
         } else {
           setUser(null)
         }
@@ -99,11 +101,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const data = await r.json()
       if (r.ok) {
         await refresh()
-        // Store API key for use in Chat
-        if (data.api_key) {
-          localStorage.setItem('ie_user_api_key', data.api_key)
-          localStorage.setItem('ie_api_key', data.api_key)  // Also set for Chat page
-        }
+        // The one-time signup key is returned to the caller. Do not persist
+        // the raw credential in cross-account browser storage; Chat uses the
+        // signed-in HttpOnly IE session cookie.
         return { ok: true, api_key: data.api_key }
       }
       return { ok: false, error: data.error || 'Signup failed' }
@@ -115,6 +115,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = async () => {
     await fetch('/v1/auth/logout', { method: 'POST', credentials: 'include' })
     setUser(null)
+    localStorage.removeItem('ie_user_api_key')
+    localStorage.removeItem('ie_api_key')
   }
 
   return (

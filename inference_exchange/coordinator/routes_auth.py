@@ -462,10 +462,16 @@ async def list_api_keys(request: Request):
 @router.post("/v1/auth/reset-balance")
 async def reset_balance(request: Request):
     """Reset the caller's balance to $10 (alpha only, dummy money)."""
+    if is_production():
+        # Reject missing/invalid credentials before returning the prod-only
+        # permission error. Nobody may repeatedly mint simulated credits in
+        # public alpha, including an authenticated consumer or admin.
+        resolve_private_caller(request)
+        return JSONResponse(
+            {"error": "Balance reset is disabled in production alpha."},
+            status_code=403,
+        )
     consumer_id = resolve_consumer_id(request)
-    # The shared anonymous account must not be resettable by anyone in prod
-    if is_production() and consumer_id == DEFAULT_CONSUMER_ID:
-        return JSONResponse({"error": "Sign in to reset your balance"}, status_code=401)
     store = get_store()
     store._conn.execute(
         "UPDATE accounts SET balance_micro = ? WHERE account_id = ?",

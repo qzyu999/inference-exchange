@@ -155,7 +155,7 @@ export interface TPSEntry {
 export const api = {
   health: () => get<HealthResponse>('/health?include_key=1'),
   me: () => get<Balance>('/v1/auth/me'),
-  billingConfig: () => get<{ minimum_charge_usd: number; minimum_charge_micro: number; platform_fee_percent: number; simulated_credits: boolean }>('/v1/exchange/billing-config'),
+  billingConfig: () => get<{ minimum_charge_usd: number; minimum_charge_micro: number; platform_fee_percent: number; simulated_credits: boolean; allow_balance_reset: boolean }>('/v1/exchange/billing-config'),
   stats: () => get<ExchangeStats>('/v1/exchange/stats'),
   providers: () => get<{ providers: Provider[] }>('/v1/exchange/providers'),
   pricing: () => get<{ pricing: PricingEntry[] }>('/v1/exchange/pricing'),
