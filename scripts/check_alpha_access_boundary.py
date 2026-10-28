@@ -76,6 +76,14 @@ def cloudflare_access_challenge(result: Result) -> bool:
     return False
 
 
+def schema_hidden(result: Result) -> bool:
+    """The FastAPI OpenAPI schema must not be served publicly (OPS-011)."""
+    # Fail closed. The probe intentionally reads only 8192 response bytes; a
+    # larger OpenAPI schema might be truncated and fail JSON decoding.
+    # On the public Caddy ingress this endpoint must be an outright 404.
+    return result.status == 404
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--url", required=True, help="Public alpha HTTPS origin")
@@ -123,6 +131,9 @@ def main() -> int:
           cloudflare_access_challenge)
     check("Admin UI challenged at Cloudflare edge", "/admin",
           cloudflare_access_challenge)
+    check("Admin UI subpath challenged at Cloudflare edge", "/admin/",
+          cloudflare_access_challenge)
+    check("API schema hidden", "/openapi.json", schema_hidden)
 
     if failed:
         print(f"\n{len(failed)} boundary check(s) failed. Keep/re-enable blanket Access; do not open registration.")
