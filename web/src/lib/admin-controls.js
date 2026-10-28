@@ -1,7 +1,8 @@
 // Browser-only operator API. Keep credentials in the HttpOnly IE session cookie.
+const BASE = import.meta.env?.VITE_API_BASE || ''
 // Cloudflare Access must independently protect admin paths on the deployed hostname.
 async function request(path, { method = 'GET', body } = {}) {
-  const response = await fetch(path, {
+  const response = await fetch(`${BASE}${path}`, {
     method,
     credentials: 'include',
     ...(body === undefined ? {} : {
