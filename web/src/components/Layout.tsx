@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link, Outlet, useLocation } from 'react-router-dom'
 import { useCoordinatorStatus, useWebSocket } from '../lib/useWebSocket'
 import { useAuth } from '../lib/auth'
+import { loginHref } from '../lib/nav.js'
 import { C, TRUST_COLORS, GRADIENTS } from '../lib/theme'
 import { ErrorBoundary } from './ErrorBoundary'
 import { MineralAurora, NetworkHeartbeat, useNetworkPulses } from './MineralAurora'
@@ -137,7 +138,7 @@ function NavItem({ path, label, icon: Icon, active }: {
 export function Layout() {
   const location = useLocation()
   const coordinatorOnline = useCoordinatorStatus()
-  const { user, logout } = useAuth()
+  const { user, loading: authLoading, logout } = useAuth()
   const [mobileOpen, setMobileOpen] = useState(false)
 
   // Subscribe to live exchange events for reactive aurora
@@ -242,6 +243,15 @@ export function Layout() {
               Sign out
             </button>
           </div>
+        )}
+        {!user && !authLoading && (
+          <Link
+            to={loginHref(location.pathname + location.search)}
+            className="block text-center text-xs font-medium px-3 py-2 rounded-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#E8C77A]"
+            style={{ color: '#fff', background: 'rgba(255,255,255,0.08)' }}
+          >
+            Sign in with GitHub
+          </Link>
         )}
       </div>
     </>
