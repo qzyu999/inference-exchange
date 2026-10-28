@@ -1,0 +1,45 @@
+# Single-machine private-alpha ingress (MBP A).
+# Cloudflare Tunnel terminates public HTTPS, forwards HTTP to this LOOPBACK ONLY listener.
+# Cloudflare Access is to be scoped only to /admin and /v1/admin/* on the public hostname.
+#
+# Usage from repo root after npm run build:
+#   export IE_ALPHA_WEB_ROOT="$PWD/web/dist"
+#   caddy run --config deploy/Caddyfile.alpha-local
+#
+# This file DOES NOT enforce Cloudflare Access. Its operator-path gate must be
+# configured and verified at Cloudflare before removing hostname-wide Access.
+# FastAPI's own JWT admin authorization remains mandatory regardless.
+
+:8080 {
+    bind 127.0.0.1
+    encode zstd gzip
+
+    header {
+        X-Content-Type-Options nosniff
+        Referrer-Policy strict-origin-when-cross-origin
+        X-Frame-Options DENY
+        -Server
+    }
+
+    # Never serve metrics or FastAPI debug artifacts through the public ingress.
+    @blocked path /metrics /openapi.json /redoc /docs
+    handle @blocked {
+        respond 404
+    }
+
+    # Same-origin app: preserves host-only IE session cookie for admin dashboard.
+    # The Cloudflare Access rules MUST protect /v1/admin/* (and /admin)
+    # separately from these public routes. IE also independently checks role.
+    @api path /v1/* /ws/* /health /readiness
+    handle @api {
+        reverse_proxy 127.0.0.1:8000 {
+            flush_interval -1
+        }
+    }
+
+    handle {
+        root * {$IE_ALPHA_WEB_ROOT}
+        try_files {path} /index.html
+        file_server
+    }
+}
