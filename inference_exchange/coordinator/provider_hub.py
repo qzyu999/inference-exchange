@@ -49,6 +49,10 @@ class ConnectedProvider:
     challenge_sent_at: float = 0.0
     # Provider token used to connect ("" = unauthenticated dev connection) (#113)
     token_id: str = ""
+    # Credential-bound ledger account; not a WebSocket routing ID (#136).
+    billing_account_id: str = ""
+    # Globally unique connection audit ID, including across coordinator restarts.
+    session_id: str = field(default_factory=lambda: "conn-" + __import__("secrets").token_hex(16))
     # Operator removed this provider from routing; it stays connected (#113)
     quarantined: bool = False
     quarantine_reason: str = ""
