@@ -142,7 +142,7 @@ function ModelCard({ m, isSelected, onSelect }: { m: MarketModel; isSelected: bo
             </span>
           )}
           {encryptedCount > 0 && (
-            <span className="text-xs" style={{ color: C.deepBlue }}>{encryptedCount} E2E</span>
+            <span className="text-xs" style={{ color: C.deepBlue }}>{encryptedCount} provider keys</span>
           )}
           {verifiedCount > 0 && (
             <span className="text-xs" style={{ color: C.green }}>{verifiedCount} verified</span>
@@ -253,7 +253,7 @@ function ModelDetail({ m }: { m: MarketModel }) {
                 <div className="col-span-2 min-w-0">
                   <div className="text-xs font-semibold truncate" style={{ color: C.blueBlack }}>{p.name}</div>
                   <div className="flex items-center gap-1 mt-0.5">
-                    {p.encrypted && <span className="text-[7px] px-1 rounded" style={{ background: '#eef3f7', color: C.deepBlue }}>E2E</span>}
+                    {p.encrypted && <span className="text-[7px] px-1 rounded" style={{ background: '#eef3f7', color: C.deepBlue }}>Key</span>}
                     {p.verified && <span className="text-[7px] px-1 rounded" style={{ background: '#edf7f1', color: C.green }}>✓</span>}
                   </div>
                 </div>
@@ -318,7 +318,7 @@ function ModelDetail({ m }: { m: MarketModel }) {
                       </div>
                       <div className="flex items-center gap-1.5 mt-0.5">
                         <span className="w-1.5 h-1.5 rounded-full" style={{ background: p.encrypted ? C.deepBlue : '#ddd' }} />
-                        <span>{p.encrypted ? 'E2E encrypted' : 'No E2E'}</span>
+                        <span>{p.encrypted ? 'Provider encryption key advertised' : 'No provider key advertised'}</span>
                       </div>
                       <div className="flex items-center gap-1.5 mt-0.5">
                         <span className="w-1.5 h-1.5 rounded-full" style={{ background: p.verified ? C.green : '#ddd' }} />
@@ -503,7 +503,7 @@ export function Models() {
         <div className="flex items-center gap-4 text-xs flex-wrap" style={{ color: '#888' }}>
           <span><span className="font-semibold" style={{ color: C.blueBlack }}>{allModels.length}</span> model{allModels.length !== 1 ? 's' : ''}</span>
           <span><span className="font-semibold" style={{ color: C.blueBlack }}>{totalProviders}</span> provider{totalProviders !== 1 ? 's' : ''}</span>
-          {totalEncrypted > 0 && <span><span className="font-semibold" style={{ color: C.deepBlue }}>{totalEncrypted}</span> E2E</span>}
+          {totalEncrypted > 0 && <span><span className="font-semibold" style={{ color: C.deepBlue }}>{totalEncrypted}</span> provider keys</span>}
           {totalVerified > 0 && <span><span className="font-semibold" style={{ color: C.green }}>{totalVerified}</span> verified</span>}
         </div>
       )}

@@ -48,7 +48,7 @@ function ScrollOverlay({ progress }: { progress: number }) {
     // #87/#107: match the real browser path. Do not claim E2E or verified trust.
     { text: 'Trust is labelled, not assumed', sub: 'Providers report a trust level. The exchange shows it as claimed until evidence verifies it. Browser chat uses TLS; it is not end-to-end encrypted.', from: 0.48, peak: 0.58, to: 0.68 },
     { text: 'Providers compete. You benefit.', sub: 'Price, speed, privacy — the matching engine optimizes for what you care about.', from: 0.60, peak: 0.70, to: 0.80 },
-    { text: 'Private AI inference, powered by everyone.', from: 0.75, peak: 0.83, to: 0.93 },
+    { text: 'Distributed AI inference, powered by everyone.', from: 0.75, peak: 0.83, to: 0.93 },
   ]
 
   return (
@@ -225,7 +225,7 @@ export function Landing() {
                 style={{ animationDuration: '20s' }}
               />
               <h1 className="text-3xl md:text-5xl font-bold tracking-tight mt-8 text-center px-6" style={{ color: C.warmWhite }}>
-                Private AI inference,{' '}
+                Distributed AI inference,{' '}
                 <span style={{ color: C.red }}>powered by everyone.</span>
               </h1>
               <p className="text-base mt-4 max-w-md text-center px-6" style={{ color: '#a9a294' }}>
@@ -235,7 +235,7 @@ export function Landing() {
                 <Link to="/chat" className="px-6 py-3 rounded-2xl font-medium text-sm transition-colors" style={{ background: C.warmWhite, color: C.black }}>
                   Start a conversation &rarr;
                 </Link>
-                <Link to="/providers" className="px-6 py-3 rounded-2xl font-medium text-sm border transition-colors" style={{ color: C.warmWhite, borderColor: 'rgba(216,209,190,0.3)', background: 'rgba(216,209,190,0.08)' }}>
+                <Link to="/provide" className="px-6 py-3 rounded-2xl font-medium text-sm border transition-colors" style={{ color: C.warmWhite, borderColor: 'rgba(216,209,190,0.3)', background: 'rgba(216,209,190,0.08)' }}>
                   Become a provider
                 </Link>
               </div>
@@ -266,7 +266,7 @@ export function Landing() {
                 <Link to="/chat" className="px-6 py-3 rounded-xl text-sm font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#E8C77A]" style={{ background: C.warmWhite, color: C.black }}>
                   Start chatting
                 </Link>
-                <Link to="/providers" className="px-6 py-3 rounded-xl text-sm font-medium border focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#E8C77A]" style={{ color: C.warmWhite, borderColor: 'rgba(216,209,190,0.4)', background: 'rgba(14,16,24,0.5)' }}>
+                <Link to="/provide" className="px-6 py-3 rounded-xl text-sm font-medium border focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#E8C77A]" style={{ color: C.warmWhite, borderColor: 'rgba(216,209,190,0.4)', background: 'rgba(14,16,24,0.5)' }}>
                   Become a provider
                 </Link>
                 <Link to="/exchange" className="px-6 py-3 rounded-xl text-sm font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#E8C77A]" style={{ color: '#e6e0cf', background: 'rgba(14,16,24,0.5)' }}>
@@ -328,7 +328,7 @@ export function Landing() {
             {/* Left: headline + CTAs */}
             <div className="flex-1 max-w-xl">
               <h2 className="text-4xl md:text-5xl font-bold tracking-tight leading-[1.1]" style={{ color: C.warmWhite }}>
-                Private AI inference,
+                Distributed AI inference,
                 <br />
                 <span
                   className="bg-clip-text text-transparent"
@@ -354,7 +354,7 @@ export function Landing() {
                   <span className="relative z-10 group-hover:text-white transition-colors">Start a conversation</span>
                 </Link>
                 <Link
-                  to="/providers"
+                  to="/provide"
                   className="group relative px-6 py-3 rounded-xl font-medium text-sm border transition-all overflow-hidden mineral-border"
                   style={{
                     color: C.warmWhite,

@@ -57,7 +57,7 @@ Consumer (OpenAI SDK)  →  Coordinator (matching engine)  →  Provider (llama.
 - **Consumers** send standard OpenAI API requests with optional routing preferences
 - **Providers** connect via WebSocket, advertise models/prices/hardware/trust level
 - **Matching engine** scores all eligible providers per-request on price, speed, trust, and load
-- **E2E encryption** — prompts encrypted to the provider's X25519 key; coordinator can't read them
+- **Transport privacy** — standard browser and OpenAI-compatible API requests are readable by the coordinator, which then encrypts requests to a provider. Consumer-side E2E is a separate experimental SDK path; see [status](docs/status.md).
 - **Per-token billing** — consumers pay per token, providers earn 90%, platform keeps 10%
 
 ## Multiple Providers
@@ -83,7 +83,7 @@ from openai import OpenAI
 
 client = OpenAI(
     base_url="http://localhost:8000/v1",
-    api_key="sk-ie-..."  # from /keys page or auto-generated
+    api_key="sk-ie-..."  # create in /keys; keep the key private
 )
 
 response = client.chat.completions.create(
@@ -91,7 +91,7 @@ response = client.chat.completions.create(
     messages=[{"role": "user", "content": "Hello!"}],
     extra_body={
         "ocip_preference": "cheapest",        # cheapest | fastest | most_secure | balanced
-        "ocip_min_confidence": "hardened",     # open | contained | hardened | confidential
+        "ocip_min_confidence": "open",         # L0 allows untrusted providers; nonsensitive tests only
     }
 )
 ```
@@ -159,7 +159,7 @@ Start at [docs/README.md](docs/README.md), or open `/docs` in the web app. [Prin
 
 ## Status
 
-Alpha. Working two-machine inference (M2 provider ↔ coordinator ↔ web UI), E2E encryption, per-token billing, real-time exchange dashboard, reference pricing. Not production-hardened.
+Experimental alpha. Tested two-machine inference with Apple Silicon and L0/Open trust, simulated token billing, and a live exchange dashboard. Browser/standard API inference is **not end-to-end encrypted** and providers can see prompt plaintext. Apple Silicon/macOS is the initial provider-onboarding target; NVIDIA/DGX support is post-initial-alpha. Not production-hardened.
 
 ## License
 

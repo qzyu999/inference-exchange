@@ -113,7 +113,7 @@ export function Overview() {
           {/* Fleet capacity */}
           <div className="mt-4 pt-4 flex items-center gap-4 text-xs" style={{ borderTop: '1px solid #eaeae8', color: '#888' }}>
             <span>Capacity: <span className="font-semibold" style={{ color: C.blueBlack }}>{usedSlots}/{totalSlots}</span> slots</span>
-            {encryptedCount > 0 && <span><span className="font-semibold" style={{ color: C.deepBlue }}>{encryptedCount}</span> E2E</span>}
+            {encryptedCount > 0 && <span><span className="font-semibold" style={{ color: C.deepBlue }}>{encryptedCount}</span> provider keys</span>}
             {hardenedCount > 0 && <span><span className="font-semibold" style={{ color: C.gold }}>{hardenedCount}</span> Hardened+</span>}
           </div>
         </div>
@@ -262,7 +262,7 @@ export function Overview() {
                     <span className="text-[9px] font-medium px-1.5 py-0.5 rounded-full" style={{ background: tc.bg, color: tc.text }}>
                       {tc.label}
                     </span>
-                    {p.encrypted && <span className="text-[8px] px-1 rounded" style={{ background: '#eef3f7', color: C.deepBlue }}>E2E</span>}
+                    {p.encrypted && <span className="text-[8px] px-1 rounded" style={{ background: '#eef3f7', color: C.deepBlue }}>Key</span>}
                   </div>
                   <div className="flex items-center gap-4 text-xs">
                     <span style={{ color: C.turquoise }}>{p.measured_tps > 0 ? `${p.measured_tps.toFixed(0)} tok/s` : '—'}</span>

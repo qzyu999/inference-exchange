@@ -11,10 +11,11 @@ const unsafe = [
 ]
 for (const v of unsafe) assert.equal(safeNextPath(v), '/chat', `unsafe: ${JSON.stringify(v)}`)
 
-const safe = ['/chat', '/keys', '/billing', '/trace?id=abc123', '/docs/requirements/auth', '/admin']
+const safe = ['/chat', '/keys', '/billing', '/trace?id=abc123', '/docs/requirements/auth', '/admin', '/provide']
 for (const v of safe) assert.equal(safeNextPath(v), v, `safe: ${v}`)
 
 assert.equal(loginHref('/keys'), '/login?next=%2Fkeys')
+assert.equal(loginHref('/chat'), '/login?next=%2Fchat')
 assert.equal(loginHref('https://evil.example'), '/login')
 assert.equal(githubLoginHref('/billing'), '/v1/auth/github/login?next=%2Fbilling')
 assert.equal(githubLoginHref('//evil.example'), '/v1/auth/github/login')
@@ -29,7 +30,7 @@ for (const { to } of LANDING_LINKS) {
   const route = to === '/docs' ? '/docs/*' : to
   assert.ok(routes.includes(`path="${route}"`), `route missing for ${to}`)
 }
-for (const want of ['/chat', '/exchange', '/models', '/providers', '/docs']) {
+for (const want of ['/chat', '/exchange', '/models', '/providers', '/provide', '/docs']) {
   assert.ok(LANDING_LINKS.some(l => l.to === want), `landing nav missing ${want}`)
 }
 

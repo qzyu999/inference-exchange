@@ -5,6 +5,7 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { api } from '../lib/api'
 import { useAuth } from '../lib/auth'
+import { authState, loginHref } from '../lib/nav.js'
 import { formatUsd } from '../lib/money.js'
 import { C, TRUST_CLAIM_NOTE, TRUST_COLORS } from '../lib/theme'
 
@@ -39,12 +40,11 @@ const TRUST_LEVELS = [
 
 export function Chat() {
   const [searchParams] = useSearchParams()
-  const { user } = useAuth()
+  const { user, loading: authLoading } = useAuth()
 
-  const chatKey = user ? `ie_chat_${user.user_id}` : 'ie_chat_anon'
-  const [messages, setMessages] = useState<Message[]>(() => {
-    try { const saved = localStorage.getItem(chatKey); return saved ? JSON.parse(saved) : [] } catch { return [] }
-  })
+  const chatKey = user ? `ie_chat_${user.user_id}` : null
+  const [messages, setMessages] = useState<Message[]>([])
+  const [loadedUserId, setLoadedUserId] = useState<string | null>(null)
   const [input, setInput] = useState('')
   const [streaming, setStreaming] = useState(false)
   const [model, setModel] = useState(() => searchParams.get('model') || '')
@@ -53,37 +53,33 @@ export function Chat() {
   const [maxPrice, setMaxPrice] = useState('0.15')
   const [maxInputPrice, setMaxInputPrice] = useState('0.08')
   const [maxCachePrice, setMaxCachePrice] = useState('0.02')
-  const [apiKey, setApiKey] = useState(() => localStorage.getItem('ie_api_key') || '')
   const [showSidebar, setShowSidebar] = useState(true)
   const scrollRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const abortRef = useRef<AbortController | null>(null)
 
   const { data: modelsData } = useSWR('models', api.models)
-  const { data: health } = useSWR('health', api.health)
   const { data: providerData } = useSWR('providers', api.providers, { refreshInterval: 5000 })
 
-  // Once authenticated, browser requests use the HttpOnly IE session cookie.
-  // Never send an unvalidated localStorage key from an earlier account.
+  // React mounts Chat before the async session check completes. Load only the
+  // *current* user's history; never copy anonymous or another account's messages.
   useEffect(() => {
-    if (user) {
-      localStorage.removeItem('ie_api_key')
-      setApiKey('')
-    }
-  }, [user?.user_id])
+    setLoadedUserId(null)
+    if (!chatKey) { setMessages([]); return }
+    try {
+      const saved = localStorage.getItem(chatKey)
+      setMessages(saved ? JSON.parse(saved) : [])
+    } catch { setMessages([]) }
+    setLoadedUserId(user?.user_id ?? null)
+  }, [chatKey, user?.user_id])
 
-  useEffect(() => {
-    if (user?.api_key && !apiKey) {
-      setApiKey(user.api_key)
-      localStorage.setItem('ie_api_key', user.api_key)
-    } else if (!apiKey && health?.default_api_key) {
-      setApiKey(health.default_api_key)
-      localStorage.setItem('ie_api_key', health.default_api_key)
-    }
-  }, [user, health, apiKey])
   useEffect(() => { scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight }) }, [messages])
   useEffect(() => { if (!model && modelsData?.data?.length) setModel(modelsData.data[0].id) }, [modelsData, model])
-  useEffect(() => { if (messages.length > 0) localStorage.setItem(chatKey, JSON.stringify(messages)) }, [messages, chatKey])
+  useEffect(() => {
+    if (chatKey && loadedUserId === user?.user_id && messages.length > 0) {
+      localStorage.setItem(chatKey, JSON.stringify(messages))
+    }
+  }, [messages, chatKey, loadedUserId, user?.user_id])
   useEffect(() => { if (!streaming) inputRef.current?.focus() }, [streaming])
 
   // Get the last assistant message for match info
@@ -100,7 +96,7 @@ export function Chat() {
 
   async function send() {
     const text = input.trim()
-    if (!text || streaming) return
+    if (!user || authLoading || !text || streaming) return
     const userMsg: Message = { role: 'user', content: text }
     const updated = [...messages, userMsg]
     setMessages(updated)
@@ -122,18 +118,13 @@ export function Chat() {
 
       const resp = await fetch('/v1/chat/completions', {
         method: 'POST',
-        // Signed-in users authenticate with the session cookie; the key is a dev/anonymous fallback
-        headers: { 'Content-Type': 'application/json', ...(apiKey ? { 'Authorization': `Bearer ${apiKey}` } : {}) },
+        // Browser sessions are HttpOnly-cookie authenticated. API keys are for SDK clients.
+        headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify(body),
         signal: controller.signal,
       })
       if (!resp.ok) {
-        // A stored key can go stale (revoked, or the dev default key rotated on restart)
-        if (resp.status === 401 && apiKey) {
-          localStorage.removeItem('ie_api_key')
-          setApiKey('')
-        }
         const err = await resp.text()
         let friendlyError = `Error: ${resp.status}`
         try {
@@ -195,6 +186,34 @@ export function Chat() {
     } finally { setStreaming(false); abortRef.current = null }
   }
 
+  // Guests may inspect the exchange, but cannot submit billable inference.
+  if (authState(authLoading, user) === 'loading') {
+    return <div role="status" className="py-16 text-center text-sm" style={{ color: '#888' }}>Checking sign-in…</div>
+  }
+  if (authState(authLoading, user) === 'signed-out') {
+    return (
+      <div className="max-w-xl mx-auto bg-white rounded-2xl border border-gray-200/60 p-8 md:p-12 text-center space-y-5">
+        <h2 className="text-2xl font-bold" style={{ color: C.blueBlack }}>Sign in to start chatting</h2>
+        <p className="text-sm leading-relaxed" style={{ color: '#777' }}>
+          Explore models and prices without an account. To run inference, sign in with GitHub.
+          New accounts receive simulated alpha credits; no real payment is taken.
+        </p>
+        <p className="text-xs" style={{ color: '#888' }}>
+          Browser chat uses TLS, not end-to-end encryption. The coordinator can read prompts and responses.
+          Use nonsensitive test prompts.
+        </p>
+        <div className="flex flex-wrap justify-center gap-3">
+          <Link to={loginHref('/chat')} className="px-5 py-3 rounded-xl text-sm font-semibold" style={{ background: C.blueBlack, color: '#fff' }}>
+            Continue with GitHub
+          </Link>
+          <Link to="/models" className="px-5 py-3 rounded-xl text-sm font-medium border" style={{ borderColor: '#ddd', color: C.blueBlack }}>
+            Explore models
+          </Link>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="flex gap-6 h-[calc(100vh-140px)]">
       {/* ── Main chat column ── */}
@@ -225,7 +244,7 @@ export function Chat() {
           <div className="flex-1" />
 
           <button
-            onClick={() => { setMessages([]); localStorage.removeItem(chatKey) }}
+            onClick={() => { setMessages([]); if (chatKey) localStorage.removeItem(chatKey) }}
             className="text-xs px-3 py-1.5 rounded-lg border transition-colors"
             style={{ color: '#888', borderColor: '#ddd' }}
           >
