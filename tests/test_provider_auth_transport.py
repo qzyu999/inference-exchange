@@ -100,6 +100,23 @@ class TestRedaction:
         RedactSecretsFilter().filter(record)
         assert "pt-ie-secret1" not in record.getMessage()
 
+    def test_actual_uvicorn_access_formatter_handles_redacted_url(self):
+        # Regression: AccessFormatter unpacks five structured arguments after
+        # the logging filter runs, so redaction must preserve their shape.
+        from uvicorn.logging import AccessFormatter
+
+        record = logging.LogRecord(
+            "uvicorn.access", logging.INFO, __file__, 1,
+            '%s - "%s %s HTTP/%s" %d',
+            ("127.0.0.1:3456", "GET", "/health?token=pt-ie-secret", "1.1", 200),
+            None,
+        )
+        RedactSecretsFilter().filter(record)
+        formatted = AccessFormatter(use_colors=False).format(record)
+        assert "pt-ie-secret" not in formatted
+        assert "token=[REDACTED]" in formatted
+        assert "GET" in formatted and "200" in formatted
+
     def test_uvicorn_log_config_filters_every_handler(self):
         cfg = provider_auth.uvicorn_log_config()
         assert all("redact_secrets" in h["filters"] for h in cfg["handlers"].values())
