@@ -52,9 +52,11 @@ MUST: Public metrics are aggregates in time buckets. Do not publish a bucket tha
 
 MUST: A signed-in user can delete their account. The delete removes the identity, the API keys, and the balance.
 
+MUST: While the account owns provider nodes, deletion fails with HTTP 409. The system does not orphan provider credentials or ledger principals. Provider offboarding needs a separately reviewed procedure.
+
 - Principle: P2
 - Status: implemented
-- Verified by: tests/test_auth_sessions.py::TestKeysAndAccount::test_delete_account
+- Verified by: tests/test_auth_sessions.py::TestKeysAndAccount::test_delete_account, tests/test_provider_ownership.py::test_delete_with_provider_nodes_requires_offboarding
 
 ### PRIV-008: Prompts are not logged
 

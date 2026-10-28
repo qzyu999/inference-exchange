@@ -386,6 +386,13 @@ def create_app() -> FastAPI:
                 await ws.close(code=4003, reason="Invalid provider token")
                 return
             token_id = token_info["token_id"]
+            if token_info.get("node_id"):
+                owner_id = store.get_provider_node_owner(
+                    token_info["node_id"], token_info["billing_account_id"],
+                )
+                if not owner_id or store.get_suspension(owner_id):
+                    await ws.close(code=4003, reason="Provider owner unavailable")
+                    return
             logger.info(f"Provider authenticated: {token_info['name']} ({token_id})")
         else:
             # P6: never grant unauthenticated provider access in production,

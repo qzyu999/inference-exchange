@@ -367,7 +367,16 @@ async def delete_account(request: Request):
     user = resolve_user_from_request(request)
     if not user:
         return JSONResponse({"error": "Sign in required"}, status_code=401)
-    get_store().delete_user(user["user_id"])
+    _check_not_suspended(user["user_id"])
+    from .store import ProviderNodesExist
+    try:
+        get_store().delete_user(user["user_id"])
+    except ProviderNodesExist:
+        return JSONResponse(
+            {"error": {"code": "provider_nodes_exist",
+                       "message": "Remove owned provider nodes through a reviewed offboarding process before deleting this account."}},
+            status_code=409,
+        )
     response = JSONResponse({"ok": True})
     response.delete_cookie(SESSION_COOKIE)
     return response

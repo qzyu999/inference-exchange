@@ -9,7 +9,7 @@ import time
 
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from .dependencies import (
     _request_traces,
@@ -19,7 +19,8 @@ from .dependencies import (
     get_store,
     traces_for,
 )
-from .routes_auth import admin_required_response, is_admin_request
+from .routes_auth import admin_required_response, is_admin_request, resolve_user_from_request
+from .store import ProviderOwnershipError
 
 router = APIRouter()
 
@@ -162,6 +163,28 @@ async def list_provider_tokens(request: Request):
     return {"tokens": store.list_provider_tokens()}
 
 
+class ProviderClaimRequest(BaseModel):
+    billing_account_id: str = Field(min_length=1, max_length=120)
+    owner_user_id: str = Field(min_length=1, max_length=120)
+    reason: str = Field(min_length=1, max_length=500)
+
+
+@router.post("/v1/admin/provider-claims")
+async def claim_legacy_provider(body: ProviderClaimRequest, request: Request):
+    """Manually bind an unclaimed provider principal after verifying ownership off-band."""
+    actor = resolve_user_from_request(request)
+    # Never rely on the permissive no-users dev admin bootstrap for ownership claims.
+    if not actor or actor.get("role") != "admin" or not is_admin_request(request):
+        return admin_required_response()
+    try:
+        result = get_store().claim_legacy_provider(
+            body.billing_account_id, body.owner_user_id, actor["user_id"], body.reason,
+        )
+    except ProviderOwnershipError as exc:
+        return JSONResponse({"error": str(exc)}, status_code=exc.status_code)
+    return {"node": result}
+
+
 # --- Account moderation (#111, AUTH-017) ---
 
 def _admin_actor(request: Request) -> str:
@@ -203,6 +226,12 @@ async def suspend_account(user_id: str, body: SuspendRequest, request: Request):
     result = get_store().suspend_user(user_id, body.reason.strip(), _admin_actor(request), body.duration_seconds)
     if result is None:
         return JSONResponse({"error": "Account not found"}, status_code=404)
+    # A suspended provider owner must stop serving, not only fail the next handshake.
+    billing_principals = get_store().provider_billing_principals_for_owner(user_id)
+    hub = get_hub()
+    for provider in list(hub._providers.values()):
+        if provider.billing_account_id in billing_principals:
+            await hub.force_disconnect(provider.provider_id, "Provider owner suspended")
     return {"ok": True, "suspension": result}
 
 
