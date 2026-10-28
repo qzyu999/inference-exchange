@@ -62,6 +62,15 @@ export function Chat() {
   const { data: modelsData } = useSWR('models', api.models)
   const { data: health } = useSWR('health', api.health)
 
+  // Once authenticated, browser requests use the HttpOnly IE session cookie.
+  // Never send an unvalidated localStorage key from an earlier account.
+  useEffect(() => {
+    if (user) {
+      localStorage.removeItem('ie_api_key')
+      setApiKey('')
+    }
+  }, [user?.user_id])
+
   useEffect(() => {
     if (user?.api_key && !apiKey) {
       setApiKey(user.api_key)
