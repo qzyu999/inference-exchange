@@ -50,6 +50,8 @@ ROUTES = {
     ("POST", "/v1/auth/reset-balance"): ACCOUNT,
     ("GET", "/v1/exchange/balance"): ACCOUNT,
     ("GET", "/v1/exchange/history"): ACCOUNT,
+    ("GET", "/v1/provider/nodes"): ACCOUNT,
+    ("GET", "/v1/provider/earnings"): ACCOUNT,
     ("GET", "/v1/exchange/traces"): ACCOUNT,
     ("POST", "/v1/chat/completions"): ACCOUNT,
     ("POST", "/v1/confidential/infer"): ACCOUNT,

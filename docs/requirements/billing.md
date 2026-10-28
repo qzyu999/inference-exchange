@@ -90,3 +90,14 @@ MUST NOT: A migration automatically merge old `provider-N` balances or assign th
 - Status: implemented
 - Verified by: tests/test_provider_billing_identity.py::test_two_credentials_same_display_name_never_cross_credit, tests/test_provider_billing_identity.py::test_legacy_migration_is_idempotent_and_preserves_balances
 - Issue: #136
+
+### BILL-011: Private provider earnings are exact simulated credits
+
+MUST: An authenticated IE provider owner can read the earned credits, fees, and request count for their owned nodes. The API uses integer micro-USD and labels earnings as simulated. It shows transaction earnings and recorded account earnings separately, and reports when they do not match.
+
+MUST NOT: The system counts a provider account's initial simulated credit grant as earnings. The owner view does not transfer, pool, or pay out credits. The query does not modify transactions or account balances.
+
+- Principle: P7, P9
+- Status: implemented
+- Verified by: tests/test_provider_earnings_private.py::test_multi_node_exact_earnings_and_pagination, tests/test_provider_earnings_private.py::test_balance_grant_not_counted_as_earnings_and_reconciliation
+- Issue: #152

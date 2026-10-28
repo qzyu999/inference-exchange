@@ -65,3 +65,14 @@ MUST NOT: The coordinator writes prompt or response text to logs.
 - Principle: P2, P4
 - Status: partial
 - Issue: #7
+
+### PRIV-009: Private provider account information
+
+MUST: A signed-in, non-suspended IE user can view only their owned provider nodes, live status, and provider earnings. An unknown or another owner's node filter returns HTTP 404.
+
+MUST NOT: A consumer API key, provider WebSocket token, or anonymous request grants provider-owner access. A provider-owner response exposes a consumer ID, raw credential, credential hash, request ID, or request content.
+
+- Principle: P2, P6, P9
+- Status: implemented
+- Verified by: tests/test_provider_earnings_private.py::test_cross_owner_and_anonymous_requests_fail_closed, tests/test_provider_earnings_private.py::test_revoked_suspended_and_bad_sessions_fail_closed, tests/test_provider_earnings_private.py::test_owned_node_status_and_secret_redaction
+- Issue: #152
