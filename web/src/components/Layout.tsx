@@ -16,6 +16,7 @@ const PRIMARY_NAV = [
   { path: '/exchange', label: 'Exchange', icon: ExchangeIcon },
   { path: '/models', label: 'Models', icon: ModelsIcon },
   { path: '/providers', label: 'Providers', icon: ProvidersIcon },
+  { path: '/provide', label: 'Provide compute', icon: ProvidersIcon },
 ]
 
 const ACCOUNT_NAV = [
@@ -351,6 +352,7 @@ const PAGE_META: Record<string, { title: string; subtitle: string }> = {
   '/exchange': { title: 'Exchange', subtitle: 'A serious market surface for users who care about the routing mechanics.' },
   '/models': { title: 'Models', subtitle: 'Choose the model first; then inspect how the exchange can serve it.' },
   '/providers': { title: 'Providers', subtitle: 'Browse supply as evidence, not a directory of marketing claims.' },
+  '/provide': { title: 'Provide compute', subtitle: 'Bring your own Apple Silicon to the exchange.' },
   '/billing': { title: 'Billing', subtitle: 'Alpha credits, usage and the economics of every request.' },
   '/keys': { title: 'API keys', subtitle: 'One secure place for keys, quick start and request attribution.' },
   '/admin': { title: 'Settings', subtitle: 'System configuration and diagnostics.' },
