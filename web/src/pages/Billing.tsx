@@ -240,19 +240,21 @@ export function Billing() {
         <div>
           <div className="text-sm font-semibold" style={{ color: C.blueBlack }}>Alpha credits</div>
           <div className="text-xs" style={{ color: '#888' }}>
-            Simulated credits, not real money. No payments are taken. Amounts are in USD, stored as whole micro-dollars ($0.000001). You can reset your balance during the alpha.
+            Simulated credits, not real money. No payments are taken. Amounts are in USD, stored as whole micro-dollars ($0.000001). {billingConfig?.allow_balance_reset ? 'Local development allows test resets.' : 'Balance resets are disabled on the public alpha.'}
           </div>
         </div>
-        <button
-          onClick={async () => {
-            await fetch('/v1/auth/reset-balance', { method: 'POST', credentials: 'include' })
-            window.location.reload()
-          }}
-          className="px-4 py-2 rounded-xl text-sm font-medium transition-colors shrink-0"
-          style={{ background: C.gold, color: 'white' }}
-        >
-          Reset to $10
-        </button>
+        {billingConfig?.allow_balance_reset === true && (
+          <button
+            onClick={async () => {
+              const response = await fetch('/v1/auth/reset-balance', { method: 'POST', credentials: 'include' })
+              if (response.ok) window.location.reload()
+            }}
+            className="px-4 py-2 rounded-xl text-sm font-medium transition-colors shrink-0"
+            style={{ background: C.gold, color: 'white' }}
+          >
+            Reset to $10
+          </button>
+        )}
       </div>
     </div>
   )
