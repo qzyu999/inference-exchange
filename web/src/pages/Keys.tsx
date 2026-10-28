@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom'
 import { api, post } from '../lib/api'
 import { useAuth } from '../lib/auth'
 import { loginHref } from '../lib/nav.js'
+import { createUserKey } from '../lib/key-creation.js'
 import { C } from '../lib/theme'
 
 export function Keys() {
@@ -26,11 +27,13 @@ export function Keys() {
     setCreatedKey(null)
     setCreateError('')
     try {
-      const result = await post<{ api_key: string }>('/v1/auth/keys', { name: newKeyName.trim() })
-      if (!result.api_key?.startsWith('sk-ie-')) throw new Error('Server did not return an IE API key')
-      setCreatedKey(result.api_key)
+      const apiKey = await createUserKey(
+        name => post<{ api_key: string }>('/v1/auth/keys', { name }),
+        newKeyName.trim(),
+      )
+      setCreatedKey(apiKey)
       setNewKeyName('')
-      await mutate()
+      void mutate()
     } catch (error) {
       setCreateError(error instanceof Error ? error.message : 'Key creation failed. Please try again.')
     } finally {
