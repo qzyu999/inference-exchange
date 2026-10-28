@@ -268,6 +268,8 @@ def create_app() -> FastAPI:
         description="Decentralized private inference marketplace",
         version="0.1.0",
         lifespan=lifespan,
+        # OPS-011: no interactive API docs or schema in production (#123)
+        **({"docs_url": None, "redoc_url": None, "openapi_url": None} if is_production() else {}),
     )
 
     # CORS + CSRF origin allowlist. IE_PUBLIC_URL is the deployed origin; IE_ALLOWED_ORIGINS adds extras (comma-separated).
