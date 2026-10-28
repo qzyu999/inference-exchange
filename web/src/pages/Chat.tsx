@@ -42,10 +42,9 @@ export function Chat() {
   const [searchParams] = useSearchParams()
   const { user, loading: authLoading } = useAuth()
 
-  const chatKey = user ? `ie_chat_${user.user_id}` : 'ie_chat_anon'
-  const [messages, setMessages] = useState<Message[]>(() => {
-    try { const saved = localStorage.getItem(chatKey); return saved ? JSON.parse(saved) : [] } catch { return [] }
-  })
+  const chatKey = user ? `ie_chat_${user.user_id}` : null
+  const [messages, setMessages] = useState<Message[]>([])
+  const [loadedUserId, setLoadedUserId] = useState<string | null>(null)
   const [input, setInput] = useState('')
   const [streaming, setStreaming] = useState(false)
   const [model, setModel] = useState(() => searchParams.get('model') || '')
@@ -62,9 +61,25 @@ export function Chat() {
   const { data: modelsData } = useSWR('models', api.models)
   const { data: providerData } = useSWR('providers', api.providers, { refreshInterval: 5000 })
 
+  // React mounts Chat before the async session check completes. Load only the
+  // *current* user's history; never copy anonymous or another account's messages.
+  useEffect(() => {
+    setLoadedUserId(null)
+    if (!chatKey) { setMessages([]); return }
+    try {
+      const saved = localStorage.getItem(chatKey)
+      setMessages(saved ? JSON.parse(saved) : [])
+    } catch { setMessages([]) }
+    setLoadedUserId(user?.user_id ?? null)
+  }, [chatKey, user?.user_id])
+
   useEffect(() => { scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight }) }, [messages])
   useEffect(() => { if (!model && modelsData?.data?.length) setModel(modelsData.data[0].id) }, [modelsData, model])
-  useEffect(() => { if (messages.length > 0) localStorage.setItem(chatKey, JSON.stringify(messages)) }, [messages, chatKey])
+  useEffect(() => {
+    if (chatKey && loadedUserId === user?.user_id && messages.length > 0) {
+      localStorage.setItem(chatKey, JSON.stringify(messages))
+    }
+  }, [messages, chatKey, loadedUserId, user?.user_id])
   useEffect(() => { if (!streaming) inputRef.current?.focus() }, [streaming])
 
   // Get the last assistant message for match info
