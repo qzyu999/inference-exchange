@@ -10,6 +10,8 @@ from collections import defaultdict
 from fastapi import APIRouter, Request
 from fastapi.responses import PlainTextResponse
 
+from inference_exchange.config import is_production
+
 from .dependencies import get_hub, get_store
 
 router = APIRouter()
@@ -83,6 +85,9 @@ def _render() -> str:
 async def metrics(request: Request):
     # Optional bearer token so the endpoint can be exposed without leaking ops data
     token = os.environ.get("IE_METRICS_TOKEN", "")
+    if not token and is_production():
+        # OPS-011: fail closed even if the proxy does not block /metrics
+        return PlainTextResponse("not found\n", status_code=404)
     if token and request.headers.get("authorization", "") != f"Bearer {token}":
         return PlainTextResponse("unauthorized\n", status_code=401)
     return PlainTextResponse(_render(), media_type="text/plain; version=0.0.4")
