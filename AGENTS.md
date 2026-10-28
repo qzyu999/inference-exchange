@@ -30,7 +30,7 @@ pytest tests -q --ignore=tests/load_test.py --ignore=tests/local_e2e_test.py \
   --ignore=tests/test_integration.py --ignore=tests/test_preferences.py \
   --deselect tests/test_openai_sdk.py
 python scripts/check_requirements.py
-cd web && npm ci && npm run build && node src/lib/docs.test.mjs && node src/lib/money.test.mjs
+cd web && npm ci && npm run build && node src/lib/docs.test.mjs && node src/lib/money.test.mjs && node src/lib/nav.test.mjs
 ```
 
 Use the mock provider when you do not have a model: `python -m inference_exchange.provider --mock --trust hardened`.
