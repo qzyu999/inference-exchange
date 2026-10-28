@@ -98,3 +98,18 @@ Note: For migration, the coordinator also accepts `?token=` and logs a warning w
 - Principle: P6
 - Status: implemented
 - Verified by: tests/test_provider_auth_transport.py::TestHeaderAuth::test_bearer_header_registers, tests/test_provider_auth_transport.py::TestHeaderAuth::test_bad_header_rejected, tests/test_provider_auth_transport.py::TestHeaderAuth::test_revoked_token_in_header_rejected, tests/test_provider_auth_transport.py::TestHeaderAuth::test_self_reported_name_is_not_a_credential, tests/test_provider_auth_transport.py::TestUrlFallback::test_legacy_url_token_still_works_and_warns_without_secret, tests/test_provider_auth_transport.py::TestUrlFallback::test_url_token_can_be_disabled, tests/test_provider_auth_transport.py::TestRedaction::test_filter_rewrites_formatted_record, tests/test_provider_auth_transport.py::TestAgentSendsHeader::test_agent_connects_with_header_and_url_has_no_token
+
+### PROV-012: A provider billing identity is not its connection ID
+
+MUST: A provider token authenticates one stable billing principal across reconnects and coordinator restarts. The coordinator does not use a provider-supplied name or a WebSocket routing ID as the billing principal.
+
+MUST: Two different provider tokens have separate billing principals, even if their provider names match. A revoked token cannot connect. Creating a replacement token does not transfer ownership or earnings automatically.
+
+MUST: Each WebSocket connection has a unique audit session ID. Historical connection-based balances and transactions remain unchanged until a separately reviewed manual attribution procedure exists.
+
+Note: The current principal belongs to one provider credential, not yet to a GitHub user's provider account. Explicit owner/node mapping and safe token rotation are follow-up work in #9. Alpha credits are simulated.
+
+- Principle: P6, P7
+- Status: implemented
+- Verified by: tests/test_provider_billing_identity.py::test_credential_principal_survives_reconnect_and_restart, tests/test_provider_billing_identity.py::test_two_credentials_same_display_name_never_cross_credit, tests/test_provider_billing_identity.py::test_legacy_migration_is_idempotent_and_preserves_balances, tests/test_provider_billing_identity.py::test_revoked_credential_cannot_rebind_or_connect
+- Issue: #136

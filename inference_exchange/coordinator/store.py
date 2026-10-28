@@ -52,6 +52,7 @@ CREATE TABLE IF NOT EXISTS transactions (
     request_id TEXT NOT NULL,
     consumer_id TEXT NOT NULL,
     provider_id TEXT NOT NULL,
+    connection_id TEXT NOT NULL DEFAULT '',
     provider_name TEXT NOT NULL DEFAULT '',
     model TEXT NOT NULL,
     input_tokens INTEGER NOT NULL,
@@ -77,6 +78,8 @@ CREATE TABLE IF NOT EXISTS transactions (
 CREATE TABLE IF NOT EXISTS provider_history (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     provider_id TEXT NOT NULL,
+    provider_account_id TEXT,
+    session_id TEXT,
     provider_name TEXT NOT NULL,
     hardware TEXT,
     trust_level TEXT,
@@ -91,6 +94,7 @@ CREATE TABLE IF NOT EXISTS provider_tokens (
     token_hash TEXT PRIMARY KEY,
     token_id TEXT NOT NULL,
     name TEXT NOT NULL,
+    billing_account_id TEXT,
     created_at REAL NOT NULL,
     last_used_at REAL,
     connections INTEGER NOT NULL DEFAULT 0
@@ -218,7 +222,32 @@ class Store:
         pt_columns = {row[1] for row in self._conn.execute("PRAGMA table_info(provider_tokens)").fetchall()}
         if "revoked_at" not in pt_columns:
             self._conn.execute("ALTER TABLE provider_tokens ADD COLUMN revoked_at REAL")
-            self._conn.commit()
+        if "billing_account_id" not in pt_columns:
+            self._conn.execute("ALTER TABLE provider_tokens ADD COLUMN billing_account_id TEXT")
+        # Every existing credential gets a stable, separate ledger principal. Do
+        # not infer shared ownership from the provider's self-reported name and do
+        # not merge legacy provider-N accounts or transactions (#136).
+        missing = self._conn.execute(
+            "SELECT token_hash FROM provider_tokens WHERE billing_account_id IS NULL OR billing_account_id = ''"
+        ).fetchall()
+        for row in missing:
+            account_id = "provider-acct-" + secrets.token_hex(16)
+            self._conn.execute(
+                "UPDATE provider_tokens SET billing_account_id = ? WHERE token_hash = ?",
+                (account_id, row["token_hash"]),
+            )
+        self._conn.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_provider_tokens_billing_account_id ON provider_tokens(billing_account_id)"
+        )
+        tx_cols = {r[1] for r in self._conn.execute("PRAGMA table_info(transactions)")}
+        if "connection_id" not in tx_cols:
+            self._conn.execute("ALTER TABLE transactions ADD COLUMN connection_id TEXT NOT NULL DEFAULT ''")
+        hist_cols = {r[1] for r in self._conn.execute("PRAGMA table_info(provider_history)")}
+        if "provider_account_id" not in hist_cols:
+            self._conn.execute("ALTER TABLE provider_history ADD COLUMN provider_account_id TEXT")
+        if "session_id" not in hist_cols:
+            self._conn.execute("ALTER TABLE provider_history ADD COLUMN session_id TEXT")
+        self._conn.commit()
 
         # Add cache_per_mtok column to reference_prices (added for three-tier comparison)
         ref_columns = {row[1] for row in self._conn.execute("PRAGMA table_info(reference_prices)").fetchall()}
@@ -358,6 +387,7 @@ class Store:
         tps: float = 0,
         queued: bool = False,
         queue_wait_ms: int = 0,
+        connection_id: str = "",
     ) -> dict | None:
         """Charge consumer, credit provider, log transaction.
 
@@ -391,14 +421,14 @@ class Store:
         now = time.time()
         self._conn.execute(
             """INSERT INTO transactions (
-                request_id, consumer_id, provider_id, provider_name, model,
+                request_id, consumer_id, provider_id, connection_id, provider_name, model,
                 input_tokens, output_tokens, cached_tokens,
                 cost_micro, cost_input_micro, cost_output_micro, cost_cache_micro,
                 provider_earning_micro, platform_fee_micro,
                 trust_level, encrypted, preference,
                 latency_ms, ttft_ms, tps, queued, queue_wait_ms, timestamp
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            (request_id, consumer_id, provider_id, provider_name, model,
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (request_id, consumer_id, provider_id, connection_id, provider_name, model,
              input_tokens, output_tokens, cached_tokens,
              total_cost, input_cost, output_cost, cache_cost,
              provider_earning, platform_fee,
@@ -434,18 +464,34 @@ class Store:
 
     # --- Provider History ---
 
-    def log_provider_connect(self, provider_id: str, name: str, hardware: str, trust_level: str, price_output: float, measured_tps: float):
+    def log_provider_connect(
+        self, provider_id: str, name: str, hardware: str, trust_level: str,
+        price_output: float, measured_tps: float, *,
+        provider_account_id: str = "", session_id: str = "",
+    ):
         self._conn.execute(
-            "INSERT INTO provider_history (provider_id, provider_name, hardware, trust_level, price_output, measured_tps, connected_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
-            (provider_id, name, hardware, trust_level, price_output, measured_tps, time.time()),
+            """INSERT INTO provider_history (
+                provider_id, provider_account_id, session_id, provider_name,
+                hardware, trust_level, price_output, measured_tps, connected_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (provider_id, provider_account_id or None, session_id or None,
+             name, hardware, trust_level, price_output, measured_tps, time.time()),
         )
         self._conn.commit()
 
-    def log_provider_disconnect(self, provider_id: str):
-        self._conn.execute(
-            "UPDATE provider_history SET disconnected_at = ? WHERE provider_id = ? AND disconnected_at IS NULL",
-            (time.time(), provider_id),
-        )
+    def log_provider_disconnect(self, provider_id: str, *, session_id: str = ""):
+        # New connections use a globally unique session ID so an ID reused
+        # after coordinator restart cannot close unrelated history rows.
+        if session_id:
+            self._conn.execute(
+                "UPDATE provider_history SET disconnected_at = ? WHERE session_id = ? AND disconnected_at IS NULL",
+                (time.time(), session_id),
+            )
+        else:
+            self._conn.execute(
+                "UPDATE provider_history SET disconnected_at = ? WHERE provider_id = ? AND disconnected_at IS NULL",
+                (time.time(), provider_id),
+            )
         self._conn.commit()
 
     # --- Provider tokens ---
@@ -457,9 +503,14 @@ class Store:
         raw = self.PROVIDER_TOKEN_PREFIX + secrets.token_hex(16)
         token_hash = hashlib.sha256(raw.encode()).hexdigest()
         token_id = token_hash[:8]
+        # A credential is a billing principal until user-owned provider
+        # identities and explicit token rotation are implemented (#9).
+        billing_account_id = "provider-acct-" + secrets.token_hex(16)
         self._conn.execute(
-            "INSERT INTO provider_tokens (token_hash, token_id, name, created_at) VALUES (?, ?, ?, ?)",
-            (token_hash, token_id, name, time.time()),
+            """INSERT INTO provider_tokens
+                (token_hash, token_id, name, billing_account_id, created_at)
+                VALUES (?, ?, ?, ?, ?)""",
+            (token_hash, token_id, name, billing_account_id, time.time()),
         )
         self._conn.commit()
         logger.info(f"Provider token created: {raw[:12]}... ({name})")
@@ -484,7 +535,7 @@ class Store:
 
     def list_provider_tokens(self) -> list[dict]:
         rows = self._conn.execute(
-            "SELECT token_id, name, created_at, last_used_at, connections, revoked_at FROM provider_tokens"
+            "SELECT token_id, name, billing_account_id, created_at, last_used_at, connections, revoked_at FROM provider_tokens"
         ).fetchall()
         return [dict(r) for r in rows]
 

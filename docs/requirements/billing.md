@@ -79,3 +79,14 @@ Note: This requirement does not change what the system charges. A decision to ch
 - Principle: P7
 - Status: implemented
 - Verified by: tests/test_billing_disclosure.py::test_billing_config_discloses_minimum, tests/test_billing_disclosure.py::test_history_marks_minimum_and_has_exact_split, tests/test_billing_disclosure.py::test_accumulated_microcharges_reconcile_with_balance, web/src/lib/money.test.mjs
+
+### BILL-010: Provider earnings use the stable credential principal
+
+MUST: A newly billed request credits the stable provider billing account. Each new transaction separately records the WebSocket session for audit. Consumer debit equals the stable provider credit plus the platform fee.
+
+MUST NOT: A migration automatically merge old `provider-N` balances or assign their history to a credential from a provider name. Existing balances and transactions stay unchanged.
+
+- Principle: P7
+- Status: implemented
+- Verified by: tests/test_provider_billing_identity.py::test_two_credentials_same_display_name_never_cross_credit, tests/test_provider_billing_identity.py::test_legacy_migration_is_idempotent_and_preserves_balances
+- Issue: #136

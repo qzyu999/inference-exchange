@@ -230,7 +230,8 @@ async def _stream_confidential(
         billing.charge_request(
             request_id=request_id,
             consumer_id=consumer_id,
-            provider_id=provider.provider_id,
+            provider_id=provider.billing_account_id or provider.provider_id,
+            connection_id=provider.session_id,
             model=request.model,
             input_tokens=request.estimated_input_tokens,
             output_tokens=token_count,
@@ -292,7 +293,8 @@ async def _collect_confidential(
     billing.charge_request(
         request_id=request_id,
         consumer_id=consumer_id,
-        provider_id=provider.provider_id,
+        provider_id=provider.billing_account_id or provider.provider_id,
+        connection_id=provider.session_id,
         model=request.model,
         input_tokens=request.estimated_input_tokens,
         output_tokens=token_count,
