@@ -6,6 +6,7 @@ export const LANDING_LINKS = [
   { to: '/exchange', label: 'Exchange' },
   { to: '/models', label: 'Models' },
   { to: '/providers', label: 'Providers' },
+  { to: '/provide', label: 'Provide compute' },
   { to: '/docs', label: 'Docs' },
 ]
 
