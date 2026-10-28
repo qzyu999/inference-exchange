@@ -13,6 +13,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from inference_exchange.config import CoordinatorConfig, is_production
+from inference_exchange.shared.provider_auth import install_log_redaction, uvicorn_log_config
 from inference_exchange.shared.protocol import (
     AttestationResponse,
     HeartbeatMessage,
@@ -50,6 +51,7 @@ logging.basicConfig(
     datefmt="%H:%M:%S",
 )
 logger = logging.getLogger(__name__)
+install_log_redaction()
 
 
 class StoreAuthAdapter:
@@ -352,8 +354,22 @@ def create_app() -> FastAPI:
         await ws.accept()
         provider_id: str | None = None
 
-        # Authenticate provider via token (query param or first-message field)
-        token = ws.query_params.get("token", "")
+        # Authenticate provider (PROV-011, #125). Preferred: Authorization: Bearer
+        # on the upgrade request. Migration fallback: ?token= for old agents,
+        # unless IE_PROVIDER_URL_TOKEN=0. Never log the raw token or URL.
+        token = ""
+        auth_header = ws.headers.get("authorization", "")
+        if auth_header[:7].lower() == "bearer ":
+            token = auth_header[7:].strip()
+        elif ws.query_params.get("token"):
+            if os.environ.get("IE_PROVIDER_URL_TOKEN", "1").strip() == "0":
+                await ws.close(code=4003, reason="Provider token in URL is disabled. Send Authorization: Bearer")
+                return
+            token = ws.query_params.get("token", "")
+            logger.warning(
+                "Provider used the deprecated ?token= URL credential. "
+                "Upgrade the agent to send Authorization: Bearer (#125)."
+            )
         token_id = ""
         if token:
             token_info = store.validate_provider_token(token)
@@ -538,6 +554,7 @@ def main():
         app,
         host=config.host,
         port=config.port,
+        log_config=uvicorn_log_config(),  # redact ?token= in access logs (#125)
         timeout_graceful_shutdown=10,  # 10s drain for in-flight requests
     )
 

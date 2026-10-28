@@ -41,6 +41,7 @@ from inference_exchange.shared.protocol import (
     TrustLevel,
 )
 from inference_exchange.provider.model_identity import get_model_identity
+from inference_exchange.shared.provider_auth import PROVIDER_TOKEN_ENV, provider_connect, redact
 
 logging.basicConfig(
     level=logging.INFO,
@@ -367,15 +368,10 @@ class OCIPAgent:
 
     async def _connect_and_serve(self):
         """Connect to coordinator and handle the message loop."""
-        logger.info(f"Connecting to coordinator: {self.coordinator_url}")
+        logger.info(f"Connecting to coordinator: {redact(self.coordinator_url)}")
 
-        # Build WS URL with token if provided
-        ws_url = self.coordinator_url
-        if self.provider_token:
-            sep = "&" if "?" in ws_url else "?"
-            ws_url = f"{ws_url}{sep}token={self.provider_token}"
-
-        async with websockets.connect(ws_url) as ws:
+        # Token goes in the Authorization header, never in the URL (#125)
+        async with provider_connect(self.coordinator_url, self.provider_token, logger) as ws:
             logger.info("Connected to coordinator")
 
             # Register
@@ -666,7 +662,8 @@ def main():
     parser.add_argument("--price-cache", type=float, default=0, help="$/Mtok for cached input tokens (0 = same as input)")
     parser.add_argument("--trust", default="open")
     parser.add_argument("--n-gpu-layers", type=int, default=-1)
-    parser.add_argument("--token", default="", help="Provider auth token (pt-ie-...)")
+    parser.add_argument("--token", default=os.environ.get(PROVIDER_TOKEN_ENV, ""),
+                        help=f"Provider auth token (pt-ie-...). Prefer the {PROVIDER_TOKEN_ENV} env var.")
     parser.add_argument("--llama-server", default="", help="Path to llama-server binary (uses native server for cache reporting)")
     parser.add_argument("--max-concurrent", type=int, default=2, help="Max concurrent requests")
     parser.add_argument("--repo-id", default="", help="HuggingFace repo ID for capability lookup (e.g. meta-llama/Llama-3.1-8B-Instruct)")
@@ -674,7 +671,7 @@ def main():
 
     logger.info("=" * 60)
     logger.info("  OCIP AGENT — Managed Inference Provider")
-    logger.info(f"  Coordinator:     {args.coordinator}")
+    logger.info(f"  Coordinator:     {redact(args.coordinator)}")
     logger.info(f"  Inference port:  {args.port} (localhost only)")
     logger.info(f"  Trust level:     {args.trust}")
     logger.info(f"  Model:           {args.model or '(auto-detect)'}")

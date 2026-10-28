@@ -86,10 +86,12 @@ cd inference-exchange
 make setup-py
 make setup-model
 source .venv/bin/activate
+export IE_PROVIDER_TOKEN="<provider-token>"
 python -m ocip_agent.agent \
-  --coordinator ws://192.168.1.100:8000/ws/provider \
-  --token "<provider-token>"
+  --coordinator ws://192.168.1.100:8000/ws/provider
 ```
+
+The agent sends the token in the `Authorization: Bearer` header. Do not put the token in the coordinator URL. Proxies and servers write URLs to logs. The `--token` option also works, but other users of the computer can see command-line options.
 
 You can also use the simple provider. It does not encrypt responses to the consumer:
 

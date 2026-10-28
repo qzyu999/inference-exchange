@@ -11,7 +11,7 @@ Tracking issue: [#123](https://github.com/qzyu999/inference-exchange/issues/123)
 | `/login`, `/v1/auth/github/*`, `/chat` | **No** | GitHub OAuth -> IE session cookie for account functions |
 | `/v1/chat/completions` | **No** | IE API key for SDK or IE session cookie; unauthenticated production requests rejected |
 | `/v1/exchange/balance`, `/history`, `/traces`, `/v1/auth/keys` | **No** | IE account authorization, never a shared anonymous identity |
-| `/ws/provider` | **No** | IE-issued provider token + capability/admission checks. Current agents send provider token in WebSocket URL; migrate away from URL logging separately |
+| `/ws/provider` | **No** | IE-issued provider token in the `Authorization: Bearer` upgrade header + capability/admission checks (PROV-011). See [Provider token migration](#provider-token-migration-125) |
 | `/admin`, `/v1/admin/*` | **Yes (owner only)** | Additional IE admin JWT role checks. No reliance on Cloudflare identity alone |
 | `/metrics`, `/openapi.json`, `/redoc` | Not routable | 404 at the loopback proxy |
 
@@ -67,6 +67,20 @@ Cloudflare application path semantics and precedence: https://developers.cloudfl
 ## Limits before public recruitment
 
 - This runbook does not install Cloudflare policies for you, and the GitHub PR does **not** change your live Cloudflare account. Manually verify the actual Access apps; issue #123 is not completed by merging docs.
-- `/ws/provider` currently supports credential-in-URL. It is an operational logging risk: track migration to a non-URL handshake and ensure logs redact URL query values.
+- `/ws/provider` still accepts the deprecated `?token=` URL credential during migration. Turn it off with `IE_PROVIDER_URL_TOKEN=0` after all agents are upgraded.
+
+## Provider token migration (#125)
+
+Do these steps in sequence. The Mac mini provider stays connected at each step.
+
+1. Deploy the new coordinator. Do not change the Mac mini. The coordinator accepts the old `?token=` URL and logs a warning without the token. Coordinator logs redact `token=` values.
+2. Upgrade the agent on the Mac mini. Remove `?token=...` from its `--coordinator` URL. Set `IE_PROVIDER_TOKEN` in its environment, or keep `--token`. Restart the agent. Use the same token. Do not create a new token.
+3. Confirm the provider is on the Providers page. Confirm the coordinator log has no "deprecated ?token=" warning for that provider.
+4. Upgrade each other provider in the same way.
+5. Set `IE_PROVIDER_URL_TOKEN=0` and restart the coordinator. Providers reconnect automatically.
+
+Rollback: unset `IE_PROVIDER_URL_TOKEN`, or deploy the previous coordinator. Old agents still connect with `?token=`.
+
+Cloudflare and Caddy can have logged URLs that contain old tokens. If you think a token was exposed, create a new token, configure the provider with it, and then revoke the old token.
 - Some app/API paths are accessible anonymously by design. This runbook is not a replacement for a full endpoint inventory, per-user authorization tests, provider attestation, or security assessment.
 - Treat any current Apple Silicon provider's self-claimed trust level as unverified unless independently substantiated.

@@ -36,6 +36,8 @@ class ProviderConfig(BaseModel):
     coordinator_url: str = "ws://localhost:8000/ws/provider"
     model_path: str | None = None  # Auto-detected if None
     provider_name: str = "local-provider"
+    # IE provider token (pt-ie-...). Sent in the Authorization header only.
+    provider_token: str = ""
     # Max concurrent requests this provider handles
     max_concurrent: int = 2
     # Context window size

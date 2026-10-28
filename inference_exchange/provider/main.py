@@ -3,9 +3,11 @@
 import argparse
 import asyncio
 import logging
+import os
 import sys
 
 from inference_exchange.config import ProviderConfig
+from inference_exchange.shared.provider_auth import PROVIDER_TOKEN_ENV
 
 from .agent import ProviderAgent
 from .mock_engine import DEFAULT_MOCK_MODEL, MockEngine
@@ -36,10 +38,13 @@ def main():
     parser.add_argument("--models", default=None, help="Comma-separated model names to advertise (overrides auto-detect)")
     parser.add_argument("--mock", action="store_true", help="Serve canned responses; no model or llama-cpp needed")
     parser.add_argument("--mock-tps", type=float, default=50.0, help="Mock streaming speed (tokens/sec)")
+    parser.add_argument("--token", default=os.environ.get(PROVIDER_TOKEN_ENV, ""),
+                        help=f"Provider auth token (pt-ie-...). Prefer the {PROVIDER_TOKEN_ENV} env var.")
     args = parser.parse_args()
 
     config = ProviderConfig(
         coordinator_url=args.coordinator,
+        provider_token=args.token,
         model_path=args.model,
         provider_name=args.name,
         n_ctx=args.n_ctx,

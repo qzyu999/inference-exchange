@@ -6,7 +6,8 @@ in-process via llama-cpp-python. It does NOT support:
 - Response encryption (consumer keypair)
 - GGUF metadata-based model identity
 - Attestation with hardening evidence
-- Provider token authentication
+
+It does send a provider token in the Authorization header if one is set.
 
 Use this only for quick local testing. For production, use:
   python ocip_agent/agent.py --name my-node --coordinator ws://...
@@ -22,6 +23,7 @@ import time
 import websockets
 
 from inference_exchange.config import ProviderConfig
+from inference_exchange.shared.provider_auth import provider_connect, redact
 from inference_exchange.shared.crypto import KeyPair, EncryptedPayload, decrypt_json
 from inference_exchange.shared.protocol import (
     HeartbeatMessage,
@@ -87,9 +89,9 @@ class ProviderAgent:
 
     async def _connect_and_serve(self):
         """Connect to coordinator and enter the message loop."""
-        logger.info(f"Connecting to coordinator: {self.config.coordinator_url}")
+        logger.info(f"Connecting to coordinator: {redact(self.config.coordinator_url)}")
 
-        async with websockets.connect(self.config.coordinator_url) as ws:
+        async with provider_connect(self.config.coordinator_url, self.config.provider_token, logger) as ws:
             self._ws = ws
             logger.info("Connected to coordinator")
 
