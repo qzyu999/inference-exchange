@@ -48,8 +48,8 @@ def probe(opener, base: str, path: str, timeout: float, data: bytes | None = Non
     req = Request(base + path, data=data, headers=headers, method="POST" if data is not None else "GET")
     try:
         response = opener.open(req, timeout=timeout)
-    except HTTPError as response:
-        pass
+    except HTTPError as exc:
+        response = exc
     with response:
         return Result(
             status=response.status,
