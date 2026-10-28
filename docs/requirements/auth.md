@@ -143,3 +143,15 @@ Note: A request that is in progress when the suspension starts can complete.
 - Principle: P6
 - Status: implemented
 - Verified by: tests/test_account_suspension.py::TestSuspension::test_suspended_key_is_denied, tests/test_account_suspension.py::TestSuspension::test_suspension_ends_sessions, tests/test_account_suspension.py::TestSuspension::test_temporary_suspension_expires, tests/test_account_suspension.py::TestSuspension::test_unsuspend_restores_access, tests/test_account_suspension.py::TestSuspension::test_actions_are_audited, tests/test_account_suspension.py::TestSuspension::test_non_admin_cannot_suspend, tests/test_account_suspension.py::TestSuspension::test_suspension_survives_restart
+
+### AUTH-018: Sign-in is visible and returns to the intended page
+
+MUST: The landing page shows a sign-in action in its first viewport, on desktop and on mobile. The action goes to the existing `/login` flow. When the user is signed in, the landing page shows the account and a sign-out action.
+
+MUST: After GitHub sign-in, the system sends the user to the page in the `next` parameter. The system accepts only a path on the same site. It rejects a URL with a scheme or a host, a path that starts with `//`, a backslash, a control character, and API paths. For a rejected value, the system sends the user to `/chat`.
+
+Note: The coordinator validates `next` again when it reads the cookie, so a changed cookie cannot cause an open redirect.
+
+- Principle: P6
+- Status: implemented
+- Verified by: tests/test_oauth_return_path.py::test_unsafe_next_falls_back, tests/test_oauth_return_path.py::test_safe_next_is_kept, tests/test_oauth_return_path.py::test_callback_returns_to_requested_page, tests/test_oauth_return_path.py::test_callback_never_redirects_off_site, tests/test_oauth_return_path.py::test_tampered_next_cookie_is_revalidated, web/src/lib/nav.test.mjs
