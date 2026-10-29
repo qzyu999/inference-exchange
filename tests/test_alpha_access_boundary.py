@@ -6,7 +6,10 @@ from pathlib import Path
 from urllib.error import HTTPError
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
-from check_alpha_access_boundary import Result, cloudflare_access_challenge, probe, schema_hidden  # noqa: E402
+from check_alpha_access_boundary import (  # noqa: E402
+    ACCESS_ADMIN_PATHS, PRIVATE_ACCOUNT_PATHS, PUBLIC_PAGES,
+    Result, cloudflare_access_challenge, probe, schema_hidden,
+)
 
 
 def result(status: int, body: str = "", location: str = "", content_type: str = "text/html") -> Result:
@@ -62,3 +65,25 @@ def test_schema_hidden_detects_public_openapi():
     assert not schema_hidden(result(200, body="<html>SPA</html>"))
     assert not schema_hidden(result(302, location="https://other.example/"))
     assert not schema_hidden(result(403, body="<html>Access denied</html>"))
+
+def test_operator_cloudflare_matrix_guards_exact_parents_and_nested_paths():
+    assert {"/admin", "/admin/", "/v1/admin", "/v1/admin/"}.issubset(ACCESS_ADMIN_PATHS)
+    assert {"/v1/admin/controls", "/v1/admin/accounts", "/v1/admin/provider-tokens"}.issubset(ACCESS_ADMIN_PATHS)
+    assert len(ACCESS_ADMIN_PATHS) == len(set(ACCESS_ADMIN_PATHS))
+    assert all(path.startswith(("/admin", "/v1/admin")) for path in ACCESS_ADMIN_PATHS)
+
+
+def test_owner_and_guest_routes_must_not_require_cloudflare_login():
+    assert {"/", "/provide"} == set(PUBLIC_PAGES)
+    assert {"/v1/auth/me", "/v1/exchange/balance", "/v1/provider/nodes",
+            "/v1/provider/credentials", "/v1/provider/earnings"}.issubset(PRIVATE_ACCOUNT_PATHS)
+    assert not set(PRIVATE_ACCOUNT_PATHS) & set(ACCESS_ADMIN_PATHS)
+    assert not set(PUBLIC_PAGES) & set(ACCESS_ADMIN_PATHS)
+
+
+def test_access_challenge_cannot_be_mistaken_for_account_denial():
+    for path in ACCESS_ADMIN_PATHS:
+        # An IE 401/403 on an operator API is not proof of edge protection.
+        assert not cloudflare_access_challenge(
+            result(403, body='{"error": "Admin access required"}', content_type="application/json")
+        ), path

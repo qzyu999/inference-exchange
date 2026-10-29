@@ -84,6 +84,27 @@ def schema_hidden(result: Result) -> bool:
     return result.status == 404
 
 
+# Expand these when adding public-facing owner or operator endpoints.
+# Tests guard the parent paths that a wildcard Access application may not match.
+PUBLIC_PAGES = ("/", "/provide")
+PRIVATE_ACCOUNT_PATHS = (
+    "/v1/auth/me",
+    "/v1/exchange/balance",
+    "/v1/provider/nodes",
+    "/v1/provider/credentials",
+    "/v1/provider/earnings",
+)
+ACCESS_ADMIN_PATHS = (
+    "/admin",
+    "/admin/",
+    "/v1/admin",
+    "/v1/admin/",
+    "/v1/admin/controls",
+    "/v1/admin/accounts",
+    "/v1/admin/provider-tokens",
+)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--url", required=True, help="Public alpha HTTPS origin")
@@ -109,12 +130,16 @@ def main() -> int:
             print(f"FAIL {description} ({type(exc).__name__})")
             failed.append(description)
 
+    for path in PUBLIC_PAGES:
+        check(f"Public browser page {path}", path,
+              lambda r: r.status == 200 and "text/html" in r.headers.get("content-type", "").lower())
+
     check("Public GitHub auth configuration", "/v1/auth/config",
           lambda r: r.status == 200 and isinstance(r.json(), dict) and r.json().get("github") is True)
     check("Public model listing", "/v1/models",
           lambda r: r.status == 200 and isinstance(r.json(), dict) and isinstance(r.json().get("data"), list))
-    check("Private IE account requires auth", "/v1/auth/me", lambda r: r.status == 401)
-    check("Private balance requires auth", "/v1/exchange/balance", lambda r: r.status == 401)
+    for path in PRIVATE_ACCOUNT_PATHS:
+        check(f"Private account API requires IE auth {path}", path, lambda r: r.status == 401)
     payload = json.dumps({
         "model": "default",
         "messages": [{"role": "user", "content": "unauthenticated smoke test"}],
@@ -127,12 +152,9 @@ def main() -> int:
           lambda r: r.status == 200 and isinstance(r.json(), dict)
           and r.json().get("status") == "ok" and "default_api_key" not in r.json())
     check("Metrics hidden by local gateway", "/metrics", lambda r: r.status == 404)
-    check("Admin API challenged at Cloudflare edge", "/v1/admin/controls",
-          cloudflare_access_challenge)
-    check("Admin UI challenged at Cloudflare edge", "/admin",
-          cloudflare_access_challenge)
-    check("Admin UI subpath challenged at Cloudflare edge", "/admin/",
-          cloudflare_access_challenge)
+    for path in ACCESS_ADMIN_PATHS:
+        check(f"Operator path challenged at Cloudflare edge {path}", path,
+              cloudflare_access_challenge)
     check("API schema hidden", "/openapi.json", schema_hidden)
 
     if failed:
