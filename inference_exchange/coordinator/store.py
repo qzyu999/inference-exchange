@@ -182,6 +182,21 @@ class ProviderNodesExist(Exception):
     """Do not delete a user while their provider nodes own billing history."""
 
 
+def serialized_read(method):
+    """Keep read queries off the shared SQLite connection during a write.
+
+    RLock permits nested read methods, and multi-query owner/ledger reports
+    observe one complete serializable Store operation rather than interleaved
+    app-level commits from other request handlers. Do not commit on reads.
+    """
+    @wraps(method)
+    def guarded(self, *args, **kwargs):
+        with self._lock:
+            return method(self, *args, **kwargs)
+
+    return guarded
+
+
 def serialized_write(method):
     """Guard an entire Store operation and commit it once after success.
 
@@ -419,12 +434,14 @@ class Store:
         result = self.validate_key(key)
         return result["consumer_id"] if result else DEFAULT_CONSUMER_ID
 
+    @serialized_read
     def list_keys(self) -> list[dict]:
         rows = self._conn.execute("SELECT key_id, name, consumer_id, created_at, last_used_at, requests_made FROM api_keys").fetchall()
         return [dict(r) for r in rows]
 
     # --- Accounts ---
 
+    @serialized_read
     def get_account(self, account_id: str) -> dict | None:
         row = self._conn.execute("SELECT * FROM accounts WHERE account_id = ?", (account_id,)).fetchone()
         return dict(row) if row else None
@@ -433,6 +450,7 @@ class Store:
         self._ensure_account(account_id, name)
         return self.get_account(account_id)
 
+    @serialized_read
     def list_accounts(self) -> list[dict]:
         rows = self._conn.execute("SELECT * FROM accounts ORDER BY created_at").fetchall()
         return [dict(r) for r in rows]
@@ -521,12 +539,14 @@ class Store:
             "platform_fee_micro": platform_fee,
         }
 
+    @serialized_read
     def recent_transactions(self, limit: int = 50) -> list[dict]:
         rows = self._conn.execute(
             "SELECT * FROM transactions ORDER BY timestamp DESC LIMIT ?", (limit,)
         ).fetchall()
         return [dict(r) for r in rows]
 
+    @serialized_read
     def billing_summary(self) -> dict:
         row = self._conn.execute(
             "SELECT COUNT(*) as total_requests, COALESCE(SUM(cost_micro), 0) as total_volume, COALESCE(SUM(input_tokens + output_tokens), 0) as total_tokens FROM transactions"
@@ -693,12 +713,14 @@ class Store:
                 "billing_account_id": billing_account_id, "name": token["name"],
             }
 
+    @serialized_read
     def is_github_linked_user(self, user_id: str) -> bool:
         row = self._conn.execute(
             "SELECT github_id FROM users WHERE user_id = ?", (user_id,),
         ).fetchone()
         return bool(row and row["github_id"])
 
+    @serialized_read
     def get_provider_node_owner(self, node_id: str, billing_account_id: str) -> str | None:
         """A token must match both its node and its immutable billing principal."""
         row = self._conn.execute(
@@ -707,6 +729,7 @@ class Store:
         ).fetchone()
         return row["owner_user_id"] if row else None
 
+    @serialized_read
     def provider_billing_principals_for_owner(self, owner_user_id: str) -> set[str]:
         rows = self._conn.execute(
             "SELECT billing_account_id FROM provider_nodes WHERE owner_user_id = ?",
@@ -715,6 +738,7 @@ class Store:
         return {row["billing_account_id"] for row in rows}
 
 
+    @serialized_read
     def list_owned_provider_nodes(self, owner_user_id: str) -> list[dict]:
         """Return only nodes owned by this IE user. Do not return credentials."""
         rows = self._conn.execute(
@@ -728,6 +752,7 @@ class Store:
         ).fetchall()
         return [dict(row) for row in rows]
 
+    @serialized_read
     def get_owned_provider_earnings(
         self, owner_user_id: str, *, node_id: str | None = None,
         limit: int = 50, before_id: int | None = None,
@@ -908,6 +933,7 @@ class Store:
             "simulated_credits": True,
         }
 
+    @serialized_read
     def list_owned_self_service_credentials(self, owner_user_id: str) -> list[dict]:
         """Return nonsecret metadata only for the caller's self-service credentials."""
         rows = self._conn.execute(
@@ -955,6 +981,7 @@ class Store:
         logger.info("Self-service provider credential revoked: %s", token_id)
         return True
 
+    @serialized_read
     def provider_credential_is_active(self, token_hash: str, token_id: str) -> bool:
         """Recheck admission immediately before making a provider routable."""
         row = self._conn.execute(
@@ -1011,6 +1038,7 @@ class Store:
             return dict(row)
         return None
 
+    @serialized_read
     def list_provider_tokens(self) -> list[dict]:
         rows = self._conn.execute(
             "SELECT token_id, name, billing_account_id, created_at, last_used_at, connections, revoked_at FROM provider_tokens"
@@ -1137,9 +1165,11 @@ class Store:
         logger.info(f"GitHub user created: {login} -> {user_id}")
         return {"user_id": user_id, "email": email, "name": name, "role": "consumer", "session_version": 0}, True
 
+    @serialized_read
     def has_github_user(self, github_id: str) -> bool:
         return bool(self._conn.execute("SELECT 1 FROM users WHERE github_id = ?", (github_id,)).fetchone())
 
+    @serialized_read
     def get_session_version(self, user_id: str) -> int | None:
         row = self._conn.execute("SELECT session_version FROM users WHERE user_id = ?", (user_id,)).fetchone()
         return row["session_version"] if row else None
@@ -1205,6 +1235,7 @@ class Store:
         logger.info(f"Account {user_id} unsuspended by {actor}")
         return True
 
+    @serialized_read
     def get_suspension(self, user_id: str) -> dict | None:
         """Active suspension for this account, or None. An expired suspension is inactive."""
         row = self._conn.execute(
@@ -1220,6 +1251,7 @@ class Store:
             "suspended_until": None if permanent else row["suspended_until"],
         }
 
+    @serialized_read
     def list_users_for_admin(self, limit: int = 500) -> list[dict]:
         """Account metadata for operators. No password hashes, no key material."""
         rows = self._conn.execute(
@@ -1245,6 +1277,7 @@ class Store:
             result.append(d)
         return result
 
+    @serialized_read
     def list_account_actions(self, user_id: str | None = None, limit: int = 200) -> list[dict]:
         if user_id:
             rows = self._conn.execute(
@@ -1256,6 +1289,7 @@ class Store:
             ).fetchall()
         return [dict(r) for r in rows]
 
+    @serialized_read
     def get_user(self, user_id: str) -> dict | None:
         row = self._conn.execute(
             "SELECT user_id, email, name, role, created_at FROM users WHERE user_id = ?",
@@ -1263,9 +1297,11 @@ class Store:
         ).fetchone()
         return dict(row) if row else None
 
+    @serialized_read
     def has_users(self) -> bool:
         return bool(self._conn.execute("SELECT 1 FROM users LIMIT 1").fetchone())
 
+    @serialized_read
     def get_user_api_keys(self, user_id: str) -> list[dict]:
         """Get all API keys belonging to a user."""
         rows = self._conn.execute(
