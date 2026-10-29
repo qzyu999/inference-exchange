@@ -3,7 +3,7 @@
 **Status: Code-matched preview. Not yet independently qualified on a new Mac.**
 
 This guide describes the current self-service API and OCIP command-line interface.
-It is **not** a tested public-alpha installation procedure. The coordinator
+This is not a tested public-alpha installation procedure. The coordinator
 disables self-service issuance by default with `IE_PROVIDER_SELF_ENROLL_ENABLED=0`.
 The team must complete the independent-Mac acceptance checklist below before
 it enables enrollment or calls a Mac/software combination "tested."
