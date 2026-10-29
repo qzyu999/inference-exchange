@@ -105,6 +105,10 @@ def test_enrollment_guards_and_cap(setup, monkeypatch):
     password_only["session_version"] = store.get_session_version(password_only["user_id"])
     assert root.post(url, json=payload, headers=headers(password_only)).status_code == 403
     store.suspend_user(bob["user_id"], "abuse", alice["user_id"], None)
+    # Suspension revokes prior sessions (401). A newly issued signed session
+    # with the current version receives the distinct suspended-account 403.
+    assert enroll(root, bob).status_code == 401
+    bob["session_version"] = store.get_session_version(bob["user_id"])
     assert enroll(root, bob).status_code == 403
     monkeypatch.setenv("IE_PROVIDER_SELF_ENROLL_ENABLED", "0")
     assert root.post(url, json=payload, headers=headers(alice)).status_code == 503
