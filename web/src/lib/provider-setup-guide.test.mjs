@@ -1,0 +1,33 @@
+// #160: preview doc must be accurate about credential transport and qualification.
+import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
+
+const guide = readFileSync(new URL('../../../docs/guides/provider-l0-apple-silicon-preview.md', import.meta.url), 'utf8')
+const page = readFileSync(new URL('../pages/Provide.tsx', import.meta.url), 'utf8')
+const agent = readFileSync(new URL('../../../ocip_agent/agent.py', import.meta.url), 'utf8')
+const transport = readFileSync(new URL('../../../inference_exchange/shared/provider_auth.py', import.meta.url), 'utf8')
+
+assert.match(page, /provider-l0-apple-silicon-preview\.md/)
+assert.match(guide, /Not yet independently qualified/)
+assert.match(guide, /not a tested public-alpha installation procedure/)
+assert.match(guide, /IE_PROVIDER_SELF_ENROLL_ENABLED=0/)
+assert.match(guide, /wss:\/\/alpha\.inferenceex\.com\/ws\/provider/)
+assert.match(guide, /--model "\$IE_MODEL_PATH"/)
+assert.match(guide, /--llama-server/)
+assert.match(guide, /--trust open/)
+assert.match(guide, /--max-concurrent 1/)
+assert.match(guide, /IE_PROVIDER_TOKEN/)
+assert.match(guide, /getpass/)
+assert.match(guide, /127\.0\.0\.1/)
+assert.match(guide, /simulated/)
+assert.match(guide, /different from the coordinator owner/)
+assert.match(guide, /without admin API calls/)
+assert.match(agent, /parser\.add_argument\("--llama-server"/)
+assert.match(agent, /parser\.add_argument\("--coordinator"/)
+assert.match(agent, /parser\.add_argument\("--model"/)
+assert.match(agent, /parser\.add_argument\("--trust"/)
+assert.match(agent, /default=os\.environ\.get\(PROVIDER_TOKEN_ENV/)
+assert.match(transport, /"Authorization": f"Bearer \{token\}"/)
+assert.doesNotMatch(guide, /-H ['"]Authorization: Bearer pt-ie-/)
+assert.doesNotMatch(guide, /--token pt-ie-/)
+console.log('#160: versioned OCIP preview and qualification gate are consistent with agent source')

@@ -331,12 +331,15 @@ export function Provide() {
         </section>
       </div>
       <p className="text-xs text-gray-500">
-        <a href="https://github.com/qzyu999/inference-exchange/blob/main/docs/guides/getting-started.md"
+        <a href="https://github.com/qzyu999/inference-exchange/blob/main/docs/guides/provider-l0-apple-silicon-preview.md"
           target="_blank" rel="noopener noreferrer" className="underline">
-          Existing developer-only setup guide
+          Experimental Apple Silicon OCIP setup (not yet qualified)
         </a>
-        {' '}is for local/operator-managed development. It is not a supported public-alpha
-        Mac installation or security procedure.
+        {' '}describes current agent flags and a candidate outbound connection. It has not
+        passed independent self-service hardware acceptance testing. The older{' '}
+        <a href="https://github.com/qzyu999/inference-exchange/blob/main/docs/guides/getting-started.md"
+          target="_blank" rel="noopener noreferrer" className="underline">developer-only setup guide</a>
+        {' '}uses local and operator-managed flows; do not use it as a public-alpha installation procedure.
       </p>
     </div>
   )
