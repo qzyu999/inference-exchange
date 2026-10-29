@@ -140,7 +140,10 @@ def _error(exc: ProviderOwnershipError) -> JSONResponse:
 
 @router.post("/v1/provider/nodes")
 async def enroll_provider_node(request: Request):
-    owner_id = _management_owner(request, mutation=True)
+    try:
+        owner_id = _management_owner(request, mutation=True)
+    except ProviderOwnershipError as exc:
+        return _error(exc)
     if os.environ.get("IE_PROVIDER_SELF_ENROLL_ENABLED", "0") != "1":
         return JSONResponse({"error": "Provider enrollment is not enabled"}, status_code=503)
     limiter = getattr(request.app.state, "provider_enrollment_limiter", None)
