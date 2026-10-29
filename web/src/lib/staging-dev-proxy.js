@@ -13,7 +13,7 @@ export function createDevServerConfig(mode) {
   const ws = staging ? 'ws://127.0.0.1:8001' : 'ws://localhost:8000'
 
   return {
-    host: '127.0.0.1',
+    ...(staging ? { host: '127.0.0.1' } : {}),
     port: staging ? 3001 : 3000,
     strictPort: staging,
     // /docs bundles ../docs/**/*.md
