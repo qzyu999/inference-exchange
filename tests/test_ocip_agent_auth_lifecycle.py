@@ -95,26 +95,38 @@ async def test_revoked_agent_stops_server_and_does_not_retry():
     assert agent._running is False
 
 
+@pytest.mark.parametrize("transient_failure", [
+    close(4003, "Disconnected by operator"),
+    close(1001, "server going away"),
+    ConnectionRefusedError("Staging coordinator offline"),
+])
 @pytest.mark.asyncio
-async def test_transient_disconnect_retries_then_cleans_up(monkeypatch):
+async def test_transient_disconnect_retries_then_cleans_up(monkeypatch, transient_failure):
+    """A temporary coordinator outage must not reload the local model server."""
     agent = agent_with_fake_server()
     calls, delays = [], []
 
     async def connect():
         calls.append(True)
+        # The same model server stays alive across the coordinator retry.
+        assert agent._server.started == 1
+        assert agent._server.stopped == 0
         if len(calls) == 1:
-            raise close(4003, "Disconnected by operator")
+            raise transient_failure
         agent._running = False
 
     async def sleep(delay):
         delays.append(delay)
+        assert agent._server.started == 1
+        assert agent._server.stopped == 0
 
     monkeypatch.setattr("ocip_agent.agent.asyncio.sleep", sleep)
     agent._connect_and_serve = connect
     await asyncio.wait_for(agent.run(), timeout=1)
     assert len(calls) == 2
     assert delays == [5]
-    assert agent._server.stopped == 1
+    assert agent._server.started == 1
+    assert agent._server.stopped == 1  # Once, only at final shutdown.
 
 
 @pytest.mark.asyncio
