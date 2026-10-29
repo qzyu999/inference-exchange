@@ -1,6 +1,6 @@
 /** Local Vite staging fixture for issue #179 (not an ingress or auth control). */
 export function createDevServerConfig(mode: string): {
-  host: string
+  host?: string
   port: number
   strictPort: boolean
   fs: { allow: string[] }
