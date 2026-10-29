@@ -51,6 +51,7 @@ jobs:
       - run: node src/lib/docs.test.mjs
       - run: node src/lib/money.test.mjs
       - run: node src/lib/nav.test.mjs
+      - run: node src/lib/settings-nav.test.mjs
       - run: node src/lib/key-creation.test.mjs
       - run: node src/lib/admin-controls.test.mjs
       - run: node src/lib/http-error.test.mjs

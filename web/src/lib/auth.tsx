@@ -2,6 +2,7 @@ import { createContext, useContext, useState, useEffect, useCallback, ReactNode 
 
 interface User {
   user_id: string
+  is_admin: boolean
   email: string
   name: string
   balance_usd: number
@@ -48,7 +49,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           // unverified, unscoped localStorage key to this user's account.
           localStorage.removeItem('ie_user_api_key')
           localStorage.removeItem('ie_api_key')
-          setUser(data as User)
+          setUser({ ...data, is_admin: data.is_admin === true } as User)
         } else {
           setUser(null)
         }
