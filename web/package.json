@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "dev:provider-staging": "IE_PROVIDER_STAGING_WEB=1 vite",
+    "dev:provider-staging": "vite --mode provider-staging",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview"

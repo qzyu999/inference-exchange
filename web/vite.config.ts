@@ -3,7 +3,7 @@ import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { createDevServerConfig } from './src/lib/staging-dev-proxy.js'
 
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   plugins: [react(), tailwindcss()],
   build: {
     rollupOptions: {
@@ -14,5 +14,5 @@ export default defineConfig({
       },
     },
   },
-  server: createDevServerConfig(process.env.IE_PROVIDER_STAGING_WEB),
-})
+  server: createDevServerConfig(mode),
+}))
