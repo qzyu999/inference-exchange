@@ -5,6 +5,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 import pytest
 from fastapi.testclient import TestClient
+from starlette.websockets import WebSocketDisconnect
 
 from inference_exchange.coordinator import dependencies
 from inference_exchange.coordinator.main import create_app
@@ -204,11 +205,10 @@ def test_owner_scoped_credential_revocation_and_disconnect(setup):
     assert after == before and after["earned_micro"] == 90
     assert store.get_provider_node_owner(node_id, principal) == alice["user_id"]
     assert root.get("/v1/provider/credentials", headers=headers(alice)).json()["credentials"][0]["revoked_at"]
-    with pytest.raises(Exception) as exc:
+    with pytest.raises(WebSocketDisconnect) as exc:
         with root.websocket_connect("/ws/provider", headers={"Authorization": "Bearer " + secret}) as ws:
             ws.receive_text()
-    from starlette.websockets import WebSocketDisconnect
-    assert isinstance(exc.value, WebSocketDisconnect) and exc.value.code == 4003
+    assert exc.value.code == 4003
 
 
 def test_self_service_url_token_denied(setup):
@@ -219,6 +219,12 @@ def test_self_service_url_token_denied(setup):
     secret = response.json()["credential"]["token"]
     with pytest.raises(WebSocketDisconnect) as exc:
         with root.websocket_connect("/ws/provider?token=" + secret) as ws:
+            ws.receive_text()
+    assert exc.value.code == 4003
+    # Reject a query credential even when a valid bearer header is also present.
+    with pytest.raises(WebSocketDisconnect) as exc:
+        with root.websocket_connect("/ws/provider?token=" + secret,
+                                    headers={"Authorization": "Bearer " + secret}) as ws:
             ws.receive_text()
     assert exc.value.code == 4003
     # A denied URL attempt does not revoke or rotate the credential.
