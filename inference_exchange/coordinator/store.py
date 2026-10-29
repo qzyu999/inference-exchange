@@ -540,6 +540,69 @@ class Store:
         }
 
     @serialized_read
+    def list_consumer_transactions(self, consumer_id: str, limit: int = 50) -> list[dict]:
+        """Private history for exactly the authenticated consumer."""
+        rows = self._conn.execute(
+            "SELECT * FROM transactions WHERE consumer_id = ? ORDER BY timestamp DESC LIMIT ?",
+            (consumer_id, limit),
+        ).fetchall()
+        return [dict(row) for row in rows]
+
+    @serialized_read
+    def admin_provider_earnings(self, provider_id: str = "") -> dict:
+        """Existing admin-only summary data, serialized with billing writes.
+
+        Authorization is checked by the API route before this method is called.
+        """
+        if provider_id:
+            account = self.get_account(provider_id)
+            if not account:
+                return {"provider_id": provider_id, "earnings_usd": 0, "requests_served": 0}
+            row = self._conn.execute(
+                "SELECT COUNT(*) as cnt, COALESCE(SUM(provider_earning_micro), 0) AS total "
+                "FROM transactions WHERE provider_id = ?",
+                (provider_id,),
+            ).fetchone()
+            return {
+                "provider_id": provider_id,
+                "earnings_usd": round(row["total"] / MICRO_PER_DOLLAR, 6),
+                "balance_usd": round(account["balance_micro"] / MICRO_PER_DOLLAR, 6),
+                "requests_served": row["cnt"],
+            }
+        rows = self._conn.execute(
+            "SELECT provider_id, COUNT(*) AS requests, SUM(provider_earning_micro) AS total "
+            "FROM transactions GROUP BY provider_id ORDER BY total DESC"
+        ).fetchall()
+        return {"providers": [
+            {
+                "provider_id": row["provider_id"],
+                "earnings_usd": round(row["total"] / MICRO_PER_DOLLAR, 6),
+                "requests_served": row["requests"],
+            }
+            for row in rows
+        ]}
+
+    @serialized_read
+    def list_reference_price_history(self, family_key: str, cutoff: float) -> list[dict]:
+        """Stable snapshot for the public aggregate price-history view."""
+        rows = self._conn.execute(
+            """SELECT source, model_id, display_name, input_per_mtok, output_per_mtok, fetched_at
+               FROM reference_prices
+               WHERE family_key = ? AND fetched_at > ?
+               ORDER BY fetched_at ASC""",
+            (family_key, cutoff),
+        ).fetchall()
+        return [dict(row) for row in rows]
+
+    @serialized_write
+    def reset_dev_balance(self, consumer_id: str) -> None:
+        """Development-only simulated credit reset. The route enforces prod deny."""
+        self._conn.execute(
+            "UPDATE accounts SET balance_micro = ? WHERE account_id = ?",
+            (10 * MICRO_PER_DOLLAR, consumer_id),
+        )
+
+    @serialized_read
     def recent_transactions(self, limit: int = 50) -> list[dict]:
         rows = self._conn.execute(
             "SELECT * FROM transactions ORDER BY timestamp DESC LIMIT ?", (limit,)

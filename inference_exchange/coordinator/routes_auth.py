@@ -501,9 +501,5 @@ async def reset_balance(request: Request):
         )
     consumer_id = resolve_consumer_id(request)
     store = get_store()
-    store._conn.execute(
-        "UPDATE accounts SET balance_micro = ? WHERE account_id = ?",
-        (10 * 1_000_000, consumer_id),
-    )
-    store._conn.commit()
+    store.reset_dev_balance(consumer_id)
     return {"ok": True, "balance_usd": 10.0, "note": "Balance reset to $10.00 (alpha dummy credits)"}
