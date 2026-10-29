@@ -1,10 +1,16 @@
 """Read-only live-DB rehearsal uses disposable SQLite files, never user data."""
 import sqlite3
+from pathlib import Path
+from runpy import run_path
 
 import pytest
 
 from inference_exchange.coordinator.store import Store
-from scripts.alpha_sqlite_preflight import PreflightError, run_preflight
+
+# CLI scripts are intentionally not installed as an importable package.
+_script = run_path(str(Path(__file__).resolve().parents[1] / "scripts" / "alpha_sqlite_preflight.py"))
+PreflightError = _script["PreflightError"]
+run_preflight = _script["run_preflight"]
 
 
 def _fixture(tmp_path):
