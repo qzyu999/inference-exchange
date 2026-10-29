@@ -68,6 +68,14 @@ def test_transient_close_not_mistaken_for_revocation(code, reason):
     assert not is_permanent_auth_rejection(close(code, reason))
 
 
+def test_missing_received_close_frame_is_not_auth_rejection():
+    # A locally sent close isn't an explicit coordinator authentication denial.
+    assert not is_permanent_auth_rejection(ConnectionClosedError(None, None))
+    assert not is_permanent_auth_rejection(
+        ConnectionClosedError(None, Close(4003, "Invalid provider token"))
+    )
+
+
 @pytest.mark.asyncio
 async def test_revoked_agent_stops_server_and_does_not_retry():
     agent = agent_with_fake_server()
