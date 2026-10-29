@@ -1,4 +1,7 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
+import { useAuth } from '../lib/auth'
+import { canShowAdminConsole } from '../lib/role-nav.js'
 import useSWR from 'swr'
 import { api } from '../lib/api'
 import { OperatorControlsPanel } from '../components/OperatorControlsPanel'
@@ -26,7 +29,26 @@ function Section({ title, count, children }: { title: string; count?: number; ch
   )
 }
 
+// Do not mount admin SWR polling (including OperatorControlsPanel) until
+// the server has confirmed that this IE session has admin privileges.
 export function Admin() {
+  const { user, loading } = useAuth()
+  if (loading) return <p role="status">Checking operator access…</p>
+  if (!canShowAdminConsole(user)) {
+    return (
+      <section className="max-w-xl bg-white rounded-2xl p-6 space-y-3">
+        <h2 className="text-lg font-semibold text-gray-900">Operator access required</h2>
+        <p className="text-sm text-gray-600">
+          This console is restricted to IE administrators. Manage your own account under Settings.
+        </p>
+        <Link to="/settings" className="text-sm underline text-amber-800">Go to Settings</Link>
+      </section>
+    )
+  }
+  return <AdminConsoleContent />
+}
+
+function AdminConsoleContent() {
   const { data: state, error: stateErr, mutate: refreshState } = useSWR('adminState', loadAdminState, { refreshInterval: 5000 })
   const { data: stats } = useSWR('stats', api.stats, { refreshInterval: 3000 })
   const { data: tpsData } = useSWR('tps', api.tps, { refreshInterval: 5000 })

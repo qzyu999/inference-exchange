@@ -15,6 +15,7 @@ import { Billing } from './pages/Billing'
 import { Keys } from './pages/Keys'
 import { Login } from './pages/Login'
 import { Admin } from './pages/Admin'
+import { Settings } from './pages/Settings'
 import { Trace } from './pages/Trace'
 import { ProviderDashboard } from './pages/ProviderDashboard'
 import { Docs } from './pages/Docs'
@@ -36,6 +37,7 @@ createRoot(document.getElementById('root')!).render(
             <Route path="/billing" element={<Billing />} />
             <Route path="/keys" element={<Keys />} />
             <Route path="/login" element={<Login />} />
+            <Route path="/settings" element={<Settings />} />
             <Route path="/admin" element={<Admin />} />
             <Route path="/trace" element={<Trace />} />
             <Route path="/docs/*" element={<Docs />} />

@@ -155,3 +155,16 @@ Note: The coordinator validates `next` again when it reads the cookie, so a chan
 - Principle: P6
 - Status: implemented
 - Verified by: tests/test_oauth_return_path.py::test_unsafe_next_falls_back, tests/test_oauth_return_path.py::test_safe_next_is_kept, tests/test_oauth_return_path.py::test_callback_returns_to_requested_page, tests/test_oauth_return_path.py::test_callback_never_redirects_off_site, tests/test_oauth_return_path.py::test_tampered_next_cookie_is_revalidated, web/src/lib/nav.test.mjs
+
+### AUTH-019: Separate account and operator settings
+
+MUST: Every signed-in IE user can open `/settings` with their IE session and no Cloudflare Access requirement. Settings shows only that user's account, API key and billing navigation, account security action, and private provider-node data. It does not request an admin API.
+
+MUST: The common sidebar directs users to `/settings`. It shows a separate Admin Console link only when `GET /v1/auth/me` confirms current admin authorization. The server derives `is_admin` from a valid session and current admin privileges. A provider owner or an API key does not automatically grant the admin role.
+
+MUST: The admin console does not mount admin API polling for a user without verified admin authorization. Direct admin routes remain protected by IE admin checks and Cloudflare Access at the edge. The web UI does not bypass or change these edge rules.
+
+- Principle: P2, P6
+- Status: implemented
+- Verified by: tests/test_user_settings_auth.py::test_admin_flag_comes_from_verified_session_and_current_allowlist, tests/test_user_settings_auth.py::test_regular_user_and_api_key_cannot_appear_admin, tests/test_user_settings_auth.py::test_provider_token_and_revoked_session_cannot_appear_admin, tests/test_user_settings_auth.py::test_suspended_session_cannot_retain_admin_flag, web/src/lib/settings-nav.test.mjs
+- Issue: #156

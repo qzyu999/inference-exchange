@@ -31,6 +31,28 @@ export interface HealthResponse {
   default_api_key?: string
 }
 
+export interface OwnedProviderNode {
+  node_id: string
+  name: string
+  status: 'online' | 'offline' | 'busy'
+  active_connections: number
+  models: string[]
+  hardware_claim: string | null
+  claimed_trust_level: string | null
+  verified_trust_level: string | null
+  created_at: number
+}
+
+export interface ProviderEarningsSummary {
+  earned_micro: number
+  ledger_earned_micro: number
+  today_earned_micro: number
+  cost_micro: number
+  platform_fee_micro: number
+  requests_served: number
+  reconciled: boolean
+}
+
 export interface Provider {
   id: string
   name: string
@@ -155,6 +177,8 @@ export interface TPSEntry {
 export const api = {
   health: () => get<HealthResponse>('/health?include_key=1'),
   me: () => get<Balance>('/v1/auth/me'),
+  ownedProviderNodes: () => get<{ nodes: OwnedProviderNode[]; simulated_credits: boolean }>('/v1/provider/nodes'),
+  ownedProviderEarnings: () => get<{ summary: ProviderEarningsSummary; simulated_credits: boolean; unit: 'micro_usd' }>('/v1/provider/earnings'),
   billingConfig: () => get<{ minimum_charge_usd: number; minimum_charge_micro: number; platform_fee_percent: number; simulated_credits: boolean; allow_balance_reset: boolean }>('/v1/exchange/billing-config'),
   stats: () => get<ExchangeStats>('/v1/exchange/stats'),
   providers: () => get<{ providers: Provider[] }>('/v1/exchange/providers'),

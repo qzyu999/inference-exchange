@@ -9,6 +9,7 @@ Tracking issue: [#123](https://github.com/qzyu999/inference-exchange/issues/123)
 | --- | --- | --- |
 | `/`, `/docs`, `/v1/models`, market discovery | **No** | Public/read-only |
 | `/login`, `/v1/auth/github/*`, `/chat` | **No** | GitHub OAuth -> IE session cookie for account functions |
+| `/settings`, `/v1/provider/nodes`, `/v1/provider/earnings` | **No** | Owner-scoped IE session, no operator privileges needed |
 | `/v1/chat/completions` | **No** | IE API key for SDK or IE session cookie; unauthenticated production requests rejected |
 | `/v1/exchange/balance`, `/history`, `/traces`, `/v1/auth/keys` | **No** | IE account authorization, never a shared anonymous identity |
 | `/ws/provider` | **No** | IE-issued provider token in the `Authorization: Bearer` upgrade header + capability/admission checks (PROV-011). See [Provider token migration](#provider-token-migration-125) |
@@ -89,3 +90,13 @@ Rollback: unset `IE_PROVIDER_URL_TOKEN`, or deploy the previous coordinator. Old
 Cloudflare and Caddy can have logged URLs that contain old tokens. If you think a token was exposed, create a new token, configure the provider with it, and then revoke the old token.
 - Some app/API paths are accessible anonymously by design. This runbook is not a replacement for a full endpoint inventory, per-user authorization tests, provider attestation, or security assessment.
 - Treat any current Apple Silicon provider's self-claimed trust level as unverified unless independently substantiated.
+
+## Account Settings vs Admin Console (#156)
+
+The sidebar Settings link is `/settings` for every user. It must not call `/v1/admin/*`.
+The separate Admin Console link appears only when the IE server returns `is_admin: true`
+from `/v1/auth/me`. Admin navigation uses a full browser navigation so Cloudflare
+can show its real Access challenge instead of failing a background fetch with CORS.
+`/admin` and `/v1/admin/*` stay Access-protected. Never add `/settings` or
+`/v1/provider/*` to the operator Access policy. An unexpected Access challenge on
+`/settings` is an edge configuration bug, not a reason to weaken admin protection.

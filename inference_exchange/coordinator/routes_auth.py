@@ -189,10 +189,26 @@ def resolve_private_caller(request: Request) -> str:
     return consumer_id
 
 
-def is_admin_request(request: Request) -> bool:
-    """Admin = JWT with role=admin. In dev, also allowed while no users exist yet."""
+def has_verified_admin_session(request: Request) -> bool:
+    """Require a signed admin session and current server-side admin status.
+
+    A revoked session, removed admin allowlist entry, changed user email, or
+    suspension must not retain privilege via a previously issued JWT.
+    """
     user = resolve_user_from_request(request)
-    if user and user.get("role") == "admin":
+    if not user or user.get("role") != "admin":
+        return False
+    stored = get_store().get_user(user["user_id"])
+    if not stored or stored["email"].lower() != user.get("email", "").lower():
+        return False
+    if get_store().get_suspension(user["user_id"]):
+        return False
+    return _role_for(stored["email"], stored["role"]) == "admin"
+
+
+def is_admin_request(request: Request) -> bool:
+    """Current admin session, or empty-database developer bootstrap only."""
+    if has_verified_admin_session(request):
         return True
     return not is_production() and not get_store().has_users()
 
@@ -397,6 +413,7 @@ async def get_current_user(request: Request):
             "user_id": user_id,
             "email": user_info.get("email", ""),
             "name": user_info.get("name", ""),
+            "is_admin": has_verified_admin_session(request),
             "balance_usd": round(account["balance_micro"] / 1_000_000, 6) if account else 0,
             "total_spent_usd": round(account["total_spent_micro"] / 1_000_000, 6) if account else 0,
             "requests_made": account["requests_made"] if account else 0,
@@ -411,6 +428,7 @@ async def get_current_user(request: Request):
     if isinstance(account, dict):
         return {
             "consumer_id": consumer_id,
+            "is_admin": False,
             "balance_usd": round(account["balance_micro"] / 1_000_000, 6),
             "total_spent_usd": round(account["total_spent_micro"] / 1_000_000, 6),
             "requests_made": account["requests_made"],
@@ -418,6 +436,7 @@ async def get_current_user(request: Request):
         }
     return {
         "consumer_id": consumer_id,
+        "is_admin": False,
         "balance_usd": round(account.balance_usd, 6),
         "total_spent_usd": round(account.total_spent_usd, 6),
         "requests_made": account.requests_made,

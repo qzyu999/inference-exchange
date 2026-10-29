@@ -3,6 +3,7 @@ import { Link, Outlet, useLocation } from 'react-router-dom'
 import { useCoordinatorStatus, useWebSocket } from '../lib/useWebSocket'
 import { useAuth } from '../lib/auth'
 import { loginHref } from '../lib/nav.js'
+import { canShowAdminConsole } from '../lib/role-nav.js'
 import { C, TRUST_COLORS, GRADIENTS } from '../lib/theme'
 import { ErrorBoundary } from './ErrorBoundary'
 import { MineralAurora, NetworkHeartbeat, useNetworkPulses } from './MineralAurora'
@@ -23,7 +24,7 @@ const ACCOUNT_NAV = [
   { path: '/billing', label: 'Billing', icon: BillingIcon },
   { path: '/keys', label: 'API keys', icon: KeysIcon },
   { path: '/docs', label: 'Docs', icon: DocsIcon },
-  { path: '/admin', label: 'Settings', icon: SettingsIcon },
+  { path: '/settings', label: 'Settings', icon: SettingsIcon },
 ]
 
 // ─── Icons (simple SVG, 18x18) ──────────────────────────────
@@ -122,6 +123,7 @@ function NavItem({ path, label, icon: Icon, active }: {
   return (
     <Link
       to={path}
+      reloadDocument={path === '/admin'}
       className={`flex items-center gap-3 px-3 py-2 rounded-lg text-[13px] font-medium transition-colors ${active ? 'sidebar-active-bar' : ''}`}
       style={{
         background: active ? C.sidebarHover : 'transparent',
@@ -213,6 +215,9 @@ export function Layout() {
             active={location.pathname === item.path || (item.path === '/docs' && location.pathname.startsWith('/docs'))}
           />
         ))}
+        {canShowAdminConsole(user) && (
+          <NavItem path="/admin" label="Admin Console" icon={SettingsIcon} active={location.pathname === '/admin'} />
+        )}
       </nav>
 
       {/* Spacer */}
@@ -355,7 +360,8 @@ const PAGE_META: Record<string, { title: string; subtitle: string }> = {
   '/provide': { title: 'Provide compute', subtitle: 'Bring your own Apple Silicon to the exchange.' },
   '/billing': { title: 'Billing', subtitle: 'Alpha credits, usage and the economics of every request.' },
   '/keys': { title: 'API keys', subtitle: 'One secure place for keys, quick start and request attribution.' },
-  '/admin': { title: 'Settings', subtitle: 'System configuration and diagnostics.' },
+  '/settings': { title: 'Settings', subtitle: 'Manage your IE account and owned provider nodes.' },
+  '/admin': { title: 'Admin Console', subtitle: 'Operator-only system configuration and diagnostics.' },
   '/trace': { title: 'Request trace', subtitle: 'Inspect the evidence behind a completed request.' },
   '/dashboard': { title: 'Provider', subtitle: 'The provider side is about turning hardware into a transparent economic offer.' },
   '/docs': { title: 'Docs', subtitle: 'Principles and requirements. The code implements these.' },
