@@ -1,8 +1,9 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
+import { createDevServerConfig } from './src/lib/staging-dev-proxy.js'
 
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   plugins: [react(), tailwindcss()],
   build: {
     rollupOptions: {
@@ -13,14 +14,5 @@ export default defineConfig({
       },
     },
   },
-  server: {
-    port: 3000,
-    // /docs bundles ../docs/**/*.md
-    fs: { allow: ['..'] },
-    proxy: {
-      '/v1': 'http://localhost:8000',
-      '/ws': { target: 'ws://localhost:8000', ws: true },
-      '/health': 'http://localhost:8000',
-    },
-  },
-})
+  server: createDevServerConfig(mode),
+}))
