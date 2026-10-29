@@ -55,6 +55,7 @@ jobs:
       - run: node src/lib/provider-dashboard.test.mjs
       - run: node src/lib/provider-navigation.test.mjs
       - run: node src/lib/provider-enrollment.test.mjs
+      - run: node src/lib/staging-dev-proxy.test.mjs
       - run: node src/lib/provider-setup-guide.test.mjs
       - run: node src/lib/key-creation.test.mjs
       - run: node src/lib/admin-controls.test.mjs
