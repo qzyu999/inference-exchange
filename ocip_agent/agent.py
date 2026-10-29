@@ -76,7 +76,12 @@ def is_permanent_auth_rejection(exc: websockets.ConnectionClosed) -> bool:
     Do not include a server-provided close reason in logs: it is untrusted
     and might accidentally contain credentials.
     """
-    return exc.code == 4003 and exc.reason in _PERMANENT_AUTH_REASONS
+    received = exc.rcvd
+    return (
+        received is not None
+        and received.code == 4003
+        and received.reason in _PERMANENT_AUTH_REASONS
+    )
 
 
 class InferenceServerManager:
