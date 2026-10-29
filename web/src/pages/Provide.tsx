@@ -33,10 +33,15 @@ export function Provide() {
           </Link>
         )}
         {!loading && user && (
-          <p className="text-xs" style={{ color: '#888' }}>
-            Signed in as {user.name || user.email}. Provider credentials will be available here
-            after the self-service enrollment and safety checks ship.
-          </p>
+          <div className="space-y-2">
+            <p className="text-xs" style={{ color: '#888' }}>
+              Signed in as {user.name || user.email}. Provider enrollment will open after
+              the self-service rollout and safety checks.
+            </p>
+            <Link to="/dashboard" className="inline-block text-sm underline" style={{ color: C.gold }}>
+              View your live provider dashboard
+            </Link>
+          </div>
         )}
       </div>
 
