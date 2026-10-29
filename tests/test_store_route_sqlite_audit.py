@@ -26,7 +26,8 @@ def test_store_facing_history_and_admin_earnings_keep_existing_contract(tmp_path
     single = store.admin_provider_earnings("p-a")
     assert single["provider_id"] == "p-a"
     assert single["requests_served"] == 1
-    assert single["earnings_usd"] == round(mine[1]["provider_earning_micro"] / 1_000_000, 6)
+    billed_a = next(item for item in mine if item["provider_id"] == "p-a")
+    assert single["earnings_usd"] == round(billed_a["provider_earning_micro"] / 1_000_000, 6)
     assert store.admin_provider_earnings("missing") == {
         "provider_id": "missing", "earnings_usd": 0, "requests_served": 0,
     }
