@@ -16,6 +16,7 @@ assert.doesNotMatch(JSON.stringify(staging), /0\.0\.0\.0/)
 // Unmodified development workflow stays on its existing backend.
 const normal = createDevServerConfig('development')
 assert.equal(normal.port, 3000)
+assert.equal(normal.host, undefined) // preserve Vite's ordinary host default
 assert.equal(normal.proxy['/v1'], 'http://localhost:8000')
 assert.equal(normal.proxy['/ws'].target, 'ws://localhost:8000')
 
