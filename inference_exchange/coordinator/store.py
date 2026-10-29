@@ -13,6 +13,7 @@ import logging
 import os
 import secrets
 import sqlite3
+import threading
 import time
 from contextlib import contextmanager
 from pathlib import Path
@@ -190,8 +191,12 @@ class Store:
             db_path = Path(os.environ.get("IE_DB_PATH", str(DB_PATH)))
         db_path.parent.mkdir(parents=True, exist_ok=True)
         self._db_path = db_path
-        self._conn = sqlite3.connect(str(db_path), check_same_thread=False)
+        # #84: Python's shared sqlite3 connection does not serialize a
+        # SELECT/UPDATE/INSERT sequence just because check_same_thread=False.
+        self._lock = threading.RLock()
+        self._conn = sqlite3.connect(str(db_path), check_same_thread=False, timeout=30.0)
         self._conn.row_factory = sqlite3.Row
+        self._conn.execute("PRAGMA busy_timeout=5000")
         self._conn.execute("PRAGMA journal_mode=WAL")
         self._conn.execute("PRAGMA foreign_keys=ON")
         self._conn.executescript(SCHEMA)
@@ -309,16 +314,17 @@ class Store:
             self._conn.commit()
             logger.info("Migration: added cache_per_mtok column to reference_prices")
 
+    def _ensure_account_in_transaction(self, account_id: str, name: str):
+        """Insert an account only if absent. Caller owns the transaction."""
+        self._conn.execute(
+            "INSERT OR IGNORE INTO accounts (account_id, name, balance_micro, created_at) "
+            "VALUES (?, ?, ?, ?)",
+            (account_id, name, 10 * MICRO_PER_DOLLAR, time.time()),
+        )
+
     def _ensure_account(self, account_id: str, name: str):
-        row = self._conn.execute(
-            "SELECT account_id FROM accounts WHERE account_id = ?", (account_id,)
-        ).fetchone()
-        if not row:
-            self._conn.execute(
-                "INSERT INTO accounts (account_id, name, balance_micro, created_at) VALUES (?, ?, ?, ?)",
-                (account_id, name, 10 * MICRO_PER_DOLLAR, time.time()),
-            )
-            self._conn.commit()
+        with self._lock, self._conn:
+            self._ensure_account_in_transaction(account_id, name)
 
     def _ensure_default_key(self) -> str:
         """Ensure a default key exists, return it."""
@@ -457,38 +463,40 @@ class Store:
         platform_fee = total_cost * self.PLATFORM_FEE_PERCENT // 100
         provider_earning = total_cost - platform_fee
 
-        # Debit consumer
-        self._conn.execute(
-            "UPDATE accounts SET balance_micro = balance_micro - ?, total_spent_micro = total_spent_micro + ?, requests_made = requests_made + 1, tokens_consumed = tokens_consumed + ? WHERE account_id = ?",
-            (total_cost, total_cost, input_tokens + output_tokens, consumer_id),
-        )
+        # #84: keep debit, provider creation, credit and transaction row in
+        # a single write. No helper can commit this charge mid-flight.
+        with self._lock, self._conn:
+            # Debit consumer
+            self._conn.execute(
+                "UPDATE accounts SET balance_micro = balance_micro - ?, total_spent_micro = total_spent_micro + ?, requests_made = requests_made + 1, tokens_consumed = tokens_consumed + ? WHERE account_id = ?",
+                (total_cost, total_cost, input_tokens + output_tokens, consumer_id),
+            )
 
-        # Credit provider (ensure account exists)
-        self._ensure_account(provider_id, provider_id)
-        self._conn.execute(
-            "UPDATE accounts SET balance_micro = balance_micro + ?, total_earned_micro = total_earned_micro + ? WHERE account_id = ?",
-            (provider_earning, provider_earning, provider_id),
-        )
+            # Credit provider (ensure account exists)
+            self._ensure_account_in_transaction(provider_id, provider_id)
+            self._conn.execute(
+                "UPDATE accounts SET balance_micro = balance_micro + ?, total_earned_micro = total_earned_micro + ? WHERE account_id = ?",
+                (provider_earning, provider_earning, provider_id),
+            )
 
-        # Log transaction with enrichment metadata
-        now = time.time()
-        self._conn.execute(
-            """INSERT INTO transactions (
-                request_id, consumer_id, provider_id, connection_id, provider_name, model,
-                input_tokens, output_tokens, cached_tokens,
-                cost_micro, cost_input_micro, cost_output_micro, cost_cache_micro,
-                provider_earning_micro, platform_fee_micro,
-                trust_level, encrypted, preference,
-                latency_ms, ttft_ms, tps, queued, queue_wait_ms, timestamp
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            (request_id, consumer_id, provider_id, connection_id, provider_name, model,
-             input_tokens, output_tokens, cached_tokens,
-             total_cost, input_cost, output_cost, cache_cost,
-             provider_earning, platform_fee,
-             trust_level, int(encrypted), preference,
-             latency_ms, ttft_ms, tps, int(queued), queue_wait_ms, now),
-        )
-        self._conn.commit()
+            # Log transaction with enrichment metadata
+            now = time.time()
+            self._conn.execute(
+                """INSERT INTO transactions (
+                    request_id, consumer_id, provider_id, connection_id, provider_name, model,
+                    input_tokens, output_tokens, cached_tokens,
+                    cost_micro, cost_input_micro, cost_output_micro, cost_cache_micro,
+                    provider_earning_micro, platform_fee_micro,
+                    trust_level, encrypted, preference,
+                    latency_ms, ttft_ms, tps, queued, queue_wait_ms, timestamp
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (request_id, consumer_id, provider_id, connection_id, provider_name, model,
+                 input_tokens, output_tokens, cached_tokens,
+                 total_cost, input_cost, output_cost, cache_cost,
+                 provider_earning, platform_fee,
+                 trust_level, int(encrypted), preference,
+                 latency_ms, ttft_ms, tps, int(queued), queue_wait_ms, now),
+            )
 
         logger.info(f"Billed: {output_tokens} tok, cost=${total_cost/MICRO_PER_DOLLAR:.6f}, provider=${provider_earning/MICRO_PER_DOLLAR:.6f}")
         return {
@@ -514,6 +522,35 @@ class Store:
             "total_tokens": row["total_tokens"],
             "accounts": self._conn.execute("SELECT COUNT(*) FROM accounts").fetchone()[0],
         }
+
+    # --- Reference price persistence (#84) ---
+
+    def save_reference_prices(self, entries) -> None:
+        """Write a complete price snapshot without interleaving a billing write."""
+        rows = [
+            (entry.source, entry.model_id, entry.display_name, entry.family,
+             entry.family_key, entry.input_per_mtok, entry.output_per_mtok,
+             entry.cache_per_mtok, entry.context_length, entry.fetched_at)
+            for entry in entries
+        ]
+        if not rows:
+            return
+        with self._lock, self._conn:
+            self._conn.executemany(
+                """INSERT INTO reference_prices
+                   (source, model_id, display_name, family, family_key,
+                    input_per_mtok, output_per_mtok, cache_per_mtok, context_length, fetched_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                rows,
+            )
+
+    def prune_reference_prices(self, cutoff: float) -> int:
+        """Delete expired reference prices in a guarded write transaction."""
+        with self._lock, self._conn:
+            cursor = self._conn.execute(
+                "DELETE FROM reference_prices WHERE fetched_at < ?", (cutoff,),
+            )
+            return cursor.rowcount
 
     # --- Provider History ---
 
@@ -559,18 +596,20 @@ class Store:
         cannot both pass a read-before-write check on the shared Store connection.
         Full Store write synchronization is tracked separately in issue #84.
         """
-        conn = sqlite3.connect(str(self._db_path), timeout=15.0)
-        conn.row_factory = sqlite3.Row
-        try:
-            conn.execute("PRAGMA foreign_keys=ON")
-            conn.execute("BEGIN IMMEDIATE")
-            yield conn
-            conn.commit()
-        except Exception:
-            conn.rollback()
-            raise
-        finally:
-            conn.close()
+        with self._lock:
+            conn = sqlite3.connect(str(self._db_path), timeout=30.0)
+            conn.row_factory = sqlite3.Row
+            try:
+                conn.execute("PRAGMA foreign_keys=ON")
+                conn.execute("PRAGMA busy_timeout=5000")
+                conn.execute("BEGIN IMMEDIATE")
+                yield conn
+                conn.commit()
+            except Exception:
+                conn.rollback()
+                raise
+            finally:
+                conn.close()
 
     def claim_legacy_provider(
         self, billing_account_id: str, owner_user_id: str, actor_user_id: str, reason: str,

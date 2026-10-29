@@ -414,18 +414,7 @@ class PriceCollector:
         if not self._store:
             return
         try:
-            conn = self._store._conn
-            for entry in self._cache.values():
-                conn.execute(
-                    """INSERT INTO reference_prices
-                       (source, model_id, display_name, family, family_key,
-                        input_per_mtok, output_per_mtok, cache_per_mtok, context_length, fetched_at)
-                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                    (entry.source, entry.model_id, entry.display_name, entry.family,
-                     entry.family_key, entry.input_per_mtok, entry.output_per_mtok,
-                     entry.cache_per_mtok, entry.context_length, entry.fetched_at),
-                )
-            conn.commit()
+            self._store.save_reference_prices(list(self._cache.values()))
             logger.info(f"Persisted {len(self._cache)} reference prices to SQLite")
         except Exception as e:
             logger.error(f"Failed to persist reference prices: {e}")
@@ -436,10 +425,7 @@ class PriceCollector:
             return
         try:
             cutoff = time.time() - (PRUNE_DAYS * 86400)
-            self._store._conn.execute(
-                "DELETE FROM reference_prices WHERE fetched_at < ?", (cutoff,)
-            )
-            self._store._conn.commit()
+            self._store.prune_reference_prices(cutoff)
         except Exception as e:
             logger.warning(f"Failed to prune old reference prices: {e}")
 
