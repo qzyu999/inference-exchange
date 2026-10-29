@@ -25,9 +25,8 @@ MUST: A non-admin IE user can manage only the user's own self-service provider c
 MUST NOT: An owner-scoped endpoint give a user access to another owner's credentials or to global administrative token management.
 
 - Principle: P6
-- Status: partial
-- Verified by: tests/test_access_control.py::TestKeysAndAdmin::test_non_admin_user_gets_403, tests/test_access_control.py::TestProdMode::test_admin_endpoints_need_admin_even_with_no_users
-- Issue: #159
+- Status: implemented
+- Verified by: tests/test_access_control.py::TestKeysAndAdmin::test_non_admin_user_gets_403, tests/test_access_control.py::TestProdMode::test_admin_endpoints_need_admin_even_with_no_users, tests/test_provider_self_enrollment.py::test_owner_scoped_credential_revocation_and_disconnect
 
 ### PROV-004: Trust levels come from evidence
 
@@ -103,7 +102,7 @@ MUST: The coordinator validates the token before it reads the registration messa
 
 MUST NOT: The coordinator or the agents write a raw provider token to a log.
 
-Note: For migration, the coordinator also accepts `?token=` and logs a warning without the token. `IE_PROVIDER_URL_TOKEN=0` turns off this fallback. Header authentication does not verify trust levels (PROV-004).
+Note: For migration, the coordinator also accepts `?token=` for legacy administrator-issued credentials and logs a warning without the token. New PROV-018 self-service credentials require the Authorization header. `IE_PROVIDER_URL_TOKEN=0` turns off the fallback. Header authentication does not verify trust levels (PROV-004).
 
 - Principle: P6
 - Status: implemented
@@ -208,6 +207,5 @@ MUST: Existing administrative credentials, claimed legacy nodes, billing princip
 MUST: Each new self-service credential uses the WebSocket Authorization header. The existing legacy URL-token compatibility behavior does not grant URL-token authentication to new self-service credentials.
 
 - Principle: P2, P3, P6, P7, P9
-- Status: partial
-- Verified by: tests/test_provider_self_enrollment.py::test_non_admin_enrollment_and_exact_earnings, tests/test_provider_self_enrollment.py::test_enrollment_guards_and_cap, tests/test_provider_self_enrollment.py::test_competing_enrollments_are_atomic
-- Issue: #159
+- Status: implemented
+- Verified by: tests/test_provider_self_enrollment.py::test_non_admin_enrollment_and_exact_earnings, tests/test_provider_self_enrollment.py::test_enrollment_guards_and_cap, tests/test_provider_self_enrollment.py::test_competing_enrollments_are_atomic, tests/test_provider_self_enrollment.py::test_owner_scoped_credential_revocation_and_disconnect, tests/test_provider_self_enrollment.py::test_self_service_url_token_denied, tests/test_provider_self_enrollment.py::test_reissue_cap_and_rate_limit, tests/test_provider_self_enrollment.py::test_rollback_on_failed_write

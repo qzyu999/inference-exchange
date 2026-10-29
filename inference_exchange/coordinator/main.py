@@ -369,6 +369,7 @@ def create_app() -> FastAPI:
         # on the upgrade request. Migration fallback: ?token= for old agents,
         # unless IE_PROVIDER_URL_TOKEN=0. Never log the raw token or URL.
         token = ""
+        used_legacy_url_token = False
         auth_header = ws.headers.get("authorization", "")
         if auth_header[:7].lower() == "bearer ":
             token = auth_header[7:].strip()
@@ -377,6 +378,7 @@ def create_app() -> FastAPI:
                 await ws.close(code=4003, reason="Provider token in URL is disabled. Send Authorization: Bearer")
                 return
             token = ws.query_params.get("token", "")
+            used_legacy_url_token = True
             logger.warning(
                 "Provider used the deprecated ?token= URL credential. "
                 "Upgrade the agent to send Authorization: Bearer (#125)."
@@ -386,6 +388,9 @@ def create_app() -> FastAPI:
             token_info = store.validate_provider_token(token)
             if not token_info:
                 await ws.close(code=4003, reason="Invalid provider token")
+                return
+            if used_legacy_url_token and token_info.get("issuance_source") == "self_service":
+                await ws.close(code=4003, reason="Self-service provider credentials require Authorization header")
                 return
             token_id = token_info["token_id"]
             if token_info.get("node_id"):
@@ -427,6 +432,11 @@ def create_app() -> FastAPI:
                 reg = parse_provider_registration(raw)
             except RegistrationRejected:
                 await ws.close(code=4002, reason="Invalid provider registration")
+                return
+            # Close the interval between handshake validation and hub registration.
+            # Revoked/suspended credentials cannot become newly routable providers.
+            if token and not store.provider_credential_is_active(token_info["token_hash"], token_id):
+                await ws.close(code=4003, reason="Provider credential no longer active")
                 return
             provider_id = hub.register_provider(ws, reg)
             registration_guard.finish()
