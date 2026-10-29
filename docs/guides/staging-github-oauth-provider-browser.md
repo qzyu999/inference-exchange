@@ -1,6 +1,12 @@
 # Isolated GitHub OAuth provider browser staging (#179)
 
-**Status: procedure only. Real GitHub browser login and second-user hardware checks are pending.** This does not qualify independent provider onboarding under #160/#9.
+**Status (2026-10-29): the isolated M6 loopback test passed with two real GitHub identities.** This guide remains a reproducible staging procedure, not qualification of an independent provider under #160/#9.
+
+## Verified scope and remaining checks
+
+Operator-reported acceptance using revision `b55e17a` (before this documentation update): real GitHub OAuth, two separate account sessions, owner-private nodes and earnings, self-service L0/Open token issuance, Qwen2.5 0.5B inference on isolated port `10000`, integer microUSD settlement `100 = 90 + 10`, live credential revocation, terminal agent exit `78`, native server cleanup, and rejected reconnect (`4003`). Logout returned `401`; the original M6 inference server on `9999` stayed healthy. Isolated staging services were stopped after testing. These are observed hardware results, not automated CI assertions.
+
+**Still unverified:** independent third-party Mac/network, HTTPS/WSS public ingress, signup-disabled *new-user* browser path, foreign-owner credential DELETE, duplicate/invalid-profile browser path, CSRF failure/recovery, temporary coordinator outage/reconnect, and launchd supervisor behavior. Do not repeat already passed hardware tests just because this guide was updated. Keep `IE_SIGNUP_DISABLED=1` and `IE_PROVIDER_SELF_ENROLL_ENABLED=0` when staging is restarted by default.
 
 ## Safety preflight
 
