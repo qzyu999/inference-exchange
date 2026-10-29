@@ -53,6 +53,7 @@ jobs:
       - run: node src/lib/nav.test.mjs
       - run: node src/lib/settings-nav.test.mjs
       - run: node src/lib/provider-dashboard.test.mjs
+      - run: node src/lib/provider-navigation.test.mjs
       - run: node src/lib/provider-enrollment.test.mjs
       - run: node src/lib/provider-setup-guide.test.mjs
       - run: node src/lib/key-creation.test.mjs

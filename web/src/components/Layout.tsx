@@ -3,7 +3,7 @@ import { Link, Outlet, useLocation } from 'react-router-dom'
 import { useCoordinatorStatus, useWebSocket } from '../lib/useWebSocket'
 import { useAuth } from '../lib/auth'
 import { loginHref } from '../lib/nav.js'
-import { canShowAdminConsole } from '../lib/role-nav.js'
+import { canShowAdminConsole, canShowProviderDashboard } from '../lib/role-nav.js'
 import { C, TRUST_COLORS, GRADIENTS } from '../lib/theme'
 import { ErrorBoundary } from './ErrorBoundary'
 import { MineralAurora, NetworkHeartbeat, useNetworkPulses } from './MineralAurora'
@@ -21,6 +21,7 @@ const PRIMARY_NAV = [
 ]
 
 const ACCOUNT_NAV = [
+  { path: '/dashboard', label: 'Provider Dashboard', icon: OverviewIcon },
   { path: '/billing', label: 'Billing', icon: BillingIcon },
   { path: '/keys', label: 'API keys', icon: KeysIcon },
   { path: '/docs', label: 'Docs', icon: DocsIcon },
@@ -208,7 +209,7 @@ export function Layout() {
         </div>
       </div>
       <nav className="px-3 space-y-0.5">
-        {ACCOUNT_NAV.map(item => (
+        {ACCOUNT_NAV.filter(item => item.path !== '/dashboard' || canShowProviderDashboard(user)).map(item => (
           <NavItem
             key={item.path}
             {...item}
