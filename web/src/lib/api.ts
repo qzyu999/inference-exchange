@@ -41,6 +41,22 @@ export interface OwnedProviderNode {
   claimed_trust_level: string | null
   verified_trust_level: string | null
   created_at: number
+  price_input_per_mtok?: number | null
+  price_output_per_mtok?: number | null
+  max_concurrent?: number | null
+  last_heartbeat?: number | null
+}
+
+export interface OwnedProviderEarningsByNode {
+  node_id: string
+  name: string
+  earned_micro: number
+  ledger_earned_micro: number
+  today_earned_micro: number
+  cost_micro: number
+  platform_fee_micro: number
+  requests_served: number
+  reconciled: boolean
 }
 
 export interface ProviderEarningsSummary {
@@ -178,7 +194,7 @@ export const api = {
   health: () => get<HealthResponse>('/health?include_key=1'),
   me: () => get<Balance>('/v1/auth/me'),
   ownedProviderNodes: () => get<{ nodes: OwnedProviderNode[]; simulated_credits: boolean }>('/v1/provider/nodes'),
-  ownedProviderEarnings: () => get<{ summary: ProviderEarningsSummary; simulated_credits: boolean; unit: 'micro_usd' }>('/v1/provider/earnings'),
+  ownedProviderEarnings: () => get<{ summary: ProviderEarningsSummary; by_node: OwnedProviderEarningsByNode[]; simulated_credits: boolean; unit: 'micro_usd' }>('/v1/provider/earnings'),
   billingConfig: () => get<{ minimum_charge_usd: number; minimum_charge_micro: number; platform_fee_percent: number; simulated_credits: boolean; allow_balance_reset: boolean }>('/v1/exchange/billing-config'),
   stats: () => get<ExchangeStats>('/v1/exchange/stats'),
   providers: () => get<{ providers: Provider[] }>('/v1/exchange/providers'),

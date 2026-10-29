@@ -1,143 +1,130 @@
 import { Link } from 'react-router-dom'
+import useSWR from 'swr'
+import { useAuth } from '../lib/auth'
+import { api } from '../lib/api'
+import { loginHref } from '../lib/nav.js'
+import { formatUsdPrecise, microToUsd } from '../lib/money.js'
 import { C } from '../lib/theme'
 
+/**
+ * Read-only owner dashboard. All data comes from authenticated, owner-scoped
+ * coordinator APIs (PRIV-009, BILL-011). Never render synthetic earnings,
+ * attestation, utilization, ranking, or credential material.
+ */
 export function ProviderDashboard() {
-  // Stub: this page needs backend endpoints for provider-specific data
-  // See GitHub issue for requirements
+  const { user, loading } = useAuth()
+  // Account-specific cache keys prevent one browser user's prior provider data
+  // from being rendered for another account after sign-out or account switch.
+  const { data: nodes, error: nodeError } = useSWR(
+    user ? ['dashboard/provider-nodes', user.user_id] : null,
+    api.ownedProviderNodes,
+  )
+  const { data: earnings, error: earningsError } = useSWR(
+    user ? ['dashboard/provider-earnings', user.user_id] : null,
+    api.ownedProviderEarnings,
+  )
+
+  if (loading) return <p role="status" className="text-sm text-gray-500">Loading your account…</p>
+  if (!user) {
+    return (
+      <section className="max-w-xl rounded-2xl border bg-white p-6 space-y-3">
+        <h2 className="font-semibold text-lg" style={{ color: C.blueBlack }}>Your provider dashboard</h2>
+        <p className="text-sm text-gray-600">
+          Sign in with your IE GitHub account to see only the provider nodes and simulated earnings that belong to you.
+        </p>
+        <Link to={loginHref('/dashboard')} className="inline-block underline text-sm" style={{ color: C.gold }}>
+          Sign in with GitHub
+        </Link>
+      </section>
+    )
+  }
+
+  const list = nodes?.nodes ?? []
+  const summary = earnings?.summary
+  const byNode = new Map((earnings?.by_node ?? []).map(entry => [entry.node_id, entry]))
 
   return (
-    <div className="space-y-6">
-      {/* Stat cards (stub data) */}
-      <div className="flex items-center gap-4 flex-wrap">
-        <div className="flex-1 grid grid-cols-2 lg:grid-cols-4 gap-3">
-          {[
-            { label: 'estimated earnings', value: '$—', color: C.gold },
-            { label: 'market median', value: '$—', color: C.blueBlack },
-            { label: 'utilization', value: '—%', color: C.blueBlack },
-            { label: 'requests served', value: '—', color: C.blueBlack },
-          ].map(s => (
-            <div key={s.label} className="bg-white rounded-2xl border border-gray-200/40 px-5 py-4">
-              <div className="text-[10px] uppercase tracking-wider font-medium mb-0.5" style={{ color: C.gold }}>Today</div>
-              <div className="text-2xl font-bold tracking-tight" style={{ color: s.color }}>{s.value}</div>
-              <div className="text-[11px] mt-0.5" style={{ color: '#999' }}>{s.label}</div>
-            </div>
-          ))}
+    <div className="max-w-5xl space-y-5">
+      <section className="bg-white rounded-2xl border border-gray-200/60 p-6 space-y-3">
+        <div className="flex flex-wrap justify-between items-center gap-3">
+          <h2 className="font-semibold text-lg" style={{ color: C.blueBlack }}>Your provider activity</h2>
+          <Link to="/provide" className="text-sm underline" style={{ color: C.gold }}>
+            Provider setup and requirements
+          </Link>
         </div>
-        <button
-          className="px-5 py-3 rounded-xl text-sm font-medium shrink-0 transition-colors"
-          style={{ background: C.blueBlack, color: '#fff' }}
-        >
-          Add machine
-        </button>
-      </div>
-
-      {/* Two-column: Your Offer + Trust & Visibility */}
-      <div className="flex gap-5 flex-col lg:flex-row">
-        {/* Your Offer */}
-        <div className="flex-1 bg-white rounded-2xl border border-gray-200/40 p-6">
-          <div className="text-[10px] uppercase tracking-wider font-medium mb-1" style={{ color: C.gold }}>
-            Your Offer
-          </div>
-
-          <h2 className="text-lg font-bold mt-2" style={{ color: C.blueBlack }}>
-            Mac Studio · M2 Max
-          </h2>
-          <span className="inline-block text-[11px] font-medium px-2.5 py-1 rounded-full mt-2" style={{ background: '#edf7f1', color: C.green }}>
-            Online
-          </span>
-
-          <div className="text-xs mt-4" style={{ color: '#999' }}>
-            96 GB unified memory · Qwen 3.5 35B A3B
-          </div>
-
-          {/* Pricing */}
-          <div className="mt-4 flex items-baseline gap-2">
-            <span className="text-sm font-mono" style={{ color: '#999' }}>Q4_K_M</span>
-            <span className="text-sm font-semibold" style={{ color: C.gold }}>$0.09 / M output</span>
-          </div>
-
-          {/* Market position */}
-          <div className="mt-4 grid grid-cols-2 gap-4">
-            <div>
-              <div className="text-xs" style={{ color: '#888' }}>Current market range</div>
-              <div className="text-base font-bold mt-0.5" style={{ color: C.blueBlack }}>$0.07 — $0.15</div>
-            </div>
-            <div>
-              <div className="text-xs" style={{ color: '#888' }}>Your position</div>
-              <div className="text-base font-bold mt-0.5" style={{ color: C.blueBlack }}>$0.09 · 2nd cheapest</div>
-            </div>
-          </div>
-
-          {/* Estimated earnings */}
-          <div className="mt-5 pt-4" style={{ borderTop: '1px solid #e5e5e3' }}>
-            <div className="text-xs" style={{ color: '#888' }}>Estimated earnings</div>
-            <div className="text-2xl font-bold mt-0.5" style={{ color: C.blueBlack }}>$2.10 today</div>
-            <div className="text-xs" style={{ color: '#999' }}>Based on recent utilization and market depth.</div>
-          </div>
-
-          <div className="flex gap-2 mt-5">
-            <button className="px-4 py-2 rounded-xl text-sm font-medium border" style={{ color: C.blueBlack, borderColor: '#ddd' }}>
-              Edit offer
-            </button>
-            <button className="px-4 py-2 rounded-xl text-sm font-medium border" style={{ color: '#888', borderColor: '#ddd' }}>
-              Pause
-            </button>
-          </div>
-        </div>
-
-        {/* Trust & Visibility */}
-        <div className="w-full lg:w-64 shrink-0 bg-white rounded-2xl border border-gray-200/40 p-6">
-          <div className="text-[10px] uppercase tracking-wider font-medium mb-1" style={{ color: C.gold }}>
-            Trust & Visibility
-          </div>
-
-          <div className="space-y-4 mt-4">
-            {[
-              { label: 'Binary', value: 'Published hash', status: 'Verified' },
-              { label: 'Runtime', value: 'Hardened agent', status: 'Verified' },
-              { label: 'Success', value: '99.2% / 500 requests', status: 'Observed' },
-              { label: 'Attestation', value: '3 minutes ago', status: 'Fresh' },
-            ].map(item => (
-              <div key={item.label} className="flex items-center justify-between">
-                <div>
-                  <div className="text-xs" style={{ color: '#888' }}>{item.label}</div>
-                  <div className="text-sm font-medium mt-0.5" style={{ color: C.blueBlack }}>{item.value}</div>
+        <p className="text-xs text-gray-500">
+          Every amount below is in simulated credits. There are no real payouts or withdrawals.
+        </p>
+        {nodeError || earningsError ? (
+          <p role="alert" className="text-sm text-red-700">
+            Provider information is unavailable. Your previous values are not shown. Try again later.
+          </p>
+        ) : !nodes || !earnings ? (
+          <p role="status" className="text-sm text-gray-500">Loading live node and earnings data…</p>
+        ) : (
+          <>
+            <dl className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+              {[
+                { label: 'Total earned (simulated)', value: formatUsdPrecise(microToUsd(summary?.earned_micro ?? 0)) },
+                { label: 'Earned today (UTC)', value: formatUsdPrecise(microToUsd(summary?.today_earned_micro ?? 0)) },
+                { label: 'Requests served', value: String(summary?.requests_served ?? 0) },
+                { label: 'Ledger check', value: summary?.reconciled ? 'Matched' : 'Needs review' },
+              ].map(item => (
+                <div key={item.label} className="rounded-xl border border-gray-100 p-4">
+                  <dt className="text-xs text-gray-500">{item.label}</dt>
+                  <dd className="mt-1 text-lg font-semibold break-words" style={{ color: C.blueBlack }}>{item.value}</dd>
                 </div>
-                <span
-                  className="text-[10px] font-medium px-2.5 py-1 rounded-full shrink-0"
-                  style={{ background: '#edf7f1', color: C.green }}
-                >
-                  {item.status}
-                </span>
+              ))}
+            </dl>
+            {!summary?.reconciled && (
+              <p role="alert" className="text-sm text-red-700">
+                Recorded account earnings do not reconcile with the transaction ledger.
+              </p>
+            )}
+            {list.length === 0 ? (
+              <div className="rounded-xl bg-gray-50 p-4 text-sm text-gray-600">
+                No provider nodes belong to this account. <Link className="underline" to="/provide">See provider requirements</Link>.
               </div>
-            ))}
-          </div>
-
-          <div className="mt-6 pt-4" style={{ borderTop: '1px solid #e5e5e3' }}>
-            <div className="text-[10px] uppercase tracking-wider font-medium mb-2" style={{ color: C.gold }}>
-              Public Provider Profile
-            </div>
-            <div className="text-xs" style={{ color: '#888' }}>
-              Users see price, hardware, trust and observed performance.
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Stub notice */}
-      <div className="rounded-2xl border px-5 py-4 flex items-center gap-3" style={{ background: '#fdf6ec', borderColor: 'rgba(196,154,69,0.15)' }}>
-        <span className="text-sm" style={{ color: C.gold }}>⚠</span>
-        <div>
-          <div className="text-sm font-medium" style={{ color: C.blueBlack }}>This page shows placeholder data</div>
-          <div className="text-xs" style={{ color: '#888' }}>
-            Provider-specific earnings, utilization, and market position require backend endpoints that don't exist yet.
-            See the linked GitHub issue for requirements.
-          </div>
-        </div>
-        <Link to="/providers" className="text-xs font-medium shrink-0 ml-auto" style={{ color: C.gold }}>
-          View public providers
-        </Link>
-      </div>
+            ) : (
+              <ul className="space-y-3">
+                {list.map(node => {
+                  const credited = byNode.get(node.node_id)
+                  return (
+                    <li key={node.node_id} className="rounded-xl border border-gray-200 p-4 space-y-3">
+                      <div className="flex flex-wrap gap-2 items-start justify-between">
+                        <div>
+                          <h3 className="font-semibold" style={{ color: C.blueBlack }}>{node.name}</h3>
+                          <p className="text-xs text-gray-500 font-mono break-all">{node.node_id}</p>
+                        </div>
+                        <span className="text-xs text-gray-600 capitalize">
+                          {node.status} · {node.active_connections} active connections
+                        </span>
+                      </div>
+                      <dl className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3 text-sm">
+                        <div><dt className="text-xs text-gray-500">Models observed online</dt>
+                          <dd>{node.models.length ? node.models.join(', ') : 'No model currently online'}</dd></div>
+                        <div><dt className="text-xs text-gray-500">Hardware declaration</dt>
+                          <dd>{node.hardware_claim || 'Not reported'}</dd></div>
+                        <div><dt className="text-xs text-gray-500">Trust</dt>
+                          <dd>Claimed: {node.claimed_trust_level || 'Not reported'} · Verified: {node.verified_trust_level || 'Not verified'}</dd></div>
+                        <div><dt className="text-xs text-gray-500">Output ask</dt>
+                          <dd>{typeof node.price_output_per_mtok === 'number' ? '$' + node.price_output_per_mtok.toString() + ' / 1M tokens' : 'Not currently advertised'}</dd></div>
+                        <div><dt className="text-xs text-gray-500">Earned (simulated)</dt>
+                          <dd>{credited ? formatUsdPrecise(microToUsd(credited.earned_micro)) : 'Unavailable'}</dd></div>
+                        <div><dt className="text-xs text-gray-500">Requests served</dt>
+                          <dd>{credited ? credited.requests_served : 'Unavailable'}</dd></div>
+                      </dl>
+                      {credited && !credited.reconciled && (
+                        <p role="alert" className="text-xs text-red-700">This node has a ledger mismatch.</p>
+                      )}
+                    </li>
+                  )
+                })}
+              </ul>
+            )}
+          </>
+        )}
+      </section>
     </div>
   )
 }
