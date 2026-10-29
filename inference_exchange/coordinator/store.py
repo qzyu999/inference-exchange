@@ -16,6 +16,7 @@ import sqlite3
 import threading
 import time
 from contextlib import contextmanager
+from functools import wraps
 from pathlib import Path
 
 from inference_exchange.config import MODELS_DIR
@@ -181,6 +182,20 @@ class ProviderNodesExist(Exception):
     """Do not delete a user while their provider nodes own billing history."""
 
 
+def serialized_write(method):
+    """Guard an entire Store operation and commit it once after success.
+
+    Used for shared-connection writer methods. Do not call conn.commit() in
+    decorated methods, because that would defeat rollback of earlier writes.
+    """
+    @wraps(method)
+    def guarded(self, *args, **kwargs):
+        with self._lock, self._conn:
+            return method(self, *args, **kwargs)
+
+    return guarded
+
+
 class Store:
     """SQLite-backed persistent store for the exchange."""
 
@@ -326,6 +341,7 @@ class Store:
         with self._lock, self._conn:
             self._ensure_account_in_transaction(account_id, name)
 
+    @serialized_write
     def _ensure_default_key(self) -> str:
         """Ensure a default key exists, return it."""
         # Check if we have one stored
@@ -348,7 +364,6 @@ class Store:
             "INSERT INTO api_keys (key_hash, key_id, consumer_id, name, created_at) VALUES (?, ?, ?, ?, ?)",
             (key_hash, key_id, "default-consumer", "Default Key", time.time()),
         )
-        self._conn.commit()
         logger.info(f"Default API key: {raw[:8]}...")
         return raw
 
@@ -358,6 +373,7 @@ class Store:
 
     # --- Auth ---
 
+    @serialized_write
     def create_api_key(self, name: str = "API Key") -> tuple[str, str]:
         """Create a new API key. Returns (raw_key, consumer_id)."""
         consumer_id = f"consumer-{secrets.token_hex(4)}"
@@ -375,10 +391,10 @@ class Store:
             "INSERT INTO api_keys (key_hash, key_id, consumer_id, name, created_at) VALUES (?, ?, ?, ?, ?)",
             (key_hash, key_id, consumer_id, name, time.time()),
         )
-        self._conn.commit()
         logger.info(f"API key created: {raw[:12]}... → {consumer_id}")
         return raw, consumer_id
 
+    @serialized_write
     def validate_key(self, raw_key: str) -> dict | None:
         """Validate key, return metadata or None."""
         if not raw_key or not raw_key.startswith(KEY_PREFIX):
@@ -392,7 +408,6 @@ class Store:
                 "UPDATE api_keys SET last_used_at = ?, requests_made = requests_made + 1 WHERE key_hash = ?",
                 (time.time(), key_hash),
             )
-            self._conn.commit()
             return dict(row)
         return None
 
@@ -554,6 +569,7 @@ class Store:
 
     # --- Provider History ---
 
+    @serialized_write
     def log_provider_connect(
         self, provider_id: str, name: str, hardware: str, trust_level: str,
         price_output: float, measured_tps: float, *,
@@ -567,8 +583,8 @@ class Store:
             (provider_id, provider_account_id or None, session_id or None,
              name, hardware, trust_level, price_output, measured_tps, time.time()),
         )
-        self._conn.commit()
 
+    @serialized_write
     def log_provider_disconnect(self, provider_id: str, *, session_id: str = ""):
         # New connections use a globally unique session ID so an ID reused
         # after coordinator restart cannot close unrelated history rows.
@@ -582,7 +598,6 @@ class Store:
                 "UPDATE provider_history SET disconnected_at = ? WHERE provider_id = ? AND disconnected_at IS NULL",
                 (time.time(), provider_id),
             )
-        self._conn.commit()
 
     # --- Provider tokens ---
 
@@ -961,6 +976,7 @@ class Store:
             row["suspended_until"] is None or row["suspended_until"] <= time.time()
         ))
 
+    @serialized_write
     def create_provider_token(self, name: str = "Provider") -> str:
         """Create a provider auth token. Returns the raw token (shown once)."""
         raw = self.PROVIDER_TOKEN_PREFIX + secrets.token_hex(16)
@@ -975,10 +991,10 @@ class Store:
                 VALUES (?, ?, ?, ?, ?)""",
             (token_hash, token_id, name, billing_account_id, time.time()),
         )
-        self._conn.commit()
         logger.info("Administrative provider credential created: %s", token_id)
         return raw
 
+    @serialized_write
     def validate_provider_token(self, raw_token: str) -> dict | None:
         """Validate a provider token. Returns metadata or None."""
         if not raw_token or not raw_token.startswith(self.PROVIDER_TOKEN_PREFIX):
@@ -992,7 +1008,6 @@ class Store:
                 "UPDATE provider_tokens SET last_used_at = ?, connections = connections + 1 WHERE token_hash = ?",
                 (time.time(), token_hash),
             )
-            self._conn.commit()
             return dict(row)
         return None
 
@@ -1002,12 +1017,12 @@ class Store:
         ).fetchall()
         return [dict(r) for r in rows]
 
+    @serialized_write
     def revoke_provider_token(self, token_id: str) -> bool:
         cur = self._conn.execute(
             "UPDATE provider_tokens SET revoked_at = ? WHERE token_id = ? AND revoked_at IS NULL",
             (time.time(), token_id),
         )
-        self._conn.commit()
         if cur.rowcount:
             logger.warning(f"Provider token revoked: {token_id}")
         return cur.rowcount > 0
@@ -1015,6 +1030,7 @@ class Store:
 
     # --- User accounts ---
 
+    @serialized_write
     def create_user(self, email: str, password: str, name: str = "") -> dict:
         """Create a user with email/password. Returns user dict.
 
@@ -1052,7 +1068,6 @@ class Store:
             "INSERT INTO api_keys (key_hash, key_id, consumer_id, name, created_at) VALUES (?, ?, ?, ?, ?)",
             (key_hash, key_id, consumer_id, "Default Key", time.time()),
         )
-        self._conn.commit()
 
         logger.info(f"User created: {email} -> {user_id}")
         return {
@@ -1062,6 +1077,7 @@ class Store:
             "api_key": raw_key,
         }
 
+    @serialized_write
     def authenticate_user(self, email: str, password: str) -> dict | None:
         """Authenticate by email + password. Returns user dict or None."""
         import hashlib as _h
@@ -1085,7 +1101,6 @@ class Store:
             "UPDATE users SET last_login_at = ? WHERE user_id = ?",
             (time.time(), row["user_id"]),
         )
-        self._conn.commit()
 
         return {
             "user_id": row["user_id"],
@@ -1095,13 +1110,13 @@ class Store:
             "session_version": row["session_version"],
         }
 
+    @serialized_write
     def upsert_github_user(self, github_id: str, login: str, email: str, name: str) -> tuple[dict, bool]:
         """Find or create the user for a GitHub identity. Returns (user, created)."""
         row = self._conn.execute("SELECT * FROM users WHERE github_id = ?", (github_id,)).fetchone()
         now = time.time()
         if row:
             self._conn.execute("UPDATE users SET last_login_at = ? WHERE user_id = ?", (now, row["user_id"]))
-            self._conn.commit()
             return {k: row[k] for k in ("user_id", "email", "name", "role", "session_version")}, False
 
         user_id = f"user-{secrets.token_hex(4)}"
@@ -1119,7 +1134,6 @@ class Store:
             "INSERT INTO accounts (account_id, name, balance_micro, created_at) VALUES (?, ?, ?, ?)",
             (user_id, name, 10 * MICRO_PER_DOLLAR, now),
         )
-        self._conn.commit()
         logger.info(f"GitHub user created: {login} -> {user_id}")
         return {"user_id": user_id, "email": email, "name": name, "role": "consumer", "session_version": 0}, True
 
@@ -1130,17 +1144,17 @@ class Store:
         row = self._conn.execute("SELECT session_version FROM users WHERE user_id = ?", (user_id,)).fetchone()
         return row["session_version"] if row else None
 
+    @serialized_write
     def bump_session_version(self, user_id: str) -> None:
         """Invalidate every session issued to this user."""
         self._conn.execute("UPDATE users SET session_version = session_version + 1 WHERE user_id = ?", (user_id,))
-        self._conn.commit()
 
+    @serialized_write
     def revoke_api_key(self, user_id: str, key_id: str) -> bool:
         cur = self._conn.execute(
             "UPDATE api_keys SET revoked_at = ? WHERE consumer_id = ? AND key_id = ? AND revoked_at IS NULL",
             (time.time(), user_id, key_id),
         )
-        self._conn.commit()
         return cur.rowcount > 0
 
     def delete_user(self, user_id: str) -> None:
@@ -1159,6 +1173,7 @@ class Store:
     # suspended_until at or above this value means a permanent ban
     PERMANENT_SUSPENSION = 1e18
 
+    @serialized_write
     def suspend_user(self, user_id: str, reason: str, actor: str, duration_seconds: float | None) -> dict | None:
         """Suspend a user. duration_seconds=None is a permanent ban. Ends all sessions."""
         if not self.get_user(user_id):
@@ -1173,10 +1188,10 @@ class Store:
             "INSERT INTO account_actions (user_id, action, reason, suspended_until, actor, timestamp) VALUES (?, ?, ?, ?, ?, ?)",
             (user_id, "ban" if duration_seconds is None else "suspend", reason, until, actor, now),
         )
-        self._conn.commit()
         logger.info(f"Account {user_id} suspended by {actor}")
         return self.get_suspension(user_id)
 
+    @serialized_write
     def unsuspend_user(self, user_id: str, reason: str, actor: str) -> bool:
         cur = self._conn.execute(
             "UPDATE users SET suspended_until = NULL, suspension_reason = '' WHERE user_id = ?", (user_id,),
@@ -1187,7 +1202,6 @@ class Store:
             "INSERT INTO account_actions (user_id, action, reason, actor, timestamp) VALUES (?, 'unsuspend', ?, ?, ?)",
             (user_id, reason, actor, time.time()),
         )
-        self._conn.commit()
         logger.info(f"Account {user_id} unsuspended by {actor}")
         return True
 
@@ -1260,6 +1274,7 @@ class Store:
         ).fetchall()
         return [dict(r) for r in rows]
 
+    @serialized_write
     def create_api_key_for_user(self, user_id: str, name: str = "API Key") -> str:
         """Create a new API key tied to an existing user's account. Returns raw key."""
         raw = KEY_PREFIX + secrets.token_hex(16)
@@ -1269,5 +1284,4 @@ class Store:
             "INSERT INTO api_keys (key_hash, key_id, consumer_id, name, created_at) VALUES (?, ?, ?, ?, ?)",
             (key_hash, key_id, user_id, name, time.time()),
         )
-        self._conn.commit()
         return raw
