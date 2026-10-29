@@ -51,6 +51,34 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+# WebSocket 4003 is also used for operator disconnects. Only these explicit
+# coordinator authentication failures are terminal for the agent; other
+# closures (including an operator kick) retain the reconnect behavior.
+_PERMANENT_AUTH_REASONS = frozenset({
+    "Invalid provider token",
+    "Provider token required. Create one via POST /v1/admin/provider-tokens",
+    "Provider token in URL is disabled. Send Authorization: Bearer",
+    "Self-service provider credentials require Authorization header",
+    "Provider owner unavailable",
+    "Provider credential no longer active",
+    "Provider credential revoked",
+    "Provider token revoked",
+})
+
+
+class PermanentProviderRejection(RuntimeError):
+    """The coordinator rejected this credential; retrying cannot fix it."""
+
+
+def is_permanent_auth_rejection(exc: websockets.ConnectionClosed) -> bool:
+    """Classify only known, explicit 4003 auth reasons as terminal.
+
+    Do not include a server-provided close reason in logs: it is untrusted
+    and might accidentally contain credentials.
+    """
+    return exc.code == 4003 and exc.reason in _PERMANENT_AUTH_REASONS
+
+
 class InferenceServerManager:
     """Manages the OCIP inference server as a child process.
 
@@ -327,30 +355,37 @@ class OCIPAgent:
     async def run(self):
         """Main entrypoint: start server, connect to coordinator, handle requests."""
         self._running = True
-
-        # Start the inference server
+        health_task = None
         try:
-            await self._server.start()
-        except RuntimeError as e:
-            logger.error(f"Failed to start inference server: {e}")
-            return
+            # Always clean up even when model startup fails or auth is denied.
+            try:
+                await self._server.start()
+            except RuntimeError as e:
+                logger.error("Failed to start inference server: %s", e)
+                return
 
-        # Start health monitor in background
-        health_task = asyncio.create_task(self._health_monitor())
+            health_task = asyncio.create_task(self._health_monitor())
 
-        # Connect to coordinator (with reconnection)
-        try:
             while self._running:
                 try:
                     await self._connect_and_serve()
-                except (websockets.ConnectionClosed, ConnectionRefusedError, OSError) as e:
-                    logger.warning(f"Coordinator connection lost: {e}. Reconnecting in 5s...")
+                except websockets.ConnectionClosed as e:
+                    if is_permanent_auth_rejection(e):
+                        logger.error("Coordinator permanently rejected provider authentication (4003); exiting")
+                        raise PermanentProviderRejection("Provider authorization rejected") from None
+                    logger.warning("Coordinator connection lost: %s. Reconnecting in 5s...", redact(str(e)))
+                    await asyncio.sleep(5)
+                except (ConnectionRefusedError, OSError) as e:
+                    logger.warning("Coordinator unavailable: %s. Reconnecting in 5s...", redact(str(e)))
                     await asyncio.sleep(5)
                 except Exception as e:
-                    logger.error(f"Unexpected error: {e}. Reconnecting in 10s...")
+                    logger.error("Unexpected error: %s. Reconnecting in 10s...", redact(str(e)))
                     await asyncio.sleep(10)
         finally:
-            health_task.cancel()
+            self._running = False
+            if health_task is not None:
+                health_task.cancel()
+                await asyncio.gather(health_task, return_exceptions=True)
             self._server.stop()
 
     async def _health_monitor(self):
@@ -699,6 +734,11 @@ def main():
         asyncio.run(agent.run())
     except KeyboardInterrupt:
         logger.info("Shutting down...")
+    except PermanentProviderRejection:
+        # Nonzero exit is actionable for interactive operators. launchd
+        # KeepAlive=True can restart this process; configure service policy
+        # separately before relying on a terminal exit in managed installs.
+        raise SystemExit(78) from None
 
 
 if __name__ == "__main__":
