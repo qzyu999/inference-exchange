@@ -185,10 +185,7 @@ async def get_history(request: Request):
     consumer_id = resolve_private_caller(request)
 
     # Fetch per-user transactions
-    rows = store._conn.execute(
-        "SELECT * FROM transactions WHERE consumer_id = ? ORDER BY timestamp DESC LIMIT 50",
-        (consumer_id,)
-    ).fetchall()
+    rows = store.list_consumer_transactions(consumer_id, limit=50)
 
     return {
         "transactions": [
@@ -469,37 +466,7 @@ async def get_provider_earnings(request: Request):
     store = get_store()
 
     provider_id = request.query_params.get("provider_id", "")
-
-    if provider_id:
-        # Single provider earnings
-        account = store.get_account(provider_id)
-        if not account:
-            return {"provider_id": provider_id, "earnings_usd": 0, "requests_served": 0}
-
-        # Count requests served by this provider
-        row = store._conn.execute(
-            "SELECT COUNT(*) as cnt, COALESCE(SUM(provider_earning_micro), 0) as total FROM transactions WHERE provider_id = ?",
-            (provider_id,)
-        ).fetchone()
-
-        return {
-            "provider_id": provider_id,
-            "earnings_usd": round(row["total"] / 1_000_000, 6),
-            "balance_usd": round(account["balance_micro"] / 1_000_000, 6),
-            "requests_served": row["cnt"],
-        }
-
-    # All providers with earnings
-    rows = store._conn.execute(
-        "SELECT provider_id, COUNT(*) as requests, SUM(provider_earning_micro) as total FROM transactions GROUP BY provider_id ORDER BY total DESC"
-    ).fetchall()
-    return {
-        "providers": [
-            {"provider_id": dict(r)["provider_id"], "earnings_usd": round(dict(r)["total"] / 1_000_000, 6), "requests_served": dict(r)["requests"]}
-            for r in rows
-        ]
-    }
-
+    return store.admin_provider_earnings(provider_id)
 
 @router.get("/v1/exchange/telemetry")
 async def get_telemetry():
@@ -690,13 +657,7 @@ async def get_reference_price_history(family_key: str = "", days: int = 30):
     store = get_store()
     cutoff = time.time() - (days * 86400)
 
-    rows = store._conn.execute(
-        """SELECT source, model_id, display_name, input_per_mtok, output_per_mtok, fetched_at
-           FROM reference_prices
-           WHERE family_key = ? AND fetched_at > ?
-           ORDER BY fetched_at ASC""",
-        (family_key, cutoff),
-    ).fetchall()
+    rows = store.list_reference_price_history(family_key, cutoff)
 
     # Group by date and source — one price per source per day (latest that day)
     from collections import defaultdict
