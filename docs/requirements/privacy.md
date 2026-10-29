@@ -70,7 +70,7 @@ MUST NOT: The coordinator writes prompt or response text to logs.
 
 MUST: A signed-in, non-suspended IE user can view only their owned provider nodes, live status, and provider earnings. An unknown or another owner's node filter returns HTTP 404.
 
-MUST NOT: A consumer API key, provider WebSocket token, or anonymous request grants provider-owner access. A provider-owner response exposes a consumer ID, raw credential, credential hash, request ID, or request content.
+MUST NOT: A consumer API key, provider WebSocket token, or anonymous request grants provider-owner access. A read-only provider-owner response or credential metadata response exposes a consumer ID, raw credential, credential hash, request ID, or request content. Only the successful credential issuance response in PROV-018 may contain a newly created raw credential.
 
 - Principle: P2, P6, P9
 - Status: implemented

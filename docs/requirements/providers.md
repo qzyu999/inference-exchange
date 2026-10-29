@@ -16,13 +16,18 @@ MUST: If one or more provider tokens exist, the coordinator rejects a provider c
 - Status: implemented
 - Verified by: tests/test_access_control.py::TestProviderTokens::test_provider_without_token_rejected_once_tokens_exist
 
-### PROV-003: Only admins create provider tokens
+### PROV-003: Administrative provider credential control
 
-MUST: Only an admin can create or list provider tokens.
+MUST: Only an authenticated IE administrator can create, list, or revoke provider credentials through the global `/v1/admin/provider-tokens` endpoints.
+
+MUST: A non-admin IE user can manage only the user's own self-service provider credentials through the endpoints defined in PROV-018.
+
+MUST NOT: An owner-scoped endpoint give a user access to another owner's credentials or to global administrative token management.
 
 - Principle: P6
-- Status: implemented
+- Status: partial
 - Verified by: tests/test_access_control.py::TestKeysAndAdmin::test_non_admin_user_gets_403, tests/test_access_control.py::TestProdMode::test_admin_endpoints_need_admin_even_with_no_users
+- Issue: #159
 
 ### PROV-004: Trust levels come from evidence
 
@@ -179,3 +184,30 @@ MUST NOT: A claim accept, disclose, or rotate a raw provider credential.
 - Status: implemented
 - Verified by: tests/test_provider_ownership.py::test_claim_denied_for_unauthorized_or_invalid_owner, tests/test_provider_ownership.py::test_competing_claims_are_atomic, tests/test_provider_ownership.py::test_owned_token_suspension_disconnects_and_blocks_reconnect, tests/test_provider_ownership.py::test_unclaimed_legacy_token_still_connects
 - Issue: #150
+
+### PROV-018: Self-service L0 provider enrollment
+
+MUST: When self-service enrollment is enabled, an authenticated, non-suspended IE user with a linked GitHub identity can enroll an Apple Silicon/macOS L0/Open provider without administrator approval.
+
+MUST: The coordinator derives the owner from a valid IE browser or JWT session. It does not accept a client-supplied owner identity. A consumer API key or provider credential cannot authorize enrollment.
+
+MUST: The coordinator creates a unique node ID, stable billing principal, provider credential hash, owner association, and audit record in one atomic database transaction. A failed transaction leaves no partial enrollment.
+
+MUST: The coordinator returns the new raw credential only in the successful enrollment response. It never returns the credential again. Credential metadata, logs, URLs, and error responses do not contain the secret.
+
+MUST: Initial self-service enrollment permits at most one active self-service node per account. The limit does not remove existing operator-managed nodes or change the multi-node ownership model in PROV-016. Enrollment attempts are rate-limited.
+
+MUST: Enrollment accepts only the declared Apple Silicon/macOS GGUF/Metal L0/Open profile. Hardware declarations are not verified hardware identity or evidence of confidential execution.
+
+MUST: A user can list metadata for their self-service credentials and revoke only their own self-service credentials. Revocation disconnects matching live provider sessions and prevents reconnection.
+
+MUST: Unknown and foreign credential identifiers produce the same not-found response. Suspended, unlinked, invalid, or unauthorized users cannot enroll or manage credentials.
+
+MUST: Existing administrative credentials, claimed legacy nodes, billing principals, transactions, and balances remain unchanged.
+
+MUST: Each new self-service credential uses the WebSocket Authorization header. The existing legacy URL-token compatibility behavior does not grant URL-token authentication to new self-service credentials.
+
+- Principle: P2, P3, P6, P7, P9
+- Status: partial
+- Verified by: tests/test_provider_self_enrollment.py::test_non_admin_enrollment_and_exact_earnings, tests/test_provider_self_enrollment.py::test_enrollment_guards_and_cap, tests/test_provider_self_enrollment.py::test_competing_enrollments_are_atomic
+- Issue: #159

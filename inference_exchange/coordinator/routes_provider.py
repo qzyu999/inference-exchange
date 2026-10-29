@@ -1,10 +1,20 @@
-"""Read-only private provider account views (BILL-011, PRIV-009)."""
+"""Private provider account views and self-service enrollment (PROV-018)."""
+
+import os
+import threading
+import time
 
 from fastapi import APIRouter, Query, Request
 from fastapi.responses import JSONResponse
 
+from inference_exchange.config import is_production
+
 from .dependencies import get_hub, get_store
-from .routes_auth import InvalidCredentials, _check_not_suspended, resolve_user_from_request
+from .routes_auth import (
+    InvalidCredentials, _check_not_suspended, resolve_user_from_request,
+    verify_jwt, SESSION_COOKIE,
+)
+from .store import ProviderOwnershipError
 
 router = APIRouter()
 
@@ -71,3 +81,81 @@ async def get_owned_earnings(
         # Do not reveal the existence or ownership of foreign node IDs.
         return JSONResponse({"error": "Provider node not found"}, status_code=404)
     return {"simulated_credits": True, "unit": "micro_usd", **data}
+
+
+# Enrollment checks use their own identity resolver. A browser cookie must not
+# override an explicitly invalid Authorization header.
+def _management_owner(request: Request, *, mutation: bool = False) -> str:
+    auth = request.headers.get("authorization", "")
+    if auth:
+        if not auth.lower().startswith("bearer "):
+            raise InvalidCredentials()
+        raw = auth[7:].strip()
+        if raw.startswith(("sk-ie-", "pt-ie-")):
+            raise InvalidCredentials()
+        user = verify_jwt(raw)
+        if not user or get_store().get_session_version(user.get("user_id", "")) != user.get("sv", 0):
+            raise InvalidCredentials()
+    else:
+        user = resolve_user_from_request(request)
+        if not user:
+            raise InvalidCredentials()
+        if mutation:
+            # No missing-Origin or Referer fallback for credential issuance.
+            origin = request.headers.get("origin", "")
+            public_origin = os.environ.get("IE_PUBLIC_URL", "").rstrip("/")
+            if not public_origin and not is_production():
+                public_origin = str(request.base_url).rstrip("/")
+            if not public_origin or origin != public_origin:
+                raise ProviderOwnershipError("CSRF check failed", 403)
+    owner_id = _check_not_suspended(user["user_id"])
+    if not get_store().is_github_linked_user(owner_id):
+        raise ProviderOwnershipError("A linked GitHub identity is required", 403)
+    return owner_id
+
+
+class _EnrollmentRate:
+    """Bound per-account and direct-peer admission without trusting forwarded IPs."""
+
+    def __init__(self):
+        self._lock = threading.Lock()
+        self._attempts = {}
+
+    def allow(self, owner_id: str, peer: str) -> bool:
+        now = time.monotonic()
+        with self._lock:
+            for key, max_count in (("owner:" + owner_id, 6), ("peer:" + peer, 100)):
+                history = [t for t in self._attempts.get(key, []) if t > now - 900]
+                self._attempts[key] = history
+                if len(history) >= max_count:
+                    return False
+            for key in ("owner:" + owner_id, "peer:" + peer):
+                self._attempts[key].append(now)
+        return True
+
+
+def _error(exc: ProviderOwnershipError) -> JSONResponse:
+    return JSONResponse({"error": str(exc)}, status_code=exc.status_code)
+
+
+@router.post("/v1/provider/nodes")
+async def enroll_provider_node(request: Request):
+    owner_id = _management_owner(request, mutation=True)
+    if os.environ.get("IE_PROVIDER_SELF_ENROLL_ENABLED", "0") != "1":
+        return JSONResponse({"error": "Provider enrollment is not enabled"}, status_code=503)
+    limiter = getattr(request.app.state, "provider_enrollment_limiter", None)
+    if limiter is None:
+        limiter = _EnrollmentRate()
+        request.app.state.provider_enrollment_limiter = limiter
+    if not limiter.allow(owner_id, request.client.host if request.client else "unknown"):
+        return JSONResponse({"error": "Too many enrollment attempts"}, status_code=429)
+    try:
+        payload = await request.json()
+        if not isinstance(payload, dict) or set(payload) != {"name", "profile"}:
+            return JSONResponse({"error": "Invalid enrollment request"}, status_code=400)
+        result = get_store().enroll_provider_node(owner_id, payload["name"], payload["profile"])
+    except (ValueError, TypeError):
+        return JSONResponse({"error": "Invalid enrollment request"}, status_code=400)
+    except ProviderOwnershipError as exc:
+        return _error(exc)
+    return JSONResponse(result, status_code=201, headers={"Cache-Control": "no-store"})

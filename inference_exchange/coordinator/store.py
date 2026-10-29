@@ -97,6 +97,7 @@ CREATE TABLE IF NOT EXISTS provider_tokens (
     name TEXT NOT NULL,
     billing_account_id TEXT,
     node_id TEXT REFERENCES provider_nodes(node_id),
+    issuance_source TEXT NOT NULL DEFAULT 'admin',
     created_at REAL NOT NULL,
     last_used_at REAL,
     connections INTEGER NOT NULL DEFAULT 0
@@ -117,7 +118,8 @@ CREATE TABLE IF NOT EXISTS provider_nodes (
     owner_user_id TEXT NOT NULL REFERENCES users(user_id),
     billing_account_id TEXT NOT NULL UNIQUE,
     name TEXT NOT NULL,
-    created_at REAL NOT NULL
+    created_at REAL NOT NULL,
+    declared_profile TEXT NOT NULL DEFAULT ''
 );
 
 CREATE TABLE IF NOT EXISTS provider_ownership_actions (
@@ -263,6 +265,18 @@ class Store:
         if "node_id" not in pt_columns:
             # Existing provider credentials remain unclaimed. Never guess ownership.
             self._conn.execute("ALTER TABLE provider_tokens ADD COLUMN node_id TEXT REFERENCES provider_nodes(node_id)")
+        if "issuance_source" not in pt_columns:
+            # Preserve every legacy credential. Only new self-service tokens use the new source.
+            self._conn.execute("ALTER TABLE provider_tokens ADD COLUMN issuance_source TEXT NOT NULL DEFAULT 'admin'")
+        node_columns = {row[1] for row in self._conn.execute("PRAGMA table_info(provider_nodes)")}
+        if "declared_profile" not in node_columns:
+            self._conn.execute("ALTER TABLE provider_nodes ADD COLUMN declared_profile TEXT NOT NULL DEFAULT ''")
+        # New token IDs have a separate namespace. Do not impose a retroactive unique
+        # constraint on historical 8-hex admin IDs or rewrite any existing credential.
+        self._conn.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_provider_selfservice_token_id "
+            "ON provider_tokens(token_id) WHERE issuance_source = 'self_service'"
+        )
         # Every existing credential gets a stable, separate ledger principal. Do
         # not infer shared ownership from the provider's self-reported name and do
         # not merge legacy provider-N accounts or transactions (#136).
@@ -625,6 +639,12 @@ class Store:
                 "billing_account_id": billing_account_id, "name": token["name"],
             }
 
+    def is_github_linked_user(self, user_id: str) -> bool:
+        row = self._conn.execute(
+            "SELECT github_id FROM users WHERE user_id = ?", (user_id,),
+        ).fetchone()
+        return bool(row and row["github_id"])
+
     def get_provider_node_owner(self, node_id: str, billing_account_id: str) -> str | None:
         """A token must match both its node and its immutable billing principal."""
         row = self._conn.execute(
@@ -754,6 +774,86 @@ class Store:
             "next_before_id": page[-1]["id"] if has_more and page else None,
         }
 
+    SELF_SERVICE_PROFILE = "apple-silicon-macos-gguf-metal-l0"
+    SELF_SERVICE_DAILY_ISSUANCE_LIMIT = 3
+
+    def enroll_provider_node(self, owner_user_id: str, name: str, profile: str) -> dict:
+        """Create a GitHub user's node, billing principal and credential atomically.
+
+        Uses a separate BEGIN IMMEDIATE transaction to serialize cap checks across
+        coordinator requests and independent SQLite connections. No live migration
+        or historical principal change occurs here.
+        """
+        import re
+        if not isinstance(name, str) or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9 _.-]{0,63}", name):
+            raise ProviderOwnershipError("Invalid provider name", 400)
+        if profile != self.SELF_SERVICE_PROFILE:
+            raise ProviderOwnershipError("Unsupported provider profile", 400)
+
+        now = time.time()
+        raw = self.PROVIDER_TOKEN_PREFIX + secrets.token_hex(32)
+        token_hash = hashlib.sha256(raw.encode()).hexdigest()
+        with self._ownership_write() as conn:
+            user = conn.execute(
+                "SELECT github_id, suspended_until FROM users WHERE user_id = ?", (owner_user_id,),
+            ).fetchone()
+            if user is None:
+                raise ProviderOwnershipError("Authenticated IE user required", 403)
+            if not user["github_id"]:
+                raise ProviderOwnershipError("A linked GitHub identity is required", 403)
+            if user["suspended_until"] is not None and user["suspended_until"] > now:
+                raise ProviderOwnershipError("Account suspended", 403)
+            active = conn.execute(
+                """SELECT COUNT(*) FROM provider_tokens t JOIN provider_nodes n ON t.node_id = n.node_id
+                   WHERE n.owner_user_id = ? AND t.issuance_source = 'self_service'
+                   AND t.revoked_at IS NULL""",
+                (owner_user_id,),
+            ).fetchone()[0]
+            if active >= 1:
+                raise ProviderOwnershipError("Active self-service provider node limit reached", 409)
+            issued = conn.execute(
+                """SELECT COUNT(*) FROM provider_tokens t JOIN provider_nodes n ON t.node_id = n.node_id
+                   WHERE n.owner_user_id = ? AND t.issuance_source = 'self_service'
+                   AND t.created_at >= ?""",
+                (owner_user_id, now - 86400),
+            ).fetchone()[0]
+            if issued >= self.SELF_SERVICE_DAILY_ISSUANCE_LIMIT:
+                raise ProviderOwnershipError("Daily provider enrollment limit reached", 429)
+            node_id = "node-" + secrets.token_hex(16)
+            billing_account_id = "provider-acct-" + secrets.token_hex(16)
+            token_id = "ptok-" + secrets.token_hex(16)
+            conn.execute(
+                """INSERT INTO accounts
+                   (account_id, name, balance_micro, created_at) VALUES (?, ?, ?, ?)""",
+                (billing_account_id, name, 10 * MICRO_PER_DOLLAR, now),
+            )
+            conn.execute(
+                """INSERT INTO provider_nodes
+                   (node_id, owner_user_id, billing_account_id, name, created_at, declared_profile)
+                   VALUES (?, ?, ?, ?, ?, ?)""",
+                (node_id, owner_user_id, billing_account_id, name, now, profile),
+            )
+            conn.execute(
+                """INSERT INTO provider_tokens
+                   (token_hash, token_id, name, billing_account_id, node_id,
+                    issuance_source, created_at)
+                   VALUES (?, ?, ?, ?, ?, 'self_service', ?)""",
+                (token_hash, token_id, name, billing_account_id, node_id, now),
+            )
+            conn.execute(
+                """INSERT INTO provider_ownership_actions
+                   (node_id, billing_account_id, owner_user_id, actor_user_id,
+                    action, reason, timestamp)
+                   VALUES (?, ?, ?, ?, 'enroll', 'self-service L0 Apple Silicon enrollment', ?)""",
+                (node_id, billing_account_id, owner_user_id, owner_user_id, now),
+            )
+        logger.info("Self-service provider node enrolled: %s", node_id)
+        return {
+            "node": {"node_id": node_id, "name": name, "status": "offline", "profile": profile},
+            "credential": {"token_id": token_id, "token": raw},
+            "simulated_credits": True,
+        }
+
     def create_provider_token(self, name: str = "Provider") -> str:
         """Create a provider auth token. Returns the raw token (shown once)."""
         raw = self.PROVIDER_TOKEN_PREFIX + secrets.token_hex(16)
@@ -769,7 +869,7 @@ class Store:
             (token_hash, token_id, name, billing_account_id, time.time()),
         )
         self._conn.commit()
-        logger.info(f"Provider token created: {raw[:12]}... ({name})")
+        logger.info("Administrative provider credential created: %s", token_id)
         return raw
 
     def validate_provider_token(self, raw_token: str) -> dict | None:
