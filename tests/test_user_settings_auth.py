@@ -52,15 +52,13 @@ def test_regular_user_and_api_key_cannot_appear_admin(env):
 
 
 def test_provider_token_and_revoked_session_cannot_appear_admin(env):
-    _signup(env, "operator@example.com")
+    account = _signup(env, "operator@example.com")
     token = env.cookies.get("ie_session")
     store = dependencies.get_store()
     provider_token = store.create_provider_token("m6")
     env.cookies.clear()
     assert env.get("/v1/auth/me", headers={"Authorization": "Bearer " + provider_token}).status_code == 401
-    store.bump_session_version(store.get_user(store._conn.execute(
-        "SELECT user_id FROM users WHERE email = ?", ("operator@example.com",)
-    ).fetchone()["user_id"])["user_id"])
+    store.bump_session_version(account["user_id"])
     assert env.get("/v1/auth/me", headers={"Authorization": "Bearer " + token}).status_code == 401
     assert env.get("/v1/admin/state", headers={"Authorization": "Bearer " + token}).status_code == 403
 
@@ -70,5 +68,6 @@ def test_suspended_session_cannot_retain_admin_flag(env):
     store = dependencies.get_store()
     assert env.get("/v1/auth/me").json()["is_admin"] is True
     store.suspend_user(account["user_id"], "test", account["user_id"], None)
-    assert env.get("/v1/auth/me").status_code == 403
+    # Suspension revokes old sessions; auth/me returns 401, admin stays 403.
+    assert env.get("/v1/auth/me").status_code == 401
     assert env.get("/v1/admin/state").status_code == 403
