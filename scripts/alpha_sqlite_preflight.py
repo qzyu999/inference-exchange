@@ -12,6 +12,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+from contextlib import closing
 import hashlib
 import json
 import sqlite3
@@ -115,11 +116,11 @@ def run_preflight(db_path: Path, principal: str, node_id: str) -> dict:
         copy_path = Path(temp) / "snapshot.db"
         uri = db_path.as_uri() + "?mode=ro"
         try:
-            with sqlite3.connect(uri, uri=True, timeout=30.0) as original:
+            with closing(sqlite3.connect(uri, uri=True, timeout=30.0)) as original:
                 original.execute("PRAGMA busy_timeout=5000")
-                with sqlite3.connect(str(copy_path)) as clone:
+                with closing(sqlite3.connect(str(copy_path))) as clone:
                     original.backup(clone)
-            # Source is now closed. All remaining work is on the disposable copy.
+            # Source connection is closed. All remaining work uses the disposable copy.
             with sqlite3.connect(str(copy_path)) as snapshot:
                 _integrity(snapshot)
                 owner_id = _assert_existing_provider(snapshot, principal, node_id)
