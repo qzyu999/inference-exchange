@@ -162,3 +162,36 @@ async def enroll_provider_node(request: Request):
     except ProviderOwnershipError as exc:
         return _error(exc)
     return JSONResponse(result, status_code=201, headers={"Cache-Control": "no-store"})
+
+
+@router.get("/v1/provider/credentials")
+async def list_owned_credentials(request: Request):
+    try:
+        owner_id = _management_owner(request)
+    except ProviderOwnershipError as exc:
+        return _error(exc)
+    return JSONResponse(
+        {"credentials": get_store().list_owned_self_service_credentials(owner_id)},
+        headers={"Cache-Control": "no-store"},
+    )
+
+
+@router.delete("/v1/provider/credentials/{token_id}")
+async def revoke_owned_credential(token_id: str, request: Request):
+    try:
+        owner_id = _management_owner(request, mutation=True)
+    except ProviderOwnershipError as exc:
+        return _error(exc)
+    try:
+        success = get_store().revoke_owned_self_service_credential(owner_id, token_id)
+    except ProviderOwnershipError as exc:
+        return _error(exc)
+    if not success:
+        # Unknown, foreign, operator-managed and already revoked look identical.
+        return JSONResponse({"error": "Credential not found"}, status_code=404)
+    hub = get_hub()
+    disconnected = []
+    for provider_id in hub.providers_with_token(token_id):
+        if await hub.force_disconnect(provider_id, "Provider credential revoked"):
+            disconnected.append(provider_id)
+    return {"ok": True, "token_id": token_id, "disconnected": disconnected}

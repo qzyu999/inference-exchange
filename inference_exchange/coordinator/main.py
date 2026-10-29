@@ -387,6 +387,9 @@ def create_app() -> FastAPI:
             if not token_info:
                 await ws.close(code=4003, reason="Invalid provider token")
                 return
+            if ws.query_params.get("token") and token_info.get("issuance_source") == "self_service":
+                await ws.close(code=4003, reason="Self-service provider credentials require Authorization header")
+                return
             token_id = token_info["token_id"]
             if token_info.get("node_id"):
                 owner_id = store.get_provider_node_owner(
@@ -427,6 +430,11 @@ def create_app() -> FastAPI:
                 reg = parse_provider_registration(raw)
             except RegistrationRejected:
                 await ws.close(code=4002, reason="Invalid provider registration")
+                return
+            # Close the interval between handshake validation and hub registration.
+            # Revoked/suspended credentials cannot become newly routable providers.
+            if token and not store.provider_credential_is_active(token_info["token_hash"], token_id):
+                await ws.close(code=4003, reason="Provider credential no longer active")
                 return
             provider_id = hub.register_provider(ws, reg)
             registration_guard.finish()

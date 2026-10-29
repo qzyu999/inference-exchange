@@ -854,6 +854,74 @@ class Store:
             "simulated_credits": True,
         }
 
+    def list_owned_self_service_credentials(self, owner_user_id: str) -> list[dict]:
+        """Return nonsecret metadata only for the caller's self-service credentials."""
+        rows = self._conn.execute(
+            """SELECT t.token_id, t.node_id, t.name, t.created_at, t.last_used_at,
+                      t.connections, t.revoked_at
+               FROM provider_tokens t
+               JOIN provider_nodes n ON n.node_id = t.node_id
+                 AND n.billing_account_id = t.billing_account_id
+               WHERE n.owner_user_id = ? AND t.issuance_source = 'self_service'
+               ORDER BY t.created_at, t.token_id""",
+            (owner_user_id,),
+        ).fetchall()
+        return [dict(row) for row in rows]
+
+    def revoke_owned_self_service_credential(self, owner_user_id: str, token_id: str) -> bool:
+        """Fail closed for a foreign, unknown, revoked, or operator-issued token."""
+        if not token_id.startswith("ptok-") or len(token_id) > 80:
+            return False
+        with self._ownership_write() as conn:
+            token = conn.execute(
+                """SELECT t.token_hash, t.node_id, t.billing_account_id
+                   FROM provider_tokens t
+                   JOIN provider_nodes n ON n.node_id = t.node_id
+                     AND n.billing_account_id = t.billing_account_id
+                   WHERE t.token_id = ? AND t.issuance_source = 'self_service'
+                     AND t.revoked_at IS NULL AND n.owner_user_id = ?""",
+                (token_id, owner_user_id),
+            ).fetchone()
+            if token is None:
+                return False
+            now = time.time()
+            updated = conn.execute(
+                "UPDATE provider_tokens SET revoked_at = ? WHERE token_hash = ? AND revoked_at IS NULL",
+                (now, token["token_hash"]),
+            )
+            if updated.rowcount != 1:
+                raise ProviderOwnershipError("Credential changed during revocation", 409)
+            conn.execute(
+                """INSERT INTO provider_ownership_actions
+                   (node_id, billing_account_id, owner_user_id, actor_user_id,
+                    action, reason, timestamp)
+                   VALUES (?, ?, ?, ?, 'revoke', 'owner revoked self-service credential', ?)""",
+                (token["node_id"], token["billing_account_id"], owner_user_id, owner_user_id, now),
+            )
+        logger.info("Self-service provider credential revoked: %s", token_id)
+        return True
+
+    def provider_credential_is_active(self, token_hash: str, token_id: str) -> bool:
+        """Recheck admission immediately before making a provider routable."""
+        row = self._conn.execute(
+            """SELECT t.node_id, t.billing_account_id, n.owner_user_id,
+                      u.suspended_until
+               FROM provider_tokens t
+               LEFT JOIN provider_nodes n
+                 ON n.node_id = t.node_id AND n.billing_account_id = t.billing_account_id
+               LEFT JOIN users u ON u.user_id = n.owner_user_id
+               WHERE t.token_hash = ? AND t.token_id = ? AND t.revoked_at IS NULL""",
+            (token_hash, token_id),
+        ).fetchone()
+        if not row:
+            return False
+        if row["node_id"] is None:
+            # Preserve existing unclaimed legacy credential behavior.
+            return True
+        return bool(row["owner_user_id"] and (
+            row["suspended_until"] is None or row["suspended_until"] <= time.time()
+        ))
+
     def create_provider_token(self, name: str = "Provider") -> str:
         """Create a provider auth token. Returns the raw token (shown once)."""
         raw = self.PROVIDER_TOKEN_PREFIX + secrets.token_hex(16)

@@ -52,6 +52,8 @@ ROUTES = {
     ("GET", "/v1/exchange/history"): ACCOUNT,
     ("GET", "/v1/provider/nodes"): ACCOUNT,
     ("POST", "/v1/provider/nodes"): ACCOUNT,
+    ("GET", "/v1/provider/credentials"): ACCOUNT,
+    ("DELETE", "/v1/provider/credentials/{token_id}"): ACCOUNT,
     ("GET", "/v1/provider/earnings"): ACCOUNT,
     ("GET", "/v1/exchange/traces"): ACCOUNT,
     ("POST", "/v1/chat/completions"): ACCOUNT,
