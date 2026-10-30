@@ -8,7 +8,6 @@ import { LandingNav } from '../components/LandingNav'
 import { MineralAurora } from '../components/MineralAurora'
 import { LandscapeVideo } from '../components/LandscapeVideo'
 import { ScrollChapterRail } from '../components/ScrollChapterRail'
-import { LakeEffects } from '../components/LakeEffects'
 
 // ─── Helpers ─────────────────────────────────────────────────
 
@@ -235,10 +234,18 @@ export function Landing() {
   return (
     <>
       <LandingNav />
-      {/* The entire cinematic stage, including video, Three.js and copy, sits below
-          the fixed 3.5rem navbar. This keeps every layer in the same coordinates. */}
+      {/* The opaque 3.5rem navbar owns its own vertical space. All scene layers
+          share the same sticky viewport beneath it: no footage behind the nav. */}
       {/* ── Scroll sequence ──────────────────────────────── */}
-      <div ref={scrollContainerRef} style={{ height: storyEnabled ? '350vh' : '100svh' }} className="relative">
+      <div
+        ref={scrollContainerRef}
+        style={{
+          height: storyEnabled ? '350vh' : '100svh',
+          paddingTop: '3.5rem',
+          background: C.blueBlack,
+        }}
+        className="relative box-border"
+      >
         <div className="sticky top-14 left-0 w-full h-[calc(100svh-3.5rem)] overflow-hidden z-10">
           <LandscapeVideo progress={progress} reducedMotion={reducedMotion} onAvailabilityChange={setVideoReady} />
           {!rawVideoOnly && (
@@ -249,7 +256,6 @@ export function Landing() {
               onInitFailed={() => setWebglFailed(true)}
             />
           )}
-          {storyEnabled && !rawVideoOnly && <LakeEffects progress={progress} reducedMotion={reducedMotion} />}
 
           {webglFailed && (
             <div id="landing-main" className="absolute inset-0 flex flex-col items-center justify-center" style={{ background: C.black }}>
