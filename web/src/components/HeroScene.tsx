@@ -116,14 +116,55 @@ function makeTetraGeo(v: THREE.Vector3[]): THREE.BufferGeometry {
   return geo
 }
 
+// Shared, deterministic erosion profile for the solid faces AND grains.
+// Left edge releases first, with an uneven wave along the vertical axis.
+function erosionThresholdAt(x: number, y: number): number {
+  const t = Math.max(0, Math.min(1, (x + 2.2) / 4.4))
+  const sweep = t * t * (3 - 2 * t)
+  const n = Math.sin(x * 17.1 + y * 23.37) * 43758.5453
+  const grain = n - Math.floor(n)
+  return 0.07 + 0.65 * sweep + 0.07 * Math.sin((y + 2.2) * 1.7) + 0.04 * (grain - 0.5)
+}
+
+function addErosionToFaces(material: THREE.MeshPhongMaterial, erosion: { value: number }) {
+  material.onBeforeCompile = shader => {
+    shader.uniforms.uErosion = erosion
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\nvarying vec3 vErosionPosition;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvErosionPosition = position;')
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <common>', `#include <common>
+        uniform float uErosion;
+        varying vec3 vErosionPosition;
+        float erosionThreshold(vec2 p) {
+          float sweep = smoothstep(-2.2, 2.2, p.x);
+          float n = fract(sin(dot(p, vec2(17.1, 23.37))) * 43758.5453);
+          return 0.07 + 0.65 * sweep + 0.07 * sin((p.y + 2.2) * 1.7)
+                 + 0.04 * (n - 0.5);
+        }
+      `)
+      .replace('#include <clipping_planes_fragment>',
+        `#include <clipping_planes_fragment>
+        // Grains lift first, then the corresponding face fragments disappear.
+        if (uErosion > erosionThreshold(vErosionPosition.xy) + 0.11) discard;
+        `)
+  }
+}
+
 // ─── Tetrahedron mesh group ──────────────────────────────────
 
-function makeTetra(color: number, verts: THREE.Vector3[], renderOrder: number): THREE.Group {
+function makeTetra(
+  color: number,
+  verts: THREE.Vector3[],
+  renderOrder: number,
+  erosion: { value: number },
+): THREE.Group {
   const group = new THREE.Group()
   const geo = makeTetraGeo(verts)
 
-  // Translucent faces
-  const faceMesh = new THREE.Mesh(geo, new THREE.MeshPhongMaterial({
+  // The intact faces are eroded by the SAME spatial wind profile that
+  // releases the grains. A global opacity fade looked like a vanishing mesh.
+  const faceMaterial = new THREE.MeshPhongMaterial({
     color,
     transparent: true,
     opacity: 0.18,
@@ -131,7 +172,9 @@ function makeTetra(color: number, verts: THREE.Vector3[], renderOrder: number): 
     depthWrite: false,
     shininess: 80,
     specular: 0x666666,
-  }))
+  })
+  addErosionToFaces(faceMaterial, erosion)
+  const faceMesh = new THREE.Mesh(geo, faceMaterial)
   faceMesh.renderOrder = renderOrder
   group.add(faceMesh)
 
@@ -278,6 +321,7 @@ function makeMineralGrains(): THREE.Points<THREE.BufferGeometry, THREE.ShaderMat
   const pigments = new Float32Array(count * 3)
   const drifts = new Float32Array(count * 3)
   const seeds = new Float32Array(count)
+  const releaseTimes = new Float32Array(count)
 
   const faces = [
     [0, 1, 2], [0, 1, 3], [0, 2, 3], [1, 2, 3],
@@ -325,6 +369,7 @@ function makeMineralGrains(): THREE.Points<THREE.BufferGeometry, THREE.ShaderMat
     drifts[i3 + 1] = rand() * 2 - 1
     drifts[i3 + 2] = rand() * 2 - 1
     seeds[i] = rand()
+    releaseTimes[i] = erosionThresholdAt(positions[i3], positions[i3 + 1])
   }
 
   const geo = new THREE.BufferGeometry()
@@ -332,6 +377,7 @@ function makeMineralGrains(): THREE.Points<THREE.BufferGeometry, THREE.ShaderMat
   geo.setAttribute('aPigment', new THREE.BufferAttribute(pigments, 3))
   geo.setAttribute('aDrift', new THREE.BufferAttribute(drifts, 3))
   geo.setAttribute('aSeed', new THREE.BufferAttribute(seeds, 1))
+  geo.setAttribute('aRelease', new THREE.BufferAttribute(releaseTimes, 1))
 
   const mat = new THREE.ShaderMaterial({
     transparent: true,
@@ -346,28 +392,38 @@ function makeMineralGrains(): THREE.Points<THREE.BufferGeometry, THREE.ShaderMat
       attribute vec3 aPigment;
       attribute vec3 aDrift;
       attribute float aSeed;
+      attribute float aRelease;
       uniform float uProgress;
       uniform float uDpr;
       varying vec3 vPigment;
       varying float vAlpha;
       void main() {
-        // Each grain is released at a slightly different point in the
-        // scroll. The geometry never scales down, it erodes outward.
-        float released = smoothstep(aSeed * 0.34, 0.21 + aSeed * 0.34, uProgress);
-        float travel = pow(released, 1.3);
+        // Grains leave in an uneven left-to-right gust front, derived from
+        // exactly the same local-space profile used by the intact faces.
+        float age = max(0.0, uProgress - aRelease);
+        float lift = smoothstep(0.0, 0.16, age);
+        float travel = smoothstep(0.0, 0.57, age);
         vec3 grain = position;
-        float wave = sin(travel * 8.0 + position.y * 2.6 + aSeed * 10.0);
-        grain.x += travel * (7.3 + aDrift.x * 2.8);
-        grain.y += travel * (aDrift.y * 3.4 + wave * 0.58);
-        grain.z += travel * aDrift.z * 1.65;
+
+        // Accelerating gust, with small coherent swirls and z-depth.
+        // Keep grains on screen long enough to read as an actual smear.
+        float wave = sin(travel * 7.0 + position.y * 2.3 + aSeed * 3.0);
+        grain.x += (travel * 2.6 + travel * travel * 1.3)
+                   * (1.0 + aDrift.x * 0.20);
+        grain.y += travel * (aDrift.y * 1.65 + wave * 0.52);
+        grain.z += travel * aDrift.z * 0.9;
 
         vec4 eye = modelViewMatrix * vec4(grain, 1.0);
         gl_Position = projectionMatrix * eye;
-        gl_PointSize = min(4.2, uDpr * (1.15 + 1.3 * aSeed) * (9.0 / max(5.0, -eye.z)));
+        gl_PointSize = clamp(
+          uDpr * (2.2 + 2.6 * aSeed) * (9.0 / max(5.0, -eye.z)),
+          1.5, 6.0
+        );
         vPigment = aPigment;
-        vAlpha = released * smoothstep(0.005, 0.12, uProgress)
-                 * (1.0 - smoothstep(0.74, 1.0, uProgress))
-                 * (0.56 + aSeed * 0.38);
+        // The solid fragment is cut only AFTER its grain has lifted.
+        // Maintain a visible plume until the final product is nearly ready.
+        vAlpha = lift * (1.0 - smoothstep(0.87, 1.0, uProgress))
+                 * (0.73 + aSeed * 0.25);
       }
     `,
     fragmentShader: `
@@ -456,6 +512,10 @@ function easeInOutCubic(x: number): number {
 function clamp01(x: number): number {
   return Math.max(0, Math.min(1, x))
 }
+function smoothstepDissolve(x: number): number {
+  const t = clamp01((x - 0.10) / 0.66)
+  return t * t * (3 - 2 * t)
+}
 
 // ─── Scene state ─────────────────────────────────────────────
 
@@ -467,6 +527,7 @@ interface SceneState {
   upTetra: THREE.Group
   downTetra: THREE.Group
   octaWire: THREE.LineSegments
+  erosion: { value: number }
   mineralGrains: THREE.Points<THREE.BufferGeometry, THREE.ShaderMaterial>
   sun: THREE.Group
   moon: THREE.Group
@@ -547,8 +608,9 @@ export function HeroScene({ scrollProgress, landscapeMode = false, reducedMotion
     // Green (emerald) = up-pointing tetra, starts at bottom, rises
     // Red = down-pointing tetra, starts at top, drops
     // Emerald renders first (behind), red on top — consistent interior color
-    const upTetra = makeTetra(EMERALD, VERTS_UP, 1)
-    const downTetra = makeTetra(RED, VERTS_DOWN, 2)
+    const erosion = { value: 0 }
+    const upTetra = makeTetra(EMERALD, VERTS_UP, 1, erosion)
+    const downTetra = makeTetra(RED, VERTS_DOWN, 2, erosion)
     pivot.add(upTetra)
     pivot.add(downTetra)
 
@@ -571,7 +633,7 @@ export function HeroScene({ scrollProgress, landscapeMode = false, reducedMotion
 
     stateRef.current = {
       renderer, scene, camera, pivot,
-      upTetra, downTetra, octaWire, mineralGrains, sun, moon, dust, orbit,
+      upTetra, downTetra, octaWire, erosion, mineralGrains, sun, moon, dust, orbit,
       frame: 0, time: 0,
     }
     console.log(`HeroScene: initialized (${w}x${h}, dpr=${renderer.getPixelRatio()})`)
@@ -670,16 +732,22 @@ export function HeroScene({ scrollProgress, landscapeMode = false, reducedMotion
 
     // ── Act 4: erode solid faces into mineral grains (0.82 → 1.0).
     // Rewind is deterministic: there is no particle state to re-simulate.
-    const dissolve = easeInOutCubic(clamp01((p - 0.82) / 0.18))
+    // Use a single scroll uniform for mesh erosion and grain movement.
+    // Do NOT add a second cubic easing here; the chapter scroll is already
+    // smoothstepped and double easing had compressed the visible movement.
+    const dissolve = clamp01((p - 0.82) / 0.18)
+    s.erosion.value = dissolve
     s.mineralGrains.material.uniforms.uProgress.value = dissolve
     s.mineralGrains.visible = dissolve > 0.002
     const fade = dissolve
     const inv = 1 - dissolve
 
-    uFace.opacity = fO * inv
-    dFace.opacity = fO * inv
-    uEdge.opacity = eO * inv
-    dEdge.opacity = eO * inv
+    // Face fragments vanish through the shader erosion mask, not by
+    // fading the whole face uniformly. Edge glow gently dims behind the dust.
+    uFace.opacity = fO
+    dFace.opacity = fO
+    uEdge.opacity = eO * (1.0 - smoothstepDissolve(dissolve))
+    dEdge.opacity = eO * (1.0 - smoothstepDissolve(dissolve))
     oMat.opacity = orbitFade * 0.5 * inv
     octaMat.opacity = merge * 0.5 * inv
 
