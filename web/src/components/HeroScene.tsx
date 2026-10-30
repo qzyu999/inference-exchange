@@ -266,6 +266,129 @@ function makeOrbit(count: number): OrbitData {
   return { points: new THREE.Points(geo, mat), phase, radii, speeds, yBase }
 }
 
+// ─── Mineral-grain dissolution ───────────────────────────────
+// Sample the actual tetrahedron faces with deterministic barycentric points.
+// A small GPU shader carries these grains outward on a scroll-controlled
+// current; reversing the scroll reconstructs the same exact geometry.
+// No copied iconography, no random frame-to-frame forces, no extra renderer.
+
+function makeMineralGrains(): THREE.Points<THREE.BufferGeometry, THREE.ShaderMaterial> {
+  const count = window.innerWidth < 768 ? 8500 : 30000
+  const positions = new Float32Array(count * 3)
+  const pigments = new Float32Array(count * 3)
+  const drifts = new Float32Array(count * 3)
+  const seeds = new Float32Array(count)
+
+  const faces = [
+    [0, 1, 2], [0, 1, 3], [0, 2, 3], [1, 2, 3],
+  ]
+  const accents = [
+    0xC83A32, 0xD77A2F, 0xC49A45, 0x087F5B,
+    0x4D9A91, 0x315B72, 0x4A465F, 0x702F32,
+  ]
+  const pale = new THREE.Color()
+  const a = new THREE.Vector3()
+  const b = new THREE.Vector3()
+  const c = new THREE.Vector3()
+  let state = 0x19A7E31
+  const rand = () => {
+    state ^= state << 13
+    state ^= state >>> 17
+    state ^= state << 5
+    return (state >>> 0) / 4294967296
+  }
+
+  for (let i = 0; i < count; i++) {
+    const green = i % 2 === 0
+    const verts = green ? VERTS_UP : VERTS_DOWN
+    const face = faces[Math.floor(rand() * 4)]
+    a.copy(verts[face[0]])
+    b.copy(verts[face[1]])
+    c.copy(verts[face[2]])
+
+    // Square-root barycentric sampling gives constant area density.
+    const u = Math.sqrt(rand())
+    const v = rand()
+    const i3 = i * 3
+    positions[i3] = a.x * (1 - u) + b.x * (u * (1 - v)) + c.x * u * v
+    positions[i3 + 1] = a.y * (1 - u) + b.y * (u * (1 - v)) + c.y * u * v
+    positions[i3 + 2] = a.z * (1 - u) + b.z * (u * (1 - v)) + c.z * u * v
+
+    // Keep the original red/green poles recognizable while adding the
+    // mineral spectrum at the intersection, not as a uniform rainbow.
+    pale.setHex(accents[Math.floor(rand() * accents.length)])
+    pale.lerp(new THREE.Color(green ? EMERALD : RED), 0.54)
+    pigments[i3] = pale.r
+    pigments[i3 + 1] = pale.g
+    pigments[i3 + 2] = pale.b
+    drifts[i3] = rand() * 2 - 1
+    drifts[i3 + 1] = rand() * 2 - 1
+    drifts[i3 + 2] = rand() * 2 - 1
+    seeds[i] = rand()
+  }
+
+  const geo = new THREE.BufferGeometry()
+  geo.setAttribute('position', new THREE.BufferAttribute(positions, 3))
+  geo.setAttribute('aPigment', new THREE.BufferAttribute(pigments, 3))
+  geo.setAttribute('aDrift', new THREE.BufferAttribute(drifts, 3))
+  geo.setAttribute('aSeed', new THREE.BufferAttribute(seeds, 1))
+
+  const mat = new THREE.ShaderMaterial({
+    transparent: true,
+    depthWrite: false,
+    depthTest: false,
+    blending: THREE.NormalBlending,
+    uniforms: {
+      uProgress: { value: 0 },
+      uDpr: { value: 1 },
+    },
+    vertexShader: `
+      attribute vec3 aPigment;
+      attribute vec3 aDrift;
+      attribute float aSeed;
+      uniform float uProgress;
+      uniform float uDpr;
+      varying vec3 vPigment;
+      varying float vAlpha;
+      void main() {
+        // Each grain is released at a slightly different point in the
+        // scroll. The geometry never scales down, it erodes outward.
+        float released = smoothstep(aSeed * 0.34, 0.21 + aSeed * 0.34, uProgress);
+        float travel = pow(released, 1.3);
+        vec3 grain = position;
+        float wave = sin(travel * 8.0 + position.y * 2.6 + aSeed * 10.0);
+        grain.x += travel * (7.3 + aDrift.x * 2.8);
+        grain.y += travel * (aDrift.y * 3.4 + wave * 0.58);
+        grain.z += travel * aDrift.z * 1.65;
+
+        vec4 eye = modelViewMatrix * vec4(grain, 1.0);
+        gl_Position = projectionMatrix * eye;
+        gl_PointSize = min(4.2, uDpr * (1.15 + 1.3 * aSeed) * (9.0 / max(5.0, -eye.z)));
+        vPigment = aPigment;
+        vAlpha = released * smoothstep(0.005, 0.12, uProgress)
+                 * (1.0 - smoothstep(0.74, 1.0, uProgress))
+                 * (0.56 + aSeed * 0.38);
+      }
+    `,
+    fragmentShader: `
+      varying vec3 vPigment;
+      varying float vAlpha;
+      void main() {
+        float radius = length(gl_PointCoord - 0.5);
+        float grain = 1.0 - smoothstep(0.25, 0.50, radius);
+        if (grain < 0.02 || vAlpha < 0.01) discard;
+        gl_FragColor = vec4(vPigment, grain * vAlpha);
+        #include <tonemapping_fragment>
+        #include <colorspace_fragment>
+      }
+    `,
+  })
+  const points = new THREE.Points(geo, mat)
+  points.frustumCulled = false // Shader displaces grains beyond CPU bounds.
+  points.renderOrder = 6
+  return points
+}
+
 // ─── Sun and Moon ────────────────────────────────────────────
 
 function makeSun(): THREE.Group {
@@ -344,6 +467,7 @@ interface SceneState {
   upTetra: THREE.Group
   downTetra: THREE.Group
   octaWire: THREE.LineSegments
+  mineralGrains: THREE.Points<THREE.BufferGeometry, THREE.ShaderMaterial>
   sun: THREE.Group
   moon: THREE.Group
   dust: { points: THREE.Points; speeds: Float32Array }
@@ -430,6 +554,9 @@ export function HeroScene({ scrollProgress, landscapeMode = false, reducedMotion
 
     const octaWire = makeOctahedronWireframe()
     pivot.add(octaWire)
+    const mineralGrains = makeMineralGrains()
+    mineralGrains.material.uniforms.uDpr.value = renderer.getPixelRatio()
+    pivot.add(mineralGrains)
 
     const sun = makeSun()
     const moon = makeMoon()
@@ -444,7 +571,7 @@ export function HeroScene({ scrollProgress, landscapeMode = false, reducedMotion
 
     stateRef.current = {
       renderer, scene, camera, pivot,
-      upTetra, downTetra, octaWire, sun, moon, dust, orbit,
+      upTetra, downTetra, octaWire, mineralGrains, sun, moon, dust, orbit,
       frame: 0, time: 0,
     }
     console.log(`HeroScene: initialized (${w}x${h}, dpr=${renderer.getPixelRatio()})`)
@@ -541,9 +668,13 @@ export function HeroScene({ scrollProgress, landscapeMode = false, reducedMotion
     // opacity fade remain scroll-driven and reversible.
     // (Initial camera stays at (0, 1.5, 9), looking toward the origin.)
 
-    // ── Act 4: fade to page bg (0.85 → 1.0) ────────────────
-    const fade = clamp01((p - 0.85) / 0.15)
-    const inv = 1 - fade
+    // ── Act 4: erode solid faces into mineral grains (0.82 → 1.0).
+    // Rewind is deterministic: there is no particle state to re-simulate.
+    const dissolve = easeInOutCubic(clamp01((p - 0.82) / 0.18))
+    s.mineralGrains.material.uniforms.uProgress.value = dissolve
+    s.mineralGrains.visible = dissolve > 0.002
+    const fade = dissolve
+    const inv = 1 - dissolve
 
     uFace.opacity = fO * inv
     dFace.opacity = fO * inv
@@ -604,6 +735,7 @@ export function HeroScene({ scrollProgress, landscapeMode = false, reducedMotion
       const h = el.clientHeight
       if (w === 0 || h === 0) return
       s.renderer.setSize(w, h)
+      s.mineralGrains.material.uniforms.uDpr.value = s.renderer.getPixelRatio()
       s.camera.aspect = w / h
       s.camera.updateProjectionMatrix()
     }
@@ -615,6 +747,8 @@ export function HeroScene({ scrollProgress, landscapeMode = false, reducedMotion
       const s = stateRef.current
       if (s) {
         cancelAnimationFrame(s.frame)
+        s.mineralGrains.geometry.dispose()
+        s.mineralGrains.material.dispose()
         s.renderer.dispose()
         if (containerRef.current) {
           try { containerRef.current.removeChild(s.renderer.domElement) } catch (_) {}
