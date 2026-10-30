@@ -5,6 +5,7 @@ import { canShowAdminConsole } from '../lib/role-nav.js'
 import useSWR from 'swr'
 import { api } from '../lib/api'
 import { OperatorControlsPanel } from '../components/OperatorControlsPanel'
+import { AdminAccountSafety } from '../components/AdminAccountSafety'
 import { loadAdminState } from '../lib/admin-controls.js'
 import { formatUsd, formatUsdPrecise } from '../lib/money.js'
 
@@ -45,10 +46,10 @@ export function Admin() {
       </section>
     )
   }
-  return <AdminConsoleContent />
+  return <AdminConsoleContent currentUserId={user.user_id} />
 }
 
-function AdminConsoleContent() {
+function AdminConsoleContent({ currentUserId }: { currentUserId: string }) {
   const { data: state, error: stateErr, mutate: refreshState } = useSWR('adminState', loadAdminState, { refreshInterval: 5000 })
   const { data: stats } = useSWR('stats', api.stats, { refreshInterval: 3000 })
   const { data: tpsData } = useSWR('tps', api.tps, { refreshInterval: 5000 })
@@ -78,6 +79,7 @@ function AdminConsoleContent() {
       {!state && !stateErr && <p role="status" className="text-sm text-gray-500">Loading system state…</p>}
       <OperatorControlsPanel providers={state?.providers || []}
         providerListUnavailable={!state} refreshProviders={() => refreshState()} />
+      <AdminAccountSafety currentUserId={currentUserId} />
 
       {stats && (
         <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
