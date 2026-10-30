@@ -853,14 +853,6 @@ function Sep() {
   return <span style={{ width: 1, height: 14, background: '#e5e5e5', margin: '0 2px' }} />
 }
 
-function Badge({ bg, color, children }: { bg: string; color: string; children: React.ReactNode }) {
-  return (
-    <span style={{ fontSize: 7, fontWeight: 600, padding: '1px 4px', borderRadius: 3, background: bg, color, display: 'inline-block', verticalAlign: 'middle' }}>
-      {children}
-    </span>
-  )
-}
-
 function CapBadge({ bg, color, children }: { bg: string; color: string; children: React.ReactNode }) {
   return (
     <span style={{ fontSize: 8, fontWeight: 600, padding: '2px 6px', borderRadius: 4, background: bg, color }}>
