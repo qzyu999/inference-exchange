@@ -23,8 +23,7 @@ export function Overview() {
   const hardenedCount = providers.filter((p: any) => p.trust_level === 'hardened' || p.trust_level === 'confidential').length
 
   // Request success rate from traces
-  const completedTraces = traces.filter((t: any) => ['completed', 'matched', 'matched_from_queue'].includes(t.status))
-  const successRate = traces.length > 0 ? (completedTraces.length / traces.length) * 100 : 0
+  const routedTraces = traces.filter((t: any) => ['completed', 'matched', 'matched_from_queue'].includes(t.status))
 
   // Recent activity (last 10 traces)
   const recentTraces = [...traces].reverse().slice(0, 10)
@@ -52,7 +51,7 @@ export function Overview() {
         {[
           { label: 'Providers online', value: stats?.providers_online ?? providers.length, color: C.blueBlack },
           { label: 'Models advertised', value: stats?.models_available ?? health?.models?.length ?? 0, color: C.blueBlack },
-          { label: 'Request success', value: traces.length > 0 ? `${successRate.toFixed(1)}%` : '—', color: successRate >= 95 ? C.green : successRate >= 80 ? C.gold : C.red },
+          { label: 'Recent routed traces', value: traces.length > 0 ? String(routedTraces.length) : '—', color: C.blueBlack },
           { label: 'Volume / session', value: stats?.total_volume_usd != null ? `$${stats.total_volume_usd >= 1 ? stats.total_volume_usd.toFixed(2) : stats.total_volume_usd.toFixed(4)}` : '—', color: C.gold },
         ].map(s => (
           <div key={s.label} className="bg-white rounded-2xl border border-gray-200/40 px-5 py-4">
@@ -74,39 +73,32 @@ export function Overview() {
           <div className="flex items-center gap-6 mb-4">
             <div className="flex items-center gap-2">
               <span className="w-2.5 h-2.5 rounded-full" style={{ background: C.green }} />
-              <span className="text-sm" style={{ color: C.green }}>Healthy routing</span>
-              <span className="text-sm font-semibold" style={{ color: C.blueBlack }}>{completedTraces.length}</span>
+              <span className="text-sm" style={{ color: C.green }}>Matched or completed</span>
+              <span className="text-sm font-semibold" style={{ color: C.blueBlack }}>{routedTraces.length}</span>
             </div>
             <div className="flex items-center gap-2">
               <span className="w-2.5 h-2.5 rounded-full" style={{ background: C.red }} />
-              <span className="text-sm" style={{ color: C.red }}>Failures</span>
-              <span className="text-sm font-semibold" style={{ color: C.blueBlack }}>{traces.length - completedTraces.length}</span>
+              <span className="text-sm" style={{ color: C.red }}>Other statuses</span>
+              <span className="text-sm font-semibold" style={{ color: C.blueBlack }}>{traces.length - routedTraces.length}</span>
             </div>
           </div>
 
-          {/* Simple bar chart of recent traces */}
+          {/* Do not use random bar heights for unmeasured request statistics. */}
           {recentTraces.length > 0 ? (
-            <div className="flex items-end gap-1.5 h-24">
-              {recentTraces.map((t: any, i: number) => {
-                const ok = ['completed', 'matched', 'matched_from_queue'].includes(t.status)
-                return (
-                  <Link
-                    key={i}
-                    to={`/trace?id=${t.request_id}`}
-                    className="flex-1 rounded-t transition-colors hover:opacity-80"
-                    style={{
-                      background: ok ? C.green : C.red,
-                      height: `${Math.max(15, Math.random() * 80 + 20)}%`,
-                      opacity: 0.7 + (i / recentTraces.length) * 0.3,
-                    }}
-                    title={`${t.request_id} — ${t.status}`}
-                  />
-                )
-              })}
-            </div>
+            <ul className="space-y-1.5">
+              {recentTraces.map((t: any, i: number) => (
+                <li key={t.request_id || i}>
+                  <Link to={`/trace?id=${encodeURIComponent(t.request_id || '')}`}
+                    className="flex items-center justify-between gap-3 rounded-lg border border-gray-100 px-3 py-2 text-xs hover:bg-gray-50">
+                    <span className="truncate" style={{ color: C.blueBlack }}>{t.model || 'Unspecified model'}</span>
+                    <span className="shrink-0" style={{ color: '#777' }}>{t.status || 'unknown'}</span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
           ) : (
-            <div className="text-xs text-center py-8" style={{ color: '#ccc' }}>
-              No requests yet. Send a chat message to see outcomes here.
+            <div className="text-xs text-center py-8" style={{ color: '#aaa' }}>
+              No request traces yet.
             </div>
           )}
 
@@ -118,27 +110,26 @@ export function Overview() {
           </div>
         </div>
 
-        {/* Radical transparency */}
+        {/* Only observed network status, not guessed software versions. */}
         <div className="bg-white rounded-2xl border border-gray-200/40 p-6">
           <div className="text-[10px] uppercase tracking-wider font-medium mb-1" style={{ color: C.gold }}>
-            Radical Transparency
+            Network status
           </div>
-          <h2 className="text-lg font-bold mb-4" style={{ color: C.blueBlack }}>What is running</h2>
+          <h2 className="text-lg font-bold mb-4" style={{ color: C.blueBlack }}>What is connected</h2>
 
           <div className="space-y-3">
             {[
-              { component: 'Coordinator', version: health?.status === 'ok' ? 'v0.1.0' : '—', ok: health?.status === 'ok' },
-              { component: 'Provider agent', version: providers.length > 0 ? 'v0.1.0' : '—', ok: providers.length > 0 },
-              { component: 'OCIP protocol', version: 'v1', ok: true },
-              { component: 'Billing', version: stats?.total_requests != null ? 'v0.1.0' : '—', ok: stats?.total_requests != null },
+              { component: 'Coordinator', status: health?.status === 'ok' ? 'Online' : 'Unknown', ok: health?.status === 'ok' },
+              { component: 'Provider connections', status: providers.length > 0 ? `${providers.length} online` : 'None reported', ok: providers.length > 0 },
+              { component: 'Billing metrics', status: stats?.total_requests != null ? 'Available' : 'Unknown', ok: stats?.total_requests != null },
             ].map(c => (
               <div key={c.component} className="flex items-center justify-between py-2 border-b border-gray-50 last:border-0">
                 <span className="text-sm" style={{ color: C.blueBlack }}>{c.component}</span>
                 <div className="flex items-center gap-3">
-                  <span className="text-xs font-mono" style={{ color: '#999' }}>{c.version}</span>
+                  <span className="text-xs font-mono" style={{ color: '#999' }}>{c.status}</span>
                   <span className="text-[10px] font-medium px-2 py-0.5 rounded-full"
                     style={{ background: c.ok ? '#edf7f1' : '#f3f3f3', color: c.ok ? C.green : '#999' }}>
-                    {c.ok ? 'verified' : 'unavailable'}
+                    {c.ok ? 'observed' : 'unknown'}
                   </span>
                 </div>
               </div>
@@ -149,7 +140,7 @@ export function Overview() {
           {providers.length > 0 && (
             <div className="mt-4 pt-4" style={{ borderTop: '1px solid #eaeae8' }}>
               <div className="text-[10px] uppercase tracking-wider font-medium mb-2" style={{ color: '#aaa' }}>
-                Fleet trust distribution
+                Provider-reported trust levels
               </div>
               <div className="flex items-center gap-2 flex-wrap">
                 {(['open', 'contained', 'hardened', 'confidential'] as const).map(level => {
