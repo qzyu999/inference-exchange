@@ -433,7 +433,7 @@ export function Landing() {
               pigment canvas. It is NOT a second page or second WebGL field. */}
           {!rawVideoOnly && (
             <section
-              id="inference-exchange-product"
+              id={storyEnabled ? 'inference-exchange-product' : 'landing-main'}
               ref={heroRef}
               tabIndex={-1}
               aria-label="Inference Exchange product overview"
