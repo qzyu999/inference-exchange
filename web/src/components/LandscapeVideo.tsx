@@ -24,6 +24,7 @@ export function LandscapeVideo({ progress, reducedMotion, onAvailabilityChange }
   const videoRef = useRef<HTMLVideoElement>(null)
   const [ready, setReady] = useState(false)
   const fit = getVideoFit()
+  const [loopEligible, setLoopEligible] = useState(false)
 
   useEffect(() => {
     onAvailabilityChange(ready)
@@ -45,8 +46,8 @@ export function LandscapeVideo({ progress, reducedMotion, onAvailabilityChange }
     return () => document.removeEventListener('visibilitychange', sync)
   }, [reducedMotion, ready])
 
-  // The current 5-second source is not seamless. Hold its final frame instead
-  // of introducing a conspicuous jump at every loop.
+  // Loop only longer, near-stationary source footage. The original short Kling
+  // preview is not seamless, so it still stops rather than visibly jumping.
   const fade = Math.min(1, Math.max(0, (progress - 0.82) / 0.18))
 
   return (
@@ -82,11 +83,20 @@ export function LandscapeVideo({ progress, reducedMotion, onAvailabilityChange }
         src={VIDEO}
         poster={POSTER}
         autoPlay={!reducedMotion}
+        loop={loopEligible}
         muted
         playsInline
         preload="metadata"
+        onLoadedMetadata={(event) => {
+          // Use the 30-second stationary footage as an ambient loop. A missing
+          // asset or an old five-second draft retains the original hold behavior.
+          setLoopEligible(event.currentTarget.duration >= 20)
+        }}
         onLoadedData={() => setReady(true)}
-        onError={() => setReady(false)}
+        onError={() => {
+          setLoopEligible(false)
+          setReady(false)
+        }}
       />
 
       {/* Show the full-resolution still while the first video frame loads,
