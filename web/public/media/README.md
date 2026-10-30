@@ -39,13 +39,18 @@ The change overwrites **only your local review-worktree media files**.
 Nothing changes in the separate production/provider directory.
 
 Review modes:
-- `http://localhost:5174/` — complete intro, crystal, ripples and landscape
+- `http://localhost:5174/` — complete intro, crystals and landscape
 - `http://localhost:5174/?heroRaw=1` — video alone below the navbar
-- `http://localhost:5174/?heroFit=cover` — viewport crop comparison
-- `http://localhost:5174/?heroRaw=1&heroFit=cover` — crop without overlays
+- `http://localhost:5174/?heroFit=contain` — preserve full source without cropping (shows letterbox bands)
+- `http://localhost:5174/?heroRaw=1&heroFit=contain` — uncropped video without overlays
 
-`object-fit: contain` remains the default to preserve the mountain and
-its reflection, which means a wide-video letterbox on taller screens.
+`object-fit: cover` is now the default so the landscape touches the navbar
+and the bottom edge of the scene without dark horizontal gaps. At a
+1920 × 962 viewport with a 56px navbar, the 1650 × 720 source loses
+approximately 3.8% of its width on each side; it is never stretched.
+The `contain` override remains for side-by-side crop comparisons.
+Longer term, use a genuinely 16:9 or responsive source master to avoid
+this compromise across different screens.
 
 ## Remaining production work
 
