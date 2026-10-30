@@ -9,12 +9,14 @@ interface LandscapeVideoProps {
 const VIDEO = '/media/alpine-lake-hero.mp4'
 const POSTER = '/media/alpine-lake-poster.webp'
 
-// Keep the full ultra-wide video visible by default, even in a 16:9 viewport.
-// ?heroFit=cover is a review-only comparison for the old cropped presentation.
+// Fill the entire scene under the navbar with no letterbox gaps.
+// The 1650x720 footage is wider than a standard desktop scene: cover crops
+// a little of the sides rather than stretching the image or creating top/bottom
+// matte bars. ?heroFit=contain lets reviewers compare the uncropped framing.
 function getVideoFit(): 'contain' | 'cover' {
-  return new URLSearchParams(window.location.search).get('heroFit') === 'cover'
-    ? 'cover'
-    : 'contain'
+  return new URLSearchParams(window.location.search).get('heroFit') === 'contain'
+    ? 'contain'
+    : 'cover'
 }
 
 // Optional media: if the MP4 isn't present, the existing Three.js scene remains
