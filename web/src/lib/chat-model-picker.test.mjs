@@ -1,0 +1,33 @@
+// #191: a structural UI contract combined with pure model-availability unit tests.
+// A real browser/keyboard smoke test remains a separate release gate.
+import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
+const read = relative => readFileSync(new URL(relative, import.meta.url), 'utf8')
+const chat = read('../pages/Chat.tsx')
+const picker = read('../components/ChatModelPicker.tsx')
+
+assert.match(chat, /normalizeOnlineModels\(modelsData\?\.data\?\.map\(m => m\.id\)\)/)
+assert.match(chat, /refreshInterval: 5000/)
+assert.match(chat, /isRunnableChatModel\(model, onlineModels\)/)
+assert.match(chat, /modelReady/)
+assert.match(chat, /ChatModelPicker/)
+assert.match(chat, /if \(!model && !requestedModel && onlineModels\.length\)/)
+assert.match(chat, /if \(requestedModel\) setModel\(requestedModel\)/)
+assert.match(chat, /\n        model,\n/) // selected real ID, not an implicit alias
+assert.doesNotMatch(chat, /<select|model: model \|\| 'default'|value="default">Any model/)
+assert.match(chat, /trustMismatch \|\| !modelReady/)
+assert.match(chat, /ocip_min_confidence: minTrust/)
+assert.match(chat, /The selected model/)
+assert.match(chat, /No runnable models are connected/)
+assert.match(chat, /Could not verify available models or providers/)
+assert.match(picker, /role="combobox"/)
+assert.match(picker, /role="listbox"/)
+assert.match(picker, /role="option"/)
+assert.match(picker, /aria-activedescendant/)
+assert.match(picker, /aria-selected/)
+assert.match(picker, /ArrowDown|ArrowUp|Escape|Enter|Tab/)
+assert.match(picker, /onPointerDown/)
+assert.match(picker, /max-h-72 overflow-y-auto/)
+assert.match(picker, /searchOnlineModels/)
+assert.match(picker, /connected/)
+console.log('#191 Chat model picker source contract passed')

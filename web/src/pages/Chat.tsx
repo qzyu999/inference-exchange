@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useMemo } from 'react'
 import useSWR from 'swr'
 import { useSearchParams, Link } from 'react-router-dom'
 import ReactMarkdown from 'react-markdown'
@@ -7,6 +7,8 @@ import { api } from '../lib/api'
 import { useAuth } from '../lib/auth'
 import { authState, loginHref } from '../lib/nav.js'
 import { formatUsd } from '../lib/money.js'
+import { normalizeOnlineModels, isRunnableChatModel } from '../lib/chat-models.js'
+import { ChatModelPicker } from '../components/ChatModelPicker'
 import { C, TRUST_CLAIM_NOTE, TRUST_COLORS } from '../lib/theme'
 
 interface Message {
@@ -40,7 +42,8 @@ export function Chat() {
   const [loadedUserId, setLoadedUserId] = useState<string | null>(null)
   const [input, setInput] = useState('')
   const [streaming, setStreaming] = useState(false)
-  const [model, setModel] = useState(() => searchParams.get('model') || '')
+  const requestedModel = searchParams.get('model') || ''
+  const [model, setModel] = useState(() => requestedModel)
   const [minTrust, setMinTrust] = useState('hardened')
   const [maxPrice, setMaxPrice] = useState('0.15')
   const [showSidebar, setShowSidebar] = useState(false)
@@ -48,8 +51,26 @@ export function Chat() {
   const inputRef = useRef<HTMLInputElement>(null)
   const abortRef = useRef<AbortController | null>(null)
 
-  const { data: modelsData } = useSWR('models', api.models)
-  const { data: providerData } = useSWR('providers', api.providers, { refreshInterval: 5000 })
+  const { data: modelsData, error: modelsError, isLoading: modelsLoading, mutate: refreshModels } =
+    useSWR('models', api.models, { refreshInterval: 5000 })
+  const { data: providerData, error: providersError, mutate: refreshProviders } =
+    useSWR('providers', api.providers, { refreshInterval: 5000 })
+
+  // Runnable model IDs come only from /v1/models, never Exchange reference prices.
+  const onlineModels = useMemo(
+    () => normalizeOnlineModels(modelsData?.data?.map(m => m.id)),
+    [modelsData],
+  )
+  const modelListed = !modelsError && isRunnableChatModel(model, onlineModels)
+  const modelProviders = providerData?.providers?.filter(p => p.models.includes(model)) ?? []
+  const modelReady = modelListed && !!providerData && !providersError && modelProviders.length > 0
+  const providerCounts = useMemo(() => {
+    const counts: Record<string, number> = {}
+    for (const provider of providerData?.providers ?? []) {
+      for (const id of provider.models) counts[id] = (counts[id] || 0) + 1
+    }
+    return counts
+  }, [providerData])
 
   // React mounts Chat before the async session check completes. Load only the
   // *current* user's history; never copy anonymous or another account's messages.
@@ -64,7 +85,12 @@ export function Chat() {
   }, [chatKey, user?.user_id])
 
   useEffect(() => { scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight }) }, [messages])
-  useEffect(() => { if (!model && modelsData?.data?.length) setModel(modelsData.data[0].id) }, [modelsData, model])
+  // Honor explicit ?model= links. If a link is stale, display it as unavailable.
+  // Never silently redirect a user from one requested model to another.
+  useEffect(() => { if (requestedModel) setModel(requestedModel) }, [requestedModel])
+  useEffect(() => {
+    if (!model && !requestedModel && onlineModels.length) setModel(onlineModels[0])
+  }, [onlineModels, model, requestedModel])
   useEffect(() => {
     if (chatKey && loadedUserId === user?.user_id && messages.length > 0) {
       localStorage.setItem(chatKey, JSON.stringify(messages))
@@ -75,15 +101,12 @@ export function Chat() {
   const trustInfo = TRUST_COLORS[minTrust] || TRUST_COLORS.hardened
   const trustOrder: Record<string, number> = { open: 0, contained: 1, hardened: 2, confidential: 3 }
   // Show a trust mismatch before a request is sent; never silently weaken privacy.
-  const modelProviders = providerData?.providers?.filter(p =>
-    !model || model === 'default' || p.models.includes(model)
-  ) ?? []
   const trustMismatch = minTrust !== 'open' && modelProviders.length > 0 &&
     !modelProviders.some(p => (trustOrder[p.trust_level] ?? -1) >= (trustOrder[minTrust] ?? 99))
 
   async function send() {
     const text = input.trim()
-    if (!user || authLoading || !text || streaming || trustMismatch) return
+    if (!user || authLoading || !text || streaming || trustMismatch || !modelReady) return
     const userMsg: Message = { role: 'user', content: text }
     const updated = [...messages, userMsg]
     setMessages(updated)
@@ -95,7 +118,7 @@ export function Chat() {
 
     try {
       const body: any = {
-        model: model || 'default',
+        model,
         messages: updated.map(m => ({ role: m.role, content: m.content })),
         stream: true,
         ocip_preference: 'balanced',
@@ -207,15 +230,14 @@ export function Chat() {
       <div className="flex-1 flex flex-col min-w-0 min-h-[65vh] lg:min-h-0">
         {/* Model + trust header bar */}
         <div className="bg-white rounded-2xl border border-gray-200/40 px-5 py-3 mb-4 flex items-center gap-3 flex-wrap">
-          <select
+          <ChatModelPicker
+            models={onlineModels}
             value={model}
-            onChange={e => setModel(e.target.value)}
-            className="px-3 py-1.5 bg-transparent border border-gray-200 rounded-lg text-sm font-medium focus:outline-none focus:ring-2 focus:ring-amber-500/20"
-            style={{ color: C.blueBlack }}
-          >
-            <option value="default">Any model</option>
-            {modelsData?.data?.map(m => <option key={m.id} value={m.id}>{m.id}</option>)}
-          </select>
+            onChange={setModel}
+            providerCounts={providerCounts}
+            loading={modelsLoading || !modelsData}
+            disabled={streaming || !!modelsError || !!providersError}
+          />
 
           <span
             className="text-[11px] font-semibold px-2.5 py-1 rounded-full"
@@ -245,6 +267,37 @@ export function Chat() {
           </button>
         </div>
 
+        {/* Report missing, offline and stale model states before the user sends. */}
+        {(modelsError || providersError) ? (
+          <div role="alert" className="flex flex-wrap items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 mb-3 text-xs text-red-800">
+            <span className="flex-1">Could not verify available models or providers. Requests are disabled until the connection recovers.</span>
+            <button type="button" className="underline font-semibold" onClick={() => {
+              void refreshModels()
+              void refreshProviders()
+            }}>Retry</button>
+          </div>
+        ) : (!modelsData || !providerData) ? (
+          <div role="status" className="rounded-xl bg-gray-50 px-4 py-3 mb-3 text-xs text-gray-600">
+            Checking connected models and providers…
+          </div>
+        ) : onlineModels.length === 0 ? (
+          <div role="status" className="rounded-xl bg-gray-50 px-4 py-3 mb-3 text-xs text-gray-700">
+            No runnable models are connected right now. Chat will be available when a provider returns.
+          </div>
+        ) : !modelListed ? (
+          <div role="alert" className="rounded-xl bg-amber-50 px-4 py-3 mb-3 text-xs text-amber-900">
+            {model ? (
+              <>The selected model <strong>{model}</strong> is not currently available.
+                {model === 'default' ? ' “default” is a routing alias, not a runnable model.' : ''}
+                {' '}Choose one of the connected models above before sending.</>
+            ) : 'Choose an available model above before sending.'}
+          </div>
+        ) : !modelReady ? (
+          <div role="status" className="rounded-xl bg-amber-50 px-4 py-3 mb-3 text-xs text-amber-900">
+            No provider is currently connected for <strong>{model}</strong>. Choose another online model or try again when this provider returns.
+          </div>
+        ) : null}
+
         {/* The public alpha may have only an L0 provider. Make that visible before the user sends. */}
         {trustMismatch && (
           <div className="flex flex-wrap items-center gap-2 px-4 py-3 mb-3 rounded-xl text-xs"
@@ -261,14 +314,6 @@ export function Chat() {
             >
               I understand — use L0/Open
             </button>
-          </div>
-        )}
-
-        {providerData && providerData.providers.length === 0 && (
-          <div className="px-4 py-2.5 mb-3 rounded-xl text-xs"
-            style={{ background: '#f5f5f4', color: '#777' }}>
-            No providers are connected. This experimental alpha may be offline while the
-            volunteer machines are asleep.
           </div>
         )}
 
@@ -299,7 +344,7 @@ export function Chat() {
               <img src="/logo-icon.svg" alt="IE" className="w-14 h-14 mx-auto mb-4 opacity-30" />
               <div className="text-sm font-medium" style={{ color: '#999' }}>Send a message to start</div>
               <div className="text-xs mt-1" style={{ color: '#bbb' }}>
-                {model && model !== 'default' ? `Using ${model}` : 'Routed to the best available provider'}
+                {modelReady ? 'Using ' + model : 'Select a connected model above'}
               </div>
             </div>
           )}
@@ -359,7 +404,7 @@ export function Chat() {
               ref={inputRef}
               onKeyDown={e => e.key === 'Enter' && !e.shiftKey && send()}
               placeholder="Message the exchange..."
-              disabled={streaming || trustMismatch}
+              disabled={streaming || trustMismatch || !modelReady}
               className="flex-1 px-4 py-3 bg-white border border-gray-200/60 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/20 placeholder:text-gray-300"
             />
             {streaming ? (
@@ -376,7 +421,7 @@ export function Chat() {
                 Stop
               </button>
             ) : (
-              <button onClick={send} disabled={trustMismatch} className="px-5 py-3 rounded-xl text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed" style={{ background: C.blueBlack, color: '#fff' }}>
+              <button onClick={send} disabled={trustMismatch || !modelReady || !input.trim()} className="px-5 py-3 rounded-xl text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed" aria-label="Send chat message" style={{ background: C.blueBlack, color: '#fff' }}>
                 Send
               </button>
             )}
