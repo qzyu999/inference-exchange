@@ -313,7 +313,7 @@ function LiveExchangeCard() {
 
 export function Landing() {
   const storyRef = useRef<HTMLDivElement>(null)
-  const heroRef = useRef<HTMLDivElement>(null)
+  const heroRef = useRef<HTMLElement>(null)
   const scrollUnits = useScrollUnits(storyRef)
   const chapterPosition = getStoryPosition(scrollUnits)
   // Keep the outgoing headline readable until the visual transition is
@@ -445,58 +445,60 @@ export function Landing() {
                 pointerEvents: productOpacity > 0.95 ? 'auto' : 'none',
               }}
             >
-        {/* Hero content: headline left, live exchange card right */}
-        <div className="relative z-10 min-h-full flex items-center">
-          <div className="max-w-7xl mx-auto w-full px-6 md:px-10 py-12">
-            <div className="flex flex-col lg:flex-row items-center justify-between gap-12 lg:gap-16">
-            {/* Left: headline + CTAs */}
-            <div className="flex-1 max-w-xl">
-              <h2 className="text-4xl md:text-5xl font-bold tracking-tight leading-[1.1]" style={{ color: C.warmWhite }}>
-                Distributed AI inference,
-                <br />
-                <span
-                  className="bg-clip-text text-transparent"
-                  style={{ backgroundImage: GRADIENTS.heroText }}
-                >
-                  powered by everyone.
-                </span>
-              </h2>
-
-              <p className="text-base mt-6 leading-relaxed max-w-md" style={{ color: '#8a8578' }}>
-                OpenAI-compatible inference with a live supply side.
-                Your request is routed by price, speed and trust. Providers compete to serve it.
-              </p>
-
-              <div className="flex gap-3 mt-8">
-                <Link
-                  to="/chat"
-                  className="group relative px-6 py-3 rounded-xl font-medium text-sm transition-all overflow-hidden"
-                  style={{ color: C.blueBlack }}
-                >
-                  <span className="absolute inset-0 rounded-xl transition-opacity" style={{ background: C.warmWhite }} />
-                  <span className="absolute inset-0 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity" style={{ background: GRADIENTS.heroText }} />
-                  <span className="relative z-10 group-hover:text-white transition-colors">Start a conversation</span>
-                </Link>
-                <Link
-                  to="/provide"
-                  className="group relative px-6 py-3 rounded-xl font-medium text-sm border transition-all overflow-hidden mineral-border"
-                  style={{
-                    color: C.warmWhite,
-                    background: 'rgba(216,209,190,0.06)',
-                  }}
-                >
-                  <span className="relative z-10">Become a provider</span>
-                </Link>
+            {/* Hero content: headline left, live exchange card right */}
+            <div className="relative z-10 min-h-full flex items-center">
+              <div className="max-w-7xl mx-auto w-full px-6 md:px-10 py-12">
+                <div className="flex flex-col lg:flex-row items-center justify-between gap-12 lg:gap-16">
+                {/* Left: headline + CTAs */}
+                <div className="flex-1 max-w-xl">
+                  <h2 className="text-4xl md:text-5xl font-bold tracking-tight leading-[1.1]" style={{ color: C.warmWhite }}>
+                    Distributed AI inference,
+                    <br />
+                    <span
+                      className="bg-clip-text text-transparent"
+                      style={{ backgroundImage: GRADIENTS.heroText }}
+                    >
+                      powered by everyone.
+                    </span>
+                  </h2>
+    
+                  <p className="text-base mt-6 leading-relaxed max-w-md" style={{ color: '#8a8578' }}>
+                    OpenAI-compatible inference with a live supply side.
+                    Your request is routed by price, speed and trust. Providers compete to serve it.
+                  </p>
+    
+                  <div className="flex gap-3 mt-8">
+                    <Link
+                      to="/chat"
+                      tabIndex={productOpacity > 0.95 ? undefined : -1}
+                      className="group relative px-6 py-3 rounded-xl font-medium text-sm transition-all overflow-hidden"
+                      style={{ color: C.blueBlack }}
+                    >
+                      <span className="absolute inset-0 rounded-xl transition-opacity" style={{ background: C.warmWhite }} />
+                      <span className="absolute inset-0 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity" style={{ background: GRADIENTS.heroText }} />
+                      <span className="relative z-10 group-hover:text-white transition-colors">Start a conversation</span>
+                    </Link>
+                    <Link
+                      to="/provide"
+                      tabIndex={productOpacity > 0.95 ? undefined : -1}
+                      className="group relative px-6 py-3 rounded-xl font-medium text-sm border transition-all overflow-hidden mineral-border"
+                      style={{
+                        color: C.warmWhite,
+                        background: 'rgba(216,209,190,0.06)',
+                      }}
+                    >
+                      <span className="relative z-10">Become a provider</span>
+                    </Link>
+                  </div>
+                </div>
+    
+                {/* Right: live exchange card */}
+                <div className="w-full lg:w-auto flex justify-center lg:justify-end">
+                  <LiveExchangeCard />
+                </div>
+              </div>
               </div>
             </div>
-
-            {/* Right: live exchange card */}
-            <div className="w-full lg:w-auto flex justify-center lg:justify-end">
-              <LiveExchangeCard />
-            </div>
-          </div>
-          </div>
-        </div>
             </section>
           )}
         </div>
@@ -507,7 +509,7 @@ export function Landing() {
           <div key={chapter.label} className="h-[calc(100svh-3.5rem)] w-full" aria-hidden="true" />
         ))}
         {storyEnabled && (
-          <div style={{ height: 'calc((100svh - 3.5rem) * 0.85)' }} aria-hidden="true" />
+          <div style={{ height: 'calc(85svh - 2.975rem)' }} aria-hidden="true" />
         )}
       </div>
 
