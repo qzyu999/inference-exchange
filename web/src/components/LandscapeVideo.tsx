@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from 'react'
-import { C } from '../lib/theme'
 
 interface LandscapeVideoProps {
   progress: number
@@ -10,7 +9,7 @@ interface LandscapeVideoProps {
 const VIDEO = '/media/alpine-lake-hero.mp4'
 const POSTER = '/media/alpine-lake-poster.webp'
 
-// Keep the entire 2.34:1 source visible by default, even in a 16:9 viewport.
+// Keep the full ultra-wide video visible by default, even in a 16:9 viewport.
 // ?heroFit=cover is a review-only comparison for the old cropped presentation.
 function getVideoFit(): 'contain' | 'cover' {
   return new URLSearchParams(window.location.search).get('heroFit') === 'cover'
@@ -54,23 +53,11 @@ export function LandscapeVideo({ progress, reducedMotion, onAvailabilityChange }
     <div
       className="pointer-events-none absolute inset-0 overflow-hidden"
       aria-hidden="true"
-      style={{ backgroundColor: C.blueBlack, opacity: 1 - fade }}
+      // Match the opaque navigation bar. No blurred poster or dark wash that
+      // could look like a second horizon/overlapping strip behind the video.
+      style={{ backgroundColor: '#0E1018', opacity: 1 - fade }}
     >
-      {/* Fill only the letterbox area with a softened copy of the poster.
-          It is BEHIND the actual video, so it cannot tint or blur footage. */}
-      <div
-        className="absolute inset-0"
-        style={{
-          backgroundImage: 'url(' + POSTER + ')',
-          backgroundSize: 'cover',
-          backgroundPosition: 'center center',
-          filter: 'blur(24px) brightness(0.65)',
-          transform: 'scale(1.08)',
-        }}
-      />
-
-      {/* The previous implementation used object-cover (cropped/zoomed) plus
-          a strong full-frame black gradient (color tint). Neither is applied. */}
+      {/* Raw video only. Letterboxing uses a flat matte, not blurred footage. */}
       <video
         ref={videoRef}
         className="absolute inset-0 h-full w-full"
