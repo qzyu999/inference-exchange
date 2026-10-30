@@ -127,7 +127,9 @@ interface MineralFlowFieldProps {
 export function MineralFlowField({ className = '', opacity = 1, progress = 1 }: MineralFlowFieldProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const progressRef = useRef(progress)
+  const opacityRef = useRef(opacity)
   progressRef.current = progress
+  opacityRef.current = opacity
 
   useEffect(() => {
     const el = containerRef.current
@@ -191,9 +193,14 @@ export function MineralFlowField({ className = '', opacity = 1, progress = 1 }: 
 
     const animate = () => {
       if (!visible) return
-      material.uniforms.uTime.value = (performance.now() - started) / 1000
-      material.uniforms.uReveal.value = progressRef.current
-      gpu.render(scene, camera)
+      // Keep one persistent GPU canvas, but avoid running the expensive
+      // full-screen noise shader throughout the opening mountain chapters.
+      // It wakes as soon as the dissolve starts, with no context switch/seam.
+      if (opacityRef.current > 0.004 && !document.hidden) {
+        material.uniforms.uTime.value = (performance.now() - started) / 1000
+        material.uniforms.uReveal.value = progressRef.current
+        gpu.render(scene, camera)
+      }
       frame = requestAnimationFrame(animate)
     }
 
