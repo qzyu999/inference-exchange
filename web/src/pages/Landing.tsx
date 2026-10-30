@@ -55,7 +55,7 @@ function ScrollOverlay({ progress }: { progress: number }) {
   ]
 
   return (
-    <div className="pointer-events-none fixed inset-0 z-20 flex items-center justify-center">
+    <div className="pointer-events-none fixed inset-x-0 top-14 bottom-0 z-20 flex items-center justify-center">
       {overlays.map((o, i) => {
         let opacity = 0
         if (progress >= o.from && progress <= o.to) {
@@ -235,9 +235,11 @@ export function Landing() {
   return (
     <>
       <LandingNav />
+      {/* The entire cinematic stage, including video, Three.js and copy, sits below
+          the fixed 3.5rem navbar. This keeps every layer in the same coordinates. */}
       {/* ── Scroll sequence ──────────────────────────────── */}
       <div ref={scrollContainerRef} style={{ height: storyEnabled ? '350vh' : '100svh' }} className="relative">
-        <div className="sticky top-0 left-0 w-full h-screen overflow-hidden z-10">
+        <div className="sticky top-14 left-0 w-full h-[calc(100svh-3.5rem)] overflow-hidden z-10">
           <LandscapeVideo progress={progress} reducedMotion={reducedMotion} onAvailabilityChange={setVideoReady} />
           {!rawVideoOnly && (
             <HeroScene
@@ -250,7 +252,7 @@ export function Landing() {
           {storyEnabled && !rawVideoOnly && <LakeEffects progress={progress} reducedMotion={reducedMotion} />}
 
           {webglFailed && (
-            <div id="landing-main" className="absolute inset-0 pt-14 flex flex-col items-center justify-center" style={{ background: C.black }}>
+            <div id="landing-main" className="absolute inset-0 flex flex-col items-center justify-center" style={{ background: C.black }}>
               <img
                 src="/logo-icon.svg"
                 alt="Inference Exchange"
@@ -282,7 +284,7 @@ export function Landing() {
             <section
               id="landing-main"
               aria-labelledby="landing-title"
-              className="absolute inset-x-0 top-14 bottom-0 z-30 flex flex-col items-center justify-center px-6 text-center transition-opacity duration-300"
+              className="absolute inset-0 z-30 flex flex-col items-center justify-center px-6 text-center transition-opacity duration-300"
               style={{
                 opacity: introVisible ? 1 : 0,
                 visibility: introVisible ? 'visible' : 'hidden',
