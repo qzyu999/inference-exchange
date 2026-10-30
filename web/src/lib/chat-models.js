@@ -6,7 +6,7 @@ export function normalizeOnlineModels(ids) {
   if (!Array.isArray(ids)) return []
   const seen = new Set()
   for (const id of ids) {
-    if (typeof id === 'string' && id.trim() && id !== 'default') {
+    if (typeof id === 'string' && id.trim() && id.trim() !== 'default') {
       seen.add(id)
     }
   }

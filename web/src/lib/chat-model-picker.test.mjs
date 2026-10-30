@@ -13,7 +13,7 @@ assert.match(chat, /modelReady/)
 assert.match(chat, /ChatModelPicker/)
 assert.match(chat, /if \(!model && !requestedModel && onlineModels\.length\)/)
 assert.match(chat, /if \(requestedModel\) setModel\(requestedModel\)/)
-assert.match(chat, /model: model\s*[,}]/) // actual ID, no implicit alias
+assert.match(chat, /\n        model,\n/) // selected real ID, not an implicit alias
 assert.doesNotMatch(chat, /<select|model: model \|\| 'default'|value="default">Any model/)
 assert.match(chat, /trustMismatch \|\| !modelReady/)
 assert.match(chat, /ocip_min_confidence: minTrust/)

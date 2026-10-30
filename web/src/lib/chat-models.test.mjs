@@ -4,7 +4,7 @@ import { normalizeOnlineModels, searchOnlineModels, isRunnableChatModel } from '
 
 assert.deepEqual(normalizeOnlineModels(undefined), [])
 assert.deepEqual(normalizeOnlineModels([]), [])
-assert.deepEqual(normalizeOnlineModels(['default', '', '  ', 4, null]), [])
+assert.deepEqual(normalizeOnlineModels(['default', ' default ', '', '  ', 4, null]), [])
 assert.deepEqual(normalizeOnlineModels(['Qwen2.5 0.5B Instruct', 'default', 'Qwen2.5 0.5B Instruct']), ['Qwen2.5 0.5B Instruct'])
 
 const many = normalizeOnlineModels([
