@@ -322,10 +322,23 @@ export function Landing() {
   const sceneProgress = getSceneProgress(chapterPosition)
   const [webglFailed, setWebglFailed] = useState(false)
   const [videoReady, setVideoReady] = useState(false)
-  const [storyInView, setStoryInView] = useState(true)
   const [reducedMotion, setReducedMotion] = useState(false)
   const rawVideoOnly = new URLSearchParams(window.location.search).get('heroRaw') === '1'
   const storyEnabled = !webglFailed && !reducedMotion && !rawVideoOnly
+  const exitProgress = storyEnabled ? clamp01(chapterPosition - LAST_CHAPTER) : 1
+  // The same pinned scene becomes the product screen during the gust.
+  // The last 0.85 viewport remains on that finished screen for reading.
+  const productOpacity = rawVideoOnly ? 0 : storyEnabled
+    ? smoothstep((exitProgress - 0.53) / 0.42)
+    : 1
+  const skipRequestedRef = useRef(false)
+
+  useEffect(() => {
+    if (productOpacity > 0.95 && skipRequestedRef.current) {
+      heroRef.current?.focus({ preventScroll: true })
+      skipRequestedRef.current = false
+    }
+  }, [productOpacity])
 
   useEffect(() => {
     const query = window.matchMedia('(prefers-reduced-motion: reduce)')
@@ -350,24 +363,6 @@ export function Landing() {
     }
   }, [])
 
-  useEffect(() => {
-    // Once the actual marketplace takes over, remove the chapter navigation.
-    const update = () => {
-      const bottom = storyRef.current?.getBoundingClientRect().bottom ?? 0
-      setStoryInView(prev => {
-        const next = bottom > window.innerHeight * 0.65
-        return prev === next ? prev : next
-      })
-    }
-    window.addEventListener('scroll', update, { passive: true })
-    window.addEventListener('resize', update)
-    update()
-    return () => {
-      window.removeEventListener('scroll', update)
-      window.removeEventListener('resize', update)
-    }
-  }, [])
-
   const navigateToChapter = (index: number) => {
     const story = storyRef.current
     if (!story || !storyEnabled) return
@@ -380,8 +375,19 @@ export function Landing() {
   }
 
   const skipStory = () => {
-    heroRef.current?.scrollIntoView({ behavior: reducedMotion ? 'auto' : 'smooth', block: 'start' })
-    heroRef.current?.focus({ preventScroll: true })
+    if (!storyEnabled || !storyRef.current) {
+      heroRef.current?.focus({ preventScroll: true })
+      return
+    }
+    skipRequestedRef.current = true
+    const storyTop = storyRef.current.getBoundingClientRect().top + window.scrollY
+    const height = Math.max(1, window.innerHeight - NAV_HEIGHT)
+    // Scroll to the final in-place product pose, not to the fixed/sticky DOM
+    // element. scrollIntoView on a pinned element cannot reach its timeline.
+    window.scrollTo({
+      top: storyTop + EXIT_POSITION * height,
+      behavior: 'smooth',
+    })
   }
 
   return (
@@ -393,19 +399,20 @@ export function Landing() {
             advances through reading holds, then smooth, reversible transitions. */}
         <div className="sticky top-14 left-0 z-10 h-[calc(100svh-3.5rem)] w-full overflow-hidden">
           <LandscapeVideo
-            progress={storyEnabled ? sceneProgress : 0}
+            progress={rawVideoOnly ? 0 : storyEnabled ? sceneProgress : 1}
             reducedMotion={reducedMotion}
             onAvailabilityChange={setVideoReady}
           />
           {/* Dissolution completes on this same pinned canvas: mineral ribbons
               emerge as the video dims, beneath the original crystal geometry. */}
-          {storyEnabled && (
+          {!rawVideoOnly && (
             <MineralFlowField
               className="absolute inset-0 z-[1]"
-              opacity={clamp01((sceneProgress - 0.82) / 0.18)}
+              opacity={storyEnabled ? clamp01((sceneProgress - 0.82) / 0.18) : 1}
+              progress={storyEnabled ? clamp01((sceneProgress - 0.82) / 0.18) : 1}
             />
           )}
-          {!rawVideoOnly && (
+          {storyEnabled && (
             <HeroScene
               scrollProgress={sceneProgress}
               landscapeMode={videoReady}
@@ -414,67 +421,32 @@ export function Landing() {
             />
           )}
 
-          {webglFailed && (
-            <div id="landing-main" className="absolute inset-0 z-30 flex flex-col items-center justify-center p-6 text-center" style={{ background: C.blueBlack }}>
-              <h1 className="text-4xl font-semibold" style={{ color: C.warmWhite }}>Inference Exchange</h1>
-              <p className="mt-4 max-w-lg" style={{ color: C.warmWhite }}>
-                An open market connecting people who need AI inference with available compute.
-              </p>
-              <div className="mt-7 flex flex-wrap justify-center gap-3">
-                <Link to="/chat" className="px-5 py-3 rounded-lg font-medium" style={{ background: C.warmWhite, color: C.black }}>
-                  Start chatting
-                </Link>
-                <Link to="/provide" className="px-5 py-3 rounded-lg border" style={{ color: C.warmWhite, borderColor: C.warmWhite }}>
-                  Become a provider
-                </Link>
-              </div>
-            </div>
-          )}
-
-          {!webglFailed && !rawVideoOnly && (
+          {storyEnabled && (
             <EditorialStory
               activeIndex={storyEnabled ? activeIndex : 0}
-              exitProgress={storyEnabled ? clamp01(chapterPosition - LAST_CHAPTER) : 0}
+              exitProgress={exitProgress}
               onSkip={skipStory}
               onNext={() => navigateToChapter(1)}
             />
           )}
-        </div>
-        {/* Four viewport-height scroll beats after the initial pinned screen:
-            three transitions between chapters, then a final fade/reveal.
-            The scene stays pinned through the chapter 4 hold and exit animation;
-            after that it unpins and the real product rises naturally below it. */}
-        {storyEnabled && STORY_CHAPTERS.map(chapter => (
-          <div key={chapter.label} className="h-[calc(100svh-3.5rem)] w-full" aria-hidden="true" />
-        ))}
-      </div>
-
-      {storyEnabled && storyInView && scrollUnits < EXIT_POSITION - 0.03 && (
-        <ScrollChapterRail activeIndex={activeIndex} onSelect={navigateToChapter} />
-      )}
-
-      {/* ── Mineral spectrum divider ─────────────────── */}
-      <div
-        className="relative z-10 h-[2px]"
-        style={{ background: GRADIENTS.fullSpectrum }}
-      />
-
-      {/* ── Hero section (after scroll) ──────────────────── */}
-      <div
-        ref={heroRef}
-        tabIndex={-1}
-        aria-label="Inference Exchange product overview"
-        className="relative z-10 min-h-screen flex flex-col overflow-hidden pt-14 outline-none"
-        style={{
-          background: C.blueBlack,
-        }}
-      >
-        {/* The same pigment streams now live behind the real marketplace.
-            Keep all text, links and live data in ordinary accessible HTML. */}
-        <MineralFlowField className="absolute inset-0 z-0" />
-
+          {/* One actual product screen, revealed in-place over the very same
+              pigment canvas. It is NOT a second page or second WebGL field. */}
+          {!rawVideoOnly && (
+            <section
+              id="inference-exchange-product"
+              ref={heroRef}
+              tabIndex={-1}
+              aria-label="Inference Exchange product overview"
+              aria-hidden={productOpacity < 0.95}
+              className="absolute inset-0 z-30 overflow-y-auto overscroll-contain outline-none"
+              style={{
+                opacity: productOpacity,
+                visibility: productOpacity > 0.001 ? 'visible' : 'hidden',
+                pointerEvents: productOpacity > 0.95 ? 'auto' : 'none',
+              }}
+            >
         {/* Hero content: headline left, live exchange card right */}
-        <div className="relative z-10 flex-1 flex items-center">
+        <div className="relative z-10 min-h-full flex items-center">
           <div className="max-w-7xl mx-auto w-full px-6 md:px-10 py-12">
             <div className="flex flex-col lg:flex-row items-center justify-between gap-12 lg:gap-16">
             {/* Left: headline + CTAs */}
@@ -525,8 +497,23 @@ export function Landing() {
           </div>
           </div>
         </div>
+            </section>
+          )}
+        </div>
+        {/* Four scroll beats for the cinematic story and a final resting
+            beat where users can read and interact with the revealed product.
+            The sticky stage never changes background or inserts a seam. */}
+        {storyEnabled && STORY_CHAPTERS.map(chapter => (
+          <div key={chapter.label} className="h-[calc(100svh-3.5rem)] w-full" aria-hidden="true" />
+        ))}
+        {storyEnabled && (
+          <div style={{ height: 'calc((100svh - 3.5rem) * 0.85)' }} aria-hidden="true" />
+        )}
       </div>
 
+      {storyEnabled && scrollUnits < EXIT_POSITION - 0.03 && (
+        <ScrollChapterRail activeIndex={activeIndex} onSelect={navigateToChapter} />
+      )}
     </>
   )
 }
