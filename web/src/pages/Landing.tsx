@@ -5,7 +5,7 @@ import { api } from '../lib/api'
 import { C, GRADIENTS } from '../lib/theme'
 import { HeroScene } from '../components/HeroScene'
 import { LandingNav } from '../components/LandingNav'
-import { MineralAurora } from '../components/MineralAurora'
+import { MineralFlowField } from '../components/MineralFlowField'
 import { LandscapeVideo } from '../components/LandscapeVideo'
 import { STORY_CHAPTERS, ScrollChapterRail } from '../components/ScrollChapterRail'
 
@@ -324,7 +324,6 @@ export function Landing() {
   const [videoReady, setVideoReady] = useState(false)
   const [storyInView, setStoryInView] = useState(true)
   const [reducedMotion, setReducedMotion] = useState(false)
-  const [mouseX, setMouseX] = useState(0.5)
   const rawVideoOnly = new URLSearchParams(window.location.search).get('heroRaw') === '1'
   const storyEnabled = !webglFailed && !reducedMotion && !rawVideoOnly
 
@@ -369,12 +368,6 @@ export function Landing() {
     }
   }, [])
 
-  useEffect(() => {
-    const onMove = (event: MouseEvent) => setMouseX(event.clientX / window.innerWidth)
-    window.addEventListener('mousemove', onMove, { passive: true })
-    return () => window.removeEventListener('mousemove', onMove)
-  }, [])
-
   const navigateToChapter = (index: number) => {
     const story = storyRef.current
     if (!story || !storyEnabled) return
@@ -404,6 +397,14 @@ export function Landing() {
             reducedMotion={reducedMotion}
             onAvailabilityChange={setVideoReady}
           />
+          {/* Dissolution completes on this same pinned canvas: mineral ribbons
+              emerge as the video dims, beneath the original crystal geometry. */}
+          {storyEnabled && (
+            <MineralFlowField
+              className="absolute inset-0 z-[1]"
+              opacity={clamp01((sceneProgress - 0.82) / 0.18)}
+            />
+          )}
           {!rawVideoOnly && (
             <HeroScene
               scrollProgress={sceneProgress}
@@ -468,10 +469,9 @@ export function Landing() {
           background: C.blueBlack,
         }}
       >
-        {/* Living mineral aurora — cursor-reactive behind hero content */}
-        <div className="absolute inset-0 z-0">
-          <MineralAurora variant="dark" opacity={0.18} speed={0.0004} mouseX={mouseX} className="absolute inset-0" />
-        </div>
+        {/* The same pigment streams now live behind the real marketplace.
+            Keep all text, links and live data in ordinary accessible HTML. */}
+        <MineralFlowField className="absolute inset-0 z-0" />
 
         {/* Hero content: headline left, live exchange card right */}
         <div className="relative z-10 flex-1 flex items-center">
