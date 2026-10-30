@@ -28,10 +28,11 @@ assert.match(layout, /\{sidebarContent\}/g) // desktop and mobile use the same n
 
 assert.match(routes, /path="\/settings" element=\{<Settings \/>\}/)
 assert.match(routes, /path="\/admin" element=\{<Admin \/>\}/)
-assert.match(admin, /if \(!canShowAdminConsole\(user\)\)/)
-assert.match(admin, /return <AdminConsoleContent \/>/)
-assert.match(admin, /function AdminConsoleContent\(\)/)
-assert.ok(admin.indexOf('function AdminConsoleContent()') < admin.indexOf("useSWR('adminState'"))
+assert.match(admin, /if \(!user \|\| !canShowAdminConsole\(user\)\)/)
+assert.match(admin, /return <AdminConsoleContent currentUserId=\{user\.user_id\} \/>/)
+assert.match(admin, /function AdminConsoleContent\(\{ currentUserId \}: \{ currentUserId: string \}\)/)
+assert.ok(admin.indexOf('function AdminConsoleContent(') < admin.indexOf("useSWR('adminState'"))
+assert.match(admin, /<AdminAccountSafety currentUserId=\{currentUserId\} \/>/)
 assert.match(auth, /is_admin: data\.is_admin === true/)
 
 assert.match(settings, /loginHref\('\/settings'\)/)
