@@ -33,6 +33,14 @@ function useScrollProgress(ref: React.RefObject<HTMLDivElement | null>): number 
   return progress
 }
 
+// A localized dark text surface keeps copy readable against bright snow
+// without darkening or blurring the scenic video across the whole screen.
+const SCENE_TEXT_SURFACE = {
+  background: 'linear-gradient(135deg, rgba(8, 15, 25, 0.82), rgba(8, 15, 25, 0.70))',
+  border: '1px solid rgba(255, 255, 255, 0.16)',
+  boxShadow: '0 18px 60px rgba(0, 0, 0, 0.26)',
+}
+
 // ─── Scroll overlay ──────────────────────────────────────────
 
 function ScrollOverlay({ progress }: { progress: number }) {
@@ -70,26 +78,20 @@ function ScrollOverlay({ progress }: { progress: number }) {
         return (
           <div
             key={i}
-            className="absolute text-center px-6 max-w-2xl"
+            className="absolute w-full max-w-2xl px-5 text-center"
             style={{ opacity, transform: `translateY(${yShift}px)`, transition: 'none' }}
           >
-            <h2 className="text-3xl md:text-5xl font-bold tracking-tight leading-tight" style={{ textShadow: '0 3px 28px rgba(2,10,18,0.85)' }}>
-              <span
-                className="bg-clip-text text-transparent"
-                style={{
-                  backgroundImage: i === 0 || i === 5
-                    ? GRADIENTS.heroText
-                    : `linear-gradient(135deg, ${C.warmWhite}, ${C.sand})`,
-                }}
-              >
+            <div className="rounded-2xl px-5 py-6 md:px-9 md:py-8" style={SCENE_TEXT_SURFACE}>
+              <div className="mx-auto mb-4 h-0.5 w-20 rounded-full" aria-hidden="true" style={{ background: GRADIENTS.heroText }} />
+              <h2 className="text-3xl md:text-5xl font-bold tracking-tight leading-tight" style={{ color: '#F8F6F1', textShadow: '0 2px 12px rgba(0,0,0,0.45)' }}>
                 {o.text}
-              </span>
-            </h2>
-            {o.sub && (
-              <p className="text-base md:text-lg mt-4 leading-relaxed max-w-lg mx-auto" style={{ color: '#e9e5dd', textShadow: '0 2px 16px rgba(2,10,18,0.85)' }}>
-                {o.sub}
-              </p>
-            )}
+              </h2>
+              {o.sub && (
+                <p className="text-base md:text-lg mt-4 leading-relaxed max-w-lg mx-auto" style={{ color: '#F1ECE4' }}>
+                  {o.sub}
+                </p>
+              )}
+            </div>
           </div>
         )
       })}
@@ -297,29 +299,31 @@ export function Landing() {
                 pointerEvents: introVisible ? 'auto' : 'none',
               }}
             >
-              <h1 id="landing-title" className="text-4xl md:text-6xl font-bold tracking-tight" style={{ color: C.warmWhite, textShadow: '0 2px 24px rgba(0,0,0,0.6)' }}>
-                Inference Exchange
-              </h1>
-              <p className="mt-4 max-w-xl text-base md:text-lg leading-relaxed" style={{ color: '#e6e0cf', textShadow: '0 1px 12px rgba(0,0,0,0.7)' }}>
-                An open market for AI inference. Send OpenAI-compatible requests; providers with spare hardware compete to serve them.
-              </p>
-              <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
-                <Link to="/chat" className="px-6 py-3 rounded-xl text-sm font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#E8C77A]" style={{ background: C.warmWhite, color: C.black }}>
-                  Start chatting
-                </Link>
-                <Link to="/provide" className="px-6 py-3 rounded-xl text-sm font-medium border focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#E8C77A]" style={{ color: C.warmWhite, borderColor: 'rgba(216,209,190,0.4)', background: 'rgba(14,16,24,0.5)' }}>
-                  Become a provider
-                </Link>
-                <Link to="/exchange" className="px-6 py-3 rounded-xl text-sm font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#E8C77A]" style={{ color: '#e6e0cf', background: 'rgba(14,16,24,0.5)' }}>
-                  Go to Exchange
-                </Link>
+              <div className="w-full max-w-2xl rounded-3xl px-5 py-7 md:px-10 md:py-10" style={SCENE_TEXT_SURFACE}>
+                <h1 id="landing-title" className="text-4xl md:text-6xl font-bold tracking-tight" style={{ color: '#F8F6F1', textShadow: '0 2px 12px rgba(0,0,0,0.45)' }}>
+                  Inference Exchange
+                </h1>
+                <p className="mt-4 max-w-xl mx-auto text-base md:text-lg leading-relaxed" style={{ color: '#F1ECE4' }}>
+                  An open market for AI inference. Send OpenAI-compatible requests; providers with spare hardware compete to serve them.
+                </p>
+                <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
+                  <Link to="/chat" className="px-6 py-3 rounded-xl text-sm font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#E8C77A]" style={{ background: C.warmWhite, color: C.black }}>
+                    Start chatting
+                  </Link>
+                  <Link to="/provide" className="px-6 py-3 rounded-xl text-sm font-medium border focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#E8C77A]" style={{ color: '#F8F6F1', borderColor: 'rgba(255,255,255,0.42)', background: 'rgba(14,16,24,0.76)' }}>
+                    Become a provider
+                  </Link>
+                  <Link to="/exchange" className="px-6 py-3 rounded-xl text-sm font-medium border focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#E8C77A]" style={{ color: '#F8F6F1', borderColor: 'rgba(255,255,255,0.34)', background: 'rgba(14,16,24,0.76)' }}>
+                    Go to Exchange
+                  </Link>
+                </div>
               </div>
               <div className="absolute bottom-8 flex items-center gap-4">
                 <button
                   type="button"
                   onClick={() => reducedMotion ? skipIntro() : jumpToChapter(0.20)}
                   className="text-xs tracking-wider uppercase px-3 py-2 rounded-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#E8C77A]"
-                  style={{ color: '#d8d1be' }}
+                  style={{ color: '#F8F6F1', background: 'rgba(8,15,25,0.76)', textShadow: '0 1px 4px rgba(0,0,0,0.45)' }}
                 >
                   {reducedMotion ? 'Explore the product ↓' : 'Explore the story ↓'}
                 </button>
@@ -327,7 +331,7 @@ export function Landing() {
                   type="button"
                   onClick={skipIntro}
                   className="text-xs tracking-wider uppercase px-3 py-2 rounded-lg border focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#E8C77A]"
-                  style={{ color: '#d8d1be', borderColor: 'rgba(216,209,190,0.3)' }}
+                  style={{ color: '#F8F6F1', borderColor: 'rgba(255,255,255,0.42)', background: 'rgba(8,15,25,0.76)' }}
                 >
                   Skip intro
                 </button>
