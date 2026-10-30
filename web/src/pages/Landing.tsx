@@ -98,15 +98,20 @@ const CHAPTER_COPY = [
 // and reflection bright and unobstructed.
 function EditorialStory({
   activeIndex,
+  exitProgress,
   onSkip,
   onNext,
 }: {
   activeIndex: number
+  exitProgress: number
   onSkip: () => void
   onNext: () => void
 }) {
   return (
-    <div className="pointer-events-none absolute inset-0 z-20">
+    <div
+      className="pointer-events-none absolute inset-0 z-20"
+      style={{ opacity: 1 - exitProgress }}
+    >
       <div
         className="absolute inset-y-0 left-0 w-[88%] sm:w-[72%] lg:w-[58%]"
         aria-hidden="true"
@@ -127,7 +132,7 @@ function EditorialStory({
               opacity: visible ? 1 : 0,
               visibility: visible ? 'visible' : 'hidden',
               transition: 'opacity 420ms ease, visibility 420ms',
-              pointerEvents: visible ? 'auto' : 'none',
+              pointerEvents: visible && exitProgress < 0.95 ? 'auto' : 'none',
             }}
           >
             <div className="relative w-full max-w-lg text-left pt-8">
@@ -196,7 +201,10 @@ function EditorialStory({
         )
       })}
 
-      <div className="pointer-events-auto absolute bottom-7 left-6 sm:left-10 lg:left-[8vw] flex items-center gap-4">
+      <div
+        className="absolute bottom-7 left-6 sm:left-10 lg:left-[8vw] flex items-center gap-4"
+        style={{ pointerEvents: exitProgress < 0.95 ? 'auto' : 'none' }}
+      >
         {activeIndex === 0 && (
           <button
             type="button"
@@ -423,6 +431,7 @@ export function Landing() {
           {!webglFailed && !rawVideoOnly && (
             <EditorialStory
               activeIndex={storyEnabled ? activeIndex : 0}
+              exitProgress={storyEnabled ? clamp01(chapterPosition - LAST_CHAPTER) : 0}
               onSkip={skipStory}
               onNext={() => navigateToChapter(1)}
             />
@@ -437,7 +446,7 @@ export function Landing() {
         ))}
       </div>
 
-      {storyEnabled && storyInView && (
+      {storyEnabled && storyInView && scrollUnits < EXIT_POSITION - 0.03 && (
         <ScrollChapterRail activeIndex={activeIndex} onSelect={navigateToChapter} />
       )}
 
