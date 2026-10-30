@@ -156,6 +156,11 @@ export function MineralFlowField({ className = '', opacity = 1 }: MineralFlowFie
       return
     }
 
+    if (!renderer) {
+      geometry.dispose()
+      material.dispose()
+      return
+    }
     const gpu = renderer
     let frame = 0
     let visible = true
