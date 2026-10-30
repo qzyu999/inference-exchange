@@ -1,3 +1,5 @@
+import { searchModelItems } from './model-search.js'
+
 /**
  * Chat only selects model IDs advertised by GET /v1/models.
  * Do not merge Exchange reference-price/search models into this list (#191).
@@ -15,9 +17,7 @@ export function normalizeOnlineModels(ids) {
 
 /** Search every word, case-insensitively, without changing actual model IDs. */
 export function searchOnlineModels(models, text) {
-  const terms = text.toLocaleLowerCase().trim().split(/\s+/).filter(Boolean)
-  if (!terms.length) return models
-  return models.filter(id => terms.every(term => id.toLocaleLowerCase().includes(term)))
+  return searchModelItems(models.map(id => ({ key: id, name: id })), text).map(item => item.key)
 }
 
 /** A historical "default" alias or stale deep link must never be sent as a Chat model. */
