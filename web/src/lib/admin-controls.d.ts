@@ -20,3 +20,19 @@ export function quarantineProvider(providerId: string, reason: string): Promise<
 export function releaseProvider(providerId: string): Promise<{ok: boolean; provider_id: string; quarantined: boolean}>
 
 export function loadAdminState(): Promise<any>
+
+export interface AdminAccount {
+  user_id: string
+  email: string
+  name: string
+  role: string
+  active_keys: number
+  suspended: boolean
+  suspension_permanent: boolean
+  suspended_until: number | null
+  suspension_reason: string
+}
+
+export function listAdminAccounts(): Promise<{accounts: AdminAccount[]}>
+export function suspendAdminAccount(userId: string, reason: string, durationSeconds: number): Promise<{ok: boolean; suspension: unknown}>
+export function restoreAdminAccount(userId: string, reason: string): Promise<{ok: boolean}>
