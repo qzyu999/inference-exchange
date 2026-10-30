@@ -188,6 +188,8 @@ export function Landing() {
   const [mouseX, setMouseX] = useState(0.5)
   const [videoReady, setVideoReady] = useState(false)
   const [reducedMotion, setReducedMotion] = useState(false)
+  // Video-only A/B review: /?heroRaw=1 removes all canvas/FX layers.
+  const rawVideoOnly = new URLSearchParams(window.location.search).get('heroRaw') === '1'
 
   useEffect(() => {
     const query = window.matchMedia('(prefers-reduced-motion: reduce)')
@@ -202,7 +204,7 @@ export function Landing() {
   const sequenceDone = progress >= 0.95
   const storyEnabled = !webglFailed && !reducedMotion
   const heroVisible = webglFailed || reducedMotion || sequenceDone || skipped
-  const introVisible = (progress < 0.06 || reducedMotion) && !webglFailed
+  const introVisible = !rawVideoOnly && (progress < 0.06 || reducedMotion) && !webglFailed
 
   const jumpToChapter = (at: number) => {
     const container = scrollContainerRef.current
@@ -237,13 +239,15 @@ export function Landing() {
       <div ref={scrollContainerRef} style={{ height: storyEnabled ? '350vh' : '100svh' }} className="relative">
         <div className="sticky top-0 left-0 w-full h-screen overflow-hidden z-10">
           <LandscapeVideo progress={progress} reducedMotion={reducedMotion} onAvailabilityChange={setVideoReady} />
-          <HeroScene
-            scrollProgress={progress}
-            landscapeMode={videoReady}
-            reducedMotion={reducedMotion}
-            onInitFailed={() => setWebglFailed(true)}
-          />
-          {storyEnabled && <LakeEffects progress={progress} reducedMotion={reducedMotion} />}
+          {!rawVideoOnly && (
+            <HeroScene
+              scrollProgress={progress}
+              landscapeMode={videoReady}
+              reducedMotion={reducedMotion}
+              onInitFailed={() => setWebglFailed(true)}
+            />
+          )}
+          {storyEnabled && !rawVideoOnly && <LakeEffects progress={progress} reducedMotion={reducedMotion} />}
 
           {webglFailed && (
             <div id="landing-main" className="absolute inset-0 pt-14 flex flex-col items-center justify-center" style={{ background: C.black }}>
@@ -271,7 +275,7 @@ export function Landing() {
             </div>
           )}
 
-          {storyEnabled && <ScrollOverlay progress={progress} />}
+          {storyEnabled && !rawVideoOnly && <ScrollOverlay progress={progress} />}
 
           {/* First viewport: what IE is, and how to use it, with no scroll (#107 P0) */}
           {!webglFailed && (
