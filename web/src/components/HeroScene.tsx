@@ -689,7 +689,9 @@ export function HeroScene({ scrollProgress, landscapeMode = false, reducedMotion
       s.moon.visible = false
     }
 
-    s.scene.background = landscapeRef.current
+    // Make the dissolving crystals transparent over the SAME pigment field,
+    // even if the optional landscape video never finished loading.
+    s.scene.background = landscapeRef.current || dissolve > 0.002
       ? null
       : new THREE.Color(BG).lerp(new THREE.Color(GL.darkBg), fade)
 
