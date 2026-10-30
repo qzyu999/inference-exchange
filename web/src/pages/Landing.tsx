@@ -12,9 +12,12 @@ import { STORY_CHAPTERS, ScrollChapterRail } from '../components/ScrollChapterRa
 const NAV_HEIGHT = 56
 const LAST_CHAPTER = STORY_CHAPTERS.length - 1
 const EXIT_POSITION = STORY_CHAPTERS.length
-// Roughly 60% of each viewport of scrolling holds a fully readable chapter.
-// The remaining 40% smoothly scrubs to the next state (or fades to the product).
+// The earlier chapters retain their leisurely holds. For the final sand-blow
+// effect, use a longer, separate 2.2-viewport scroll segment instead of
+// squeezing the whole gust into the last 40% of one viewport.
 const CHAPTER_HOLD = 0.60
+const FINAL_HOLD_UNITS = 0.35
+const FINAL_SCROLL_UNITS = LAST_CHAPTER + 2.2
 const SCENE_POSES = [...STORY_CHAPTERS.map(chapter => chapter.sceneProgress), 1]
 
 function clamp01(value: number): number {
@@ -29,8 +32,17 @@ function smoothstep(value: number): number {
 // Apple-style pacing, without intercepting the wheel or forcing a snap:
 // holding phase -> eased reversible transition -> holding phase.
 function getStoryPosition(scrollUnits: number): number {
-  const raw = Math.max(0, Math.min(EXIT_POSITION, scrollUnits))
-  if (raw >= EXIT_POSITION) return EXIT_POSITION
+  const raw = Math.max(0, Math.min(FINAL_SCROLL_UNITS, scrollUnits))
+  if (raw >= FINAL_SCROLL_UNITS) return EXIT_POSITION
+  if (raw >= LAST_CHAPTER) {
+    // The crystal gust occupies 1.85 full viewport-heights of natural,
+    // reversible scrolling. A short hold lets the user read Transformation.
+    const transition = smoothstep(
+      (raw - LAST_CHAPTER - FINAL_HOLD_UNITS) /
+      (FINAL_SCROLL_UNITS - LAST_CHAPTER - FINAL_HOLD_UNITS),
+    )
+    return LAST_CHAPTER + transition
+  }
   const chapter = Math.floor(raw)
   const within = raw - chapter
   const transition = smoothstep((within - CHAPTER_HOLD) / (1 - CHAPTER_HOLD))
@@ -52,7 +64,7 @@ function useScrollUnits(ref: React.RefObject<HTMLDivElement | null>) {
       if (!ref.current) return
       const sectionStart = ref.current.getBoundingClientRect().top + window.scrollY
       const chapterHeight = Math.max(1, window.innerHeight - NAV_HEIGHT)
-      const next = Math.max(0, Math.min(EXIT_POSITION,
+      const next = Math.max(0, Math.min(FINAL_SCROLL_UNITS,
         (window.scrollY - sectionStart) / chapterHeight,
       ))
       setUnits(prev => Math.abs(prev - next) > 0.001 ? next : prev)
@@ -385,7 +397,7 @@ export function Landing() {
     // Scroll to the final in-place product pose, not to the fixed/sticky DOM
     // element. scrollIntoView on a pinned element cannot reach its timeline.
     window.scrollTo({
-      top: storyTop + EXIT_POSITION * height,
+      top: storyTop + FINAL_SCROLL_UNITS * height,
       behavior: 'smooth',
     })
   }
@@ -438,7 +450,7 @@ export function Landing() {
               tabIndex={-1}
               aria-label="Inference Exchange product overview"
               aria-hidden={productOpacity < 0.95}
-              className="absolute inset-0 z-30 overflow-y-auto overscroll-contain outline-none"
+              className="absolute inset-0 z-30 overflow-y-auto md:overflow-visible outline-none"
               style={{
                 opacity: productOpacity,
                 visibility: productOpacity > 0.001 ? 'visible' : 'hidden',
@@ -502,18 +514,21 @@ export function Landing() {
             </section>
           )}
         </div>
-        {/* Four scroll beats for the cinematic story and a final resting
-            beat where users can read and interact with the revealed product.
-            The sticky stage never changes background or inserts a seam. */}
-        {storyEnabled && STORY_CHAPTERS.map(chapter => (
+        {/* Three regular chapter transitions plus an extended 2.2-viewport
+            GPU-sand transition. A final reading hold keeps the in-place product
+            visible without introducing nested desktop scrolling or a new page. */}
+        {storyEnabled && STORY_CHAPTERS.slice(0, -1).map(chapter => (
           <div key={chapter.label} className="h-[calc(100svh-3.5rem)] w-full" aria-hidden="true" />
         ))}
         {storyEnabled && (
-          <div style={{ height: 'calc(85svh - 2.975rem)' }} aria-hidden="true" />
+          <>
+            <div style={{ height: 'calc(220svh - 7.7rem)' }} aria-hidden="true" />
+            <div style={{ height: 'calc(85svh - 2.975rem)' }} aria-hidden="true" />
+          </>
         )}
       </div>
 
-      {storyEnabled && scrollUnits < EXIT_POSITION - 0.03 && (
+      {storyEnabled && chapterPosition < EXIT_POSITION - 0.03 && (
         <ScrollChapterRail activeIndex={activeIndex} onSelect={navigateToChapter} />
       )}
     </>
