@@ -112,6 +112,65 @@ preview remains at port 5174 if it is running. No production configuration,
 provider processes, or `main` files are changed.
 
 
+## Why the final dissolve stalled and looked invisible (October 30 review)
+
+Two independent problems were identified directly in the implementation:
+
+1. The in-place product `<section>` used
+   `overflow-y-auto overscroll-contain`. That nested scroll container
+   prevented wheel/trackpad scroll chaining to the document once the
+   product overlay was interactive. A headless Chromium reproduction
+   confirmed that wheel input stayed stuck with `overscroll-behavior:
+   contain` and advanced normally with default `auto`. The pinned
+   product now keeps mobile overflow but uses default overscroll chaining,
+   and uses `md:overflow-visible` on desktop.
+2. The final effect was compressed into only the last 40% of a single
+   viewport of scroll, then double-eased. Grains traveled too far to the
+   right and were roughly 1–2 pixels, translucent and faded out quickly.
+   The visible particle window was therefore tiny.
+
+Fixes on this branch:
+
+- A **1.85-viewport continuous scroll-scrub dissolve** after a 0.35
+  viewport readable Transformation hold, followed by a final resting
+  product screen. Chapter navigation is still native and reversible.
+- One shared procedural wind profile for each triangle-sampled grain
+  *and* the original tetrahedron faces and edge lines. Grains begin
+  lifting, then corresponding solid fragments are `discard`ed by
+  `onBeforeCompile` shader hooks. Unlike a global opacity fade, this
+  reveals genuine piecewise material erosion.
+- Slower accelerating gust with brighter, larger (but capped) grains,
+  less lateral displacement, and a longer onscreen particle fade. No
+  second cubic easing pass is applied to already eased scroll progress.
+- Pigment-flow GPU work is skipped while the layer is invisible;
+  the same renderer and background instance persist throughout.
+
+**Technical distinction:** this uses the *principles* of sand-blow
+effects (GPU `THREE.Points`, spatially phased grain release, matched
+surface erosion), not copied source code and not a feedback-buffer
+(GPGPU/FBO) fluid or particle simulation. That heavier option is not
+necessary to establish the art direction and can be tested separately.
+
+Validation performed: code and diff inspection, a headless Chromium
+scroll-chaining reproduction, and a numerical monotonicity/reversibility
+test of the scroll timeline. The full React `npm run build` and live
+browser shader validation **still require local testing**.
+
+```sh
+cd ~/projects/inference-exchange-mandala-review
+git pull --ff-only
+cd web
+npm run build
+npm run dev -- --port 5176 --strictPort
+```
+
+With DevTools Console open, check that the WebGL program compiles without
+`THREE.WebGLProgram` shader errors. Move slowly through the last
+**Transformation** scene using the trackpad (without dragging the native
+scrollbar), and reverse the motion to reconstruct the crystals. Verify that
+the final product CTA buttons remain clickable and wheel scrolling isn't
+captured by the product overlay.
+
 ## Single-scene mineral smear revision
 
 The first prototype had two different `MineralFlowField` canvases, a 2px
