@@ -2,6 +2,7 @@ import useSWR from 'swr'
 import { api } from '../lib/api'
 import { useState, useMemo, useRef, useEffect } from 'react'
 import { C, TRUST_COLORS } from '../lib/theme'
+import { ModelSearch, type ModelSearchItem } from '../components/ModelSearch'
 
 // ─── Constants ───────────────────────────────────────────────
 
@@ -379,8 +380,6 @@ export function Exchange() {
 
   // ─── State ───────────────────────────────────────────────
   const [selectedKey, setSelectedKey] = useState('')
-  const [dropdownOpen, setDropdownOpen] = useState(false)
-  const [search, setSearch] = useState('')
   const [filterOpen, setFilterOpen] = useState<boolean | null>(null) // null=all, true=open, false=prop
   const [filterCache, setFilterCache] = useState(false)
   const [filterBenchmarked, setFilterBenchmarked] = useState(false)
@@ -389,18 +388,6 @@ export function Exchange() {
   const [filterFamily, setFilterFamily] = useState<string | null>(null)
   const [sortCol, setSortCol] = useState<'output' | 'input' | 'cache' | 'quality' | 'tps'>('output')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
-  const dropdownRef = useRef<HTMLDivElement>(null)
-  const inputRef = useRef<HTMLInputElement>(null)
-
-  // Close dropdown on outside click
-  useEffect(() => {
-    function handleClick(e: MouseEvent) {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) setDropdownOpen(false)
-    }
-    document.addEventListener('mousedown', handleClick)
-    return () => document.removeEventListener('mousedown', handleClick)
-  }, [])
-
   // Resolve active model
   const activeKey = selectedKey || (unifiedModels.length > 0 ? unifiedModels[0].key : '')
   const activeUnified = unifiedModels.find(m => m.key === activeKey)
@@ -437,12 +424,7 @@ export function Exchange() {
   const families = useMemo(() => [...new Set(unifiedModels.map(m => m.family))].sort(), [unifiedModels])
 
   const filteredModels = useMemo(() => {
-    const tokens = search.toLowerCase().trim().split(/\s+/).filter(Boolean)
     return unifiedModels.filter(m => {
-      if (tokens.length) {
-        const hay = `${m.name} ${m.vendor} ${m.family} ${m.params}`.toLowerCase()
-        if (!tokens.every(t => hay.includes(t))) return false
-      }
       if (filterOpen === true && !m.open) return false
       if (filterOpen === false && m.open) return false
       if (filterCache && !m.cache) return false
@@ -458,7 +440,7 @@ export function Exchange() {
       if (filterFamily && m.family !== filterFamily) return false
       return true
     })
-  }, [unifiedModels, search, filterOpen, filterCache, filterBenchmarked, filterSize, filterPriceCap, filterFamily])
+  }, [unifiedModels, filterOpen, filterCache, filterBenchmarked, filterSize, filterPriceCap, filterFamily])
 
   const groupedModels = useMemo(() => {
     const groups: Record<string, UnifiedModel[]> = {}
@@ -471,6 +453,27 @@ export function Exchange() {
       .sort(([, a], [, b]) => Math.min(...a.map(x => x.price || 999)) - Math.min(...b.map(x => x.price || 999)))
       .map(([fam, ms]) => ({ family: fam, models: ms.sort((a, b) => (a.price || 999) - (b.price || 999)) }))
   }, [filteredModels])
+
+  // Preserve Exchange's wider discovery inventory and rich filters.
+  // Both pages use exactly the same popup, search logic and keyboard handling.
+  const searchItems = useMemo<ModelSearchItem[]>(() =>
+    groupedModels.flatMap(group => group.models.map(m => ({
+      key: m.key, name: m.name, group: group.family,
+      keywords: m.vendor + ' ' + m.family + ' ' + m.params,
+      subtitle: [
+        m.vendor || 'Unknown family',
+        m.params !== '—' ? m.params : '',
+        m.ctx !== '—' ? m.ctx + ' context' : '',
+        m.providerCount + (m.source === 'ref' ? ' reference offers' : ' IE providers'),
+      ].filter(Boolean).join(' · '),
+      priceLabel: m.price > 0 ? (m.price < 1 ? '$' + m.price.toFixed(2) : '$' + m.price.toFixed(0)) : undefined,
+      badges: [
+        { label: m.source === 'ref' ? 'Reference only' : m.source === 'both' ? 'IE + reference' : 'On IE',
+          color: m.source === 'ref' ? C.indigo : C.green, background: m.source === 'ref' ? '#f3eef7' : '#edf7f1' },
+        ...(m.cache ? [{ label: 'Cache', color: C.turquoise, background: '#e8f5f3' }] : []),
+        ...(m.quality != null ? [{ label: '★ ' + m.quality, color: C.deepBlue, background: '#f0f4f8' }] : []),
+      ],
+    }))), [groupedModels])
 
   // ─── Build offer rows for selected model ─────────────────
   const offerRows = useMemo((): OfferRow[] => {
@@ -600,40 +603,18 @@ export function Exchange() {
         <span style={{ fontSize: 9, color: '#bbb' }}>Updated live</span>
       </div>
 
-      {/* ── 2. Model Selector — Command Palette ── */}
-      <div ref={dropdownRef} style={{ position: 'relative', marginBottom: 16 }}>
-        <div onClick={() => { setDropdownOpen(true); setTimeout(() => inputRef.current?.focus(), 0) }}
-          style={{
-            display: 'flex', alignItems: 'center', gap: 8, padding: '8px 14px',
-            background: '#fff', borderRadius: 10, border: '1px solid #eaeae8', cursor: 'pointer',
-          }}>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#aaa" strokeWidth="2">
-            <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
-          </svg>
-          <span style={{ fontSize: 13, fontWeight: 600, color: C.blueBlack }}>
-            {activeUnified?.name || 'Select a model'}
-          </span>
-          <span style={{ fontSize: 10, color: '#aaa', marginLeft: 'auto' }}>
-            {unifiedModels.length} models
-          </span>
-          <span style={{ fontSize: 9, color: '#bbb', background: '#f0f0f0', padding: '1px 5px', borderRadius: 4 }}>⌘K</span>
-        </div>
-
-        {dropdownOpen && (
-          <div style={{
-            position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0, zIndex: 100,
-            background: '#fff', borderRadius: 12, border: '1px solid #ddd',
-            boxShadow: '0 12px 40px rgba(0,0,0,0.12)', maxHeight: 480, overflow: 'hidden',
-            display: 'flex', flexDirection: 'column',
-          }}>
-            {/* Search input */}
-            <div style={{ padding: '8px 12px', borderBottom: '1px solid #f0f0f0' }}>
-              <input ref={inputRef} type="text" value={search} onChange={e => setSearch(e.target.value)}
-                placeholder="Search models... (llama 70b, qwen, deepseek, claude)"
-                style={{ width: '100%', border: 'none', outline: 'none', fontSize: 13, color: C.blueBlack, background: 'transparent' }}
-              />
-            </div>
-
+      {/* ── 2. Model Selector — Shared Search (same component as Chat) ── */}
+      <ModelSearch
+        items={searchItems}
+        value={activeKey}
+        onChange={setSelectedKey}
+        label="Search exchange models"
+        placeholder="Search models (qwen, llama 70b, deepseek, claude)"
+        selectedLabel="Select a model to compare"
+        emptyMessage="No discoverable models"
+        className="w-full mb-4"
+        filters={
+          <>
             {/* Filter bar */}
             <div style={{ padding: '6px 12px', borderBottom: '1px solid #f0f0f0', display: 'flex', gap: 4, flexWrap: 'wrap', alignItems: 'center' }}>
               <span style={{ fontSize: 8, textTransform: 'uppercase', letterSpacing: '.06em', color: '#aaa', marginRight: 2 }}>Filter</span>
@@ -666,51 +647,9 @@ export function Exchange() {
               </select>
             </div>
 
-            {/* Model list */}
-            <div style={{ overflowY: 'auto', maxHeight: 360, padding: '4px 0' }}>
-              <div style={{ padding: '4px 14px', fontSize: 9, color: '#aaa' }}>
-                {filteredModels.length} model{filteredModels.length !== 1 ? 's' : ''} match
-              </div>
-              {groupedModels.map(g => (
-                <div key={g.family}>
-                  <div style={{ padding: '4px 14px 2px', fontSize: 8, textTransform: 'uppercase', letterSpacing: '.08em', color: '#aaa', fontWeight: 600, marginTop: 2 }}>
-                    {g.family} ({g.models.length})
-                  </div>
-                  {g.models.map(m => (
-                    <div key={m.key}
-                      onClick={() => { setSelectedKey(m.key); setDropdownOpen(false); setSearch('') }}
-                      style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 14px', cursor: 'pointer', borderRadius: 6, margin: '0 4px', transition: 'background .1s' }}
-                      onMouseEnter={e => (e.currentTarget.style.background = '#fafaf8')}
-                      onMouseLeave={e => (e.currentTarget.style.background = '')}>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: 12, fontWeight: 600, color: C.blueBlack, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          {m.name}
-                        </div>
-                        <div style={{ fontSize: 9, color: '#999' }}>
-                          {m.vendor}{m.params !== '—' ? ` · ${m.params}` : ''} · {m.ctx} · {m.providerCount}p
-                        </div>
-                      </div>
-                      <div style={{ display: 'flex', gap: 3, flexShrink: 0, alignItems: 'center' }}>
-                        {m.open
-                          ? <Badge bg="#edf7f1" color={C.green}>open</Badge>
-                          : <Badge bg="#f3eef7" color={C.indigo}>prop</Badge>}
-                        {m.cache && <Badge bg="#e8f5f3" color={C.turquoise}>-cache$</Badge>}
-                        {m.quality != null && <Badge bg="#f0f4f8" color={C.deepBlue}>★ {m.quality}</Badge>}
-                      </div>
-                      <div style={{ fontFamily: 'SF Mono,Menlo,Consolas,monospace', fontSize: 11, fontWeight: 700, color: C.gold, width: 50, textAlign: 'right', flexShrink: 0 }}>
-                        {m.price > 0 ? (m.price < 1 ? `$${m.price.toFixed(2)}` : `$${m.price.toFixed(0)}`) : '—'}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ))}
-              {filteredModels.length === 0 && (
-                <div style={{ padding: 20, textAlign: 'center', color: '#bbb', fontSize: 12 }}>No models match your filters</div>
-              )}
-            </div>
-          </div>
-        )}
-      </div>
+          </>
+        }
+      />
 
       {/* ── 3. Header ── */}
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 14, marginBottom: 4, flexWrap: 'wrap' }}>
@@ -912,14 +851,6 @@ function Chip({ label, active, color, bg, onClick }: {
 
 function Sep() {
   return <span style={{ width: 1, height: 14, background: '#e5e5e5', margin: '0 2px' }} />
-}
-
-function Badge({ bg, color, children }: { bg: string; color: string; children: React.ReactNode }) {
-  return (
-    <span style={{ fontSize: 7, fontWeight: 600, padding: '1px 4px', borderRadius: 3, background: bg, color, display: 'inline-block', verticalAlign: 'middle' }}>
-      {children}
-    </span>
-  )
 }
 
 function CapBadge({ bg, color, children }: { bg: string; color: string; children: React.ReactNode }) {
