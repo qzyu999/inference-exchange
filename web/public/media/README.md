@@ -59,3 +59,38 @@ source detail, a precisely matched seamless loop, audio-free media delivery
 rights, responsive framing, grain/codec quality assessment and other
 cinematic refinements remain tracked in #185. Since the sun and moon are
 baked into the footage, live moon phases need a separate clean sky layer.
+
+## Editorial snap-chapter review (#185)
+
+Branch: `feat/185-landing-editorial-snap-chapters` (branched from
+`feat/107-cinematic-lake-video-scroll`).
+
+This experiment intentionally **does not include GSAP or new dependencies**:
+native desktop scroll snapping is sufficient to test whether discrete chapter
+resting points solve the original usability problem before investing in a larger
+animation engine. Four chapters each occupy exactly one available viewport
+height underneath the 56px navbar, with a pinned photographic/Three.js stage.
+A separate product-overview snap target completes the experience. Snapping is
+disabled below 768px and for reduced-motion visitors. The final sand-grain
+dissolve remains future work.
+
+To compare side by side **without changing the existing review worktree**:
+
+```sh
+cd ~/projects/inference-exchange
+git fetch origin
+git worktree add -b review/landing-editorial ../inference-exchange-editorial-review origin/feat/185-landing-editorial-snap-chapters
+mkdir -p ../inference-exchange-editorial-review/web/public/media
+cp ../inference-exchange-landing-review/web/public/media/alpine-lake-hero.mp4 ../inference-exchange-editorial-review/web/public/media/
+cp ../inference-exchange-landing-review/web/public/media/alpine-lake-poster.webp ../inference-exchange-editorial-review/web/public/media/
+cd ../inference-exchange-editorial-review/web
+npm ci
+npm run build
+npm run dev -- --port 5175 --strictPort
+```
+
+Test the opening CTAs, four right-hand chapter markers, scroll up/down between
+each completed state, keyboard navigation (Tab), reduced-motion mode, mobile
+(no forced snap), and the transition into the product section. The original
+preview remains at port 5174 if it is running. No production configuration,
+provider processes, or `main` files are changed.
