@@ -24,17 +24,10 @@ interface Message {
   provider_price?: number
 }
 
-const PREFERENCES = [
-  { value: 'balanced', label: 'Balanced' },
-  { value: 'cheapest', label: 'Cheapest' },
-  { value: 'fastest', label: 'Fastest' },
-  { value: 'most_secure', label: 'Most Secure' },
-]
-
 const TRUST_LEVELS = [
-  { value: 'open', label: 'Any' },
-  { value: 'contained', label: 'Contained' },
-  { value: 'hardened', label: 'Hardened+' },
+  { value: 'open', label: 'L0 / Open' },
+  { value: 'contained', label: 'L1 / Contained' },
+  { value: 'hardened', label: 'L2 / Hardened' },
   // 'confidential' hidden: no provider can pass App Attest admission yet (#22, #25)
 ]
 
@@ -48,12 +41,9 @@ export function Chat() {
   const [input, setInput] = useState('')
   const [streaming, setStreaming] = useState(false)
   const [model, setModel] = useState(() => searchParams.get('model') || '')
-  const [preference, setPreference] = useState('balanced')
   const [minTrust, setMinTrust] = useState('hardened')
   const [maxPrice, setMaxPrice] = useState('0.15')
-  const [maxInputPrice, setMaxInputPrice] = useState('0.08')
-  const [maxCachePrice, setMaxCachePrice] = useState('0.02')
-  const [showSidebar, setShowSidebar] = useState(true)
+  const [showSidebar, setShowSidebar] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const abortRef = useRef<AbortController | null>(null)
@@ -82,9 +72,6 @@ export function Chat() {
   }, [messages, chatKey, loadedUserId, user?.user_id])
   useEffect(() => { if (!streaming) inputRef.current?.focus() }, [streaming])
 
-  // Get the last assistant message for match info
-  const lastAssistant = [...messages].reverse().find(m => m.role === 'assistant' && m.content)
-
   const trustInfo = TRUST_COLORS[minTrust] || TRUST_COLORS.hardened
   const trustOrder: Record<string, number> = { open: 0, contained: 1, hardened: 2, confidential: 3 }
   // Show a trust mismatch before a request is sent; never silently weaken privacy.
@@ -96,7 +83,7 @@ export function Chat() {
 
   async function send() {
     const text = input.trim()
-    if (!user || authLoading || !text || streaming) return
+    if (!user || authLoading || !text || streaming || trustMismatch) return
     const userMsg: Message = { role: 'user', content: text }
     const updated = [...messages, userMsg]
     setMessages(updated)
@@ -111,7 +98,7 @@ export function Chat() {
         model: model || 'default',
         messages: updated.map(m => ({ role: m.role, content: m.content })),
         stream: true,
-        ocip_preference: preference,
+        ocip_preference: 'balanced',
         ocip_min_confidence: minTrust,
       }
       if (maxPrice) body.ocip_max_price = parseFloat(maxPrice)
@@ -215,9 +202,9 @@ export function Chat() {
   }
 
   return (
-    <div className="flex gap-6 h-[calc(100vh-140px)]">
+    <div className="flex flex-col lg:flex-row gap-4 lg:gap-6 lg:h-[calc(100vh-140px)]">
       {/* ── Main chat column ── */}
-      <div className="flex-1 flex flex-col min-w-0">
+      <div className="flex-1 flex flex-col min-w-0 min-h-[65vh] lg:min-h-0">
         {/* Model + trust header bar */}
         <div className="bg-white rounded-2xl border border-gray-200/40 px-5 py-3 mb-4 flex items-center gap-3 flex-wrap">
           <select
@@ -237,10 +224,6 @@ export function Chat() {
             {trustInfo.label}
           </span>
 
-          <span className="text-xs" style={{ color: '#999' }}>
-            {PREFERENCES.find(p => p.value === preference)?.label} routing
-          </span>
-
           <div className="flex-1" />
 
           <button
@@ -253,10 +236,12 @@ export function Chat() {
 
           <button
             onClick={() => setShowSidebar(!showSidebar)}
-            className="lg:hidden text-xs px-2 py-1.5 rounded-lg border"
+            aria-expanded={showSidebar}
+            aria-controls="chat-advanced-settings"
+            className="text-xs px-3 py-1.5 rounded-lg border"
             style={{ color: '#888', borderColor: '#ddd' }}
           >
-            {showSidebar ? 'Hide' : 'Policy'}
+            {showSidebar ? 'Hide settings' : 'Advanced settings'}
           </button>
         </div>
 
@@ -265,16 +250,16 @@ export function Chat() {
           <div className="flex flex-wrap items-center gap-2 px-4 py-3 mb-3 rounded-xl text-xs"
             style={{ background: '#fdf6ec', color: C.blueBlack, border: '1px solid rgba(196,154,69,0.25)' }}>
             <span className="flex-1 min-w-48">
-              No provider for this model currently meets your {trustInfo.label} minimum.
-              You can wait for a higher-trust provider, or explicitly allow an L0 provider for
-              nonsensitive testing. L0 providers can see prompts and responses.
+              This model is available, but no provider meets your {trustInfo.label} minimum.
+              To test with L0/Open, choose it explicitly below. At L0, both the IE coordinator
+              and the provider can read your prompts and responses. Use nonsensitive test messages only.
             </span>
             <button
               onClick={() => setMinTrust('open')}
               className="font-semibold px-3 py-1.5 rounded-lg border shrink-0"
               style={{ borderColor: C.gold, color: C.gold }}
             >
-              Allow L0 (Any)
+              I understand — use L0/Open
             </button>
           </div>
         )}
@@ -293,7 +278,7 @@ export function Chat() {
             <span>⚠</span>
             <span>
               {minTrust === 'open'
-                ? 'L0 providers can see your prompts. No privacy protection.'
+                ? 'L0/Open selected: the coordinator and provider can read prompts and responses. Do not send secrets.'
                 : 'L1 providers have basic isolation only.'}
             </span>
             <button onClick={() => setMinTrust('hardened')} className="ml-auto font-medium shrink-0" style={{ color: C.gold }}>
@@ -374,7 +359,7 @@ export function Chat() {
               ref={inputRef}
               onKeyDown={e => e.key === 'Enter' && !e.shiftKey && send()}
               placeholder="Message the exchange..."
-              disabled={streaming}
+              disabled={streaming || trustMismatch}
               className="flex-1 px-4 py-3 bg-white border border-gray-200/60 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/20 placeholder:text-gray-300"
             />
             {streaming ? (
@@ -391,7 +376,7 @@ export function Chat() {
                 Stop
               </button>
             ) : (
-              <button onClick={send} className="px-5 py-3 rounded-xl text-sm font-medium transition-colors" style={{ background: C.blueBlack, color: '#fff' }}>
+              <button onClick={send} disabled={trustMismatch} className="px-5 py-3 rounded-xl text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed" style={{ background: C.blueBlack, color: '#fff' }}>
                 Send
               </button>
             )}
@@ -399,148 +384,47 @@ export function Chat() {
         </div>
       </div>
 
-      {/* ── Right sidebar: Request Policy + Match ── */}
+      {/* Only enforced settings are exposed; routing is automatic for alpha. */}
       {showSidebar && (
-        <aside className="hidden lg:block w-56 shrink-0 space-y-5">
-          {/* Request Policy */}
+        <aside id="chat-advanced-settings" aria-label="Advanced request settings"
+          className="order-first lg:order-last w-full lg:w-60 shrink-0 rounded-2xl border border-gray-200/60 bg-white p-4 space-y-4">
           <div>
-            <div className="text-[10px] uppercase tracking-wider font-medium mb-3" style={{ color: C.gold }}>
-              Request Policy
-            </div>
-
-            <div className="space-y-4">
-              <div>
-                <div className="text-xs mb-1.5" style={{ color: '#888' }}>Routing goal</div>
-                <div className="flex flex-wrap gap-1">
-                  {PREFERENCES.map(p => (
-                    <button
-                      key={p.value}
-                      onClick={() => setPreference(p.value)}
-                      className="text-[11px] font-medium px-2.5 py-1 rounded-full transition-colors"
-                      style={{
-                        background: preference === p.value ? '#fdf6ec' : 'transparent',
-                        color: preference === p.value ? C.gold : '#aaa',
-                        border: `1px solid ${preference === p.value ? 'rgba(196,154,69,0.3)' : '#e5e5e5'}`,
-                      }}
-                    >
-                      {p.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <div className="text-xs mb-1.5" style={{ color: '#888' }}>Minimum trust</div>
-                <div className="flex flex-wrap gap-1">
-                  {TRUST_LEVELS.map(t => {
-                    const tc = TRUST_COLORS[t.value] || TRUST_COLORS.hardened
-                    return (
-                      <button
-                        key={t.value}
-                        onClick={() => setMinTrust(t.value)}
-                        className="text-[11px] font-medium px-2.5 py-1 rounded-full transition-colors"
-                        style={{
-                          background: minTrust === t.value ? tc.bg : 'transparent',
-                          color: minTrust === t.value ? tc.text : '#aaa',
-                          border: `1px solid ${minTrust === t.value ? 'transparent' : '#e5e5e5'}`,
-                        }}
-                      >
-                        {t.label}
-                      </button>
-                    )
-                  })}
-                </div>
-                <div className="text-[10px] mt-1.5" style={{ color: '#aaa' }}>{TRUST_CLAIM_NOTE}</div>
-              </div>
-
-              <div>
-                <div className="text-xs mb-2.5" style={{ color: '#888' }}>Max price / 1M tokens</div>
-                <div className="space-y-3">
-                  <div>
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-[10px] uppercase tracking-wider font-medium" style={{ color: C.deepBlue }}>Input</span>
-                      <span className="text-sm font-bold" style={{ color: C.blueBlack }}>${maxInputPrice}</span>
-                    </div>
-                    <input
-                      type="range" min="0.01" max="0.50" step="0.01"
-                      value={maxInputPrice}
-                      onChange={e => setMaxInputPrice(e.target.value)}
-                      className="w-full accent-blue-400" style={{ height: '2px' }}
-                    />
-                  </div>
-                  <div>
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-[10px] uppercase tracking-wider font-medium" style={{ color: C.turquoise }}>Cached</span>
-                      <span className="text-sm font-bold" style={{ color: C.blueBlack }}>${maxCachePrice}</span>
-                    </div>
-                    <input
-                      type="range" min="0.00" max="0.20" step="0.005"
-                      value={maxCachePrice}
-                      onChange={e => setMaxCachePrice(e.target.value)}
-                      className="w-full accent-teal-400" style={{ height: '2px' }}
-                    />
-                  </div>
-                  <div>
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-[10px] uppercase tracking-wider font-medium" style={{ color: C.gold }}>Output</span>
-                      <span className="text-sm font-bold" style={{ color: C.blueBlack }}>${maxPrice}</span>
-                    </div>
-                    <input
-                      type="range" min="0.01" max="1.00" step="0.01"
-                      value={maxPrice || '0.15'}
-                      onChange={e => setMaxPrice(e.target.value)}
-                      className="w-full accent-amber-500" style={{ height: '2px' }}
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
+            <h2 className="text-sm font-semibold" style={{ color: C.blueBlack }}>Advanced request settings</h2>
+            <p className="text-xs mt-1" style={{ color: '#777' }}>
+              Matching is automatic. With one eligible provider, there is no provider choice to optimize.
+            </p>
           </div>
-
-          {/* Divider */}
-          <div style={{ borderTop: '1px solid #e5e5e3' }} />
-
-          {/* Current Match */}
           <div>
-            <div className="text-[10px] uppercase tracking-wider font-medium mb-3" style={{ color: C.gold }}>
-              {lastAssistant ? 'Current match' : 'Match'}
+            <div className="text-xs mb-2" style={{ color: '#777' }}>Minimum OCIP level</div>
+            <div className="flex flex-wrap gap-1.5">
+              {TRUST_LEVELS.map(t => {
+                const tc = TRUST_COLORS[t.value] || TRUST_COLORS.hardened
+                return (
+                  <button key={t.value} type="button" onClick={() => setMinTrust(t.value)}
+                    aria-pressed={minTrust === t.value}
+                    className="text-xs px-2.5 py-1.5 rounded-lg border"
+                    style={{ background: minTrust === t.value ? tc.bg : 'white',
+                      color: minTrust === t.value ? tc.text : C.blueBlack, borderColor: '#ddd' }}>
+                    {t.label}
+                  </button>
+                )
+              })}
             </div>
-
-            {lastAssistant?.model ? (
-              <div className="space-y-1.5">
-                <div className="text-sm font-bold" style={{ color: C.blueBlack }}>
-                  {lastAssistant.provider_name || 'Exchange provider'}
-                </div>
-                <div className="text-xs" style={{ color: '#888' }}>
-                  {lastAssistant.cost_usd != null && `${formatUsd(lastAssistant.cost_usd)} out`}
-                  {lastAssistant.provider_tps ? ` · ${lastAssistant.provider_tps} tok/s` : ''}
-                </div>
-                <Link
-                  to="/trace"
-                  className="text-[11px] font-medium px-3 py-1 rounded-full mt-1 transition-colors"
-                  style={{ border: '1px solid #ddd', color: '#888', display: 'inline-block' }}
-                >
-                  Inspect trace
-                </Link>
-              </div>
-            ) : (
-              <div className="text-xs" style={{ color: '#bbb' }}>
-                No request matched yet
-              </div>
-            )}
+            <p className="text-[11px] mt-2" style={{ color: '#888' }}>{TRUST_CLAIM_NOTE}</p>
           </div>
-
-          {/* Divider */}
-          <div style={{ borderTop: '1px solid #e5e5e3' }} />
-
-          {/* Fallback */}
           <div>
-            <div className="text-[10px] uppercase tracking-wider font-medium mb-2" style={{ color: C.red }}>
-              Fallback
+            <div className="flex justify-between gap-2 text-xs mb-2" style={{ color: C.blueBlack }}>
+              <label htmlFor="chat-max-output">Maximum output token price</label>
+              <strong>${maxPrice} / 1M</strong>
             </div>
-            <div className="text-xs" style={{ color: '#888' }}>
-              OpenRouter available
-            </div>
+            <input id="chat-max-output" type="range" min="0.01" max="1.00" step="0.01"
+              value={maxPrice} onChange={e => setMaxPrice(e.target.value)}
+              className="w-full accent-amber-500" />
+            <p className="text-[11px] mt-2" style={{ color: '#888' }}>
+              This ceiling applies only to the provider output rate. It is not a total-request
+              budget and does not cap input or cached-input prices. Simulated requests may
+              include a minimum charge.
+            </p>
           </div>
         </aside>
       )}

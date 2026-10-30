@@ -275,7 +275,7 @@ export function Provide() {
     <div className="max-w-4xl space-y-6">
       <section className="bg-white rounded-2xl border border-gray-200/60 p-6 md:p-8 space-y-4">
         <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: C.gold }}>
-          Apple Silicon · Initial alpha · L0 Open
+          Provider preview · Apple Silicon · L0/Open
         </p>
         <h2 className="text-2xl font-bold" style={{ color: C.blueBlack }}>Provide compute from your Mac</h2>
         <p className="text-sm leading-relaxed text-gray-600">
@@ -285,9 +285,10 @@ export function Provide() {
           a Metal-enabled llama.cpp inference server.
         </p>
         <div className="rounded-xl bg-amber-50 p-4 text-sm text-amber-900">
-          <strong>Controlled alpha:</strong> Enrollment is disabled by default on the coordinator.
-          A merged wizard does not mean new providers have been enabled. A qualified Mac and
-          approved rollout are still required.
+          <strong>Provider enrollment is not open by default.</strong> This is a preview of the
+          self-service workflow. Credential issuance is available only in a supervised enrollment
+          window after independent Mac setup is qualified. Consumer testers do not need to
+          enroll a provider. Real payouts are not available.
         </div>
         {loading ? <p role="status" className="text-sm text-gray-500">Checking your account…</p> :
           !user ? (

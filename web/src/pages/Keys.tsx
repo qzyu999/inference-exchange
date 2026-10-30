@@ -7,6 +7,10 @@ import { loginHref } from '../lib/nav.js'
 import { createUserKey } from '../lib/key-creation.js'
 import { C } from '../lib/theme'
 
+// Public alpha quick start. The key is supplied locally, never embedded in the page.
+const SDK_NONSTREAM = "import os\nfrom openai import OpenAI\n\nclient = OpenAI(\n    api_key=os.environ[\"IE_API_KEY\"],\n    base_url=\"https://alpha.inferenceex.com/v1\",\n)\nmodels = client.models.list().data\nif not models:\n    raise RuntimeError(\"No IE models are online\")\nmodel = models[0].id\n\nresult = client.chat.completions.create(\n    model=model,\n    messages=[{\"role\": \"user\", \"content\": \"Say hello.\"}],\n    extra_body={\"ocip_min_confidence\": \"open\"},\n)\nprint(result.choices[0].message.content)\n"
+const SDK_STREAM = "import os\nfrom openai import OpenAI\n\nclient = OpenAI(\n    api_key=os.environ[\"IE_API_KEY\"],\n    base_url=\"https://alpha.inferenceex.com/v1\",\n)\nmodels = client.models.list().data\nif not models:\n    raise RuntimeError(\"No IE models are online\")\nmodel = models[0].id\n\nresponse = client.chat.completions.create(\n    model=model,\n    messages=[{\"role\": \"user\", \"content\": \"Count to five.\"}],\n    stream=True,\n    extra_body={\"ocip_min_confidence\": \"open\"},\n)\nfor chunk in response:\n    if chunk.choices and chunk.choices[0].delta.content:\n        print(chunk.choices[0].delta.content, end=\"\", flush=True)\nprint()\n"
+
 export function Keys() {
   const { user } = useAuth()
   // Scope cached key metadata to the authenticated user; never reuse it
@@ -15,6 +19,18 @@ export function Keys() {
   const [newKeyName, setNewKeyName] = useState('')
   const [createdKey, setCreatedKey] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
+  const [quickstartMode, setQuickstartMode] = useState<'single' | 'stream'>('single')
+  const [quickstartCopyStatus, setQuickstartCopyStatus] = useState('')
+  const quickstartCode = quickstartMode === 'single' ? SDK_NONSTREAM : SDK_STREAM
+
+  async function copyQuickstart() {
+    try {
+      await navigator.clipboard.writeText(quickstartCode)
+      setQuickstartCopyStatus('Code copied. Save it as hello_ie.py.')
+    } catch {
+      setQuickstartCopyStatus('Copy unavailable. Select the code below and copy it manually.')
+    }
+  }
 
   const [createError, setCreateError] = useState('')
   const [creating, setCreating] = useState(false)
@@ -168,17 +184,42 @@ export function Keys() {
         </div>
       </div>
 
-      {/* Quick start */}
-      <div className="bg-white rounded-2xl border border-gray-200/40 p-5">
-        <div className="text-[10px] uppercase tracking-wider font-medium mb-3" style={{ color: C.gold }}>
-          Quick start
+      {/* Public SDK example works without cloning the repository or reading docs. */}
+      <section className="bg-white rounded-2xl border border-gray-200/40 p-5 space-y-3">
+        <h2 className="text-sm font-semibold" style={{ color: C.blueBlack }}>Run your first API request</h2>
+        <p className="text-xs" style={{ color: '#777' }}>
+          No repository checkout is needed. Credits are simulated, not real money.
+          At L0/Open, the coordinator and provider can read prompts and responses.
+          Use only nonsensitive test prompts.
+        </p>
+        <div className="space-y-1 text-xs" style={{ color: C.blueBlack }}>
+          <div>1. Install the SDK: <code className="font-mono">pip install openai</code></div>
+          <div>2. In your own terminal: <code className="font-mono">export IE_API_KEY="sk-ie-..."</code></div>
+          <div>3. Save the example as <code>hello_ie.py</code>. Run <code>python hello_ie.py</code>.</div>
         </div>
-        <div className="rounded-xl p-4 font-mono text-xs overflow-x-auto" style={{ background: C.blueBlack, color: '#a8a8a0' }}>
-          <div>curl /v1/chat/completions \</div>
-          <div className="pl-4">-H "Authorization: Bearer $IE_KEY" \</div>
-          <div className="pl-4">-d '{`{"model":"default","messages":[{"role":"user","content":"Hello"}]}`}'</div>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex gap-2">
+            <button type="button" aria-pressed={quickstartMode === 'single'}
+              onClick={() => { setQuickstartMode('single'); setQuickstartCopyStatus('') }}
+              className="rounded-lg border px-3 py-1.5 text-xs">Non-streaming</button>
+            <button type="button" aria-pressed={quickstartMode === 'stream'}
+              onClick={() => { setQuickstartMode('stream'); setQuickstartCopyStatus('') }}
+              className="rounded-lg border px-3 py-1.5 text-xs">Streaming</button>
+          </div>
+          <button type="button" onClick={() => void copyQuickstart()}
+            className="rounded-lg px-3 py-1.5 text-xs text-white"
+            style={{ background: C.blueBlack }}>Copy Python code</button>
         </div>
-      </div>
+        {quickstartCopyStatus && <p role="status" className="text-xs text-gray-600">{quickstartCopyStatus}</p>}
+        <pre className="rounded-xl p-4 font-mono text-xs overflow-x-auto whitespace-pre"
+          style={{ background: C.blueBlack, color: '#d4d4cd' }}>
+          <code>{quickstartCode}</code>
+        </pre>
+        <p className="text-xs" style={{ color: '#888' }}>
+          The example selects the first model advertised by the exchange.
+          If no models are online, it stops with a clear error. Your API key is only shown once.
+        </p>
+      </section>
     </div>
   )
 }

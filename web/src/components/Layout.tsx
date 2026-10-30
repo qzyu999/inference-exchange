@@ -17,7 +17,7 @@ const PRIMARY_NAV = [
   { path: '/exchange', label: 'Exchange', icon: ExchangeIcon },
   { path: '/models', label: 'Models', icon: ModelsIcon },
   { path: '/providers', label: 'Providers', icon: ProvidersIcon },
-  { path: '/provide', label: 'Provide compute', icon: ProvidersIcon },
+  { path: '/provide', label: 'Provide (preview)', icon: ProvidersIcon },
 ]
 
 const ACCOUNT_NAV = [
