@@ -60,19 +60,35 @@ rights, responsive framing, grain/codec quality assessment and other
 cinematic refinements remain tracked in #185. Since the sun and moon are
 baked into the footage, live moon phases need a separate clean sky layer.
 
-## Editorial snap-chapter review (#185)
+## Editorial scroll-scrub review (#185)
 
-Branch: `feat/185-landing-editorial-snap-chapters` (branched from
+Branch: `feat/185-landing-editorial-snap-chapters` (based on
 `feat/107-cinematic-lake-video-scroll`).
 
-This experiment intentionally **does not include GSAP or new dependencies**:
-native desktop scroll snapping is sufficient to test whether discrete chapter
-resting points solve the original usability problem before investing in a larger
-animation engine. Four chapters each occupy exactly one available viewport
-height underneath the 56px navbar, with a pinned photographic/Three.js stage.
-A separate product-overview snap target completes the experience. Snapping is
-disabled below 768px and for reduced-motion visitors. The final sand-grain
-dissolve remains future work.
+After the first visual pass, mandatory CSS scroll snapping felt too abrupt.
+This follow-up deliberately **removes mandatory snapping** and uses a pinned
+photographic/Three.js viewport with scroll-driven scene pacing:
+
+- Four named reading states, each held for ~60% of its scroll beat, followed by
+  a reversible smoothstep transition over the remaining ~40%.
+- Editorial copy stays readable through the hold and cross-fades late in the
+  transition (rather than changing halfway through a full-viewport slide).
+- The fourth beat ends with a controlled fade of the lake / tetrahedrons.
+  The pinned scene then scrolls out naturally into the product section.
+- Chapter rail buttons jump gently to the start of each reading hold.
+- No intercepted wheel events, added animation dependency, or mandatory snap.
+- Reduced-motion / no-WebGL fallbacks and the live product CTAs remain usable.
+  The sand-mandala dissolution effect remains tracked separately in #185.
+
+If you already checked out the separate editorial review worktree:
+
+```sh
+cd ~/projects/inference-exchange-editorial-review
+git pull --ff-only
+cd web
+npm run build
+npm run dev -- --port 5175 --strictPort
+```
 
 To compare side by side **without changing the existing review worktree**:
 
@@ -89,8 +105,8 @@ npm run build
 npm run dev -- --port 5175 --strictPort
 ```
 
-Test the opening CTAs, four right-hand chapter markers, scroll up/down between
-each completed state, keyboard navigation (Tab), reduced-motion mode, mobile
-(no forced snap), and the transition into the product section. The original
+Test slow and fast trackpad scrolling, smooth scene holds, reverse scrubbing,
+right-hand chapter markers, navigation/keyboard access, reduced-motion mode,
+mobile, and the natural handoff into the product section. The original
 preview remains at port 5174 if it is running. No production configuration,
 provider processes, or `main` files are changed.
