@@ -11,29 +11,51 @@ import { STORY_CHAPTERS, ScrollChapterRail } from '../components/ScrollChapterRa
 
 const NAV_HEIGHT = 56
 const LAST_CHAPTER = STORY_CHAPTERS.length - 1
+const EXIT_POSITION = STORY_CHAPTERS.length
+// Roughly 60% of each viewport of scrolling holds a fully readable chapter.
+// The remaining 40% smoothly scrubs to the next state (or fades to the product).
+const CHAPTER_HOLD = 0.60
+const SCENE_POSES = [...STORY_CHAPTERS.map(chapter => chapter.sceneProgress), 1]
 
-// Continuous 3D movement between four stable chapter poses. The copy is bound
-// to a discrete chapter, not to six unrelated fade windows.
-function getSceneProgress(position: number): number {
-  const lower = Math.min(LAST_CHAPTER, Math.floor(position))
-  const upper = Math.min(LAST_CHAPTER, lower + 1)
-  const fraction = position - lower
-  return STORY_CHAPTERS[lower].sceneProgress +
-    (STORY_CHAPTERS[upper].sceneProgress - STORY_CHAPTERS[lower].sceneProgress) * fraction
+function clamp01(value: number): number {
+  return Math.max(0, Math.min(1, value))
 }
 
-function useChapterPosition(ref: React.RefObject<HTMLDivElement | null>) {
-  const [position, setPosition] = useState(0)
+function smoothstep(value: number): number {
+  const x = clamp01(value)
+  return x * x * (3 - 2 * x)
+}
+
+// Apple-style pacing, without intercepting the wheel or forcing a snap:
+// holding phase -> eased reversible transition -> holding phase.
+function getStoryPosition(scrollUnits: number): number {
+  const raw = Math.max(0, Math.min(EXIT_POSITION, scrollUnits))
+  if (raw >= EXIT_POSITION) return EXIT_POSITION
+  const chapter = Math.floor(raw)
+  const within = raw - chapter
+  const transition = smoothstep((within - CHAPTER_HOLD) / (1 - CHAPTER_HOLD))
+  return chapter + transition
+}
+
+function getSceneProgress(position: number): number {
+  const lower = Math.min(LAST_CHAPTER, Math.floor(position))
+  const upper = Math.min(EXIT_POSITION, lower + 1)
+  const fraction = clamp01(position - lower)
+  return SCENE_POSES[lower] + (SCENE_POSES[upper] - SCENE_POSES[lower]) * fraction
+}
+
+function useScrollUnits(ref: React.RefObject<HTMLDivElement | null>) {
+  const [units, setUnits] = useState(0)
 
   useEffect(() => {
     const update = () => {
       if (!ref.current) return
       const sectionStart = ref.current.getBoundingClientRect().top + window.scrollY
       const chapterHeight = Math.max(1, window.innerHeight - NAV_HEIGHT)
-      const next = Math.max(0, Math.min(LAST_CHAPTER,
+      const next = Math.max(0, Math.min(EXIT_POSITION,
         (window.scrollY - sectionStart) / chapterHeight,
       ))
-      setPosition(prev => Math.abs(prev - next) > 0.002 ? next : prev)
+      setUnits(prev => Math.abs(prev - next) > 0.001 ? next : prev)
     }
 
     window.addEventListener('scroll', update, { passive: true })
@@ -45,7 +67,7 @@ function useChapterPosition(ref: React.RefObject<HTMLDivElement | null>) {
     }
   }, [ref])
 
-  return position
+  return units
 }
 
 const CHAPTER_COPY = [
@@ -284,7 +306,8 @@ function LiveExchangeCard() {
 export function Landing() {
   const storyRef = useRef<HTMLDivElement>(null)
   const heroRef = useRef<HTMLDivElement>(null)
-  const chapterPosition = useChapterPosition(storyRef)
+  const scrollUnits = useScrollUnits(storyRef)
+  const chapterPosition = getStoryPosition(scrollUnits)
   const activeIndex = Math.max(0, Math.min(LAST_CHAPTER, Math.round(chapterPosition)))
   const sceneProgress = getSceneProgress(chapterPosition)
   const [webglFailed, setWebglFailed] = useState(false)
@@ -303,27 +326,20 @@ export function Landing() {
     return () => query.removeEventListener('change', onChange)
   }, [])
 
-  // Use native browser snap points rather than forcing wheel deltas or an
-  // animation library. Limit mandatory snapping to desktop-sized viewports,
-  // and restore document styles when navigating away from the landing page.
+  // Keep the browser's native, continuous scroll momentum. This page must
+  // never trap trackpad/wheel input with mandatory snapping. Explicit chapter
+  // clicks still scroll smoothly to the start of a chapter's reading hold.
   useEffect(() => {
-    if (!storyEnabled) return
     const root = document.documentElement
     const previousType = root.style.scrollSnapType
     const previousPadding = root.style.scrollPaddingTop
-    const desktop = window.matchMedia('(min-width: 768px)')
-    const sync = () => {
-      root.style.scrollSnapType = desktop.matches ? 'y mandatory' : 'none'
-      root.style.scrollPaddingTop = desktop.matches ? NAV_HEIGHT + 'px' : ''
-    }
-    sync()
-    desktop.addEventListener('change', sync)
+    root.style.scrollSnapType = 'none'
+    root.style.scrollPaddingTop = ''
     return () => {
-      desktop.removeEventListener('change', sync)
       root.style.scrollSnapType = previousType
       root.style.scrollPaddingTop = previousPadding
     }
-  }, [storyEnabled])
+  }, [])
 
   useEffect(() => {
     // Once the actual marketplace takes over, remove the chapter navigation.
@@ -356,7 +372,7 @@ export function Landing() {
     const height = Math.max(1, window.innerHeight - NAV_HEIGHT)
     window.scrollTo({
       top: storyTop + Math.max(0, Math.min(LAST_CHAPTER, index)) * height,
-      behavior: 'smooth',
+      behavior: reducedMotion ? 'auto' : 'smooth',
     })
   }
 
@@ -370,8 +386,8 @@ export function Landing() {
       <LandingNav />
 
       <div ref={storyRef} className="relative" style={{ paddingTop: NAV_HEIGHT, background: C.blueBlack }}>
-        {/* One shared stage: video, crystals and all chapter text remain aligned.
-            The blank, viewport-sized chapters below are real snap targets. */}
+        {/* One pinned stage: the world stays in place as browser scrolling
+            advances through reading holds, then smooth, reversible transitions. */}
         <div className="sticky top-14 left-0 z-10 h-[calc(100svh-3.5rem)] w-full overflow-hidden">
           <LandscapeVideo
             progress={storyEnabled ? sceneProgress : 0}
@@ -412,23 +428,13 @@ export function Landing() {
             />
           )}
         </div>
-        {storyEnabled && STORY_CHAPTERS.slice(1).map((chapter) => (
-          <div
-            key={chapter.label}
-            className="h-[calc(100svh-3.5rem)] w-full"
-            style={{ scrollSnapAlign: 'start' }}
-            aria-hidden="true"
-          />
+        {/* Four viewport-height scroll beats after the initial pinned screen:
+            three transitions between chapters, then a final fade/reveal.
+            The scene stays pinned through the chapter 4 hold and exit animation;
+            after that it unpins and the real product rises naturally below it. */}
+        {storyEnabled && STORY_CHAPTERS.map(chapter => (
+          <div key={chapter.label} className="h-[calc(100svh-3.5rem)] w-full" aria-hidden="true" />
         ))}
-        {/* The first snap point sits at the start of the photographic stage.
-            It must not be the sticky child, whose painted position moves. */}
-        {storyEnabled && (
-          <div
-            className="pointer-events-none absolute top-14 left-0 h-px w-px"
-            style={{ scrollSnapAlign: 'start' }}
-            aria-hidden="true"
-          />
-        )}
       </div>
 
       {storyEnabled && storyInView && (
@@ -449,7 +455,6 @@ export function Landing() {
         className="relative z-10 min-h-screen flex flex-col overflow-hidden pt-14 outline-none"
         style={{
           background: C.blueBlack,
-          scrollSnapAlign: storyEnabled ? 'start' : 'none',
         }}
       >
         {/* Living mineral aurora — cursor-reactive behind hero content */}
