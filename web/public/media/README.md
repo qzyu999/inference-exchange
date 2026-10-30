@@ -110,3 +110,51 @@ right-hand chapter markers, navigation/keyboard access, reduced-motion mode,
 mobile, and the natural handoff into the product section. The original
 preview remains at port 5174 if it is running. No production configuration,
 provider processes, or `main` files are changed.
+
+
+## Experimental mineral sand-mandala dissolve (#185)
+
+New standalone branch: `feat/185-mineral-mandala-dissolve`, built on
+`feat/185-landing-editorial-snap-chapters`. Your original editorial preview
+and alpha/provider environments are not changed.
+
+- The regular tetrahedrons stay full-sized and retain their rise/descent,
+  intersection and rotation.
+- On the final scroll beat (~scene progress 0.82 onward), 30,000 desktop /
+  8,500 narrow-screen **GPU grains sampled from their real triangular faces**
+  erode outward in a deterministic rightward gust. Reverse scrolling rebuilds
+  the same objects without jittering or replaying a physics simulation.
+- A separate GLSL pigment-flow field appears behind the grains while the
+  mountain fades. That same field continues behind the final product headline
+  and live market card, beneath accessible HTML controls.
+- The styling derives from mineral pigments and impermanence without copying
+  sacred sand-mandala iconography.
+- Reduced-motion visitors get a static pigment background. If WebGL is
+  unavailable, its CSS gradient remains visible; navigation remains usable.
+- This is a first **art-direction prototype**, not a licensed sand asset or
+  physically simulated sand fluid. Tune pigment density, flow and seamless
+  section matching after reviewing on real hardware. No new NPM packages.
+
+### Open a separate preview alongside the earlier experiment (5176)
+
+```sh
+cd ~/projects/inference-exchange
+git fetch origin
+git worktree add -b review/landing-mandala ../inference-exchange-mandala-review origin/feat/185-mineral-mandala-dissolve
+
+mkdir -p ../inference-exchange-mandala-review/web/public/media
+cp ../inference-exchange-editorial-review/web/public/media/alpine-lake-hero.mp4 ../inference-exchange-mandala-review/web/public/media/
+cp ../inference-exchange-editorial-review/web/public/media/alpine-lake-poster.webp ../inference-exchange-mandala-review/web/public/media/
+
+cd ../inference-exchange-mandala-review/web
+npm ci
+npm run build
+npm run dev -- --port 5176 --strictPort
+```
+
+Open `http://localhost:5176/` and scroll slowly through the final
+**Transformation** chapter into `Distributed AI inference, powered by
+everyone.`. Scroll backward to assess grain reconstruction and ensure the
+original geometry does not shrink. Also check reduced motion, resized window,
+marketplace buttons, and GPU performance. The old editorial preview can remain
+open at `http://localhost:5175/`.
