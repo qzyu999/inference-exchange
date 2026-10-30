@@ -289,6 +289,7 @@ export function Landing() {
   const sceneProgress = getSceneProgress(chapterPosition)
   const [webglFailed, setWebglFailed] = useState(false)
   const [videoReady, setVideoReady] = useState(false)
+  const [storyInView, setStoryInView] = useState(true)
   const [reducedMotion, setReducedMotion] = useState(false)
   const [mouseX, setMouseX] = useState(0.5)
   const rawVideoOnly = new URLSearchParams(window.location.search).get('heroRaw') === '1'
@@ -323,6 +324,24 @@ export function Landing() {
       root.style.scrollPaddingTop = previousPadding
     }
   }, [storyEnabled])
+
+  useEffect(() => {
+    // Once the actual marketplace takes over, remove the chapter navigation.
+    const update = () => {
+      const bottom = storyRef.current?.getBoundingClientRect().bottom ?? 0
+      setStoryInView(prev => {
+        const next = bottom > window.innerHeight * 0.65
+        return prev === next ? prev : next
+      })
+    }
+    window.addEventListener('scroll', update, { passive: true })
+    window.addEventListener('resize', update)
+    update()
+    return () => {
+      window.removeEventListener('scroll', update)
+      window.removeEventListener('resize', update)
+    }
+  }, [])
 
   useEffect(() => {
     const onMove = (event: MouseEvent) => setMouseX(event.clientX / window.innerWidth)
@@ -412,7 +431,7 @@ export function Landing() {
         )}
       </div>
 
-      {storyEnabled && (
+      {storyEnabled && storyInView && (
         <ScrollChapterRail activeIndex={activeIndex} onSelect={navigateToChapter} />
       )}
 
@@ -430,7 +449,7 @@ export function Landing() {
         className="relative z-10 min-h-screen flex flex-col overflow-hidden pt-14 outline-none"
         style={{
           background: C.blueBlack,
-
+          scrollSnapAlign: storyEnabled ? 'start' : 'none',
         }}
       >
         {/* Living mineral aurora — cursor-reactive behind hero content */}
