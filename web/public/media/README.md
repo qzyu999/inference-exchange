@@ -1,55 +1,56 @@
 # Local cinematic landing page media (#107, #185)
 
-The background video and poster are intentionally **not committed** to this
-code-only experimental branch. Reviewers provide them as local files.
+The photo/video files are intentionally not committed to GitHub on this
+experimental branch. Use the locally provided media bundle to test the scene.
 
-## Quality comparison preview (October 29, 2026)
+## Updated 30-second mountain-reflection video
 
-To address the feedback that the first prototype looks **too zoomed-in,
-grainy and tinted**, this branch now:
+A new still-camera landscape video was supplied for local review:
 
-- Defaults to `object-fit: contain`, retaining the complete 2.34:1 composition
-  instead of cropping it to the browser viewport. It shows softened poster
-  imagery only *behind* the visible video where letterboxing is necessary.
-- Removes the full-frame dark gradient that previously covered the footage.
-- Allows A/B diagnostic query parameters:
-  - `/?heroRaw=1` — just the background video, with no Three.js or lotus/ripple
-    layers and no intro text; persistent navigation remains.
-  - `/?heroFit=cover` — old full-bleed crop, but without the dark tint.
-  - `/?heroRaw=1&heroFit=cover` — raw footage with the previous crop.
-- Retains existing animated Three.js tetrahedrons by default.
+- Source: `mountain_reflection.mp4`
+- Duration: **30.09 seconds**
+- Dimensions: **1650 × 720** (approximately 2.29:1, not 1080p)
+- Video: H.264, approximately 1.38 Mb/s, 30 fps
+- Audio: removed for the web preview
+- The video stream is **copied without re-encoding**; a 1650 × 720 WebP
+  poster is extracted from the source
+- The video is played in a loop because it is at least 20 seconds long.
+  The exact loop seam has not yet been professionally retouched.
 
-The original Kling clip is **1460 × 624 at ~12.6 Mb/s**, compared with the
-original compressed preview at **1280 × 548 at ~1.6 Mb/s**. The high-quality
-test bundle remuxes the original H.264 stream without reducing its resolution
-or picture quality. It is *not* a native 1080p clip; full source regeneration
-for that and ~30s water flow remains tracked in #185.
+## Install in the separate review worktree
 
-## Install in a separate review worktree
-
-Download `ie_landing_quality_preview.zip` from the ChatGPT conversation and
-extract it into the root of the **review worktree**, not the running alpha
-checkout:
+Download `ie_mountain_reflection_30s_preview.zip` from the ChatGPT
+conversation into your Downloads folder.
 
 ```sh
 cd ~/projects/inference-exchange-landing-review
-unzip -o ~/Downloads/ie_landing_quality_preview.zip -d .
+git pull --ff-only
+unzip -o ~/Downloads/ie_mountain_reflection_30s_preview.zip -d .
 cd web
-npm ci
 npm run build
 npm run dev -- --port 5174 --strictPort
 ```
 
-Expected files (local/untracked):
+Expected files:
 - `web/public/media/alpine-lake-hero.mp4`
 - `web/public/media/alpine-lake-poster.webp`
 
-The current five-second Kling clip is **not a seamless loop**. It plays once
-and holds its last frame. This preview is intended for visual evaluation,
-not production: watermark-free rights-cleared source footage, native 1080p+
-quality, longer looping environmental water, and responsive art direction
-remain future work in #185.
+The change overwrites **only your local review-worktree media files**.
+Nothing changes in the separate production/provider directory.
 
-While the video is loaded, the generated sun/moon are hidden. A genuinely
-phase-accurate moon requires a sky plate without a baked-in moon, and has
-not been implemented.
+Review modes:
+- `http://localhost:5174/` — complete intro, crystal, ripples and landscape
+- `http://localhost:5174/?heroRaw=1` — video alone below the navbar
+- `http://localhost:5174/?heroFit=cover` — viewport crop comparison
+- `http://localhost:5174/?heroRaw=1&heroFit=cover` — crop without overlays
+
+`object-fit: contain` remains the default to preserve the mountain and
+its reflection, which means a wide-video letterbox on taller screens.
+
+## Remaining production work
+
+This is a visual test asset, not yet a release/master: true 1080p-or-better
+source detail, a precisely matched seamless loop, audio-free media delivery
+rights, responsive framing, grain/codec quality assessment and other
+cinematic refinements remain tracked in #185. Since the sun and moon are
+baked into the footage, live moon phases need a separate clean sky layer.
