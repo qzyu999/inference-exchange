@@ -6,6 +6,9 @@ import { C, GRADIENTS } from '../lib/theme'
 import { HeroScene } from '../components/HeroScene'
 import { LandingNav } from '../components/LandingNav'
 import { MineralAurora } from '../components/MineralAurora'
+import { LandscapeVideo } from '../components/LandscapeVideo'
+import { ScrollChapterRail } from '../components/ScrollChapterRail'
+import { LakeEffects } from '../components/LakeEffects'
 
 // ─── Helpers ─────────────────────────────────────────────────
 
@@ -71,7 +74,7 @@ function ScrollOverlay({ progress }: { progress: number }) {
             className="absolute text-center px-6 max-w-2xl"
             style={{ opacity, transform: `translateY(${yShift}px)`, transition: 'none' }}
           >
-            <h2 className="text-3xl md:text-5xl font-bold tracking-tight leading-tight">
+            <h2 className="text-3xl md:text-5xl font-bold tracking-tight leading-tight" style={{ textShadow: '0 3px 28px rgba(2,10,18,0.85)' }}>
               <span
                 className="bg-clip-text text-transparent"
                 style={{
@@ -84,7 +87,7 @@ function ScrollOverlay({ progress }: { progress: number }) {
               </span>
             </h2>
             {o.sub && (
-              <p className="text-base md:text-lg mt-4 leading-relaxed max-w-lg mx-auto" style={{ color: '#8a8578' }}>
+              <p className="text-base md:text-lg mt-4 leading-relaxed max-w-lg mx-auto" style={{ color: '#e9e5dd', textShadow: '0 2px 16px rgba(2,10,18,0.85)' }}>
                 {o.sub}
               </p>
             )}
@@ -183,12 +186,31 @@ export function Landing() {
   const progress = useScrollProgress(scrollContainerRef)
   const [webglFailed, setWebglFailed] = useState(false)
   const [mouseX, setMouseX] = useState(0.5)
+  const [videoReady, setVideoReady] = useState(false)
+  const [reducedMotion, setReducedMotion] = useState(false)
+
+  useEffect(() => {
+    const query = window.matchMedia('(prefers-reduced-motion: reduce)')
+    const update = () => setReducedMotion(query.matches)
+    update()
+    query.addEventListener('change', update)
+    return () => query.removeEventListener('change', update)
+  }, [])
 
   const [skipped, setSkipped] = useState(false)
   const heroRef = useRef<HTMLDivElement>(null)
   const sequenceDone = progress >= 0.95
-  const heroVisible = webglFailed || sequenceDone || skipped
-  const introVisible = progress < 0.06 && !webglFailed
+  const storyEnabled = !webglFailed && !reducedMotion
+  const heroVisible = webglFailed || reducedMotion || sequenceDone || skipped
+  const introVisible = (progress < 0.06 || reducedMotion) && !webglFailed
+
+  const jumpToChapter = (at: number) => {
+    const container = scrollContainerRef.current
+    if (!container) return
+    const start = container.getBoundingClientRect().top + window.scrollY
+    const distance = Math.max(0, container.offsetHeight - window.innerHeight)
+    window.scrollTo({ top: start + at * distance, behavior: 'smooth' })
+  }
 
   // Skip intro: show the product hero at once. Do not require the scroll story.
   const skipIntro = () => {
@@ -212,9 +234,16 @@ export function Landing() {
     <>
       <LandingNav />
       {/* ── Scroll sequence ──────────────────────────────── */}
-      <div ref={scrollContainerRef} style={{ height: webglFailed ? '100vh' : '500vh' }} className="relative">
+      <div ref={scrollContainerRef} style={{ height: storyEnabled ? '350vh' : '100svh' }} className="relative">
         <div className="sticky top-0 left-0 w-full h-screen overflow-hidden z-10">
-          <HeroScene scrollProgress={progress} onInitFailed={() => setWebglFailed(true)} />
+          <LandscapeVideo progress={progress} reducedMotion={reducedMotion} onAvailabilityChange={setVideoReady} />
+          <HeroScene
+            scrollProgress={progress}
+            landscapeMode={videoReady}
+            reducedMotion={reducedMotion}
+            onInitFailed={() => setWebglFailed(true)}
+          />
+          {storyEnabled && <LakeEffects progress={progress} reducedMotion={reducedMotion} />}
 
           {webglFailed && (
             <div id="landing-main" className="absolute inset-0 pt-14 flex flex-col items-center justify-center" style={{ background: C.black }}>
@@ -242,7 +271,7 @@ export function Landing() {
             </div>
           )}
 
-          <ScrollOverlay progress={progress} />
+          {storyEnabled && <ScrollOverlay progress={progress} />}
 
           {/* First viewport: what IE is, and how to use it, with no scroll (#107 P0) */}
           {!webglFailed && (
@@ -276,11 +305,11 @@ export function Landing() {
               <div className="absolute bottom-8 flex items-center gap-4">
                 <button
                   type="button"
-                  onClick={() => window.scrollBy({ top: window.innerHeight, behavior: 'smooth' })}
+                  onClick={() => reducedMotion ? skipIntro() : jumpToChapter(0.20)}
                   className="text-xs tracking-wider uppercase px-3 py-2 rounded-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#E8C77A]"
                   style={{ color: '#d8d1be' }}
                 >
-                  Scroll to explore ↓
+                  {reducedMotion ? 'Explore the product ↓' : 'Explore the story ↓'}
                 </button>
                 <button
                   type="button"
@@ -295,6 +324,8 @@ export function Landing() {
           )}
         </div>
       </div>
+
+      {storyEnabled && progress < 0.98 && <ScrollChapterRail progress={progress} onSelect={jumpToChapter} />}
 
       {/* ── Mineral spectrum divider ─────────────────── */}
       <div
