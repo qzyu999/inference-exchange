@@ -316,7 +316,9 @@ export function Landing() {
   const heroRef = useRef<HTMLDivElement>(null)
   const scrollUnits = useScrollUnits(storyRef)
   const chapterPosition = getStoryPosition(scrollUnits)
-  const activeIndex = Math.max(0, Math.min(LAST_CHAPTER, Math.round(chapterPosition)))
+  // Keep the outgoing headline readable until the visual transition is
+  // mostly complete, then cross-fade to the next chapter's stable state.
+  const activeIndex = Math.max(0, Math.min(LAST_CHAPTER, Math.floor(chapterPosition + 0.20)))
   const sceneProgress = getSceneProgress(chapterPosition)
   const [webglFailed, setWebglFailed] = useState(false)
   const [videoReady, setVideoReady] = useState(false)
