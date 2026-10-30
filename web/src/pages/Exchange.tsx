@@ -2,6 +2,7 @@ import useSWR from 'swr'
 import { api } from '../lib/api'
 import { useState, useMemo, useRef, useEffect } from 'react'
 import { C, TRUST_COLORS } from '../lib/theme'
+import { ModelSearch, type ModelSearchItem } from '../components/ModelSearch'
 
 // ─── Constants ───────────────────────────────────────────────
 
@@ -379,8 +380,6 @@ export function Exchange() {
 
   // ─── State ───────────────────────────────────────────────
   const [selectedKey, setSelectedKey] = useState('')
-  const [dropdownOpen, setDropdownOpen] = useState(false)
-  const [search, setSearch] = useState('')
   const [filterOpen, setFilterOpen] = useState<boolean | null>(null) // null=all, true=open, false=prop
   const [filterCache, setFilterCache] = useState(false)
   const [filterBenchmarked, setFilterBenchmarked] = useState(false)
@@ -389,18 +388,6 @@ export function Exchange() {
   const [filterFamily, setFilterFamily] = useState<string | null>(null)
   const [sortCol, setSortCol] = useState<'output' | 'input' | 'cache' | 'quality' | 'tps'>('output')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
-  const dropdownRef = useRef<HTMLDivElement>(null)
-  const inputRef = useRef<HTMLInputElement>(null)
-
-  // Close dropdown on outside click
-  useEffect(() => {
-    function handleClick(e: MouseEvent) {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) setDropdownOpen(false)
-    }
-    document.addEventListener('mousedown', handleClick)
-    return () => document.removeEventListener('mousedown', handleClick)
-  }, [])
-
   // Resolve active model
   const activeKey = selectedKey || (unifiedModels.length > 0 ? unifiedModels[0].key : '')
   const activeUnified = unifiedModels.find(m => m.key === activeKey)
@@ -437,12 +424,7 @@ export function Exchange() {
   const families = useMemo(() => [...new Set(unifiedModels.map(m => m.family))].sort(), [unifiedModels])
 
   const filteredModels = useMemo(() => {
-    const tokens = search.toLowerCase().trim().split(/\s+/).filter(Boolean)
     return unifiedModels.filter(m => {
-      if (tokens.length) {
-        const hay = `${m.name} ${m.vendor} ${m.family} ${m.params}`.toLowerCase()
-        if (!tokens.every(t => hay.includes(t))) return false
-      }
       if (filterOpen === true && !m.open) return false
       if (filterOpen === false && m.open) return false
       if (filterCache && !m.cache) return false
@@ -458,7 +440,7 @@ export function Exchange() {
       if (filterFamily && m.family !== filterFamily) return false
       return true
     })
-  }, [unifiedModels, search, filterOpen, filterCache, filterBenchmarked, filterSize, filterPriceCap, filterFamily])
+  }, [unifiedModels, filterOpen, filterCache, filterBenchmarked, filterSize, filterPriceCap, filterFamily])
 
   const groupedModels = useMemo(() => {
     const groups: Record<string, UnifiedModel[]> = {}
@@ -471,6 +453,1159 @@ export function Exchange() {
       .sort(([, a], [, b]) => Math.min(...a.map(x => x.price || 999)) - Math.min(...b.map(x => x.price || 999)))
       .map(([fam, ms]) => ({ family: fam, models: ms.sort((a, b) => (a.price || 999) - (b.price || 999)) }))
   }, [filteredModels])
+
+  // Keep the Exchange-specific discovery inventory and rich filters here.
+  // The shared palette implements the *same* search/keyboard UI used by Chat.
+  const searchItems = useMemo<ModelSearchItem[]>(() =>
+    groupedModels.flatMap(group => group.models.map(m => ({
+      key: m.key, name: m.name, group: group.family,
+      keywords: m.vendor + ' ' + m.family + ' ' + m.params,
+      subtitle: [
+        m.vendor || 'Unknown family',
+        m.params !== '—' ? m.params : '',
+        m.ctx !== '—' ? m.ctx + ' context' : '',
+        m.providerCount + (m.source === 'ref' ? ' reference offers' : ' IE providers'),
+      ].filter(Boolean).join(' · '),
+      priceLabel: m.price > 0 ? (m.price < 1 ? '
+  const offerRows = useMemo((): OfferRow[] => {
+    const rows: OfferRow[] = []
+    // IE providers
+    if (activeIEModel) {
+      for (const p of activeIEModel.providers) {
+        rows.push({
+          name: 'Inference Exchange', source: 'ie', isIE: true,
+          priceInput: p.price_input, priceCache: p.price_cache, priceOutput: p.price_output,
+          quality: activeUnified?.codingIndex || null, tps: p.tps > 0 ? p.tps : null,
+          trust: p.trust, encrypted: p.encrypted, quantization: p.quantization,
+        })
+      }
+    }
+    // Reference prices
+    if (activeRefFamily) {
+      for (const p of activeRefFamily.prices) {
+        // Skip IE entries from reference (already in IE list)
+        if (p.source === 'inference-exchange') continue
+        rows.push({
+          name: providerName(p.source), source: p.source, isIE: false,
+          priceInput: p.price_input || 0, priceCache: p.price_cache_read || 0,
+          priceOutput: p.price_output || 0,
+          quality: p.intelligence_index || p.coding_index || null,
+          tps: null, displayName: p.display_name,
+        })
+      }
+    }
+    return rows
+  }, [activeIEModel, activeRefFamily, activeUnified])
+
+  // Sorted offer rows
+  const sortedOffers = useMemo(() => {
+    const sorted = [...offerRows]
+    sorted.sort((a, b) => {
+      let va: number, vb: number
+      switch (sortCol) {
+        case 'input': va = a.priceInput || 999; vb = b.priceInput || 999; break
+        case 'cache': va = a.priceCache || 999; vb = b.priceCache || 999; break
+        case 'quality': va = a.quality || 0; vb = b.quality || 0; break
+        case 'tps': va = a.tps || 0; vb = b.tps || 0; break
+        default: va = a.priceOutput || 999; vb = b.priceOutput || 999
+      }
+      return sortDir === 'asc' ? va - vb : vb - va
+    })
+    return sorted
+  }, [offerRows, sortCol, sortDir])
+
+  // ─── Header stats ────────────────────────────────────────
+  const outputPrices = offerRows.map(r => r.priceOutput).filter(p => p > 0)
+  const bestPrice = outputPrices.length ? Math.min(...outputPrices) : 0
+  const worstPrice = outputPrices.length ? Math.max(...outputPrices) : 0
+  const spreadPct = bestPrice > 0 && worstPrice > bestPrice ? Math.round((worstPrice / bestPrice - 1) * 100) : 0
+  const caps = activeIEModel?.capabilities
+
+  // ─── DOM (Depth of Market) data ──────────────────────────
+  const domData = useMemo(() => {
+    type Level = { price: number; providers: { name: string; isIE: boolean }[] }
+    function buildLevels(key: 'priceInput' | 'priceCache' | 'priceOutput'): Level[] {
+      const levels: Record<string, Level> = {}
+      for (const r of offerRows) {
+        const v = r[key]
+        if (!v || v <= 0) continue
+        const k = v.toFixed(3)
+        if (!levels[k]) levels[k] = { price: v, providers: [] }
+        levels[k].providers.push({ name: r.isIE ? 'Inference Exchange' : r.name, isIE: r.isIE })
+      }
+      return Object.values(levels).sort((a, b) => b.price - a.price) // expensive at top
+    }
+    return {
+      input: buildLevels('priceInput'),
+      cache: buildLevels('priceCache'),
+      output: buildLevels('priceOutput'),
+    }
+  }, [offerRows])
+
+  // ─── Recent fills ────────────────────────────────────────
+  const recentFills = useMemo(() =>
+    [...traces]
+      .filter((t: any) => ['completed', 'matched', 'matched_from_queue'].includes(t.status))
+      .reverse()
+      .slice(0, 5),
+  [traces])
+
+  // Sort toggle
+  function toggleSort(col: typeof sortCol) {
+    if (sortCol === col) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
+    else { setSortCol(col); setSortDir('asc') }
+  }
+  const arrow = (col: typeof sortCol) => sortCol === col ? (sortDir === 'asc' ? ' ▵' : ' ▿') : ''
+
+  // Empty state
+  if (marketData && models.length === 0 && refFamilies.length === 0) {
+    return (
+      <div style={{ maxWidth: 500, margin: '60px auto', textAlign: 'center' }}>
+        <img src="/logo-icon.svg" alt="IE" style={{ width: 48, height: 48, margin: '0 auto 20px', opacity: 0.2 }} />
+        <h2 style={{ fontSize: 18, fontWeight: 700, color: C.blueBlack, marginBottom: 8 }}>The exchange is quiet</h2>
+        <p style={{ fontSize: 13, color: '#888', marginBottom: 24 }}>No providers connected and no reference data loaded.</p>
+        <div style={{ background: C.blueBlack, color: C.warmWhite, borderRadius: 10, padding: 16, fontFamily: 'SF Mono,Menlo,Consolas,monospace', fontSize: 12, textAlign: 'left' }}>
+          <div><span style={{ color: '#666' }}>$</span> pip install ie-provider</div>
+          <div><span style={{ color: '#666' }}>$</span> ie-provider start</div>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div style={{ maxWidth: 1100, margin: '0 auto' }}>
+      {/* ── 1. Live status strip ── */}
+      <div className="spot" style={{
+        display: 'flex', alignItems: 'center', gap: 12, padding: '8px 12px',
+        background: '#fff', borderRadius: 10, border: '1px solid #eaeae8',
+        marginBottom: 16, fontSize: 11, color: '#888', flexWrap: 'wrap',
+      }}>
+        <span style={{ width: 5, height: 5, borderRadius: '50%', background: C.green, animation: 'pulse 2s infinite' }} />
+        <span style={{ color: C.green }}>Live</span>
+        <span style={{ color: '#ddd' }}>|</span>
+        {stats && <>
+          <span>{stats.providers_online} providers online</span>
+          <span style={{ color: '#ddd' }}>|</span>
+          <span>{stats.models_available} models</span>
+          <span style={{ color: '#ddd' }}>|</span>
+          <span style={{ color: C.gold }}>{stats.total_requests.toLocaleString()} fills / 24h</span>
+        </>}
+        <span style={{ flex: 1 }} />
+        <span style={{ fontSize: 9, color: '#bbb' }}>Updated live</span>
+      </div>
+
+      {/* ── 2. Model Selector — Shared Search (same component as Chat) ── */}
+      <ModelSearch
+        items={searchItems}
+        value={activeKey}
+        onChange={setSelectedKey}
+        label="Search exchange models"
+        placeholder="Search models (qwen, llama 70b, deepseek, claude)"
+        selectedLabel="Select a model to compare"
+        emptyMessage="No discoverable models"
+        className="w-full mb-4"
+        filters={
+          <>
+            {/* Filter bar */}
+            <div style={{ padding: '6px 12px', borderBottom: '1px solid #f0f0f0', display: 'flex', gap: 4, flexWrap: 'wrap', alignItems: 'center' }}>
+              <span style={{ fontSize: 8, textTransform: 'uppercase', letterSpacing: '.06em', color: '#aaa', marginRight: 2 }}>Filter</span>
+              <Chip label="Open-weight" active={filterOpen === true} color={C.green} bg="#edf7f1"
+                onClick={() => setFilterOpen(filterOpen === true ? null : true)} />
+              <Chip label="Proprietary" active={filterOpen === false} color={C.indigo} bg="#f3eef7"
+                onClick={() => setFilterOpen(filterOpen === false ? null : false)} />
+              <Sep />
+              <Chip label="Cache discount" active={filterCache} color={C.turquoise} bg="#e8f5f3"
+                onClick={() => setFilterCache(!filterCache)} />
+              <Chip label="Benchmarked" active={filterBenchmarked} color={C.deepBlue} bg="#eef3f7"
+                onClick={() => setFilterBenchmarked(!filterBenchmarked)} />
+              <Sep />
+              <span style={{ fontSize: 8, color: '#aaa' }}>Size:</span>
+              {['<7B', '7-30B', '30-100B', '100B+'].map(r => (
+                <Chip key={r} label={r} active={filterSize === r} color={C.gold} bg="#fdf6ec"
+                  onClick={() => setFilterSize(filterSize === r ? null : r)} />
+              ))}
+              <Sep />
+              <span style={{ fontSize: 8, color: '#aaa' }}>Max $:</span>
+              {[1, 5, 15].map(cap => (
+                <Chip key={cap} label={`$${cap}`} active={filterPriceCap === cap} color={C.red} bg="#fef2f2"
+                  onClick={() => setFilterPriceCap(filterPriceCap === cap ? null : cap)} />
+              ))}
+              <Sep />
+              <select value={filterFamily || ''} onChange={e => setFilterFamily(e.target.value || null)}
+                style={{ fontSize: 9, border: '1px solid #e5e5e5', borderRadius: 5, padding: '2px 4px', color: '#888', background: '#f5f5f3', cursor: 'pointer', outline: 'none' }}>
+                <option value="">All families</option>
+                {families.map(f => <option key={f}>{f}</option>)}
+              </select>
+            </div>
+
+          </>
+        }
+      />
+
+      {/* ── 3. Header ── */}
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 14, marginBottom: 4, flexWrap: 'wrap' }}>
+        <h1 style={{ fontSize: 20, fontWeight: 700 }}>{activeUnified?.name || 'Select a model'}</h1>
+        {bestPrice > 0 && (
+          <span style={{ fontSize: 11, color: '#888' }}>
+            Best <b style={{ fontFamily: 'SF Mono,Menlo,Consolas,monospace', color: C.green }}>{fmtPrice(bestPrice)}</b> /Mtok out
+          </span>
+        )}
+        {spreadPct > 0 && (
+          <span style={{ fontSize: 11, color: '#888' }}>
+            Spread <b style={{ fontFamily: 'SF Mono,Menlo,Consolas,monospace', color: C.orange }}>
+              {fmtPrice(bestPrice)} — {fmtPrice(worstPrice)}</b> ({spreadPct}%)
+          </span>
+        )}
+        <span style={{ fontSize: 11, color: '#888' }}><b>{offerRows.length}</b> providers</span>
+      </div>
+      <div style={{ display: 'flex', gap: 4, marginBottom: 16, flexWrap: 'wrap' }}>
+        {activeUnified?.open && <CapBadge bg="#eef7f0" color={C.green}>open-weight</CapBadge>}
+        {!activeUnified?.open && activeUnified && <CapBadge bg="#f3eef7" color={C.indigo}>proprietary</CapBadge>}
+        {caps && caps.context_length > 0 && <CapBadge bg="#eef7f0" color={C.green}>{formatCtx(caps.context_length)} ctx</CapBadge>}
+        {caps?.supports_tool_calling && <CapBadge bg="#eef7f0" color={C.green}>tools</CapBadge>}
+        {caps?.supports_vision && <CapBadge bg="#f3eef7" color={C.indigo}>vision</CapBadge>}
+        {activeUnified?.codingIndex != null && (
+          <CapBadge bg="#f0f4f8" color={C.deepBlue}>Code: {activeUnified.codingIndex}</CapBadge>
+        )}
+        {activeUnified?.quality != null && (
+          <CapBadge bg="#f0f4f8" color={C.deepBlue}>Intelligence: {activeUnified.quality}</CapBadge>
+        )}
+      </div>
+
+      {/* ── 4. Main Grid ── */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginBottom: 16 }}>
+        {/* ── Sortable offer table (full width) ── */}
+        <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #eaeae8', overflow: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr>
+                <Th align="left" style={{ width: 170 }}>Provider</Th>
+                <Th onClick={() => toggleSort('input')}>Input{arrow('input')}</Th>
+                <Th onClick={() => toggleSort('cache')}>Cache{arrow('cache')}</Th>
+                <Th onClick={() => toggleSort('output')}>Output{arrow('output')}</Th>
+                <Th onClick={() => toggleSort('quality')}>Quality{arrow('quality')}</Th>
+                <Th onClick={() => toggleSort('tps')}>TPS{arrow('tps')}</Th>
+              </tr>
+            </thead>
+            <tbody>
+              {sortedOffers.length > 0 ? sortedOffers.map((r, i) => {
+                const isBest = r.priceOutput > 0 && r.priceOutput === bestPrice
+                const cachePct = r.priceInput > 0 && r.priceCache > 0 ? cacheDiscount(r.priceInput, r.priceCache) : 0
+                const tc = r.trust ? (TRUST_COLORS[r.trust] || TRUST_COLORS.open) : null
+                return (
+                  <tr key={i} style={{ background: r.isIE ? '#fdf6ec' : 'transparent' }}
+                    onMouseEnter={e => { if (!r.isIE) (e.currentTarget as HTMLElement).style.background = '#fafaf8' }}
+                    onMouseLeave={e => { if (!r.isIE) (e.currentTarget as HTMLElement).style.background = '' }}>
+                    <td style={{ padding: '9px 10px', borderBottom: '1px solid #fafaf8', textAlign: 'left', borderLeft: r.isIE ? `3px solid ${C.gold}` : '3px solid transparent' }}>
+                      <div style={{ fontWeight: 600, fontSize: 12, color: r.isIE ? C.gold : C.blueBlack }}>{r.name}</div>
+                      <div style={{ fontSize: 9, color: '#999', marginTop: 1, display: 'flex', gap: 3, flexWrap: 'wrap', alignItems: 'center' }}>
+                        {tc && <span style={{ fontSize: 7, fontWeight: 600, padding: '1px 4px', borderRadius: 3, background: tc.bg, color: tc.text }}>{tc.label}</span>}
+                        {r.encrypted && <span style={{ fontSize: 7, fontWeight: 600, padding: '1px 4px', borderRadius: 3, background: '#eef3f7', color: C.deepBlue }}>E2E</span>}
+                        {cachePct > 0 && <span style={{ fontSize: 7, fontWeight: 600, padding: '1px 4px', borderRadius: 3, background: '#f3eef7', color: C.indigo }}>-{cachePct}% cache</span>}
+                        {r.quantization && <span>{r.quantization}</span>}
+                        {r.displayName && !r.isIE && <span>{r.displayName}</span>}
+                      </div>
+                    </td>
+                    <Td mono color={C.deepBlue}>{fmtPrice(r.priceInput)}</Td>
+                    <Td mono color={r.priceCache > 0 ? C.turquoise : '#ccc'}>{r.priceCache > 0 ? fmtPrice(r.priceCache) : '—'}</Td>
+                    <Td mono color={C.gold} bold={isBest} highlight={isBest}>{fmtPrice(r.priceOutput)}</Td>
+                    <Td mono color={r.quality ? C.deepBlue : '#ccc'}>{r.quality ? r.quality.toFixed(1) : '—'}</Td>
+                    <Td mono color={r.tps ? C.turquoise : '#ccc'}>{r.tps ? Math.round(r.tps).toString() : '—'}</Td>
+                  </tr>
+                )
+              }) : (
+                <tr><td colSpan={6} style={{ padding: '40px 10px', textAlign: 'center', color: '#ccc', fontSize: 13 }}>
+                  {activeUnified ? 'No provider data available for this model.' : 'Select a model above.'}
+                </td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {/* ── Below table: [DOM + Chart stacked] left | [Fills] right ── */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 280px', gap: 14 }}>
+          {/* Left: DOM stacked on chart */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            {/* 3-column DOM */}
+            <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #eaeae8', padding: 14, overflow: 'hidden' }}>
+              <h4 style={{ fontSize: 8, textTransform: 'uppercase', letterSpacing: '.06em', color: '#888', marginBottom: 10, fontWeight: 600 }}>
+                Depth of market — three-tier pricing
+              </h4>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, minWidth: 0 }}>
+                <DOMColumn label="Input" unit="$/Mtok" color={C.deepBlue} levels={domData.input} />
+                <DOMColumn label="Cache read" unit="$/Mtok" color={C.turquoise} levels={domData.cache} emptyMsg="Only IE publishes cache pricing" offerRows={offerRows} />
+                <DOMColumn label="Output" unit="$/Mtok" color={C.gold} levels={domData.output} />
+              </div>
+              <div style={{ fontSize: 8, color: '#aaa', marginTop: 8 }}>
+                Cheapest at bottom (best ask). Bars = relative supply at each price level.
+              </div>
+              {offerRows.length > 0 && (
+                <div style={{ fontSize: 8, color: '#999', marginTop: 6, paddingTop: 6, borderTop: '1px solid #f0f0f0' }}>
+                  <b style={{ color: '#666' }}>Abbreviations: </b>
+                  {[...new Set(offerRows.map(r => r.name))]
+                    .map(n => `${providerAbbr(n)} = ${n}`)
+                    .join(' · ')}
+                </div>
+              )}
+            </div>
+
+            {/* Interactive price chart */}
+            <PriceChart offerRows={offerRows} modelName={activeUnified?.name || 'Model'} />
+          </div>
+
+          {/* Right: Recent fills with in/cache/out details */}
+          <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #eaeae8', padding: 14, overflow: 'hidden' }}>
+            <h4 style={{ fontSize: 8, textTransform: 'uppercase', letterSpacing: '.06em', color: '#888', marginBottom: 10, fontWeight: 600 }}>
+              Recent fills
+            </h4>
+            {recentFills.length > 0 ? recentFills.map((t: any) => {
+              const ok = ['completed', 'matched', 'matched_from_queue'].includes(t.status)
+              const time = new Date(t.timestamp * 1000).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+              return (
+                <div key={t.request_id} style={{
+                  padding: '6px 0', borderBottom: '1px solid #f5f5f3', fontSize: 10,
+                }}>
+                  {/* Row 1: status, time, model, price */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                    <div style={{ width: 4, height: 4, borderRadius: '50%', background: ok ? C.green : C.red, flexShrink: 0 }} />
+                    <div style={{ fontFamily: 'SF Mono,Menlo,Consolas,monospace', color: '#bbb', width: 52, flexShrink: 0 }}>{time}</div>
+                    <div style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 500 }}>
+                      <span style={{ color: C.gold }}>Inference Exchange</span>
+                      {t.selected_provider && (
+                        <span style={{ color: '#aaa', fontWeight: 400 }}> · {t.selected_provider}</span>
+                      )}
+                    </div>
+                  </div>
+                  {/* Row 2: in / cache / out rates ($/Mtok) */}
+                  <div style={{ display: 'flex', gap: 8, marginTop: 3, marginLeft: 9, fontSize: 9, fontFamily: 'SF Mono,Menlo,Consolas,monospace' }}>
+                    <span><span style={{ color: C.deepBlue }}>in </span>
+                      <span style={{ color: '#555' }}>{t.selected_price_input > 0 ? `$${t.selected_price_input.toFixed(2)}` : '—'}</span></span>
+                    <span><span style={{ color: C.turquoise }}>cache </span>
+                      <span style={{ color: '#555' }}>{t.selected_price_cache > 0 ? `$${t.selected_price_cache.toFixed(2)}` : '—'}</span></span>
+                    <span><span style={{ color: C.gold }}>out </span>
+                      <span style={{ color: C.gold, fontWeight: 600 }}>{t.selected_price != null ? `$${t.selected_price.toFixed(2)}` : '—'}</span></span>
+                    <span style={{ color: '#bbb', marginLeft: 'auto' }}>/Mtok</span>
+                  </div>
+                  {/* Row 3: trust + tokens */}
+                  <div style={{ display: 'flex', gap: 4, marginTop: 2, marginLeft: 9, fontSize: 9, color: '#aaa' }}>
+                    {t.selected_trust && (
+                      <span style={{
+                        fontSize: 8, fontWeight: 600, padding: '1px 4px', borderRadius: 3,
+                        background: (TRUST_COLORS[t.selected_trust] || TRUST_COLORS.open).bg,
+                        color: (TRUST_COLORS[t.selected_trust] || TRUST_COLORS.open).text,
+                      }}>
+                        {(TRUST_COLORS[t.selected_trust] || TRUST_COLORS.open).label}
+                      </span>
+                    )}
+                    {t.encrypted && <span style={{ fontSize: 8, fontWeight: 600, padding: '1px 4px', borderRadius: 3, background: '#eef3f7', color: C.deepBlue }}>E2E</span>}
+                    {t.input_tokens > 0 && <span>{t.input_tokens} in</span>}
+                    {t.output_tokens > 0 && <span>{t.output_tokens} out</span>}
+                  </div>
+                </div>
+              )
+            }) : (
+              <div style={{ fontSize: 11, color: '#ccc', padding: '12px 0', textAlign: 'center' }}>No recent fills</div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* ── 5. Footer ── */}
+      <div style={{ fontSize: 9, color: '#bbb', marginTop: 8 }}>
+        Prices $/Mtok. Data: OpenRouter API + IE static reference prices + IE provider network.
+        Quality = Artificial Analysis intelligence/coding index. TPS = observed tokens/sec for IE providers.
+      </div>
+
+      {/* Pulse animation */}
+      <style>{`@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}`}</style>
+    </div>
+  )
+}
+
+// ─── Small Components ────────────────────────────────────────
+
+function Chip({ label, active, color, bg, onClick }: {
+  label: string; active: boolean; color: string; bg: string; onClick: () => void
+}) {
+  return (
+    <span onClick={e => { e.stopPropagation(); onClick() }}
+      style={{
+        fontSize: 9, fontWeight: 600, padding: '2px 7px', borderRadius: 5, cursor: 'pointer',
+        userSelect: 'none', transition: 'all .12s',
+        background: active ? bg : '#f5f5f3', color: active ? color : '#888',
+        border: `1px solid ${active ? color + '44' : 'transparent'}`,
+      }}>
+      {label}
+    </span>
+  )
+}
+
+function Sep() {
+  return <span style={{ width: 1, height: 14, background: '#e5e5e5', margin: '0 2px' }} />
+}
+
+function Badge({ bg, color, children }: { bg: string; color: string; children: React.ReactNode }) {
+  return (
+    <span style={{ fontSize: 7, fontWeight: 600, padding: '1px 4px', borderRadius: 3, background: bg, color, display: 'inline-block', verticalAlign: 'middle' }}>
+      {children}
+    </span>
+  )
+}
+
+function CapBadge({ bg, color, children }: { bg: string; color: string; children: React.ReactNode }) {
+  return (
+    <span style={{ fontSize: 8, fontWeight: 600, padding: '2px 6px', borderRadius: 4, background: bg, color }}>
+      {children}
+    </span>
+  )
+}
+
+function Th({ children, align, style, onClick }: {
+  children: React.ReactNode; align?: string; style?: React.CSSProperties; onClick?: () => void
+}) {
+  return (
+    <th onClick={onClick} style={{
+      fontSize: 8, textTransform: 'uppercase', letterSpacing: '.06em', color: '#aaa',
+      padding: '8px 10px', textAlign: (align as any) || 'right', borderBottom: '1px solid #f0f0f0',
+      fontWeight: 600, cursor: onClick ? 'pointer' : 'default', userSelect: 'none', whiteSpace: 'nowrap',
+      ...style,
+    }}>
+      {children}
+    </th>
+  )
+}
+
+function Td({ children, mono, color, bold, highlight }: {
+  children: React.ReactNode; mono?: boolean; color?: string; bold?: boolean; highlight?: boolean
+}) {
+  return (
+    <td style={{
+      padding: '9px 10px', borderBottom: '1px solid #fafaf8', textAlign: 'right', fontSize: 12,
+      whiteSpace: 'nowrap',
+      fontFamily: mono ? 'SF Mono,Menlo,Consolas,monospace' : undefined,
+      color: color || C.blueBlack, fontWeight: bold ? 700 : 400,
+      background: highlight ? '#edf7f1' : undefined,
+    }}>
+      {children}
+    </td>
+  )
+}
+
+// ─── DOM Column ──────────────────────────────────────────────
+
+function DOMColumn({ label, unit, color, levels, emptyMsg, offerRows }: {
+  label: string; unit: string; color: string
+  levels: Array<{ price: number; providers: { name: string; isIE: boolean }[] }>
+  emptyMsg?: string; offerRows?: OfferRow[]
+}) {
+  const maxProviders = Math.max(1, ...levels.map(l => l.providers.length))
+
+  // If no levels and we have an empty message (cache column)
+  if (levels.length === 0 && emptyMsg) {
+    // Check if any IE provider has cache pricing
+    const ieCache = offerRows?.find(r => r.isIE && r.priceCache > 0)
+    return (
+      <div>
+        <div style={{
+          fontSize: 9, textTransform: 'uppercase', letterSpacing: '.05em', fontWeight: 700,
+          padding: '4px 0 6px', textAlign: 'center', borderBottom: `2px solid ${color}`, color,
+        }}>
+          {label} {unit}
+        </div>
+        <div style={{ fontSize: 10, color: '#ccc', padding: '12px 0', textAlign: 'center' }}>{emptyMsg}</div>
+        {ieCache && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 0' }}>
+            <span style={{ fontFamily: 'SF Mono,Menlo,Consolas,monospace', fontSize: 9, width: 36, textAlign: 'right', color: C.green, fontWeight: 600 }}>
+              ${ieCache.priceCache.toFixed(2)}
+            </span>
+            <div style={{ flex: 1, height: 14, background: '#fafaf8', borderRadius: 3, overflow: 'hidden' }}>
+              <div style={{ height: '100%', width: '100%', background: C.green, borderRadius: 3 }} />
+            </div>
+            <span title="Inference Exchange" style={{ fontSize: 8, color: C.gold, fontWeight: 600 }}>1 IE</span>
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  return (
+    <div>
+      <div style={{
+        fontSize: 9, textTransform: 'uppercase', letterSpacing: '.05em', fontWeight: 700,
+        padding: '4px 0 6px', textAlign: 'center', borderBottom: `2px solid ${color}`, color,
+      }}>
+        {label} {unit}
+      </div>
+      {levels.map((level, i) => {
+        const isBest = i === levels.length - 1 // cheapest at bottom
+        const barW = Math.max(20, (level.providers.length / maxProviders) * 100)
+        const priceColor = isBest ? C.green : (i === 0 ? C.red : '#888')
+        const hasIE = level.providers.some(p => p.isIE)
+        const names = level.providers.map(p => providerAbbr(p.name)).join(', ')
+        const fullNames = level.providers.map(p => p.name).join(', ')
+        return (
+          <div key={level.price} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '3px 0' }}>
+            <span style={{
+              fontFamily: 'SF Mono,Menlo,Consolas,monospace', fontSize: 9, width: 36,
+              textAlign: 'right', flexShrink: 0, color: priceColor, fontWeight: isBest ? 700 : 400,
+            }}>
+              ${level.price.toFixed(2)}
+            </span>
+            <div style={{ flex: 1, height: 14, background: '#fafaf8', borderRadius: 3, overflow: 'hidden' }}>
+              <div style={{
+                height: '100%', width: `${barW}%`, borderRadius: 3,
+                background: isBest ? C.green : (hasIE ? C.gold : color),
+              }} />
+            </div>
+            <span title={fullNames} style={{
+              fontSize: 8, color: hasIE ? C.gold : '#888', width: 80, flexShrink: 0,
+              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+            }}>
+              {level.providers.length} {names}
+            </span>
+          </div>
+        )
+      })}
+      {levels.length === 0 && (
+        <div style={{ fontSize: 10, color: '#ccc', padding: '12px 0', textAlign: 'center' }}>No data</div>
+      )}
+    </div>
+  )
+}
+
+// ─── Utility ─────────────────────────────────────────────────
+
+const PROVIDER_ABBR: Record<string, string> = {
+  'Inference Exchange': 'IE', OpenRouter: 'OR', DeepInfra: 'DI', 'Fireworks AI': 'FW',
+  'Together AI': 'TG', Groq: 'GQ', OpenAI: 'OAI', Anthropic: 'ANT', Google: 'GG',
+  DeepSeek: 'DS', NousResearch: 'NR', Mistral: 'MI', 'Alibaba Cloud': 'AL', Microsoft: 'MS',
+}
+
+function providerAbbr(name: string): string {
+  return PROVIDER_ABBR[name] || name.replace(/[^A-Za-z]/g, '').slice(0, 2).toUpperCase()
+}
+
+function guessFamily(name: string): string {
+  const lower = name.toLowerCase()
+  if (lower.includes('llama')) return 'Llama'
+  if (lower.includes('qwen')) return 'Qwen'
+  if (lower.includes('deepseek')) return 'DeepSeek'
+  if (lower.includes('claude')) return 'Claude'
+  if (lower.includes('gpt')) return 'GPT'
+  if (lower.includes('gemini')) return 'Gemini'
+  if (lower.includes('gemma')) return 'Gemma'
+  if (lower.includes('mistral')) return 'Mistral'
+  if (lower.includes('phi')) return 'Phi'
+  if (lower.includes('hermes')) return 'Llama'
+  if (lower.includes('glm')) return 'GLM'
+  return 'Other'
+}
+ + m.price.toFixed(2) : '
+  const offerRows = useMemo((): OfferRow[] => {
+    const rows: OfferRow[] = []
+    // IE providers
+    if (activeIEModel) {
+      for (const p of activeIEModel.providers) {
+        rows.push({
+          name: 'Inference Exchange', source: 'ie', isIE: true,
+          priceInput: p.price_input, priceCache: p.price_cache, priceOutput: p.price_output,
+          quality: activeUnified?.codingIndex || null, tps: p.tps > 0 ? p.tps : null,
+          trust: p.trust, encrypted: p.encrypted, quantization: p.quantization,
+        })
+      }
+    }
+    // Reference prices
+    if (activeRefFamily) {
+      for (const p of activeRefFamily.prices) {
+        // Skip IE entries from reference (already in IE list)
+        if (p.source === 'inference-exchange') continue
+        rows.push({
+          name: providerName(p.source), source: p.source, isIE: false,
+          priceInput: p.price_input || 0, priceCache: p.price_cache_read || 0,
+          priceOutput: p.price_output || 0,
+          quality: p.intelligence_index || p.coding_index || null,
+          tps: null, displayName: p.display_name,
+        })
+      }
+    }
+    return rows
+  }, [activeIEModel, activeRefFamily, activeUnified])
+
+  // Sorted offer rows
+  const sortedOffers = useMemo(() => {
+    const sorted = [...offerRows]
+    sorted.sort((a, b) => {
+      let va: number, vb: number
+      switch (sortCol) {
+        case 'input': va = a.priceInput || 999; vb = b.priceInput || 999; break
+        case 'cache': va = a.priceCache || 999; vb = b.priceCache || 999; break
+        case 'quality': va = a.quality || 0; vb = b.quality || 0; break
+        case 'tps': va = a.tps || 0; vb = b.tps || 0; break
+        default: va = a.priceOutput || 999; vb = b.priceOutput || 999
+      }
+      return sortDir === 'asc' ? va - vb : vb - va
+    })
+    return sorted
+  }, [offerRows, sortCol, sortDir])
+
+  // ─── Header stats ────────────────────────────────────────
+  const outputPrices = offerRows.map(r => r.priceOutput).filter(p => p > 0)
+  const bestPrice = outputPrices.length ? Math.min(...outputPrices) : 0
+  const worstPrice = outputPrices.length ? Math.max(...outputPrices) : 0
+  const spreadPct = bestPrice > 0 && worstPrice > bestPrice ? Math.round((worstPrice / bestPrice - 1) * 100) : 0
+  const caps = activeIEModel?.capabilities
+
+  // ─── DOM (Depth of Market) data ──────────────────────────
+  const domData = useMemo(() => {
+    type Level = { price: number; providers: { name: string; isIE: boolean }[] }
+    function buildLevels(key: 'priceInput' | 'priceCache' | 'priceOutput'): Level[] {
+      const levels: Record<string, Level> = {}
+      for (const r of offerRows) {
+        const v = r[key]
+        if (!v || v <= 0) continue
+        const k = v.toFixed(3)
+        if (!levels[k]) levels[k] = { price: v, providers: [] }
+        levels[k].providers.push({ name: r.isIE ? 'Inference Exchange' : r.name, isIE: r.isIE })
+      }
+      return Object.values(levels).sort((a, b) => b.price - a.price) // expensive at top
+    }
+    return {
+      input: buildLevels('priceInput'),
+      cache: buildLevels('priceCache'),
+      output: buildLevels('priceOutput'),
+    }
+  }, [offerRows])
+
+  // ─── Recent fills ────────────────────────────────────────
+  const recentFills = useMemo(() =>
+    [...traces]
+      .filter((t: any) => ['completed', 'matched', 'matched_from_queue'].includes(t.status))
+      .reverse()
+      .slice(0, 5),
+  [traces])
+
+  // Sort toggle
+  function toggleSort(col: typeof sortCol) {
+    if (sortCol === col) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
+    else { setSortCol(col); setSortDir('asc') }
+  }
+  const arrow = (col: typeof sortCol) => sortCol === col ? (sortDir === 'asc' ? ' ▵' : ' ▿') : ''
+
+  // Empty state
+  if (marketData && models.length === 0 && refFamilies.length === 0) {
+    return (
+      <div style={{ maxWidth: 500, margin: '60px auto', textAlign: 'center' }}>
+        <img src="/logo-icon.svg" alt="IE" style={{ width: 48, height: 48, margin: '0 auto 20px', opacity: 0.2 }} />
+        <h2 style={{ fontSize: 18, fontWeight: 700, color: C.blueBlack, marginBottom: 8 }}>The exchange is quiet</h2>
+        <p style={{ fontSize: 13, color: '#888', marginBottom: 24 }}>No providers connected and no reference data loaded.</p>
+        <div style={{ background: C.blueBlack, color: C.warmWhite, borderRadius: 10, padding: 16, fontFamily: 'SF Mono,Menlo,Consolas,monospace', fontSize: 12, textAlign: 'left' }}>
+          <div><span style={{ color: '#666' }}>$</span> pip install ie-provider</div>
+          <div><span style={{ color: '#666' }}>$</span> ie-provider start</div>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div style={{ maxWidth: 1100, margin: '0 auto' }}>
+      {/* ── 1. Live status strip ── */}
+      <div className="spot" style={{
+        display: 'flex', alignItems: 'center', gap: 12, padding: '8px 12px',
+        background: '#fff', borderRadius: 10, border: '1px solid #eaeae8',
+        marginBottom: 16, fontSize: 11, color: '#888', flexWrap: 'wrap',
+      }}>
+        <span style={{ width: 5, height: 5, borderRadius: '50%', background: C.green, animation: 'pulse 2s infinite' }} />
+        <span style={{ color: C.green }}>Live</span>
+        <span style={{ color: '#ddd' }}>|</span>
+        {stats && <>
+          <span>{stats.providers_online} providers online</span>
+          <span style={{ color: '#ddd' }}>|</span>
+          <span>{stats.models_available} models</span>
+          <span style={{ color: '#ddd' }}>|</span>
+          <span style={{ color: C.gold }}>{stats.total_requests.toLocaleString()} fills / 24h</span>
+        </>}
+        <span style={{ flex: 1 }} />
+        <span style={{ fontSize: 9, color: '#bbb' }}>Updated live</span>
+      </div>
+
+      {/* ── 2. Model Selector — Command Palette ── */}
+      <div ref={dropdownRef} style={{ position: 'relative', marginBottom: 16 }}>
+        <div onClick={() => { setDropdownOpen(true); setTimeout(() => inputRef.current?.focus(), 0) }}
+          style={{
+            display: 'flex', alignItems: 'center', gap: 8, padding: '8px 14px',
+            background: '#fff', borderRadius: 10, border: '1px solid #eaeae8', cursor: 'pointer',
+          }}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#aaa" strokeWidth="2">
+            <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
+          </svg>
+          <span style={{ fontSize: 13, fontWeight: 600, color: C.blueBlack }}>
+            {activeUnified?.name || 'Select a model'}
+          </span>
+          <span style={{ fontSize: 10, color: '#aaa', marginLeft: 'auto' }}>
+            {unifiedModels.length} models
+          </span>
+          <span style={{ fontSize: 9, color: '#bbb', background: '#f0f0f0', padding: '1px 5px', borderRadius: 4 }}>⌘K</span>
+        </div>
+
+        {dropdownOpen && (
+          <div style={{
+            position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0, zIndex: 100,
+            background: '#fff', borderRadius: 12, border: '1px solid #ddd',
+            boxShadow: '0 12px 40px rgba(0,0,0,0.12)', maxHeight: 480, overflow: 'hidden',
+            display: 'flex', flexDirection: 'column',
+          }}>
+            {/* Search input */}
+            <div style={{ padding: '8px 12px', borderBottom: '1px solid #f0f0f0' }}>
+              <input ref={inputRef} type="text" value={search} onChange={e => setSearch(e.target.value)}
+                placeholder="Search models... (llama 70b, qwen, deepseek, claude)"
+                style={{ width: '100%', border: 'none', outline: 'none', fontSize: 13, color: C.blueBlack, background: 'transparent' }}
+              />
+            </div>
+
+            {/* Filter bar */}
+            <div style={{ padding: '6px 12px', borderBottom: '1px solid #f0f0f0', display: 'flex', gap: 4, flexWrap: 'wrap', alignItems: 'center' }}>
+              <span style={{ fontSize: 8, textTransform: 'uppercase', letterSpacing: '.06em', color: '#aaa', marginRight: 2 }}>Filter</span>
+              <Chip label="Open-weight" active={filterOpen === true} color={C.green} bg="#edf7f1"
+                onClick={() => setFilterOpen(filterOpen === true ? null : true)} />
+              <Chip label="Proprietary" active={filterOpen === false} color={C.indigo} bg="#f3eef7"
+                onClick={() => setFilterOpen(filterOpen === false ? null : false)} />
+              <Sep />
+              <Chip label="Cache discount" active={filterCache} color={C.turquoise} bg="#e8f5f3"
+                onClick={() => setFilterCache(!filterCache)} />
+              <Chip label="Benchmarked" active={filterBenchmarked} color={C.deepBlue} bg="#eef3f7"
+                onClick={() => setFilterBenchmarked(!filterBenchmarked)} />
+              <Sep />
+              <span style={{ fontSize: 8, color: '#aaa' }}>Size:</span>
+              {['<7B', '7-30B', '30-100B', '100B+'].map(r => (
+                <Chip key={r} label={r} active={filterSize === r} color={C.gold} bg="#fdf6ec"
+                  onClick={() => setFilterSize(filterSize === r ? null : r)} />
+              ))}
+              <Sep />
+              <span style={{ fontSize: 8, color: '#aaa' }}>Max $:</span>
+              {[1, 5, 15].map(cap => (
+                <Chip key={cap} label={`$${cap}`} active={filterPriceCap === cap} color={C.red} bg="#fef2f2"
+                  onClick={() => setFilterPriceCap(filterPriceCap === cap ? null : cap)} />
+              ))}
+              <Sep />
+              <select value={filterFamily || ''} onChange={e => setFilterFamily(e.target.value || null)}
+                style={{ fontSize: 9, border: '1px solid #e5e5e5', borderRadius: 5, padding: '2px 4px', color: '#888', background: '#f5f5f3', cursor: 'pointer', outline: 'none' }}>
+                <option value="">All families</option>
+                {families.map(f => <option key={f}>{f}</option>)}
+              </select>
+            </div>
+
+            {/* Model list */}
+            <div style={{ overflowY: 'auto', maxHeight: 360, padding: '4px 0' }}>
+              <div style={{ padding: '4px 14px', fontSize: 9, color: '#aaa' }}>
+                {filteredModels.length} model{filteredModels.length !== 1 ? 's' : ''} match
+              </div>
+              {groupedModels.map(g => (
+                <div key={g.family}>
+                  <div style={{ padding: '4px 14px 2px', fontSize: 8, textTransform: 'uppercase', letterSpacing: '.08em', color: '#aaa', fontWeight: 600, marginTop: 2 }}>
+                    {g.family} ({g.models.length})
+                  </div>
+                  {g.models.map(m => (
+                    <div key={m.key}
+                      onClick={() => { setSelectedKey(m.key); setDropdownOpen(false); setSearch('') }}
+                      style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 14px', cursor: 'pointer', borderRadius: 6, margin: '0 4px', transition: 'background .1s' }}
+                      onMouseEnter={e => (e.currentTarget.style.background = '#fafaf8')}
+                      onMouseLeave={e => (e.currentTarget.style.background = '')}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 12, fontWeight: 600, color: C.blueBlack, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {m.name}
+                        </div>
+                        <div style={{ fontSize: 9, color: '#999' }}>
+                          {m.vendor}{m.params !== '—' ? ` · ${m.params}` : ''} · {m.ctx} · {m.providerCount}p
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', gap: 3, flexShrink: 0, alignItems: 'center' }}>
+                        {m.open
+                          ? <Badge bg="#edf7f1" color={C.green}>open</Badge>
+                          : <Badge bg="#f3eef7" color={C.indigo}>prop</Badge>}
+                        {m.cache && <Badge bg="#e8f5f3" color={C.turquoise}>-cache$</Badge>}
+                        {m.quality != null && <Badge bg="#f0f4f8" color={C.deepBlue}>★ {m.quality}</Badge>}
+                      </div>
+                      <div style={{ fontFamily: 'SF Mono,Menlo,Consolas,monospace', fontSize: 11, fontWeight: 700, color: C.gold, width: 50, textAlign: 'right', flexShrink: 0 }}>
+                        {m.price > 0 ? (m.price < 1 ? `$${m.price.toFixed(2)}` : `$${m.price.toFixed(0)}`) : '—'}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ))}
+              {filteredModels.length === 0 && (
+                <div style={{ padding: 20, textAlign: 'center', color: '#bbb', fontSize: 12 }}>No models match your filters</div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* ── 3. Header ── */}
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 14, marginBottom: 4, flexWrap: 'wrap' }}>
+        <h1 style={{ fontSize: 20, fontWeight: 700 }}>{activeUnified?.name || 'Select a model'}</h1>
+        {bestPrice > 0 && (
+          <span style={{ fontSize: 11, color: '#888' }}>
+            Best <b style={{ fontFamily: 'SF Mono,Menlo,Consolas,monospace', color: C.green }}>{fmtPrice(bestPrice)}</b> /Mtok out
+          </span>
+        )}
+        {spreadPct > 0 && (
+          <span style={{ fontSize: 11, color: '#888' }}>
+            Spread <b style={{ fontFamily: 'SF Mono,Menlo,Consolas,monospace', color: C.orange }}>
+              {fmtPrice(bestPrice)} — {fmtPrice(worstPrice)}</b> ({spreadPct}%)
+          </span>
+        )}
+        <span style={{ fontSize: 11, color: '#888' }}><b>{offerRows.length}</b> providers</span>
+      </div>
+      <div style={{ display: 'flex', gap: 4, marginBottom: 16, flexWrap: 'wrap' }}>
+        {activeUnified?.open && <CapBadge bg="#eef7f0" color={C.green}>open-weight</CapBadge>}
+        {!activeUnified?.open && activeUnified && <CapBadge bg="#f3eef7" color={C.indigo}>proprietary</CapBadge>}
+        {caps && caps.context_length > 0 && <CapBadge bg="#eef7f0" color={C.green}>{formatCtx(caps.context_length)} ctx</CapBadge>}
+        {caps?.supports_tool_calling && <CapBadge bg="#eef7f0" color={C.green}>tools</CapBadge>}
+        {caps?.supports_vision && <CapBadge bg="#f3eef7" color={C.indigo}>vision</CapBadge>}
+        {activeUnified?.codingIndex != null && (
+          <CapBadge bg="#f0f4f8" color={C.deepBlue}>Code: {activeUnified.codingIndex}</CapBadge>
+        )}
+        {activeUnified?.quality != null && (
+          <CapBadge bg="#f0f4f8" color={C.deepBlue}>Intelligence: {activeUnified.quality}</CapBadge>
+        )}
+      </div>
+
+      {/* ── 4. Main Grid ── */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginBottom: 16 }}>
+        {/* ── Sortable offer table (full width) ── */}
+        <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #eaeae8', overflow: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr>
+                <Th align="left" style={{ width: 170 }}>Provider</Th>
+                <Th onClick={() => toggleSort('input')}>Input{arrow('input')}</Th>
+                <Th onClick={() => toggleSort('cache')}>Cache{arrow('cache')}</Th>
+                <Th onClick={() => toggleSort('output')}>Output{arrow('output')}</Th>
+                <Th onClick={() => toggleSort('quality')}>Quality{arrow('quality')}</Th>
+                <Th onClick={() => toggleSort('tps')}>TPS{arrow('tps')}</Th>
+              </tr>
+            </thead>
+            <tbody>
+              {sortedOffers.length > 0 ? sortedOffers.map((r, i) => {
+                const isBest = r.priceOutput > 0 && r.priceOutput === bestPrice
+                const cachePct = r.priceInput > 0 && r.priceCache > 0 ? cacheDiscount(r.priceInput, r.priceCache) : 0
+                const tc = r.trust ? (TRUST_COLORS[r.trust] || TRUST_COLORS.open) : null
+                return (
+                  <tr key={i} style={{ background: r.isIE ? '#fdf6ec' : 'transparent' }}
+                    onMouseEnter={e => { if (!r.isIE) (e.currentTarget as HTMLElement).style.background = '#fafaf8' }}
+                    onMouseLeave={e => { if (!r.isIE) (e.currentTarget as HTMLElement).style.background = '' }}>
+                    <td style={{ padding: '9px 10px', borderBottom: '1px solid #fafaf8', textAlign: 'left', borderLeft: r.isIE ? `3px solid ${C.gold}` : '3px solid transparent' }}>
+                      <div style={{ fontWeight: 600, fontSize: 12, color: r.isIE ? C.gold : C.blueBlack }}>{r.name}</div>
+                      <div style={{ fontSize: 9, color: '#999', marginTop: 1, display: 'flex', gap: 3, flexWrap: 'wrap', alignItems: 'center' }}>
+                        {tc && <span style={{ fontSize: 7, fontWeight: 600, padding: '1px 4px', borderRadius: 3, background: tc.bg, color: tc.text }}>{tc.label}</span>}
+                        {r.encrypted && <span style={{ fontSize: 7, fontWeight: 600, padding: '1px 4px', borderRadius: 3, background: '#eef3f7', color: C.deepBlue }}>E2E</span>}
+                        {cachePct > 0 && <span style={{ fontSize: 7, fontWeight: 600, padding: '1px 4px', borderRadius: 3, background: '#f3eef7', color: C.indigo }}>-{cachePct}% cache</span>}
+                        {r.quantization && <span>{r.quantization}</span>}
+                        {r.displayName && !r.isIE && <span>{r.displayName}</span>}
+                      </div>
+                    </td>
+                    <Td mono color={C.deepBlue}>{fmtPrice(r.priceInput)}</Td>
+                    <Td mono color={r.priceCache > 0 ? C.turquoise : '#ccc'}>{r.priceCache > 0 ? fmtPrice(r.priceCache) : '—'}</Td>
+                    <Td mono color={C.gold} bold={isBest} highlight={isBest}>{fmtPrice(r.priceOutput)}</Td>
+                    <Td mono color={r.quality ? C.deepBlue : '#ccc'}>{r.quality ? r.quality.toFixed(1) : '—'}</Td>
+                    <Td mono color={r.tps ? C.turquoise : '#ccc'}>{r.tps ? Math.round(r.tps).toString() : '—'}</Td>
+                  </tr>
+                )
+              }) : (
+                <tr><td colSpan={6} style={{ padding: '40px 10px', textAlign: 'center', color: '#ccc', fontSize: 13 }}>
+                  {activeUnified ? 'No provider data available for this model.' : 'Select a model above.'}
+                </td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {/* ── Below table: [DOM + Chart stacked] left | [Fills] right ── */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 280px', gap: 14 }}>
+          {/* Left: DOM stacked on chart */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            {/* 3-column DOM */}
+            <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #eaeae8', padding: 14, overflow: 'hidden' }}>
+              <h4 style={{ fontSize: 8, textTransform: 'uppercase', letterSpacing: '.06em', color: '#888', marginBottom: 10, fontWeight: 600 }}>
+                Depth of market — three-tier pricing
+              </h4>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, minWidth: 0 }}>
+                <DOMColumn label="Input" unit="$/Mtok" color={C.deepBlue} levels={domData.input} />
+                <DOMColumn label="Cache read" unit="$/Mtok" color={C.turquoise} levels={domData.cache} emptyMsg="Only IE publishes cache pricing" offerRows={offerRows} />
+                <DOMColumn label="Output" unit="$/Mtok" color={C.gold} levels={domData.output} />
+              </div>
+              <div style={{ fontSize: 8, color: '#aaa', marginTop: 8 }}>
+                Cheapest at bottom (best ask). Bars = relative supply at each price level.
+              </div>
+              {offerRows.length > 0 && (
+                <div style={{ fontSize: 8, color: '#999', marginTop: 6, paddingTop: 6, borderTop: '1px solid #f0f0f0' }}>
+                  <b style={{ color: '#666' }}>Abbreviations: </b>
+                  {[...new Set(offerRows.map(r => r.name))]
+                    .map(n => `${providerAbbr(n)} = ${n}`)
+                    .join(' · ')}
+                </div>
+              )}
+            </div>
+
+            {/* Interactive price chart */}
+            <PriceChart offerRows={offerRows} modelName={activeUnified?.name || 'Model'} />
+          </div>
+
+          {/* Right: Recent fills with in/cache/out details */}
+          <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #eaeae8', padding: 14, overflow: 'hidden' }}>
+            <h4 style={{ fontSize: 8, textTransform: 'uppercase', letterSpacing: '.06em', color: '#888', marginBottom: 10, fontWeight: 600 }}>
+              Recent fills
+            </h4>
+            {recentFills.length > 0 ? recentFills.map((t: any) => {
+              const ok = ['completed', 'matched', 'matched_from_queue'].includes(t.status)
+              const time = new Date(t.timestamp * 1000).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+              return (
+                <div key={t.request_id} style={{
+                  padding: '6px 0', borderBottom: '1px solid #f5f5f3', fontSize: 10,
+                }}>
+                  {/* Row 1: status, time, model, price */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                    <div style={{ width: 4, height: 4, borderRadius: '50%', background: ok ? C.green : C.red, flexShrink: 0 }} />
+                    <div style={{ fontFamily: 'SF Mono,Menlo,Consolas,monospace', color: '#bbb', width: 52, flexShrink: 0 }}>{time}</div>
+                    <div style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 500 }}>
+                      <span style={{ color: C.gold }}>Inference Exchange</span>
+                      {t.selected_provider && (
+                        <span style={{ color: '#aaa', fontWeight: 400 }}> · {t.selected_provider}</span>
+                      )}
+                    </div>
+                  </div>
+                  {/* Row 2: in / cache / out rates ($/Mtok) */}
+                  <div style={{ display: 'flex', gap: 8, marginTop: 3, marginLeft: 9, fontSize: 9, fontFamily: 'SF Mono,Menlo,Consolas,monospace' }}>
+                    <span><span style={{ color: C.deepBlue }}>in </span>
+                      <span style={{ color: '#555' }}>{t.selected_price_input > 0 ? `$${t.selected_price_input.toFixed(2)}` : '—'}</span></span>
+                    <span><span style={{ color: C.turquoise }}>cache </span>
+                      <span style={{ color: '#555' }}>{t.selected_price_cache > 0 ? `$${t.selected_price_cache.toFixed(2)}` : '—'}</span></span>
+                    <span><span style={{ color: C.gold }}>out </span>
+                      <span style={{ color: C.gold, fontWeight: 600 }}>{t.selected_price != null ? `$${t.selected_price.toFixed(2)}` : '—'}</span></span>
+                    <span style={{ color: '#bbb', marginLeft: 'auto' }}>/Mtok</span>
+                  </div>
+                  {/* Row 3: trust + tokens */}
+                  <div style={{ display: 'flex', gap: 4, marginTop: 2, marginLeft: 9, fontSize: 9, color: '#aaa' }}>
+                    {t.selected_trust && (
+                      <span style={{
+                        fontSize: 8, fontWeight: 600, padding: '1px 4px', borderRadius: 3,
+                        background: (TRUST_COLORS[t.selected_trust] || TRUST_COLORS.open).bg,
+                        color: (TRUST_COLORS[t.selected_trust] || TRUST_COLORS.open).text,
+                      }}>
+                        {(TRUST_COLORS[t.selected_trust] || TRUST_COLORS.open).label}
+                      </span>
+                    )}
+                    {t.encrypted && <span style={{ fontSize: 8, fontWeight: 600, padding: '1px 4px', borderRadius: 3, background: '#eef3f7', color: C.deepBlue }}>E2E</span>}
+                    {t.input_tokens > 0 && <span>{t.input_tokens} in</span>}
+                    {t.output_tokens > 0 && <span>{t.output_tokens} out</span>}
+                  </div>
+                </div>
+              )
+            }) : (
+              <div style={{ fontSize: 11, color: '#ccc', padding: '12px 0', textAlign: 'center' }}>No recent fills</div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* ── 5. Footer ── */}
+      <div style={{ fontSize: 9, color: '#bbb', marginTop: 8 }}>
+        Prices $/Mtok. Data: OpenRouter API + IE static reference prices + IE provider network.
+        Quality = Artificial Analysis intelligence/coding index. TPS = observed tokens/sec for IE providers.
+      </div>
+
+      {/* Pulse animation */}
+      <style>{`@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}`}</style>
+    </div>
+  )
+}
+
+// ─── Small Components ────────────────────────────────────────
+
+function Chip({ label, active, color, bg, onClick }: {
+  label: string; active: boolean; color: string; bg: string; onClick: () => void
+}) {
+  return (
+    <span onClick={e => { e.stopPropagation(); onClick() }}
+      style={{
+        fontSize: 9, fontWeight: 600, padding: '2px 7px', borderRadius: 5, cursor: 'pointer',
+        userSelect: 'none', transition: 'all .12s',
+        background: active ? bg : '#f5f5f3', color: active ? color : '#888',
+        border: `1px solid ${active ? color + '44' : 'transparent'}`,
+      }}>
+      {label}
+    </span>
+  )
+}
+
+function Sep() {
+  return <span style={{ width: 1, height: 14, background: '#e5e5e5', margin: '0 2px' }} />
+}
+
+function Badge({ bg, color, children }: { bg: string; color: string; children: React.ReactNode }) {
+  return (
+    <span style={{ fontSize: 7, fontWeight: 600, padding: '1px 4px', borderRadius: 3, background: bg, color, display: 'inline-block', verticalAlign: 'middle' }}>
+      {children}
+    </span>
+  )
+}
+
+function CapBadge({ bg, color, children }: { bg: string; color: string; children: React.ReactNode }) {
+  return (
+    <span style={{ fontSize: 8, fontWeight: 600, padding: '2px 6px', borderRadius: 4, background: bg, color }}>
+      {children}
+    </span>
+  )
+}
+
+function Th({ children, align, style, onClick }: {
+  children: React.ReactNode; align?: string; style?: React.CSSProperties; onClick?: () => void
+}) {
+  return (
+    <th onClick={onClick} style={{
+      fontSize: 8, textTransform: 'uppercase', letterSpacing: '.06em', color: '#aaa',
+      padding: '8px 10px', textAlign: (align as any) || 'right', borderBottom: '1px solid #f0f0f0',
+      fontWeight: 600, cursor: onClick ? 'pointer' : 'default', userSelect: 'none', whiteSpace: 'nowrap',
+      ...style,
+    }}>
+      {children}
+    </th>
+  )
+}
+
+function Td({ children, mono, color, bold, highlight }: {
+  children: React.ReactNode; mono?: boolean; color?: string; bold?: boolean; highlight?: boolean
+}) {
+  return (
+    <td style={{
+      padding: '9px 10px', borderBottom: '1px solid #fafaf8', textAlign: 'right', fontSize: 12,
+      whiteSpace: 'nowrap',
+      fontFamily: mono ? 'SF Mono,Menlo,Consolas,monospace' : undefined,
+      color: color || C.blueBlack, fontWeight: bold ? 700 : 400,
+      background: highlight ? '#edf7f1' : undefined,
+    }}>
+      {children}
+    </td>
+  )
+}
+
+// ─── DOM Column ──────────────────────────────────────────────
+
+function DOMColumn({ label, unit, color, levels, emptyMsg, offerRows }: {
+  label: string; unit: string; color: string
+  levels: Array<{ price: number; providers: { name: string; isIE: boolean }[] }>
+  emptyMsg?: string; offerRows?: OfferRow[]
+}) {
+  const maxProviders = Math.max(1, ...levels.map(l => l.providers.length))
+
+  // If no levels and we have an empty message (cache column)
+  if (levels.length === 0 && emptyMsg) {
+    // Check if any IE provider has cache pricing
+    const ieCache = offerRows?.find(r => r.isIE && r.priceCache > 0)
+    return (
+      <div>
+        <div style={{
+          fontSize: 9, textTransform: 'uppercase', letterSpacing: '.05em', fontWeight: 700,
+          padding: '4px 0 6px', textAlign: 'center', borderBottom: `2px solid ${color}`, color,
+        }}>
+          {label} {unit}
+        </div>
+        <div style={{ fontSize: 10, color: '#ccc', padding: '12px 0', textAlign: 'center' }}>{emptyMsg}</div>
+        {ieCache && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 0' }}>
+            <span style={{ fontFamily: 'SF Mono,Menlo,Consolas,monospace', fontSize: 9, width: 36, textAlign: 'right', color: C.green, fontWeight: 600 }}>
+              ${ieCache.priceCache.toFixed(2)}
+            </span>
+            <div style={{ flex: 1, height: 14, background: '#fafaf8', borderRadius: 3, overflow: 'hidden' }}>
+              <div style={{ height: '100%', width: '100%', background: C.green, borderRadius: 3 }} />
+            </div>
+            <span title="Inference Exchange" style={{ fontSize: 8, color: C.gold, fontWeight: 600 }}>1 IE</span>
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  return (
+    <div>
+      <div style={{
+        fontSize: 9, textTransform: 'uppercase', letterSpacing: '.05em', fontWeight: 700,
+        padding: '4px 0 6px', textAlign: 'center', borderBottom: `2px solid ${color}`, color,
+      }}>
+        {label} {unit}
+      </div>
+      {levels.map((level, i) => {
+        const isBest = i === levels.length - 1 // cheapest at bottom
+        const barW = Math.max(20, (level.providers.length / maxProviders) * 100)
+        const priceColor = isBest ? C.green : (i === 0 ? C.red : '#888')
+        const hasIE = level.providers.some(p => p.isIE)
+        const names = level.providers.map(p => providerAbbr(p.name)).join(', ')
+        const fullNames = level.providers.map(p => p.name).join(', ')
+        return (
+          <div key={level.price} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '3px 0' }}>
+            <span style={{
+              fontFamily: 'SF Mono,Menlo,Consolas,monospace', fontSize: 9, width: 36,
+              textAlign: 'right', flexShrink: 0, color: priceColor, fontWeight: isBest ? 700 : 400,
+            }}>
+              ${level.price.toFixed(2)}
+            </span>
+            <div style={{ flex: 1, height: 14, background: '#fafaf8', borderRadius: 3, overflow: 'hidden' }}>
+              <div style={{
+                height: '100%', width: `${barW}%`, borderRadius: 3,
+                background: isBest ? C.green : (hasIE ? C.gold : color),
+              }} />
+            </div>
+            <span title={fullNames} style={{
+              fontSize: 8, color: hasIE ? C.gold : '#888', width: 80, flexShrink: 0,
+              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+            }}>
+              {level.providers.length} {names}
+            </span>
+          </div>
+        )
+      })}
+      {levels.length === 0 && (
+        <div style={{ fontSize: 10, color: '#ccc', padding: '12px 0', textAlign: 'center' }}>No data</div>
+      )}
+    </div>
+  )
+}
+
+// ─── Utility ─────────────────────────────────────────────────
+
+const PROVIDER_ABBR: Record<string, string> = {
+  'Inference Exchange': 'IE', OpenRouter: 'OR', DeepInfra: 'DI', 'Fireworks AI': 'FW',
+  'Together AI': 'TG', Groq: 'GQ', OpenAI: 'OAI', Anthropic: 'ANT', Google: 'GG',
+  DeepSeek: 'DS', NousResearch: 'NR', Mistral: 'MI', 'Alibaba Cloud': 'AL', Microsoft: 'MS',
+}
+
+function providerAbbr(name: string): string {
+  return PROVIDER_ABBR[name] || name.replace(/[^A-Za-z]/g, '').slice(0, 2).toUpperCase()
+}
+
+function guessFamily(name: string): string {
+  const lower = name.toLowerCase()
+  if (lower.includes('llama')) return 'Llama'
+  if (lower.includes('qwen')) return 'Qwen'
+  if (lower.includes('deepseek')) return 'DeepSeek'
+  if (lower.includes('claude')) return 'Claude'
+  if (lower.includes('gpt')) return 'GPT'
+  if (lower.includes('gemini')) return 'Gemini'
+  if (lower.includes('gemma')) return 'Gemma'
+  if (lower.includes('mistral')) return 'Mistral'
+  if (lower.includes('phi')) return 'Phi'
+  if (lower.includes('hermes')) return 'Llama'
+  if (lower.includes('glm')) return 'GLM'
+  return 'Other'
+}
+ + m.price.toFixed(0)) : undefined,
+      badges: [
+        { label: m.source === 'ref' ? 'Reference only' : m.source === 'both' ? 'IE + reference' : 'On IE',
+          color: m.source === 'ref' ? C.indigo : C.green, background: m.source === 'ref' ? '#f3eef7' : '#edf7f1' },
+        ...(m.cache ? [{ label: 'Cache', color: C.turquoise, background: '#e8f5f3' }] : []),
+        ...(m.quality != null ? [{ label: '★ ' + m.quality, color: C.deepBlue, background: '#f0f4f8' }] : []),
+      ],
+    }))), [groupedModels])
 
   // ─── Build offer rows for selected model ─────────────────
   const offerRows = useMemo((): OfferRow[] => {
