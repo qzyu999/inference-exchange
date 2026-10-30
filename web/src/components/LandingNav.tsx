@@ -67,7 +67,7 @@ export function LandingNav() {
   return (
     <header
       className="fixed top-0 left-0 right-0 z-50"
-      style={{ background: 'rgba(14,16,24,0.82)', backdropFilter: 'blur(10px)', borderBottom: '1px solid rgba(216,209,190,0.12)' }}
+      style={{ background: '#0E1018', borderBottom: '1px solid rgba(216,209,190,0.12)' }}
     >
       <a
         href="#landing-main"
