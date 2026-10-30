@@ -330,9 +330,6 @@ function makeMoon(): THREE.Group {
 function easeInOutCubic(x: number): number {
   return x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2
 }
-function easeOutCubic(x: number): number {
-  return 1 - Math.pow(1 - x, 3)
-}
 function clamp01(x: number): number {
   return Math.max(0, Math.min(1, x))
 }
@@ -537,11 +534,12 @@ export function HeroScene({ scrollProgress, landscapeMode = false, reducedMotion
     }
     oPos.needsUpdate = true
 
-    // ── Act 3: camera pull-back (0.55 → 0.85) ──────────────
-    const pull = easeOutCubic(clamp01((p - 0.55) / 0.3))
-    s.camera.position.z = 9 + pull * 2.5
-    s.camera.position.y = 1.5 + pull * 0.5
-    s.camera.lookAt(0, 0, 0)
+    // ── Act 3: hold the merged geometry at a constant screen size ──
+    // Previous scroll-controlled camera pull-back made both tetrahedrons
+    // appear to shrink during the later chapters. Keep the original camera
+    // framing throughout; the ascent, convergence, rotation and final
+    // opacity fade remain scroll-driven and reversible.
+    // (Initial camera stays at (0, 1.5, 9), looking toward the origin.)
 
     // ── Act 4: fade to page bg (0.85 → 1.0) ────────────────
     const fade = clamp01((p - 0.85) / 0.15)
