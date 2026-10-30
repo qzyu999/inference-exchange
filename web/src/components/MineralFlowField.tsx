@@ -9,8 +9,10 @@ import * as THREE from 'three'
  * moving quietly to the right. It intentionally leaves the left portion darker
  * so headings, prices, and controls retain contrast.
  *
- * Used underneath the sand's final scroll beat AND the product overview, so the
- * two screens feel connected. No sacred mandala patterns are reproduced.
+ * One canvas sits under both the sand's final scroll beat and its in-place
+ * product UI. The spread uniform ties the emerging pigment to the grains'
+ * scroll-scrubbed gust; no separate second background or divider exists.
+ * No sacred mandala patterns are reproduced.
  */
 
 const vertexShader = `
@@ -25,6 +27,7 @@ const fragmentShader = `
   precision highp float;
 
   uniform float uTime;
+  uniform float uReveal;
   uniform vec2 uResolution;
   varying vec2 vUv;
 
@@ -86,8 +89,14 @@ const fragmentShader = `
     float ridge = pow(1.0 - smoothstep(0.0, 0.94, bands), 2.5);
     float fine = pow(1.0 - abs(sin(y * 47.0 + current * 4.0)), 9.0);
     float flowing = ridge * 0.74 + fine * 0.26;
-    float visibility = smoothstep(0.15, 0.45, uv.x)
-      * (1.0 - smoothstep(0.92, 1.0, uv.x));
+    // The pigment arrives from the crystal near the center of the scene,
+    // expanding toward the right as the grains are swept away. Reverse
+    // scrolling retracts the same smear. Text at left stays in dark space.
+    float reach = smoothstep(0.0, 1.0, uReveal);
+    float front = 0.48 + reach * 0.65 + (current - 0.5) * 0.12;
+    float settlingFront = 1.0 - smoothstep(front - 0.12, front + 0.07, uv.x);
+    float visibility = settlingFront * smoothstep(0.17, 0.48, uv.x)
+      * (1.0 - smoothstep(0.95, 1.0, uv.x));
 
     float mineralPos = clamp(y * 0.89 + uv.x * 0.13 + current * 0.11, 0.0, 1.0);
     vec3 pigment = palette(mineralPos);
@@ -97,7 +106,8 @@ const fragmentShader = `
     // uniformly smooth gradient. Do not interfere with the text at left.
     float grain = hash21(floor(uv * uResolution * 0.74));
     float breakup = smoothstep(0.18, 0.78, grain);
-    float ink = flowing * visibility * (0.78 + 0.22 * breakup);
+    float ink = flowing * visibility * (0.78 + 0.22 * breakup)
+      * (0.20 + 0.80 * reach);
     vec3 color = background + pigment * ink * 0.46;
     float subtleGlow = (current * current) * visibility * 0.018;
     color += pigment * subtleGlow;
@@ -111,10 +121,13 @@ const fragmentShader = `
 interface MineralFlowFieldProps {
   className?: string
   opacity?: number
+  progress?: number
 }
 
-export function MineralFlowField({ className = '', opacity = 1 }: MineralFlowFieldProps) {
+export function MineralFlowField({ className = '', opacity = 1, progress = 1 }: MineralFlowFieldProps) {
   const containerRef = useRef<HTMLDivElement>(null)
+  const progressRef = useRef(progress)
+  progressRef.current = progress
 
   useEffect(() => {
     const el = containerRef.current
@@ -131,6 +144,7 @@ export function MineralFlowField({ className = '', opacity = 1 }: MineralFlowFie
       fragmentShader,
       uniforms: {
         uTime: { value: 0 },
+        uReveal: { value: progressRef.current },
         uResolution: { value: new THREE.Vector2(1, 1) },
       },
     })
@@ -171,12 +185,14 @@ export function MineralFlowField({ className = '', opacity = 1 }: MineralFlowFie
       if (width === 0 || height === 0) return
       gpu.setSize(width, height, false)
       material.uniforms.uResolution.value.set(width * gpu.getPixelRatio(), height * gpu.getPixelRatio())
+      material.uniforms.uReveal.value = progressRef.current
       gpu.render(scene, camera)
     }
 
     const animate = () => {
       if (!visible) return
       material.uniforms.uTime.value = (performance.now() - started) / 1000
+      material.uniforms.uReveal.value = progressRef.current
       gpu.render(scene, camera)
       frame = requestAnimationFrame(animate)
     }
