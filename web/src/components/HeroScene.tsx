@@ -126,7 +126,10 @@ function erosionThresholdAt(x: number, y: number): number {
   return 0.07 + 0.65 * sweep + 0.07 * Math.sin((y + 2.2) * 1.7) + 0.04 * (grain - 0.5)
 }
 
-function addErosionToFaces(material: THREE.MeshPhongMaterial, erosion: { value: number }) {
+function addErosionToSurface(
+  material: THREE.MeshPhongMaterial | THREE.LineBasicMaterial,
+  erosion: { value: number },
+) {
   material.onBeforeCompile = shader => {
     shader.uniforms.uErosion = erosion
     shader.vertexShader = shader.vertexShader
@@ -173,16 +176,21 @@ function makeTetra(
     shininess: 80,
     specular: 0x666666,
   })
-  addErosionToFaces(faceMaterial, erosion)
+  addErosionToSurface(faceMaterial, erosion)
   const faceMesh = new THREE.Mesh(geo, faceMaterial)
   faceMesh.renderOrder = renderOrder
   group.add(faceMesh)
 
-  // Bright edges
-  const edgeMesh = new THREE.LineSegments(
-    new THREE.EdgesGeometry(geo),
-    new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.9 })
-  )
+  // The bright edges must erode with the faces. Otherwise the faces
+  // disappear but a complete tetrahedron outline remains over the sand,
+  // which looks like a simple fade rather than material breaking apart.
+  const edgeMaterial = new THREE.LineBasicMaterial({
+    color,
+    transparent: true,
+    opacity: 0.9,
+  })
+  addErosionToSurface(edgeMaterial, erosion)
+  const edgeMesh = new THREE.LineSegments(new THREE.EdgesGeometry(geo), edgeMaterial)
   edgeMesh.renderOrder = renderOrder + 0.5
   group.add(edgeMesh)
 
@@ -512,10 +520,6 @@ function easeInOutCubic(x: number): number {
 function clamp01(x: number): number {
   return Math.max(0, Math.min(1, x))
 }
-function smoothstepDissolve(x: number): number {
-  const t = clamp01((x - 0.10) / 0.66)
-  return t * t * (3 - 2 * t)
-}
 
 // ─── Scene state ─────────────────────────────────────────────
 
@@ -746,8 +750,8 @@ export function HeroScene({ scrollProgress, landscapeMode = false, reducedMotion
     // fading the whole face uniformly. Edge glow gently dims behind the dust.
     uFace.opacity = fO
     dFace.opacity = fO
-    uEdge.opacity = eO * (1.0 - smoothstepDissolve(dissolve))
-    dEdge.opacity = eO * (1.0 - smoothstepDissolve(dissolve))
+    uEdge.opacity = eO
+    dEdge.opacity = eO
     oMat.opacity = orbitFade * 0.5 * inv
     octaMat.opacity = merge * 0.5 * inv
 
