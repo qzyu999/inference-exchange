@@ -27,7 +27,7 @@ function mineralAt(t: number): THREE.Color {
   )
 }
 
-const AMBER = GL.amber
+const RED = 0xC83A32
 const EMERALD = GL.emerald
 const BG = GL.bg
 
@@ -359,14 +359,20 @@ interface SceneState {
 
 interface HeroSceneProps {
   scrollProgress: number
+  landscapeMode?: boolean
+  reducedMotion?: boolean
   onInitFailed?: () => void
 }
 
-export function HeroScene({ scrollProgress, onInitFailed }: HeroSceneProps) {
+export function HeroScene({ scrollProgress, landscapeMode = false, reducedMotion = false, onInitFailed }: HeroSceneProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const stateRef = useRef<SceneState | null>(null)
   const progressRef = useRef(0)
   progressRef.current = scrollProgress
+  const landscapeRef = useRef(landscapeMode)
+  const reducedMotionRef = useRef(reducedMotion)
+  landscapeRef.current = landscapeMode
+  reducedMotionRef.current = reducedMotion
 
   const init = useCallback(() => {
     const el = containerRef.current
@@ -385,7 +391,7 @@ export function HeroScene({ scrollProgress, onInitFailed }: HeroSceneProps) {
     }
 
     const scene = new THREE.Scene()
-    scene.background = new THREE.Color(BG)
+    scene.background = landscapeRef.current ? null : new THREE.Color(BG)
 
     const camera = new THREE.PerspectiveCamera(45, w / h, 0.1, 100)
     camera.position.set(0, 1.5, 9)
@@ -393,12 +399,13 @@ export function HeroScene({ scrollProgress, onInitFailed }: HeroSceneProps) {
 
     let renderer: THREE.WebGLRenderer
     try {
-      renderer = new THREE.WebGLRenderer({ antialias: true })
+      renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true })
     } catch (e) {
       console.warn('HeroScene: WebGLRenderer creation failed:', e)
       onInitFailed?.()
       return
     }
+    renderer.setClearColor(0x000000, 0)
     renderer.setSize(w, h)
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
     el.appendChild(renderer.domElement)
@@ -417,10 +424,10 @@ export function HeroScene({ scrollProgress, onInitFailed }: HeroSceneProps) {
     scene.add(pivot)
 
     // Green (emerald) = up-pointing tetra, starts at bottom, rises
-    // Amber = down-pointing tetra, starts at top, drops
-    // Emerald renders first (behind), amber on top — consistent interior color
+    // Red = down-pointing tetra, starts at top, drops
+    // Emerald renders first (behind), red on top — consistent interior color
     const upTetra = makeTetra(EMERALD, VERTS_UP, 1)
-    const downTetra = makeTetra(AMBER, VERTS_DOWN, 2)
+    const downTetra = makeTetra(RED, VERTS_DOWN, 2)
     pivot.add(upTetra)
     pivot.add(downTetra)
 
@@ -451,15 +458,16 @@ export function HeroScene({ scrollProgress, onInitFailed }: HeroSceneProps) {
     if (!s) return
     s.frame = requestAnimationFrame(animate)
 
-    s.time += 0.016
+    // Reduced motion keeps the completed emblem still instead of spinning.
+    s.time = reducedMotionRef.current ? 0 : s.time + 0.016
     const t = s.time
-    const p = progressRef.current
+    const p = reducedMotionRef.current ? 0.35 : progressRef.current
 
     // ── Act 1: merge along Y (0 → 0.35) ────────────────────
     const merge = easeInOutCubic(clamp01(p / 0.35))
     const sep = 4.0 * (1 - merge)
     // Up-tetra (green) starts below, rises to origin
-    // Down-tetra (amber) starts above, drops to origin
+    // Down-tetra (red) starts above, drops to origin
     s.upTetra.position.y = -sep
     s.downTetra.position.y = sep
 
@@ -481,9 +489,9 @@ export function HeroScene({ scrollProgress, onInitFailed }: HeroSceneProps) {
     // mineral light while the translucent faces remain quiet.
     const colorBlend = merge * 0.42
     uEdge.color.set(EMERALD).lerp(intersection, colorBlend)
-    dEdge.color.set(AMBER).lerp(spectrum, colorBlend)
+    dEdge.color.set(RED).lerp(spectrum, colorBlend)
     uFace.color.set(EMERALD).lerp(intersection, colorBlend * 0.32)
-    dFace.color.set(AMBER).lerp(spectrum, colorBlend * 0.32)
+    dFace.color.set(RED).lerp(spectrum, colorBlend * 0.32)
 
     const fO = 0.12 + merge * 0.22
     const eO = 0.7 + merge * 0.25
@@ -510,12 +518,13 @@ export function HeroScene({ scrollProgress, onInitFailed }: HeroSceneProps) {
     oMat.opacity = orbitFade * 0.5
 
     // Sun: static top-right, screen-parallel
-    s.sun.visible = orbitFade > 0.01
+    // The landscape footage already includes the sun and moon.
+    s.sun.visible = !landscapeRef.current && orbitFade > 0.01
     s.sun.position.set(3.2, 2.2, -1)
     s.sun.quaternion.copy(s.camera.quaternion)
 
     // Moon: static top-left, same height as sun
-    s.moon.visible = orbitFade > 0.01
+    s.moon.visible = !landscapeRef.current && orbitFade > 0.01
     s.moon.position.set(-3.2, 2.2, -1)
     s.moon.quaternion.copy(s.camera.quaternion)
 
@@ -551,7 +560,9 @@ export function HeroScene({ scrollProgress, onInitFailed }: HeroSceneProps) {
       s.moon.visible = false
     }
 
-    s.scene.background = new THREE.Color(BG).lerp(new THREE.Color(GL.darkBg), fade)
+    s.scene.background = landscapeRef.current
+      ? null
+      : new THREE.Color(BG).lerp(new THREE.Color(GL.darkBg), fade)
 
     // Dust
     const dPos = s.dust.points.geometry.attributes.position as THREE.BufferAttribute
