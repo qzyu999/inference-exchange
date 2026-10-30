@@ -25,9 +25,9 @@ interface Message {
 }
 
 const TRUST_LEVELS = [
-  { value: 'open', label: 'Any' },
-  { value: 'contained', label: 'Contained' },
-  { value: 'hardened', label: 'Hardened+' },
+  { value: 'open', label: 'L0 / Open' },
+  { value: 'contained', label: 'L1 / Contained' },
+  { value: 'hardened', label: 'L2 / Hardened' },
   // 'confidential' hidden: no provider can pass App Attest admission yet (#22, #25)
 ]
 

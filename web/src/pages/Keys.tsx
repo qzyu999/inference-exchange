@@ -20,7 +20,17 @@ export function Keys() {
   const [createdKey, setCreatedKey] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
   const [quickstartMode, setQuickstartMode] = useState<'single' | 'stream'>('single')
+  const [quickstartCopyStatus, setQuickstartCopyStatus] = useState('')
   const quickstartCode = quickstartMode === 'single' ? SDK_NONSTREAM : SDK_STREAM
+
+  async function copyQuickstart() {
+    try {
+      await navigator.clipboard.writeText(quickstartCode)
+      setQuickstartCopyStatus('Code copied. Save it as hello_ie.py.')
+    } catch {
+      setQuickstartCopyStatus('Copy unavailable. Select the code below and copy it manually.')
+    }
+  }
 
   const [createError, setCreateError] = useState('')
   const [creating, setCreating] = useState(false)
@@ -190,16 +200,17 @@ export function Keys() {
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex gap-2">
             <button type="button" aria-pressed={quickstartMode === 'single'}
-              onClick={() => setQuickstartMode('single')}
+              onClick={() => { setQuickstartMode('single'); setQuickstartCopyStatus('') }}
               className="rounded-lg border px-3 py-1.5 text-xs">Non-streaming</button>
             <button type="button" aria-pressed={quickstartMode === 'stream'}
-              onClick={() => setQuickstartMode('stream')}
+              onClick={() => { setQuickstartMode('stream'); setQuickstartCopyStatus('') }}
               className="rounded-lg border px-3 py-1.5 text-xs">Streaming</button>
           </div>
-          <button type="button" onClick={() => void navigator.clipboard.writeText(quickstartCode)}
+          <button type="button" onClick={() => void copyQuickstart()}
             className="rounded-lg px-3 py-1.5 text-xs text-white"
             style={{ background: C.blueBlack }}>Copy Python code</button>
         </div>
+        {quickstartCopyStatus && <p role="status" className="text-xs text-gray-600">{quickstartCopyStatus}</p>}
         <pre className="rounded-xl p-4 font-mono text-xs overflow-x-auto whitespace-pre"
           style={{ background: C.blueBlack, color: '#d4d4cd' }}>
           <code>{quickstartCode}</code>

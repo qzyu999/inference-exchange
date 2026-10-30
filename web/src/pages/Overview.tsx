@@ -22,7 +22,7 @@ export function Overview() {
   const encryptedCount = providers.filter((p: any) => p.encrypted).length
   const hardenedCount = providers.filter((p: any) => p.trust_level === 'hardened' || p.trust_level === 'confidential').length
 
-  // Request success rate from traces
+  // A match is not necessarily a completed response; do not infer a success rate.
   const routedTraces = traces.filter((t: any) => ['completed', 'matched', 'matched_from_queue'].includes(t.status))
 
   // Recent activity (last 10 traces)
@@ -52,7 +52,7 @@ export function Overview() {
           { label: 'Providers online', value: stats?.providers_online ?? providers.length, color: C.blueBlack },
           { label: 'Models advertised', value: stats?.models_available ?? health?.models?.length ?? 0, color: C.blueBlack },
           { label: 'Recent routed traces', value: traces.length > 0 ? String(routedTraces.length) : '—', color: C.blueBlack },
-          { label: 'Volume / session', value: stats?.total_volume_usd != null ? `$${stats.total_volume_usd >= 1 ? stats.total_volume_usd.toFixed(2) : stats.total_volume_usd.toFixed(4)}` : '—', color: C.gold },
+          { label: 'Volume (simulated)', value: stats?.total_volume_usd != null ? `$${stats.total_volume_usd >= 1 ? stats.total_volume_usd.toFixed(2) : stats.total_volume_usd.toFixed(4)}` : '—', color: C.gold },
         ].map(s => (
           <div key={s.label} className="bg-white rounded-2xl border border-gray-200/40 px-5 py-4">
             <div className="text-2xl font-bold tracking-tight" style={{ color: s.color }}>{s.value}</div>
@@ -77,8 +77,8 @@ export function Overview() {
               <span className="text-sm font-semibold" style={{ color: C.blueBlack }}>{routedTraces.length}</span>
             </div>
             <div className="flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full" style={{ background: C.red }} />
-              <span className="text-sm" style={{ color: C.red }}>Other statuses</span>
+              <span className="w-2.5 h-2.5 rounded-full" style={{ background: '#999' }} />
+              <span className="text-sm" style={{ color: '#777' }}>Other statuses</span>
               <span className="text-sm font-semibold" style={{ color: C.blueBlack }}>{traces.length - routedTraces.length}</span>
             </div>
           </div>
