@@ -49,12 +49,12 @@ export function LandscapeVideo({ progress, reducedMotion, onAvailabilityChange }
   // preview is not seamless, so it still stops rather than visibly jumping.
   const fade = Math.min(1, Math.max(0, (progress - 0.82) / 0.18))
 
+  // Match the opaque navigation bar. No blurred poster or color wash behind
+  // the actual footage (particularly at the letterbox edges).
   return (
     <div
       className="pointer-events-none absolute inset-0 overflow-hidden"
       aria-hidden="true"
-      // Match the opaque navigation bar. No blurred poster or dark wash that
-      // could look like a second horizon/overlapping strip behind the video.
       style={{ backgroundColor: '#0E1018', opacity: 1 - fade }}
     >
       {/* Raw video only. Letterboxing uses a flat matte, not blurred footage. */}
