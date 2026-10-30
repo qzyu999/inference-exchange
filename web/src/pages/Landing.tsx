@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import useSWR from 'swr'
 import { Link } from 'react-router-dom'
 import { api } from '../lib/api'
@@ -7,94 +7,193 @@ import { HeroScene } from '../components/HeroScene'
 import { LandingNav } from '../components/LandingNav'
 import { MineralAurora } from '../components/MineralAurora'
 import { LandscapeVideo } from '../components/LandscapeVideo'
-import { ScrollChapterRail } from '../components/ScrollChapterRail'
+import { STORY_CHAPTERS, ScrollChapterRail } from '../components/ScrollChapterRail'
 
-// ─── Helpers ─────────────────────────────────────────────────
+const NAV_HEIGHT = 56
+const LAST_CHAPTER = STORY_CHAPTERS.length - 1
 
-function useScrollProgress(ref: React.RefObject<HTMLDivElement | null>): number {
-  const [progress, setProgress] = useState(0)
+// Continuous 3D movement between four stable chapter poses. The copy is bound
+// to a discrete chapter, not to six unrelated fade windows.
+function getSceneProgress(position: number): number {
+  const lower = Math.min(LAST_CHAPTER, Math.floor(position))
+  const upper = Math.min(LAST_CHAPTER, lower + 1)
+  const fraction = position - lower
+  return STORY_CHAPTERS[lower].sceneProgress +
+    (STORY_CHAPTERS[upper].sceneProgress - STORY_CHAPTERS[lower].sceneProgress) * fraction
+}
+
+function useChapterPosition(ref: React.RefObject<HTMLDivElement | null>) {
+  const [position, setPosition] = useState(0)
 
   useEffect(() => {
-    const el = ref.current
-    if (!el) return
-
-    const onScroll = () => {
-      const rect = el.getBoundingClientRect()
-      const total = el.scrollHeight - window.innerHeight
-      const scrolled = -rect.top
-      setProgress(Math.min(1, Math.max(0, scrolled / total)))
+    const update = () => {
+      if (!ref.current) return
+      const sectionStart = ref.current.getBoundingClientRect().top + window.scrollY
+      const chapterHeight = Math.max(1, window.innerHeight - NAV_HEIGHT)
+      const next = Math.max(0, Math.min(LAST_CHAPTER,
+        (window.scrollY - sectionStart) / chapterHeight,
+      ))
+      setPosition(prev => Math.abs(prev - next) > 0.002 ? next : prev)
     }
 
-    window.addEventListener('scroll', onScroll, { passive: true })
-    onScroll()
-    return () => window.removeEventListener('scroll', onScroll)
+    window.addEventListener('scroll', update, { passive: true })
+    window.addEventListener('resize', update)
+    update()
+    return () => {
+      window.removeEventListener('scroll', update)
+      window.removeEventListener('resize', update)
+    }
   }, [ref])
 
-  return progress
+  return position
 }
 
-// A localized dark text surface keeps copy readable against bright snow
-// without darkening or blurring the scenic video across the whole screen.
-const SCENE_TEXT_SURFACE = {
-  background: 'linear-gradient(135deg, rgba(8, 15, 25, 0.82), rgba(8, 15, 25, 0.70))',
-  border: '1px solid rgba(255, 255, 255, 0.16)',
-  boxShadow: '0 18px 60px rgba(0, 0, 0, 0.26)',
-}
+const CHAPTER_COPY = [
+  {
+    eyebrow: '01 / INFERENCE EXCHANGE',
+    headline: ['Intelligence,', 'without borders.'],
+    description: 'An open market for AI inference. People who need AI meet providers making their computing capacity available.',
+  },
+  {
+    eyebrow: '02 / CONVERGENCE',
+    headline: ['Two forces.', 'One intersection.'],
+    description: 'Consumers request inference. Independent providers offer the hardware to serve it.',
+  },
+  {
+    eyebrow: '03 / THE EXCHANGE',
+    headline: ['Access meets', 'opportunity.'],
+    description: 'Discover models and available providers. Compare price, availability and self-reported trust levels.',
+  },
+  {
+    eyebrow: '04 / TRANSFORMATION',
+    headline: ['A network', 'in motion.'],
+    description: 'Computing capacity changes constantly. An open exchange connects the supply with the people who need it.',
+  },
+] as const
 
-// ─── Scroll overlay ──────────────────────────────────────────
-
-function ScrollOverlay({ progress }: { progress: number }) {
-  const overlays: {
-    text: string
-    sub?: string
-    from: number
-    peak: number
-    to: number
-  }[] = [
-    // Starts after the first-viewport intro fades (#107), so the two do not overlap
-    { text: 'Supply meets demand', from: 0.06, peak: 0.12, to: 0.22 },
-    { text: 'Two forces converge', sub: 'Consumers bid. Providers offer. The exchange matches.', from: 0.15, peak: 0.25, to: 0.38 },
-    { text: 'The intersection is the product', from: 0.32, peak: 0.42, to: 0.55 },
-    // #87/#107: match the real browser path. Do not claim E2E or verified trust.
-    { text: 'Trust is labelled, not assumed', sub: 'Providers report a trust level. The exchange shows it as claimed until evidence verifies it. Browser chat uses TLS; it is not end-to-end encrypted.', from: 0.48, peak: 0.58, to: 0.68 },
-    { text: 'Providers compete. You benefit.', sub: 'Price, speed, privacy — the matching engine optimizes for what you care about.', from: 0.60, peak: 0.70, to: 0.80 },
-    { text: 'Distributed AI inference, powered by everyone.', from: 0.75, peak: 0.83, to: 0.93 },
-  ]
-
+// Text floats directly on the landscape; no cards, borders or background blur.
+// The soft vignette is limited to the left side, leaving the central mountain
+// and reflection bright and unobstructed.
+function EditorialStory({
+  activeIndex,
+  onSkip,
+  onNext,
+}: {
+  activeIndex: number
+  onSkip: () => void
+  onNext: () => void
+}) {
   return (
-    <div className="pointer-events-none fixed inset-x-0 top-14 bottom-0 z-20 flex items-center justify-center">
-      {overlays.map((o, i) => {
-        let opacity = 0
-        if (progress >= o.from && progress <= o.to) {
-          if (progress <= o.peak) {
-            opacity = (progress - o.from) / (o.peak - o.from)
-          } else {
-            opacity = 1 - (progress - o.peak) / (o.to - o.peak)
-          }
-        }
-        opacity = Math.max(0, Math.min(1, opacity))
-        const yShift = (1 - opacity) * 20
-
+    <div className="pointer-events-none absolute inset-0 z-20">
+      <div
+        className="absolute inset-y-0 left-0 w-[88%] sm:w-[72%] lg:w-[58%]"
+        aria-hidden="true"
+        style={{
+          background: 'linear-gradient(90deg, rgba(6,14,26,0.82) 0%, rgba(6,14,26,0.62) 42%, rgba(6,14,26,0.24) 76%, transparent 100%)',
+        }}
+      />
+      {CHAPTER_COPY.map((chapter, index) => {
+        const visible = index === activeIndex
         return (
-          <div
-            key={i}
-            className="absolute w-full max-w-2xl px-5 text-center"
-            style={{ opacity, transform: `translateY(${yShift}px)`, transition: 'none' }}
+          <section
+            key={chapter.eyebrow}
+            id={index === 0 ? 'landing-main' : undefined}
+            aria-labelledby={'landing-chapter-title-' + index}
+            aria-hidden={!visible}
+            className="absolute inset-0 flex items-center px-6 sm:px-10 lg:px-[8vw]"
+            style={{
+              opacity: visible ? 1 : 0,
+              visibility: visible ? 'visible' : 'hidden',
+              transition: 'opacity 420ms ease, visibility 420ms',
+              pointerEvents: visible ? 'auto' : 'none',
+            }}
           >
-            <div className="rounded-2xl px-5 py-6 md:px-9 md:py-8" style={SCENE_TEXT_SURFACE}>
-              <div className="mx-auto mb-4 h-0.5 w-20 rounded-full" aria-hidden="true" style={{ background: GRADIENTS.heroText }} />
-              <h2 className="text-3xl md:text-5xl font-bold tracking-tight leading-tight" style={{ color: '#F8F6F1', textShadow: '0 2px 12px rgba(0,0,0,0.45)' }}>
-                {o.text}
-              </h2>
-              {o.sub && (
-                <p className="text-base md:text-lg mt-4 leading-relaxed max-w-lg mx-auto" style={{ color: '#F1ECE4' }}>
-                  {o.sub}
+            <div className="relative w-full max-w-lg text-left pt-8">
+              <div className="flex items-center gap-3 mb-7">
+                <span className="h-[2px] w-8 shrink-0" style={{ background: '#F0C77D' }} aria-hidden="true" />
+                <p className="text-[11px] font-semibold tracking-[0.23em] uppercase" style={{ color: '#F6D9AA' }}>
+                  {chapter.eyebrow}
+                </p>
+              </div>
+              <h1
+                id={'landing-chapter-title-' + index}
+                className="text-[clamp(2.65rem,4.6vw,4.9rem)] font-semibold tracking-[-0.045em] leading-[1.06]"
+                style={{ color: '#FFFFFF', textShadow: '0 2px 20px rgba(0,0,0,0.35)' }}
+              >
+                <span className="block">{chapter.headline[0]}</span>
+                <span className="block">{chapter.headline[1]}</span>
+              </h1>
+              <p
+                className="mt-7 text-base md:text-lg leading-relaxed max-w-[29rem]"
+                style={{ color: '#F7F5F0', textShadow: '0 2px 9px rgba(0,0,0,0.5)' }}
+              >
+                {chapter.description}
+              </p>
+              {index === 0 && (
+                <div className="mt-9 flex flex-wrap gap-3">
+                  <Link
+                    to="/chat"
+                    className="rounded-lg px-5 py-3 text-sm font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#F0C77D]"
+                    style={{ background: '#F2E9D4', color: '#101722' }}
+                  >
+                    Start chatting
+                  </Link>
+                  <Link
+                    to="/provide"
+                    className="rounded-lg px-5 py-3 text-sm font-semibold border focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#F0C77D]"
+                    style={{ borderColor: 'rgba(255,255,255,0.62)', color: '#FFFFFF', background: 'rgba(6,14,26,0.32)' }}
+                  >
+                    Become a provider
+                  </Link>
+                  <Link
+                    to="/exchange"
+                    className="rounded-lg px-5 py-3 text-sm font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#F0C77D]"
+                    style={{ color: '#FFFFFF', textDecoration: 'underline', textUnderlineOffset: '5px' }}
+                  >
+                    Explore exchange
+                  </Link>
+                </div>
+              )}
+              {index === 2 && (
+                <p className="mt-5 text-xs leading-relaxed max-w-md" style={{ color: '#E5DDC9' }}>
+                  Trust levels are provider claims until independently verified. Browser chat uses TLS, not end-to-end encryption.
                 </p>
               )}
+              {index === 3 && (
+                <button
+                  type="button"
+                  onClick={onSkip}
+                  className="mt-8 text-sm font-semibold underline underline-offset-8 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#F0C77D]"
+                  style={{ color: '#F5D49B' }}
+                >
+                  Enter the exchange →
+                </button>
+              )}
             </div>
-          </div>
+          </section>
         )
       })}
+
+      <div className="pointer-events-auto absolute bottom-7 left-6 sm:left-10 lg:left-[8vw] flex items-center gap-4">
+        {activeIndex === 0 && (
+          <button
+            type="button"
+            onClick={onNext}
+            className="text-xs font-semibold tracking-[0.13em] uppercase focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#F0C77D]"
+            style={{ color: '#FFFFFF', textShadow: '0 1px 7px rgba(0,0,0,0.8)' }}
+          >
+            Scroll to explore ↓
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={onSkip}
+          className="text-xs font-medium tracking-[0.13em] uppercase focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#F0C77D]"
+          style={{ color: '#ECE7DE', textShadow: '0 1px 7px rgba(0,0,0,0.8)' }}
+        >
+          Skip story
+        </button>
+      </div>
     </div>
   )
 }
@@ -183,76 +282,86 @@ function LiveExchangeCard() {
 // ─── Main ────────────────────────────────────────────────────
 
 export function Landing() {
-  const scrollContainerRef = useRef<HTMLDivElement>(null)
-  const progress = useScrollProgress(scrollContainerRef)
+  const storyRef = useRef<HTMLDivElement>(null)
+  const heroRef = useRef<HTMLDivElement>(null)
+  const chapterPosition = useChapterPosition(storyRef)
+  const activeIndex = Math.max(0, Math.min(LAST_CHAPTER, Math.round(chapterPosition)))
+  const sceneProgress = getSceneProgress(chapterPosition)
   const [webglFailed, setWebglFailed] = useState(false)
-  const [mouseX, setMouseX] = useState(0.5)
   const [videoReady, setVideoReady] = useState(false)
   const [reducedMotion, setReducedMotion] = useState(false)
-  // Video-only A/B review: /?heroRaw=1 removes all canvas/FX layers.
+  const [mouseX, setMouseX] = useState(0.5)
   const rawVideoOnly = new URLSearchParams(window.location.search).get('heroRaw') === '1'
+  const storyEnabled = !webglFailed && !reducedMotion && !rawVideoOnly
 
   useEffect(() => {
     const query = window.matchMedia('(prefers-reduced-motion: reduce)')
-    const update = () => setReducedMotion(query.matches)
-    update()
-    query.addEventListener('change', update)
-    return () => query.removeEventListener('change', update)
+    const onChange = () => setReducedMotion(query.matches)
+    onChange()
+    query.addEventListener('change', onChange)
+    return () => query.removeEventListener('change', onChange)
   }, [])
 
-  const [skipped, setSkipped] = useState(false)
-  const heroRef = useRef<HTMLDivElement>(null)
-  const sequenceDone = progress >= 0.95
-  const storyEnabled = !webglFailed && !reducedMotion
-  const heroVisible = webglFailed || reducedMotion || sequenceDone || skipped
-  const introVisible = !rawVideoOnly && (progress < 0.06 || reducedMotion) && !webglFailed
-
-  const jumpToChapter = (at: number) => {
-    const container = scrollContainerRef.current
-    if (!container) return
-    const start = container.getBoundingClientRect().top + window.scrollY
-    const distance = Math.max(0, container.offsetHeight - window.innerHeight)
-    window.scrollTo({ top: start + at * distance, behavior: 'smooth' })
-  }
-
-  // Skip intro: show the product hero at once. Do not require the scroll story.
-  const skipIntro = () => {
-    setSkipped(true)
-    requestAnimationFrame(() => {
-      heroRef.current?.scrollIntoView({ behavior: 'auto', block: 'start' })
-      heroRef.current?.focus({ preventScroll: true })
-    })
-  }
-
-  // Track mouse position for cursor-reactive aurora
+  // Use native browser snap points rather than forcing wheel deltas or an
+  // animation library. Limit mandatory snapping to desktop-sized viewports,
+  // and restore document styles when navigating away from the landing page.
   useEffect(() => {
-    const onMove = (e: MouseEvent) => {
-      setMouseX(e.clientX / window.innerWidth)
+    if (!storyEnabled) return
+    const root = document.documentElement
+    const previousType = root.style.scrollSnapType
+    const previousPadding = root.style.scrollPaddingTop
+    const desktop = window.matchMedia('(min-width: 768px)')
+    const sync = () => {
+      root.style.scrollSnapType = desktop.matches ? 'y mandatory' : 'none'
+      root.style.scrollPaddingTop = desktop.matches ? NAV_HEIGHT + 'px' : ''
     }
+    sync()
+    desktop.addEventListener('change', sync)
+    return () => {
+      desktop.removeEventListener('change', sync)
+      root.style.scrollSnapType = previousType
+      root.style.scrollPaddingTop = previousPadding
+    }
+  }, [storyEnabled])
+
+  useEffect(() => {
+    const onMove = (event: MouseEvent) => setMouseX(event.clientX / window.innerWidth)
     window.addEventListener('mousemove', onMove, { passive: true })
     return () => window.removeEventListener('mousemove', onMove)
   }, [])
 
+  const navigateToChapter = (index: number) => {
+    const story = storyRef.current
+    if (!story || !storyEnabled) return
+    const storyTop = story.getBoundingClientRect().top + window.scrollY
+    const height = Math.max(1, window.innerHeight - NAV_HEIGHT)
+    window.scrollTo({
+      top: storyTop + Math.max(0, Math.min(LAST_CHAPTER, index)) * height,
+      behavior: 'smooth',
+    })
+  }
+
+  const skipStory = () => {
+    heroRef.current?.scrollIntoView({ behavior: reducedMotion ? 'auto' : 'smooth', block: 'start' })
+    heroRef.current?.focus({ preventScroll: true })
+  }
+
   return (
     <>
       <LandingNav />
-      {/* The opaque 3.5rem navbar owns its own vertical space. All scene layers
-          share the same sticky viewport beneath it: no footage behind the nav. */}
-      {/* ── Scroll sequence ──────────────────────────────── */}
-      <div
-        ref={scrollContainerRef}
-        style={{
-          height: storyEnabled ? '350vh' : '100svh',
-          paddingTop: '3.5rem',
-          background: C.blueBlack,
-        }}
-        className="relative box-border"
-      >
-        <div className="sticky top-14 left-0 w-full h-[calc(100svh-3.5rem)] overflow-hidden z-10">
-          <LandscapeVideo progress={progress} reducedMotion={reducedMotion} onAvailabilityChange={setVideoReady} />
+
+      <div ref={storyRef} className="relative" style={{ paddingTop: NAV_HEIGHT, background: C.blueBlack }}>
+        {/* One shared stage: video, crystals and all chapter text remain aligned.
+            The blank, viewport-sized chapters below are real snap targets. */}
+        <div className="sticky top-14 left-0 z-10 h-[calc(100svh-3.5rem)] w-full overflow-hidden">
+          <LandscapeVideo
+            progress={storyEnabled ? sceneProgress : 0}
+            reducedMotion={reducedMotion}
+            onAvailabilityChange={setVideoReady}
+          />
           {!rawVideoOnly && (
             <HeroScene
-              scrollProgress={progress}
+              scrollProgress={sceneProgress}
               landscapeMode={videoReady}
               reducedMotion={reducedMotion}
               onInitFailed={() => setWebglFailed(true)}
@@ -260,88 +369,52 @@ export function Landing() {
           )}
 
           {webglFailed && (
-            <div id="landing-main" className="absolute inset-0 flex flex-col items-center justify-center" style={{ background: C.black }}>
-              <img
-                src="/logo-icon.svg"
-                alt="Inference Exchange"
-                className="w-40 h-40 md:w-56 md:h-56 animate-spin"
-                style={{ animationDuration: '20s' }}
-              />
-              <h1 className="text-3xl md:text-5xl font-bold tracking-tight mt-8 text-center px-6" style={{ color: C.warmWhite }}>
-                Distributed AI inference,{' '}
-                <span style={{ color: C.red }}>powered by everyone.</span>
-              </h1>
-              <p className="text-base mt-4 max-w-md text-center px-6" style={{ color: '#a9a294' }}>
-                Providers compete to serve your requests. The exchange routes each request by price, speed and the trust level you choose.
+            <div id="landing-main" className="absolute inset-0 z-30 flex flex-col items-center justify-center p-6 text-center" style={{ background: C.blueBlack }}>
+              <h1 className="text-4xl font-semibold" style={{ color: C.warmWhite }}>Inference Exchange</h1>
+              <p className="mt-4 max-w-lg" style={{ color: C.warmWhite }}>
+                An open market connecting people who need AI inference with available compute.
               </p>
-              <div className="flex gap-3 mt-8">
-                <Link to="/chat" className="px-6 py-3 rounded-2xl font-medium text-sm transition-colors" style={{ background: C.warmWhite, color: C.black }}>
-                  Start a conversation &rarr;
+              <div className="mt-7 flex flex-wrap justify-center gap-3">
+                <Link to="/chat" className="px-5 py-3 rounded-lg font-medium" style={{ background: C.warmWhite, color: C.black }}>
+                  Start chatting
                 </Link>
-                <Link to="/provide" className="px-6 py-3 rounded-2xl font-medium text-sm border transition-colors" style={{ color: C.warmWhite, borderColor: 'rgba(216,209,190,0.3)', background: 'rgba(216,209,190,0.08)' }}>
+                <Link to="/provide" className="px-5 py-3 rounded-lg border" style={{ color: C.warmWhite, borderColor: C.warmWhite }}>
                   Become a provider
                 </Link>
               </div>
             </div>
           )}
 
-          {storyEnabled && !rawVideoOnly && <ScrollOverlay progress={progress} />}
-
-          {/* First viewport: what IE is, and how to use it, with no scroll (#107 P0) */}
-          {!webglFailed && (
-            <section
-              id="landing-main"
-              aria-labelledby="landing-title"
-              className="absolute inset-0 z-30 flex flex-col items-center justify-center px-6 text-center transition-opacity duration-300"
-              style={{
-                opacity: introVisible ? 1 : 0,
-                visibility: introVisible ? 'visible' : 'hidden',
-                pointerEvents: introVisible ? 'auto' : 'none',
-              }}
-            >
-              <div className="w-full max-w-2xl rounded-3xl px-5 py-7 md:px-10 md:py-10" style={SCENE_TEXT_SURFACE}>
-                <h1 id="landing-title" className="text-4xl md:text-6xl font-bold tracking-tight" style={{ color: '#F8F6F1', textShadow: '0 2px 12px rgba(0,0,0,0.45)' }}>
-                  Inference Exchange
-                </h1>
-                <p className="mt-4 max-w-xl mx-auto text-base md:text-lg leading-relaxed" style={{ color: '#F1ECE4' }}>
-                  An open market for AI inference. Send OpenAI-compatible requests; providers with spare hardware compete to serve them.
-                </p>
-                <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
-                  <Link to="/chat" className="px-6 py-3 rounded-xl text-sm font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#E8C77A]" style={{ background: C.warmWhite, color: C.black }}>
-                    Start chatting
-                  </Link>
-                  <Link to="/provide" className="px-6 py-3 rounded-xl text-sm font-medium border focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#E8C77A]" style={{ color: '#F8F6F1', borderColor: 'rgba(255,255,255,0.42)', background: 'rgba(14,16,24,0.76)' }}>
-                    Become a provider
-                  </Link>
-                  <Link to="/exchange" className="px-6 py-3 rounded-xl text-sm font-medium border focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#E8C77A]" style={{ color: '#F8F6F1', borderColor: 'rgba(255,255,255,0.34)', background: 'rgba(14,16,24,0.76)' }}>
-                    Go to Exchange
-                  </Link>
-                </div>
-              </div>
-              <div className="absolute bottom-8 flex items-center gap-4">
-                <button
-                  type="button"
-                  onClick={() => reducedMotion ? skipIntro() : jumpToChapter(0.20)}
-                  className="text-xs tracking-wider uppercase px-3 py-2 rounded-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#E8C77A]"
-                  style={{ color: '#F8F6F1', background: 'rgba(8,15,25,0.76)', textShadow: '0 1px 4px rgba(0,0,0,0.45)' }}
-                >
-                  {reducedMotion ? 'Explore the product ↓' : 'Explore the story ↓'}
-                </button>
-                <button
-                  type="button"
-                  onClick={skipIntro}
-                  className="text-xs tracking-wider uppercase px-3 py-2 rounded-lg border focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#E8C77A]"
-                  style={{ color: '#F8F6F1', borderColor: 'rgba(255,255,255,0.42)', background: 'rgba(8,15,25,0.76)' }}
-                >
-                  Skip intro
-                </button>
-              </div>
-            </section>
+          {!webglFailed && !rawVideoOnly && (
+            <EditorialStory
+              activeIndex={storyEnabled ? activeIndex : 0}
+              onSkip={skipStory}
+              onNext={() => navigateToChapter(1)}
+            />
           )}
         </div>
+        {storyEnabled && STORY_CHAPTERS.slice(1).map((chapter) => (
+          <div
+            key={chapter.label}
+            className="h-[calc(100svh-3.5rem)] w-full"
+            style={{ scrollSnapAlign: 'start' }}
+            aria-hidden="true"
+          />
+        ))}
+        {/* The first snap point sits at the start of the photographic stage.
+            It must not be the sticky child, whose painted position moves. */}
+        {storyEnabled && (
+          <div
+            className="pointer-events-none absolute top-14 left-0 h-px w-px"
+            style={{ scrollSnapAlign: 'start' }}
+            aria-hidden="true"
+          />
+        )}
       </div>
 
-      {storyEnabled && progress < 0.98 && <ScrollChapterRail progress={progress} onSelect={jumpToChapter} />}
+      {storyEnabled && (
+        <ScrollChapterRail activeIndex={activeIndex} onSelect={navigateToChapter} />
+      )}
 
       {/* ── Mineral spectrum divider ─────────────────── */}
       <div
@@ -357,10 +430,7 @@ export function Landing() {
         className="relative z-10 min-h-screen flex flex-col overflow-hidden pt-14 outline-none"
         style={{
           background: C.blueBlack,
-          opacity: heroVisible ? 1 : 0,
-          // Hidden content must not take keyboard focus
-          visibility: heroVisible ? 'visible' : 'hidden',
-          transition: 'opacity 0.6s ease, visibility 0.6s',
+
         }}
       >
         {/* Living mineral aurora — cursor-reactive behind hero content */}
@@ -421,6 +491,7 @@ export function Landing() {
           </div>
         </div>
       </div>
+
     </>
   )
 }
