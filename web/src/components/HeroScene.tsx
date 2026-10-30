@@ -761,7 +761,7 @@ export function HeroScene({ scrollProgress, landscapeMode = false, reducedMotion
   return (
     <div
       ref={containerRef}
-      className="absolute inset-0"
+      className="pointer-events-none absolute inset-0 z-[2]"
       style={{ width: '100%', height: '100%' }}
     />
   )
