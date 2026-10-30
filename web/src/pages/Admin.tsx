@@ -35,7 +35,7 @@ function Section({ title, count, children }: { title: string; count?: number; ch
 export function Admin() {
   const { user, loading } = useAuth()
   if (loading) return <p role="status">Checking operator access…</p>
-  if (!canShowAdminConsole(user)) {
+  if (!user || !canShowAdminConsole(user)) {
     return (
       <section className="max-w-xl bg-white rounded-2xl p-6 space-y-3">
         <h2 className="text-lg font-semibold text-gray-900">Operator access required</h2>
