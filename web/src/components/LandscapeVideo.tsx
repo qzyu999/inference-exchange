@@ -7,11 +7,23 @@ interface LandscapeVideoProps {
   onAvailabilityChange: (available: boolean) => void
 }
 
+const VIDEO = '/media/alpine-lake-hero.mp4'
+const POSTER = '/media/alpine-lake-poster.webp'
+
+// Keep the entire 2.34:1 source visible by default, even in a 16:9 viewport.
+// ?heroFit=cover is a review-only comparison for the old cropped presentation.
+function getVideoFit(): 'contain' | 'cover' {
+  return new URLSearchParams(window.location.search).get('heroFit') === 'cover'
+    ? 'cover'
+    : 'contain'
+}
+
 // Optional media: if the MP4 isn't present, the existing Three.js scene remains
-// available. Copy the video and poster from the review bundle (see media/README).
+// available. Copy video/poster into web/public/media (see media/README.md).
 export function LandscapeVideo({ progress, reducedMotion, onAvailabilityChange }: LandscapeVideoProps) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const [ready, setReady] = useState(false)
+  const fit = getVideoFit()
 
   useEffect(() => {
     onAvailabilityChange(ready)
@@ -33,29 +45,42 @@ export function LandscapeVideo({ progress, reducedMotion, onAvailabilityChange }
     return () => document.removeEventListener('visibilitychange', sync)
   }, [reducedMotion, ready])
 
-  // The 5-second source isn't seamless. Hold its last frame rather than
-  // forcing an obvious discontinuity every five seconds.
+  // The current 5-second source is not seamless. Hold its final frame instead
+  // of introducing a conspicuous jump at every loop.
   const fade = Math.min(1, Math.max(0, (progress - 0.82) / 0.18))
 
   return (
     <div
       className="pointer-events-none absolute inset-0 overflow-hidden"
       aria-hidden="true"
-      style={{
-        background: 'radial-gradient(ellipse at 50% 72%, #1b5c70 0%, #101e30 55%, ' + C.blueBlack + ' 100%)',
-        opacity: 1 - fade,
-      }}
+      style={{ backgroundColor: C.blueBlack, opacity: 1 - fade }}
     >
+      {/* Fill only the letterbox area with a softened copy of the poster.
+          It is BEHIND the actual video, so it cannot tint or blur footage. */}
+      <div
+        className="absolute inset-0"
+        style={{
+          backgroundImage: 'url(' + POSTER + ')',
+          backgroundSize: 'cover',
+          backgroundPosition: 'center center',
+          filter: 'blur(24px) brightness(0.65)',
+          transform: 'scale(1.08)',
+        }}
+      />
+
+      {/* The previous implementation used object-cover (cropped/zoomed) plus
+          a strong full-frame black gradient (color tint). Neither is applied. */}
       <video
         ref={videoRef}
-        className="absolute inset-0 h-full w-full object-cover"
+        className="absolute inset-0 h-full w-full"
         style={{
+          objectFit: fit,
           objectPosition: 'center center',
           opacity: ready ? 1 : 0,
-          transition: 'opacity 900ms ease-out',
+          transition: 'opacity 200ms ease-out',
         }}
-        src="/media/alpine-lake-hero.mp4"
-        poster="/media/alpine-lake-poster.webp"
+        src={VIDEO}
+        poster={POSTER}
         autoPlay={!reducedMotion}
         muted
         playsInline
@@ -63,12 +88,17 @@ export function LandscapeVideo({ progress, reducedMotion, onAvailabilityChange }
         onLoadedData={() => setReady(true)}
         onError={() => setReady(false)}
       />
-      <div
-        className="absolute inset-0"
-        style={{
-          background: 'linear-gradient(180deg, rgba(6,14,22,0.56) 0%, rgba(6,14,22,0.08) 35%, rgba(5,17,26,0.10) 55%, rgba(5,17,26,0.56) 100%)',
-        }}
-      />
+
+      {/* Show the full-resolution still while the first video frame loads,
+          also for reduced-motion visitors whose video may not autoplay. */}
+      {!ready && (
+        <img
+          src={POSTER}
+          alt=""
+          className="absolute inset-0 h-full w-full"
+          style={{ objectFit: fit, objectPosition: 'center center' }}
+        />
+      )}
     </div>
   )
 }
