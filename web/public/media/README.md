@@ -112,6 +112,52 @@ preview remains at port 5174 if it is running. No production configuration,
 provider processes, or `main` files are changed.
 
 
+## Single-scene mineral smear revision
+
+The first prototype had two different `MineralFlowField` canvases, a 2px
+mineral-spectrum divider and a separate product section. This caused an
+unwanted hard seam and made the sand feel disconnected from the crystals.
+
+The revised `feat/185-mineral-mandala-dissolve` branch eliminates all three:
+
+- **One GPU shader canvas** lives in the pinned scene from the first frame,
+  invisible until the final chapter. The same instance becomes the background
+  of the live product UI.
+- The crystal geometry erodes into 30k/8.5k scroll-driven grains; a shader
+  reveal tied to that exact dissolution progress spreads pigment from the
+  center toward the right. No pre-rendered video transition is required.
+- In the last scroll beat, the landscape fades away, mineral bands emerge,
+  and the real headline, chat/provide actions and live market card **fade in
+  inside the same pinned viewport**. There is no second slide, divider, or
+  background reinitialization.
+- An additional ~0.85 viewport scroll resting zone keeps the final screen
+  available to read and interact with, without forcing snap or wheel traps.
+  Scrolling back reconstructs the scene.
+- `Skip story` jumps to the final scene's actual scroll position (rather
+  than calling `scrollIntoView` on a pinned child), and keyboard focus moves
+  to the product panel when it is ready.
+- The reduced-motion / no-WebGL fallback exposes the product content directly.
+  All financial/trust disclaimers and actual React routes are preserved.
+
+### Update existing mandala review worktree
+
+```sh
+cd ~/projects/inference-exchange-mandala-review
+git pull --ff-only
+cd web
+npm run build
+npm run dev -- --port 5176 --strictPort
+```
+
+Open `http://localhost:5176/`, scroll through the last Transformation
+chapter, and confirm there is no horizontal dividing line or second background.
+Test backscroll, Skip story, the chat/provider buttons, the live market card,
+and final panel scrolling on a short/mobile display.
+
+**QA caveat:** this is a visual prototype. The full React build, frame pacing,
+and shader compilation on actual browser hardware require local verification.
+It is not merged to `main`.
+
 ## Experimental mineral sand-mandala dissolve (#185)
 
 New standalone branch: `feat/185-mineral-mandala-dissolve`, built on
