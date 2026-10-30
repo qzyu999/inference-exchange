@@ -4,6 +4,7 @@ import assert from 'node:assert/strict'
 import {
   loadOperatorControls, updateOperatorControls, clearOperatorQueue,
   quarantineProvider, releaseProvider,
+  listAdminAccounts, suspendAdminAccount, restoreAdminAccount,
 } from './admin-controls.js'
 
 const original = globalThis.fetch
@@ -33,11 +34,33 @@ try {
   assert.deepEqual(JSON.parse(calls[1].options.body), { inference_paused: true })
   assert.deepEqual(JSON.parse(calls[4].options.body), { reason: 'test quarantine' })
 
+  const accountCalls = []
+  globalThis.fetch = async (url, options) => {
+    accountCalls.push({ url, options })
+    return ok({ ok: true, accounts: [] })
+  }
+  await listAdminAccounts()
+  await suspendAdminAccount('user/1', 'abuse', 3600)
+  await restoreAdminAccount('user/1', 'reviewed appeal')
+  assert.deepEqual(accountCalls.map(x => x.url), [
+    '/v1/admin/accounts',
+    '/v1/admin/accounts/user%2F1/suspend',
+    '/v1/admin/accounts/user%2F1/unsuspend',
+  ])
+  assert.deepEqual(accountCalls.map(x => x.options.method), ['GET', 'POST', 'POST'])
+  assert.ok(accountCalls.every(x => x.options.credentials === 'include'))
+  assert.deepEqual(JSON.parse(accountCalls[1].options.body), { reason: 'abuse', duration_seconds: 3600 })
+  assert.deepEqual(JSON.parse(accountCalls[2].options.body), { reason: 'reviewed appeal' })
+  assert.ok(accountCalls.every(x => !JSON.stringify(x).includes('sk-ie-')))
+
   globalThis.fetch = async () => ({
     ok: false, status: 403, headers: { get: () => 'application/json' }, json: async () => ({ error: 'Admin access required' }),
   })
   await assert.rejects(loadOperatorControls(), /HTTP 403: Admin access required/)
   await assert.rejects(updateOperatorControls({ signup_disabled: false }), /HTTP 403/)
+  await assert.rejects(listAdminAccounts(), /HTTP 403/)
+  await assert.rejects(suspendAdminAccount('user/1', 'abuse', 3600), /HTTP 403/)
+  await assert.rejects(restoreAdminAccount('user/1', 'reviewed appeal'), /HTTP 403/)
 
   globalThis.fetch = async () => ({
     ok: false, status: 502, json: async () => { throw new Error('HTML page with potentially sensitive details') },
@@ -47,7 +70,7 @@ try {
     assert.doesNotMatch(err.message, /HTML|DOCTYPE|potentially sensitive details/i)
     return true
   })
-  console.log('admin controls API: happy/error paths and credential handling passed')
+  console.log('admin controls and account moderation API: happy/error paths and credential handling passed')
 } finally {
   globalThis.fetch = original
 }
