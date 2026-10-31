@@ -1,5 +1,44 @@
 # Local cinematic landing page media (#107, #185)
 
+## Optical mountain/crystal alignment and local text shade
+
+The 16:9 landscape is centered by `object-fit: contain` and the Three.js
+camera looks at world origin, so their mathematical **horizontal axes** are
+both 50% of the pinned viewport. On the supplied 960px reference frame, the
+mountain summit is visually a few pixels **left** of the exact image center,
+and rotating perspective tetrahedron silhouettes can appear biased despite
+a centered object origin. Rather than moving the camera or landscape,
+the complete 3D crystal pivot (red/green tetrahedrons, inner octahedron,
+orbit and all GPU mineral grains) now receives a small `-0.09` world-unit
+optical shift **only when the landscape is available**. Their relative
+geometry and 30k/8.5k particle trajectories do not change. The apex of
+the up-pointing tetrahedron sits more closely over the true summit.
+
+An optional diagnostic overlays a vertical line at the exact CSS
+center of the viewport. This is **only a guide**, not a permanent asset.
+Compare:
+
+- `/?heroQuality=4k&heroFit=contain&heroGuides=1` — new alignment with centerline
+- `/?heroQuality=4k&heroFit=contain&heroGuides=1&heroAlign=geometric` — old, strict world x=0 placement
+- `/?heroQuality=4k&heroFit=contain` — normal scene (no guide)
+
+The new **default dark treatment** is an unobtrusive feathered radial
+vignette confined to the left-middle text footprint, approximately
+the first 48% of desktop width at most, fading completely before
+the central mountain. It is not a fullscreen CSS blur, saturation
+filter, or tint across the scene. The existing text-specific shadows
+continue to keep white typography legible over glacial snow.
+
+Shade A/B with **identical source resolution and crop**:
+
+- `/?heroQuality=4k&heroFit=contain` — small local vignette (default)
+- `/?heroQuality=4k&heroFit=contain&heroShade=off` — pure video with text shadows only
+- `/?heroQuality=4k&heroFit=contain&heroShade=legacy` — old broad 82%-opaque dark wash
+
+No media assets were re-encoded, the scroll timeline is unchanged,
+and this remains isolated to `feat/185-mineral-mandala-dissolve`
+until visual QA and explicit approval to merge.
+
 ## No-vignette, native-framing video QA (October 30)
 
 **Why the ordinary landing page looked softer than the preferred raw 4K
