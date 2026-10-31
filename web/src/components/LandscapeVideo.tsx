@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { heroMediaUrl } from '../lib/hero-media.js'
+import { attachStreamHls } from '../lib/stream-hls.js'
 
 interface LandscapeVideoProps {
   progress: number
@@ -33,6 +34,13 @@ const VIDEO_ASPECT_RATIO: Record<VideoAspect, number> = {
   '21x9': 3840 / 1644,
 }
 const NAV_HEIGHT = 56
+// User-supplied public Stream video. This opt-in trial only runs on localhost;
+// no production visitors or default dev sessions can trigger Stream billing.
+const STREAM_21X9_MANIFEST =
+  'https://customer-5w3ijts4etcd5hi9.cloudflarestream.com/02af62eaa08146a6efe21b8a4d76a569/manifest/video.m3u8'
+const LOCAL_PREVIEW = /^(localhost|127[.]0[.]0[.]1)$/.test(window.location.hostname)
+const STREAM_PREVIEW = LOCAL_PREVIEW
+  && new URLSearchParams(window.location.search).get('heroDelivery') === 'stream'
 // Build-time public URL; empty for local Vite and local asset-preview builds.
 // Example: VITE_HERO_MEDIA_ORIGIN=https://media.inferenceex.com
 const MEDIA_ORIGIN = import.meta.env.VITE_HERO_MEDIA_ORIGIN || ''
@@ -46,6 +54,10 @@ interface VideoCandidate {
 }
 
 function selectAspect(): VideoAspect {
+  // Allow explicit 21:9 review on a standard 16:9 monitor; do not let
+  // debug URL parameters affect visitors on inferenceex.com.
+  const forced = new URLSearchParams(window.location.search).get('heroAspect')
+  if (LOCAL_PREVIEW && (forced === '21x9' || forced === '16x9')) return forced
   // Compare the visible hero stage, subtracting the 56px navigation bar.
   const stageAspect = window.innerWidth / Math.max(1, window.innerHeight - NAV_HEIGHT)
   return stageAspect >= 2.05 ? '21x9' : '16x9'
@@ -168,18 +180,49 @@ export function LandscapeVideo({ progress, reducedMotion, onAvailabilityChange }
   const [posterReady, setPosterReady] = useState(false)
   const [loopEligible, setLoopEligible] = useState(false)
   const [posterFailed, setPosterFailed] = useState(false)
+  const [streamFailed, setStreamFailed] = useState(false)
   // When Data Saver is requested, show the still instead of starting video
   // playback (which overrides the preload hint and consumes mobile data).
   const saveData = (navigator as Navigator & { connection?: NetworkHints }).connection?.saveData === true
   const shouldAutoplay = !reducedMotion && !saveData
   const selectedCandidate = candidateSources[Math.min(sourceIndex, candidateSources.length - 1)]
-  const selectedSource = selectedCandidate.path
+  // Only the existing ultrawide upload is present in Cloudflare Stream.
+  // For 16:9, use the original local/R2 MP4 until a second Stream asset exists.
+  const useStream = STREAM_PREVIEW && selectedCandidate.aspect === '21x9'
+    && shouldAutoplay && !streamFailed && sourceIndex === 0
+  const selectedSource = useStream ? STREAM_21X9_MANIFEST : selectedCandidate.path
   const selectedPoster = selectedCandidate.poster
   const framing = getVideoFraming(selectedCandidate.aspect)
   const edges = getHeroEdges()
   const useAmbientEdges = framing.mode === 'contain' && edges === 'ambient'
   const frameRatio = VIDEO_ASPECT_RATIO[selectedCandidate.aspect]
   const frameAspectCss = selectedCandidate.aspect === '21x9' ? '3840 / 1644' : '16 / 9'
+  useEffect(() => {
+    if (!useStream) return
+    const video = videoRef.current
+    if (!video) return
+    let cancelled = false
+    let release: (() => void) | undefined
+    void attachStreamHls(video, STREAM_21X9_MANIFEST, error => {
+      if (!cancelled) {
+        console.warn('Cloudflare Stream pilot failed, using MP4:', error.message)
+        setStreamFailed(true)
+      }
+    }).then(stop => {
+      if (cancelled) stop()
+      else release = stop
+    }).catch(error => {
+      if (!cancelled) {
+        console.warn('Cloudflare Stream preview unavailable, using MP4:', error)
+        setStreamFailed(true)
+      }
+    })
+    return () => {
+      cancelled = true
+      release?.()
+      video.pause()
+    }
+  }, [useStream])
   useEffect(() => {
     setSourceIndex(0)
     setReady(false)
@@ -279,10 +322,11 @@ export function LandscapeVideo({ progress, reducedMotion, onAvailabilityChange }
               opacity: ready ? 1 : 0,
               transition: 'opacity 200ms ease-out',
             }}
-            src={selectedSource}
+            src={useStream ? undefined : selectedCandidate.path}
             poster={selectedPoster}
+            data-hero-delivery={useStream ? 'cloudflare-stream-hls' : 'mp4'}
             data-hero-aspect={selectedCandidate.aspect}
-            data-hero-quality={quality}
+            data-hero-quality={useStream ? 'adaptive' : quality}
             data-hero-source={selectedSource}
             data-hero-framing={framing.mode}
             autoPlay={shouldAutoplay}
@@ -299,7 +343,11 @@ export function LandscapeVideo({ progress, reducedMotion, onAvailabilityChange }
               setPosterReady(false)
               setPosterFailed(false)
               setLoopEligible(false)
-              setSourceIndex(index => Math.min(index + 1, candidateSources.length - 1))
+              if (useStream) {
+                setStreamFailed(true)
+              } else {
+                setSourceIndex(index => Math.min(index + 1, candidateSources.length - 1))
+              }
             }}
           />
           {!ready && !posterFailed && (
