@@ -16,25 +16,22 @@ const SDK_COMMANDS: Record<Platform, string> = {
     'py -m venv .venv',
     '.venv\\Scripts\\activate.bat',
     'python -m pip install openai',
-    'set /p IE_API_KEY=Paste your API key (visible input): ',
-    'python hello_ie.py',
   ].join('\n'),
   mac: [
     'python3 -m venv .venv',
     'source .venv/bin/activate',
     'python -m pip install openai',
-    'read -rs IE_API_KEY',
-    'export IE_API_KEY',
-    'python hello_ie.py',
   ].join('\n'),
   linux: [
     'python3 -m venv .venv',
     'source .venv/bin/activate',
     'python -m pip install openai',
-    'read -rs IE_API_KEY',
-    'export IE_API_KEY',
-    'python hello_ie.py',
   ].join('\n'),
+}
+const KEY_INPUT: Record<Platform, string> = {
+  windows: 'set /p IE_API_KEY=Paste your IE API key (visible input): ',
+  mac: 'read -rs IE_API_KEY && export IE_API_KEY',
+  linux: 'read -rs IE_API_KEY && export IE_API_KEY',
 }
 const MAC_CHECKS = 'uname -m\nsw_vers\npython3 --version\ncommand -v llama-server'
 
@@ -283,7 +280,7 @@ export function GettingStarted() {
             </div>
             <p className="text-xs text-gray-500">
               First save the existing <strong>non-streaming Python example</strong> from API keys as hello_ie.py.
-              Paste your own key only when the terminal prompts you; none is included in these commands.
+              Copy the installation commands first. The API-key prompt is a separate action below, so it cannot consume a pasted command as a secret.
             </p>
             <pre className="overflow-x-auto rounded-xl p-4 text-xs leading-relaxed" style={{ background: C.blueBlack, color: '#eee' }}>
               <code>{SDK_COMMANDS[platform]}</code>
@@ -291,6 +288,14 @@ export function GettingStarted() {
             <button type="button" onClick={() => void copyCommands()}
               className={'px-3 py-2 rounded-lg border text-xs font-semibold ' + focus}>Copy setup commands</button>
             {copyMessage && <p role="status" className="text-xs text-gray-600">{copyMessage}</p>}
+            <p className="text-xs text-gray-500">
+              Run this separate interactive command only after installing the SDK.
+              Type or paste your own key when prompted, then press Enter:
+            </p>
+            <pre className="overflow-x-auto rounded-xl p-4 text-xs leading-relaxed" style={{ background: '#eff1f1', color: C.blueBlack }}>
+              <code>{KEY_INPUT[platform]}</code>
+            </pre>
+            <p className="text-xs text-gray-500">Then run <code>python hello_ie.py</code> in that same terminal session.</p>
             <p className="text-xs text-gray-500">
               {platform === 'windows'
                 ? 'CMD set /p shows what you type. Avoid screen sharing and clear the session afterward.'
