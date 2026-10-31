@@ -2,6 +2,108 @@
 
 **Status:** documented and wired for review in draft [PR #197](https://github.com/qzyu999/inference-exchange/pull/197), not yet deployed. **No R2 bucket, DNS record, or production asset availability has been verified by this change.** Do not merge or deploy the new landing page until the checklist below passes.
 
+## Update: Cloudflare Stream adaptive streaming evaluation (Oct 31, 2026)
+
+**Do not treat the R2-only approach below as a final product decision.**
+An adaptive streaming pilot is tracked in [issue #198](https://github.com/qzyu999/inference-exchange/issues/198).
+The current PR #197 is **still draft** and the R2 flow below remains the
+non-production baseline/rollback while we test better user experiences.
+
+### What Stream changes
+
+- **R2/CDN + MP4 (current):** Vite chooses 16:9 vs 21:9 and one of the
+  already-encoded `720p`, `1080p`, `4k` MP4 files. The browser may fetch
+  the file using HTTP range requests, but the chosen quality **does not
+  dynamically change** when bandwidth changes. Full 3840×1644/3840×2160
+  playback is possible on capable devices.
+- **Cloudflare Stream:** upload one original per composition; Cloudflare
+  transcodes an adaptive HLS/DASH rendition ladder automatically. A
+  compatible HLS/DASH player switches bitrates while watching and fetches
+  short media segments rather than selecting a full standalone MP4 once.
+  **According to Cloudflare's 2026 documentation the maximum playback is
+  1080p (starting at 360p): 4K playback is NOT provided by Stream's
+  standard on-demand encoding ladder.** Uploading a 4K Runway master does
+  not establish that visitors will see 4K.
+- **Hybrid candidate:** Stream for normal bandwidth-adaptive playback
+  (particularly mobile), with a direct R2 4K MP4 option/fallback for
+  large, high-bandwidth screens where the original 21:9 fidelity is
+  worth the bandwidth. This is a proposal, not implemented.
+- **Custom HLS on R2:** pre-encode/package our own bitrate ladder
+  (potentially including 4K) and publish manifests and segments to R2.
+  The browser can adapt with native HLS/HLS.js but we take ownership of
+  transcoding, packaging, manifests, caching, player failure handling.
+  Evaluate complexity only if Stream's resolution limit is unacceptable.
+
+### Stream price and 30-second looping trade-off
+
+Cloudflare's currently documented pricing:
+**$5 per 1,000 stored minutes/month, purchased in prepaid 1,000-minute units**,
+plus **$1 per 1,000 minutes delivered**; encoding and bandwidth included.
+Both 30-second masters consume about 1 stored minute of allowance total,
+but the smallest documented storage-capacity purchase is $5/month.
+
+| Illustrative playback demand | Delivered minutes | Variable delivery cost |
+| --- | ---: | ---: |
+| 10,000 visitors × 30 seconds | ~5,000 | ~$5 |
+| 10,000 visitors × 2 minutes | ~20,000 | ~$20 |
+| 100,000 visitors × 30 seconds | ~50,000 | ~$50 |
+
+These are **idealized** viewing-duration estimates; Cloudflare bills
+HLS segment requests (4-second rounding for uploaded video), including
+prefetching/buffering. Browser-cached repeat loops may not be charged
+again, depending on the player's caching behavior. Do not assume every
+loop generates a new 30 seconds of billable delivery; measure this in
+Stream Analytics with the actual player. Fees and published prices can
+change.
+
+### Trial architecture without touching the alpha
+
+```text
+Local dev on port 5176 (private preview with explicit experimental flag)
+  React LandscapeVideo + poster + Three.js overlay
+         |
+         +-- Default: existing native MP4 in web/public/media/
+         |
+         +-- Pilot: HLS Stream manifest per composition
+                   (Cloudflare Stream: upload 16:9 + 21:9 originals)
+                        -> Browser native HLS (Safari)
+                        -> HLS.js loaded on demand (other browsers)
+                        -> ABR rendition based on throughput/buffer
+         |
+         +-- Fallback: existing MP4/R2 path when Stream fails
+```
+
+**Do not use a generic iframe as an untested replacement** for the
+background `<video>` element. The current pinned scene depends on
+controlled CSS object fit, muted autoplay, no controls, looping, video
+readiness, paused hidden tabs, reduced-motion/Data Saver, and multiple
+WebGL overlays. A native video element driven by native HLS/HLS.js
+better matches that interface; verify iOS Safari, Chrome and Firefox.
+
+For the pilot, upload each master through the Stream dashboard (under
+200 MB permits simple upload), copy their **real** manifest URLs/UIDs,
+and inspect each manifest's output dimensions before any implementation
+claims about the ultrawide rendition. Never commit Cloudflare API tokens.
+Avoid forcing a `clientBandwidthHint` in normal user playback since
+it overrides ABR choices. Keep a static poster visible before decoding.
+Do not fetch manifests/segments at all if `prefers-reduced-motion`
+or `Save-Data` asks for static mode.
+
+Measure **first playable frame, transferred bytes at 5/15/30 seconds,
+quality switches, rebuffering, full-window composition, frame quality,
+loop request count, hidden-tab behavior, and mobile data consumption**.
+Compare against the exact same viewport/connection using current MP4.
+The decision to replace or augment R2 should be made after these tests,
+not solely from Stream marketing claims.
+
+Official docs:
+- [Cloudflare Stream overview / 360p–1080p](https://developers.cloudflare.com/stream/)
+- [Pricing, four-second segments and cached loops](https://developers.cloudflare.com/stream/pricing/)
+- [Use your own HLS player](https://developers.cloudflare.com/stream/viewing-videos/using-own-player/)
+- [HLS.js example](https://developers.cloudflare.com/stream/examples/hls-js/)
+- [Stream player autoplay/loop behavior](https://developers.cloudflare.com/stream/viewing-videos/using-the-stream-player/)
+- [Basic dashboard upload](https://developers.cloudflare.com/stream/uploading-videos/upload-video-file/)
+
 ## What serves what?
 
 ```text
