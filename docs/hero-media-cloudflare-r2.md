@@ -149,6 +149,39 @@ normalize the original 21:9 display ratio. **Do not guess** before
 seeing the playlist. Cloudflare documentation says Stream does not
 offer native 4K playback.
 
+### Troubleshooting: Stream selected but no decoded frame
+
+If the browser console returns
+`{ delivery: 'cloudflare-stream-hls', resolution: '0x0', playing: false, error: null }`,
+this means the experimental Stream path was selected but **no video
+metadata/frame has loaded yet**. That alone does not establish a
+Cloudflare outage. Refresh after pulling the latest PR branch; the
+pilot now logs `[hero-stream]` messages when hls.js attaches, parses
+the manifest, encounters network errors or sees autoplay rejection.
+Observe these in Chrome Console; the player attempts muted playback
+explicitly as soon as HLS segments can be decoded.
+
+Open DevTools → Network and filter `cloudflarestream` or `m3u8`.
+Check first whether `hls.min.js` from pinned jsDelivr loads;
+then the master `video.m3u8`, rendition `.m3u8`, and actual
+segments. A **403** from Cloudflare can indicate a mismatch in
+the Stream *Allowed Origins* list (`localhost:5176`); a blocked
+third-party HLS.js script can indicate network/CSP/extensions; a
+successful manifest followed by failing segments usually indicates a
+segment fetch or media decode problem. Inspect the *specific failing
+request*, its HTTP status and browser console detail, rather than
+guessing.
+
+In the same local dev session, Vite's normal proxy targets
+`http://localhost:8000` for `/health` and `/v1`, and
+`ws://localhost:8000` for `/ws`. If that backend isn't running,
+repeated HTTP 500 / WebSocket handshake failures appear in DevTools.
+These are **independent of the Cloudflare HLS video** and do not by
+themselves imply a Stream failure. Start a safe local coordinator
+only if full application API functionality is necessary for that test.
+Do not route the staging or production backend to an arbitrary dev
+proxy to silence the errors.
+
 ### 2. Compare MP4 and HLS in the *existing* real landing page
 
 The PR includes a **localhost-only** opt-in HLS pilot. It does not
