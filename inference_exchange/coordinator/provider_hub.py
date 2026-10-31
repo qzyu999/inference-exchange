@@ -331,7 +331,12 @@ class ProviderHub:
             raise PermissionError("provider is not App Attest admitted")
         provider.active_requests += 1
         self._request_to_provider[request.request_id] = provider.provider_id
-        await provider.ws.send_json(request.model_dump())
+        try:
+            await provider.ws.send_json(request.model_dump())
+        except Exception:
+            provider.active_requests = max(0, provider.active_requests - 1)
+            self._request_to_provider.pop(request.request_id, None)
+            raise
 
     def enqueue_request(self, inference_req: InferenceRequest, *, model: str = "default",
                         preference: str = "balanced", min_confidence: str = "open",

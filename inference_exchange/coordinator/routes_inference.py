@@ -31,6 +31,7 @@ from inference_exchange.shared.protocol import (
 
 from .dependencies import (
     _add_trace,
+    _complete_trace,
     _rate_limiter,
     get_billing,
     get_event_bus,
@@ -38,6 +39,7 @@ from .dependencies import (
     get_reputation_tracker,
     get_tps_tracker,
 )
+from .model_attribution import served_model_for_request
 from .operator_controls import get_controls, run_guarded
 
 logger = logging.getLogger(__name__)
@@ -126,18 +128,21 @@ def _make_billing_callback(
         actual_input = done_msg.input_tokens if done_msg.input_tokens > 0 else input_token_estimate
         actual_cached = done_msg.cached_tokens
         output_tokens = done_msg.tokens_generated
+        served_model = served_model_for_request(model, provider, done_msg)
 
         elapsed = time.time() - start_time
         latency_ms = int(elapsed * 1000)
         tps = output_tokens / elapsed if elapsed > 0 and output_tokens > 0 else 0
 
         billing = get_billing()
-        billing.charge_request(
+        billed = billing.charge_request(
             request_id=request_id,
             consumer_id=consumer_id,
             provider_id=provider.billing_account_id or provider.provider_id,
             connection_id=provider.session_id,
             model=model,
+            requested_model=model,
+            served_model=served_model,
             input_tokens=actual_input,
             output_tokens=output_tokens,
             price_per_mtok_input=provider.capabilities.price_per_mtok_input,
@@ -154,6 +159,8 @@ def _make_billing_callback(
             queue_wait_ms=queue_wait_ms,
         )
 
+        _complete_trace(request_id, consumer_id, served_model, latency_ms)
+
         logger.info(
             f"[{request_id[:8]}] Billed via callback: "
             f"in={actual_input} cached={actual_cached} out={output_tokens} "
@@ -169,8 +176,12 @@ def _make_billing_callback(
                 "provider_id": provider.provider_id,
                 "provider_name": provider.name,
                 "model": model,
-                "cost_usd": round(
-                    (output_tokens * provider.capabilities.price_per_mtok_output) / 1_000_000, 6
+                "requested_model": model,
+                "served_model": served_model,
+                "cost_usd": (
+                    billed["cost_micro"] / 1_000_000 if isinstance(billed, dict)
+                    else getattr(billed, "cost_micro", None) / 1_000_000
+                    if getattr(billed, "cost_micro", None) is not None else None
                 ),
                 "tokens": output_tokens,
                 "input_tokens": actual_input,
@@ -181,11 +192,11 @@ def _make_billing_callback(
                 "encrypted": bool(provider.encryption_public_key),
             })
 
-        if output_tokens > 0 and elapsed > 0:
+        if served_model and output_tokens > 0 and elapsed > 0:
             tps_tracker = get_tps_tracker()
             tps_tracker.record_request(
                 provider_id=provider.provider_id,
-                model=model,
+                model=served_model,
                 tokens=output_tokens,
                 seconds=elapsed,
                 hardware=provider.capabilities.hardware,
@@ -258,6 +269,8 @@ async def _route_and_dispatch(request: ChatCompletionRequest, consumer_id: str):
                 "request_id": str(uuid.uuid4())[:8],
                 "timestamp": time.time(),
                 "model": request.model,
+                "requested_model": request.model,
+                "served_model": served_model_for_request(request.model, provider) if provider is not None else None,
                 "min_confidence": request.ocip_min_confidence,
                 "max_price": request.ocip_max_price,
                 "status": no_match["code"],
@@ -293,6 +306,8 @@ async def _route_and_dispatch(request: ChatCompletionRequest, consumer_id: str):
                 "request_id": request_id[:8],
                 "timestamp": time.time(),
                 "model": request.model,
+                "requested_model": request.model,
+                "served_model": served_model_for_request(request.model, provider) if provider is not None else None,
                 "status": "queue_full",
                 "reason": f"Queue full ({hub.QUEUE_MAX_DEPTH} pending)",
                 "providers_evaluated": hub.provider_count,
@@ -310,6 +325,8 @@ async def _route_and_dispatch(request: ChatCompletionRequest, consumer_id: str):
                 "request_id": request_id[:8],
                 "timestamp": time.time(),
                 "model": request.model,
+                "requested_model": request.model,
+                "served_model": served_model_for_request(request.model, provider) if provider is not None else None,
                 "status": "queue_timeout",
                 "reason": f"No provider available after {hub.QUEUE_TIMEOUT_SECONDS}s wait",
                 "providers_evaluated": hub.provider_count,
@@ -378,6 +395,8 @@ async def _route_and_dispatch(request: ChatCompletionRequest, consumer_id: str):
             "request_id": request_id[:8],
             "timestamp": time.time(),
             "model": request.model,
+            "requested_model": request.model,
+            "served_model": served_model_for_request(request.model, provider) if provider is not None else None,
             "preference": request.ocip_preference,
             "min_confidence": request.ocip_min_confidence,
             "max_price": request.ocip_max_price,
@@ -401,6 +420,8 @@ async def _route_and_dispatch(request: ChatCompletionRequest, consumer_id: str):
                 "request_id": request_id,
                 "provider": provider.name,
                 "model": request.model,
+                "requested_model": request.model,
+                "served_model": served_model_for_request(request.model, provider) if provider is not None else None,
                 "source": "queue",
             })
 
@@ -494,6 +515,19 @@ async def _route_and_dispatch(request: ChatCompletionRequest, consumer_id: str):
         if retry_provider and retry_provider.provider_id != provider.provider_id:
             queue = hub.create_response_queue(request_id)
             provider = retry_provider  # Use the retry provider for billing/traces
+            # Ciphertext must be rebound to the final provider's public key.
+            retry_body = None
+            if retry_provider.encryption_public_key:
+                retry_payload = {"messages": messages_plain}
+                if request.ocip_consumer_public_key:
+                    retry_payload["consumer_public_key"] = request.ocip_consumer_public_key
+                retry_body = encrypt_json(retry_payload, retry_provider.encryption_public_key).to_dict()
+            inference_req = InferenceRequest(
+                request_id=request_id, model=request.model,
+                messages=messages_plain if retry_body is None else None,
+                encrypted_body=retry_body, max_tokens=request.max_tokens,
+                temperature=request.temperature, stream=request.stream,
+            )
             try:
                 await hub.send_to_provider(retry_provider, inference_req)
                 logger.info(f"[{request_id[:8]}] Retried on {retry_provider.name}")
@@ -508,6 +542,8 @@ async def _route_and_dispatch(request: ChatCompletionRequest, consumer_id: str):
         "request_id": request_id[:8],
         "timestamp": time.time(),
         "model": request.model,
+        "requested_model": request.model,
+        "served_model": served_model_for_request(request.model, provider) if provider is not None else None,
         "preference": request.ocip_preference,
         "min_confidence": request.ocip_min_confidence,
         "max_price": request.ocip_max_price,
@@ -530,6 +566,8 @@ async def _route_and_dispatch(request: ChatCompletionRequest, consumer_id: str):
             "request_id": request_id,
             "provider": provider.name,
             "model": request.model,
+            "requested_model": request.model,
+            "served_model": served_model_for_request(request.model, provider) if provider is not None else None,
             "score": max((s["score"] for s in scoring_details if s["selected"]), default=0),
         })
 
@@ -593,6 +631,8 @@ async def _stream_response(
                     "object": "chat.completion.chunk",
                     "created": int(time.time()),
                     "model": model,
+                    "ocip_requested_model": model,
+                    "ocip_served_model": served_model_for_request(model, provider, msg),
                     "choices": [
                         {
                             "index": 0,
@@ -613,6 +653,8 @@ async def _stream_response(
                     "object": "chat.completion.chunk",
                     "created": int(time.time()),
                     "model": model,
+                    "ocip_requested_model": model,
+                    "ocip_served_model": served_model_for_request(model, provider, msg),
                     "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}],
                 }
                 yield f"data: {json.dumps(chunk)}\n\n"
@@ -687,6 +729,8 @@ async def _collect_response(
         "object": "chat.completion",
         "created": int(time.time()),
         "model": model,
+        "ocip_requested_model": model,
+        "ocip_served_model": served_model_for_request(model, provider, done_msg_ns),
         "choices": [
             {
                 "index": 0,
