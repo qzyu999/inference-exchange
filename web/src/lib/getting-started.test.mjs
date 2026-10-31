@@ -8,6 +8,7 @@ const nav = read('../components/Layout.tsx')
 const routes = read('../main.tsx')
 const page = read('../pages/GettingStarted.tsx')
 const landingNav = read('./nav.js')
+const providePage = read('../pages/Provide.tsx')
 
 assert.deepEqual(JOURNEYS.map(journey => journey.id), ['consumer', 'api', 'provider', 'both'])
 assert.equal(GLOSSARY.length >= 7, true)
