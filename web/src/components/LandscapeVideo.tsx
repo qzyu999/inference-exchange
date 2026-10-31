@@ -259,13 +259,20 @@ export function LandscapeVideo({ progress, reducedMotion, onAvailabilityChange }
     }
 
     const sync = () => {
-      if (document.hidden) video.pause()
-      else if (!video.ended) void video.play().catch(() => {})
+      if (document.hidden) {
+        video.pause()
+      } else if (!video.ended && video.readyState >= 2) {
+        void video.play().catch(error => {
+          // Muted autoplay rejections and unsupported-media failures used to be
+          // swallowed. The pilot needs visible diagnostics for these cases.
+          if (useStream) console.warn('[hero-stream] Video play() failed:', error)
+        })
+      }
     }
     document.addEventListener('visibilitychange', sync)
     sync()
     return () => document.removeEventListener('visibilitychange', sync)
-  }, [shouldAutoplay, ready, sourceIndex])
+  }, [shouldAutoplay, ready, sourceIndex, useStream])
 
   // The new sources are silent, 30-second, locked-off video plates.
   // Keep the landscape bright until the very last crystal dissolve.
