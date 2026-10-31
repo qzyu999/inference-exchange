@@ -19,6 +19,7 @@ import { Settings } from './pages/Settings'
 import { Trace } from './pages/Trace'
 import { ProviderDashboard } from './pages/ProviderDashboard'
 import { Docs } from './pages/Docs'
+import { GettingStarted } from './pages/GettingStarted'
 import { NotFound } from './pages/NotFound'
 
 createRoot(document.getElementById('root')!).render(
@@ -29,6 +30,8 @@ createRoot(document.getElementById('root')!).render(
           <Route element={<Layout />}>
             <Route path="/" element={<Landing />} />
             <Route path="/overview" element={<Overview />} />
+            <Route path="/start" element={<GettingStarted />} />
+            <Route path="/start/:journey" element={<GettingStarted />} />
             <Route path="/exchange" element={<Exchange />} />
             <Route path="/chat" element={<Chat />} />
             <Route path="/models" element={<Models />} />
