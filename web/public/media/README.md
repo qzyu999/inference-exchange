@@ -39,7 +39,7 @@ No media assets were re-encoded, the scroll timeline is unchanged,
 and this remains isolated to `feat/185-mineral-mandala-dissolve`
 until visual QA and explicit approval to merge.
 
-## No-vignette, native-framing video QA (October 30)
+## Prior no-vignette experiment and 4K framing QA (October 30)
 
 **Why the ordinary landing page looked softer than the preferred raw 4K
 preview:** these views previously combined three independent differences:
@@ -53,10 +53,11 @@ preview:** these views previously combined three independent differences:
 3. The default `wide` framing cropped the 16:9 master, while the preferred
    `contain` mode preserved the whole composition at a smaller scale.
 
-**New review defaults:** The full-screen editorial vignette is **absent**.
-Text contrast comes from tightly scoped, layered dark `text-shadow`
-and a fractional-width headline outline, not from a screen-wide dark
-tint, backdrop blur, filter, or saturation adjustment. The default video
+**Current review defaults:** The original full-width editorial vignette is
+**absent**. A new small feathered vignette now affects only the left-hand
+text footprint (see the updated optical alignment section above), with
+localized dark `text-shadow` and a thin headline outline. There is no
+screen-wide backdrop blur, filter, or saturation adjustment. The default video
 framing is `object-fit: contain`, which preserves sun, moon, mountain
 and reflection. The previous full-width `wide` crop is still available
 by URL. For local high-DPI desktop previews on `localhost` or
@@ -67,8 +68,9 @@ unnecessary ~39 MB downloads.
 For an apples-to-apples comparison on port 5176, keep the same quality
 and crop and vary only the tint:
 
-- `/?heroQuality=4k&heroFit=contain` — **new default treatment**, clear
-  scene with localized text contrast
+- `/?heroQuality=4k&heroFit=contain` — **current default**, narrow
+  left-hand vignette and text-specific shadows
+- `/?heroQuality=4k&heroFit=contain&heroShade=off` — no vignette; shadows only
 - `/?heroQuality=4k&heroFit=contain&heroShade=legacy` — previous large
   black wash for A/B comparison
 - `/?heroRaw=1&heroQuality=4k&heroFit=contain` — underlying original
