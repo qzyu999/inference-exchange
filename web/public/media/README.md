@@ -1,5 +1,69 @@
 # Local cinematic landing page media (#107, #185)
 
+## Current Seedance 2.5 media — adaptive-quality preview
+
+Two new 30-second locked-camera source clips were provided on October 30:
+
+| Source | Original codec | Source size | Resolution |
+| --- | --- | ---: | --- |
+| 4K MP4 | H.264, with audio | 111.4 MB | 3840×2160 |
+| 1080p MOV | 10-bit HEVC 4:4:4, PCM audio | 62.4 MB | 1920×1080 |
+
+They are **not shipped to browsers in their original form**. The locally
+provided `seedance_2_5_mountain_lake_web_assets.zip` contains four optimized
+assets for `web/public/media/`:
+
+| Asset | Resolution | Approx bytes | Purpose |
+| --- | --- | ---: | --- |
+| `seedance_2_5_mountain_lake_720p.mp4` | 1280×720 | 4.6 MB | mobile / slow / metered |
+| `seedance_2_5_mountain_lake_1080p.mp4` | 1920×1080 | 11.2 MB | safe desktop default |
+| `seedance_2_5_mountain_lake_4k.mp4` | 3840×2160 | 38.7 MB | high-resolution, fast desktop |
+| `seedance_2_5_mountain_lake_poster.webp` | 1920×1080 | ~0.34 MB | fast first paint and reduced-motion |
+
+All video derivatives: **H.264 High, 24 fps, yuv420p, silent, 30 seconds,
+MP4 +faststart**, broadly compatible with Chrome and Safari. The original
+sources remain unchanged.
+
+### Install the local media bundle
+
+```sh
+cd ~/projects/inference-exchange-mandala-review
+git pull --ff-only
+unzip -o ~/Downloads/seedance_2_5_mountain_lake_web_assets.zip -d web/public/media
+cd web
+npm run build
+npm run dev -- --port 5176 --strictPort
+```
+
+Test `http://localhost:5176/`; view the actual chosen file in DevTools
+Network or inspect the video's `data-hero-source` DOM attribute.
+
+**One source per page view**, selected when React mounts:
+
+- Mobile (<768px CSS width), Data Saver, or 2G/3G-like connections: 720p
+- Normal desktop and browsers lacking connection-speed data (Safari): 1080p
+- Large 4K-class display **and** explicit network hints of a fast connection
+  **and** sufficient memory/CPU: 4K
+
+Debug / override the automatic choice with `?heroQuality=720p`,
+`?heroQuality=1080p`, or `?heroQuality=4k`. Keep `?heroFit=cover` or
+`?heroFit=contain` as before. Missing variants fall back to 1080p or the
+legacy `alpine-lake-hero.mp4` if present. There is **no runtime quality
+switch while playing**: each `<video>` fetches only the selected asset.
+
+`preload="metadata"` is only a network hint. Muted autoplay will normally
+download/buffer the selected clip as it plays; subsequent visits may reuse
+HTTP-cached bytes depending on `Cache-Control`, the CDN and browser eviction.
+The browser does **not** automatically download all three clips. Full adaptive
+bitrate streaming requires HLS/DASH segmented media, not multiple MP4s alone.
+For production, serve versioned objects via Cloudflare R2/CDN with byte-range
+requests, correct `video/mp4` MIME type and explicit cache headers; avoid
+committing large binaries into the Git repo.
+
+**QA before deployment:** check Safari/Chrome first paint, source selection,
+loop seam, mobile battery, data usage, GPU animations and source licensing.
+Do not assume the uploaded clip is visually seamless without checking.
+
 ## Canonical landing-page review branch (October 30, 2026)
 
 **Continue all cinematic landing-page work on**
@@ -15,24 +79,14 @@ is `~/projects/inference-exchange-mandala-review` (port 5176). Keep the
 separate worktrees intact while evaluating the experience. Do **not**
 merge to `main` until the visual review and alpha regressions pass.
 
-### Future high-resolution landscape plate
+### High-resolution plate and product framing
 
-For the next source video, aim for a **natively generated/mastered 3840×2160
-(16:9), 30-second, locked-camera, clean-loop** landscape (or an even
-higher-resolution master from which 16:9 desktop framing is composed).
-Keep the central mountain and its reflection unobstructed, preserve the
-symmetrical sun/moon positions, and leave sufficient room for the editorial
-copy at left. The current video source is 1650×720 (ultrawide); simple
-upscaling will not restore missing detail or fix aspect-ratio composition.
-
-**Do not default to forcing a 4K video download for every visitor.** Author
-a browser-optimized 1080p/1440p derivative, a good poster still, and a
-conditional 4K source for capable desktop connections. Keep video silent,
-reliable on Safari and Chrome, and small enough for a public alpha.
-The existing integration reads `/media/alpine-lake-hero.mp4` and
-`/media/alpine-lake-poster.webp`, so replacing those in the review worktree
-is sufficient for a first A/B test; keep originals for easy rollback. Test
-both `heroFit=cover` and `heroFit=contain` and verify loop seams.
+The canonical experiment now uses native 3840×2160 and 1920×1080 Seedance
+footage instead of the old 1650×720 ultrawide plate. Preserve the centered
+mountain/reflection, left-side editorial typography and sun/moon composition.
+The legacy `alpine-lake-hero.mp4` remains only a local-media fallback.
+Inspect `heroFit=cover` and `heroFit=contain` plus the loop seam on multiple
+desktop aspect ratios; avoid over-optimizing away detail in the snow or water.
 
 
 The photo/video files are intentionally not committed to GitHub on this
