@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "dev:provider-staging": "vite --mode provider-staging",
-    "prebuild": "node src/lib/hero-media.test.mjs",
+    "prebuild": "node src/lib/hero-media.test.mjs && node src/lib/stream-hls.test.mjs",
     "build": "tsc -b && vite build",
     "check:hero-media": "node scripts/check-hero-media.mjs",
     "inspect:stream-hls": "node scripts/inspect-stream-hls.mjs",
