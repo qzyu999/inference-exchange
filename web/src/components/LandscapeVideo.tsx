@@ -52,10 +52,28 @@ function pickQuality(): VideoQuality {
   return largeDisplay && fastConnection && capableMachine ? '4k' : '1080p'
 }
 
-function getVideoFit(): 'contain' | 'cover' {
-  return new URLSearchParams(window.location.search).get('heroFit') === 'contain'
+type HeroFraming = 'wide' | 'center' | 'contain'
+
+function getVideoFraming(): {
+  mode: HeroFraming
+  fit: 'cover' | 'contain'
+  position: string
+} {
+  const setting = new URLSearchParams(window.location.search).get('heroFit')
+  // `?heroFit=cover` preserves the previous centered crop as a comparison.
+  // `?heroFit=contain` shows all of the 16:9 frame, with side margins in a
+  // wider browser viewport. The default `wide` fills the viewport and crops
+  // MOSTLY the lower foreground, keeping the high sun and moon visible.
+  const mode: HeroFraming = setting === 'contain'
     ? 'contain'
-    : 'cover'
+    : setting === 'center' || setting === 'cover'
+      ? 'center'
+      : 'wide'
+  return {
+    mode,
+    fit: mode === 'contain' ? 'contain' : 'cover',
+    position: mode === 'wide' ? '50% 12%' : '50% 50%',
+  }
 }
 
 /**
@@ -82,7 +100,7 @@ export function LandscapeVideo({ progress, reducedMotion, onAvailabilityChange }
   // playback (which overrides the preload hint and consumes mobile data).
   const saveData = (navigator as Navigator & { connection?: NetworkHints }).connection?.saveData === true
   const shouldAutoplay = !reducedMotion && !saveData
-  const fit = getVideoFit()
+  const framing = getVideoFraming()
   const selectedSource = candidateSources[sourceIndex]
 
   useEffect(() => {
@@ -121,8 +139,8 @@ export function LandscapeVideo({ progress, reducedMotion, onAvailabilityChange }
         key={selectedSource}
         className="absolute inset-0 h-full w-full"
         style={{
-          objectFit: fit,
-          objectPosition: 'center center',
+          objectFit: framing.fit,
+          objectPosition: framing.position,
           opacity: ready ? 1 : 0,
           transition: 'opacity 200ms ease-out',
         }}
@@ -130,6 +148,7 @@ export function LandscapeVideo({ progress, reducedMotion, onAvailabilityChange }
         poster={POSTER}
         data-hero-quality={quality}
         data-hero-source={selectedSource}
+        data-hero-framing={framing.mode}
         autoPlay={shouldAutoplay}
         loop={loopEligible}
         muted
@@ -150,7 +169,7 @@ export function LandscapeVideo({ progress, reducedMotion, onAvailabilityChange }
           src={POSTER}
           alt=""
           className="absolute inset-0 h-full w-full"
-          style={{ objectFit: fit, objectPosition: 'center center' }}
+          style={{ objectFit: framing.fit, objectPosition: framing.position }}
           onLoad={() => setPosterReady(true)}
           onError={() => setPosterFailed(true)}
         />
