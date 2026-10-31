@@ -2,6 +2,7 @@
 // Plain JS (with nav.d.ts) so `node src/lib/nav.test.mjs` can test it.
 
 export const LANDING_LINKS = [
+  { to: '/start', label: 'Getting Started' },
   { to: '/chat', label: 'Chat' },
   { to: '/exchange', label: 'Exchange' },
   { to: '/models', label: 'Models' },
