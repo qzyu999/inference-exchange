@@ -84,7 +84,7 @@ export function LandingNav() {
           </span>
         </Link>
 
-        <ul className="hidden md:flex items-center gap-5">
+        <ul className="hidden xl:flex items-center gap-3">
           {LANDING_LINKS.map(l => (
             <li key={l.to}>
               <Link to={l.to} className={`text-sm ${FOCUS}`} style={{ color: '#d8d1be' }}>{l.label}</Link>
@@ -92,7 +92,7 @@ export function LandingNav() {
           ))}
         </ul>
 
-        <div className="hidden md:flex items-center gap-4">
+        <div className="hidden xl:flex items-center gap-3">
           <AccountArea />
           <Link
             to="/chat"
@@ -104,7 +104,7 @@ export function LandingNav() {
         </div>
 
         {/* Mobile: chat AND sign-in/account stay visible without opening the menu. */}
-        <div className="flex md:hidden items-center gap-1.5">
+        <div className="flex xl:hidden items-center gap-1.5">
           <Link
             to="/chat"
             className={`px-2.5 py-2 rounded-lg text-sm font-semibold ${FOCUS}`}
@@ -142,7 +142,7 @@ export function LandingNav() {
       </nav>
 
       {open && (
-        <div id="landing-mobile-menu" className="md:hidden px-4 pb-4" style={{ background: 'rgba(14,16,24,0.96)' }}>
+        <div id="landing-mobile-menu" className="xl:hidden px-4 pb-4" style={{ background: 'rgba(14,16,24,0.96)' }}>
           <ul className="flex flex-col">
             {LANDING_LINKS.map(l => (
               <li key={l.to}>
