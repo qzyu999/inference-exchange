@@ -61,6 +61,15 @@ function pickQuality(): VideoQuality {
 }
 
 type HeroFraming = 'wide' | 'center' | 'contain'
+type HeroEdges = 'ambient' | 'solid'
+
+function getHeroEdges(): HeroEdges {
+  // The centered full-frame video is still the hero. Edge filling is a
+  // decorative layer behind it, never a second copy of the video stream.
+  return new URLSearchParams(window.location.search).get('heroEdges') === 'solid'
+    ? 'solid'
+    : 'ambient'
+}
 
 function getVideoFraming(): {
   mode: HeroFraming
@@ -110,6 +119,8 @@ export function LandscapeVideo({ progress, reducedMotion, onAvailabilityChange }
   const saveData = (navigator as Navigator & { connection?: NetworkHints }).connection?.saveData === true
   const shouldAutoplay = !reducedMotion && !saveData
   const framing = getVideoFraming()
+  const edges = getHeroEdges()
+  const useAmbientEdges = framing.mode === 'contain' && edges === 'ambient'
   const selectedSource = candidateSources[sourceIndex]
 
   useEffect(() => {
@@ -143,46 +154,89 @@ export function LandscapeVideo({ progress, reducedMotion, onAvailabilityChange }
       aria-hidden="true"
       style={{ backgroundColor: '#0E1018', opacity: 1 - fade }}
     >
-      <video
-        ref={videoRef}
-        key={selectedSource}
-        className="absolute inset-0 h-full w-full"
-        style={{
-          objectFit: framing.fit,
-          objectPosition: framing.position,
-          opacity: ready ? 1 : 0,
-          transition: 'opacity 200ms ease-out',
-        }}
-        src={selectedSource}
-        poster={POSTER}
-        data-hero-quality={quality}
-        data-hero-source={selectedSource}
-        data-hero-framing={framing.mode}
-        autoPlay={shouldAutoplay}
-        loop={loopEligible}
-        muted
-        playsInline
-        preload={shouldAutoplay ? 'metadata' : 'none'}
-        onLoadedMetadata={(event) => {
-          setLoopEligible(event.currentTarget.duration >= 20)
-        }}
-        onLoadedData={() => setReady(true)}
-        onError={() => {
-          setReady(false)
-          setLoopEligible(false)
-          setSourceIndex(index => Math.min(index + 1, candidateSources.length - 1))
-        }}
-      />
-      {!ready && !posterFailed && (
-        <img
-          src={POSTER}
-          alt=""
-          className="absolute inset-0 h-full w-full"
-          style={{ objectFit: framing.fit, objectPosition: framing.position }}
-          onLoad={() => setPosterReady(true)}
-          onError={() => setPosterFailed(true)}
+      {/* Edge fill uses the already-requested static poster (not another video).
+          It lives BEHIND the sharp video and is visible only in the letterbox
+          margins of the contained 16:9 frame. It never filters the main video. */}
+      {useAmbientEdges && (
+        <div
+          className="pointer-events-none absolute -inset-10"
+          aria-hidden="true"
+          style={{
+            backgroundImage: `url("${POSTER}")`,
+            backgroundPosition: 'center center',
+            backgroundSize: 'cover',
+            filter: 'blur(24px) brightness(0.57) saturate(0.82)',
+            transform: 'scale(1.04)',
+          }}
         />
       )}
+      <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+        {/* A real 16:9 video-sized element avoids the opaque black letterboxing
+            that <video object-fit=contain> can paint into its own full-screen
+            layout box. In cover modes, keep the old full-stage geometry. */}
+        <div
+          className={framing.mode === 'contain'
+            ? 'relative w-full max-h-full shrink-0 overflow-hidden'
+            : 'absolute inset-0 overflow-hidden'}
+          style={framing.mode === 'contain' ? {
+            aspectRatio: '16 / 9',
+            maxWidth: 'calc((100svh - 3.5rem) * 1.7777778)',
+            // Feather only the foreground frame boundary into the side fill.
+            // The video remains 100% sharp everywhere else.
+            WebkitMaskImage: useAmbientEdges
+              ? 'linear-gradient(to right, transparent 0%, black 1.1%, black 98.9%, transparent 100%)'
+              : undefined,
+            maskImage: useAmbientEdges
+              ? 'linear-gradient(to right, transparent 0%, black 1.1%, black 98.9%, transparent 100%)'
+              : undefined,
+          } : undefined}
+          data-hero-edges={edges}
+        >
+          <video
+            ref={videoRef}
+            key={selectedSource}
+            className="absolute inset-0 h-full w-full"
+            style={{
+              objectFit: framing.mode === 'contain' ? 'cover' : framing.fit,
+              objectPosition: framing.position,
+              opacity: ready ? 1 : 0,
+              transition: 'opacity 200ms ease-out',
+            }}
+            src={selectedSource}
+            poster={POSTER}
+            data-hero-quality={quality}
+            data-hero-source={selectedSource}
+            data-hero-framing={framing.mode}
+            autoPlay={shouldAutoplay}
+            loop={loopEligible}
+            muted
+            playsInline
+            preload={shouldAutoplay ? 'metadata' : 'none'}
+            onLoadedMetadata={(event) => {
+              setLoopEligible(event.currentTarget.duration >= 20)
+            }}
+            onLoadedData={() => setReady(true)}
+            onError={() => {
+              setReady(false)
+              setLoopEligible(false)
+              setSourceIndex(index => Math.min(index + 1, candidateSources.length - 1))
+            }}
+          />
+          {!ready && !posterFailed && (
+            <img
+              src={POSTER}
+              alt=""
+              className="absolute inset-0 h-full w-full"
+              style={{
+                objectFit: framing.mode === 'contain' ? 'cover' : framing.fit,
+                objectPosition: framing.position,
+              }}
+              onLoad={() => setPosterReady(true)}
+              onError={() => setPosterFailed(true)}
+            />
+          )}
+        </div>
+      </div>
     </div>
   )
 }
