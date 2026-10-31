@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { heroMediaUrl } from '../lib/hero-media.js'
 
 interface LandscapeVideoProps {
   progress: number
@@ -32,6 +33,10 @@ const VIDEO_ASPECT_RATIO: Record<VideoAspect, number> = {
   '21x9': 3840 / 1644,
 }
 const NAV_HEIGHT = 56
+// Build-time public URL; empty for local Vite and local asset-preview builds.
+// Example: VITE_HERO_MEDIA_ORIGIN=https://media.inferenceex.com
+const MEDIA_ORIGIN = import.meta.env.VITE_HERO_MEDIA_ORIGIN || ''
+const mediaUrl = (localPath: string) => heroMediaUrl(localPath, MEDIA_ORIGIN)
 const LEGACY_VIDEO = '/media/alpine-lake-hero.mp4'
 
 interface VideoCandidate {
@@ -54,9 +59,13 @@ function makeCandidates(aspect: VideoAspect, quality: VideoQuality): VideoCandid
   const aspects: VideoAspect[] = aspect === '21x9' ? ['21x9', '16x9'] : ['16x9']
   return [
     ...aspects.flatMap(a => qualities.map(q => ({
-      path: VIDEO_BY_ASPECT[a][q], poster: POSTERS[a], aspect: a,
+      path: mediaUrl(VIDEO_BY_ASPECT[a][q]), poster: mediaUrl(POSTERS[a]), aspect: a,
     }))),
-    { path: LEGACY_VIDEO, poster: POSTERS['16x9'], aspect: '16x9' },
+    // Older optional local review footage is never hosted in R2; don't
+    // request an HTML SPA fallback or nonexistent file in public builds.
+    ...(!MEDIA_ORIGIN
+      ? [{ path: LEGACY_VIDEO, poster: mediaUrl(POSTERS['16x9']), aspect: '16x9' as const }]
+      : []),
   ]
 }
 
