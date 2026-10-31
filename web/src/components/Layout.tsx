@@ -12,6 +12,7 @@ import { MineralAurora, NetworkHeartbeat, useNetworkPulses } from './MineralAuro
 export { TRUST_COLORS }
 
 const PRIMARY_NAV = [
+  { path: '/start', label: 'Getting Started', icon: StartIcon },
   { path: '/overview', label: 'Overview', icon: OverviewIcon },
   { path: '/chat', label: 'Chat', icon: ChatIcon },
   { path: '/exchange', label: 'Exchange', icon: ExchangeIcon },
@@ -29,6 +30,15 @@ const ACCOUNT_NAV = [
 ]
 
 // ─── Icons (simple SVG, 18x18) ──────────────────────────────
+
+function StartIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <circle cx="9" cy="9" r="6.5" />
+      <path d="M11.4 6.6l-1.6 3.2-3.2 1.6 1.6-3.2z" />
+    </svg>
+  )
+}
 
 function OverviewIcon({ className }: { className?: string }) {
   return (
@@ -196,7 +206,7 @@ export function Layout() {
           <NavItem
             key={item.path}
             {...item}
-            active={location.pathname === item.path}
+            active={location.pathname === item.path || (item.path === '/start' && location.pathname.startsWith('/start/'))}
           />
         ))}
       </nav>
@@ -353,6 +363,7 @@ export function Layout() {
 // ─── Page titles ─────────────────────────────────────────────
 
 const PAGE_META: Record<string, { title: string; subtitle: string }> = {
+  '/start': { title: 'Getting Started', subtitle: 'Choose a path, verify what is real, and tell us where you get stuck.' },
   '/overview': { title: 'Network', subtitle: 'Operational transparency for the exchange.' },
   '/chat': { title: 'Chat', subtitle: 'Familiar entry point first. Exchange mechanics stay one click away.' },
   '/exchange': { title: 'Exchange', subtitle: 'A serious market surface for users who care about the routing mechanics.' },
@@ -369,7 +380,7 @@ const PAGE_META: Record<string, { title: string; subtitle: string }> = {
 }
 
 function PageTitle({ pathname }: { pathname: string }) {
-  const meta = PAGE_META[pathname.startsWith('/docs') ? '/docs' : pathname]
+  const meta = PAGE_META[pathname.startsWith('/docs') ? '/docs' : pathname.startsWith('/start/') ? '/start' : pathname]
   if (!meta) return null
 
   const gradient =
