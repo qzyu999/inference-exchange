@@ -1,5 +1,38 @@
 # Local cinematic landing page media (#107, #185)
 
+## Ambient side fill for the contained 16:9 landscape
+
+The preferred `heroFit=contain` framing preserves the full 16:9 mountain,
+reflection, sun, and moon. In browser viewports with a different aspect ratio,
+the unused bands used to be painted near-black. The review prototype now
+fills those bands with **one darkened, softly blurred static image** sourced
+from the existing 1920×1080 WebP poster, placed *behind* the video.
+
+The actual video stays perfectly sharp and uncropped: it is rendered in
+a centered true-16:9 HTML frame (rather than a full-size `<video>`
+that might paint its own black letterbox). A narrow ~1.1%-per-side mask
+softens the boundary. For wide desktop viewports this feathers the **left and
+right** edges; for taller layouts it feathers the **top and bottom**.
+The ambient backplate is darkened/desaturated to keep it subordinate
+to the motion-picture frame and the text.
+
+There is **still exactly one video element and one decoded video stream**.
+No second MP4, canvas, WebGL context, new media asset, or video request is
+needed. Both layers reuse the existing `seedance_2_5_mountain_lake_poster.webp`
+file already used before the first video frame loads. The backplate is
+presentational and is not intended to look like real newly filmed scenery.
+
+Compare on the same optimized video source:
+
+- `http://localhost:5176/?heroQuality=4k&heroFit=contain` — new ambient edges (default)
+- `http://localhost:5176/?heroQuality=4k&heroFit=contain&heroEdges=solid` — original black letterbox
+- `http://localhost:5176/?heroQuality=4k&heroFit=wide` — older cropped full-bleed video, no ambient fill
+
+The background's color/blur does **not** touch the sharp central video,
+and does not change the crystal-alignment correction, text shade, scrolling
+or particle animation. Check 1920×900, 1440×900, phone portrait, Safari
+and Chromium before approving a production merge.
+
 ## Optical mountain/crystal alignment and local text shade
 
 The 16:9 landscape is centered by `object-fit: contain` and the Three.js
