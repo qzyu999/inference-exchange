@@ -220,7 +220,7 @@ function EditorialStory({
               )}
               {index === 2 && (
                 <p className="mt-5 text-xs leading-relaxed max-w-md" style={{ color: '#FFF1D6', textShadow: HERO_BODY_SHADOW }}>
-                  Trust levels are provider claims until independently verified. Browser chat uses TLS, not end-to-end encryption.
+                  Trust levels are provider claims until independently verified. Browser chat uses TLS; it is not end-to-end encrypted.
                 </p>
               )}
               {index === 3 && (
@@ -339,7 +339,7 @@ function LiveExchangeCard() {
           Trust levels are claims
         </div>
         <div className="text-xs mt-0.5" style={{ color: '#a9a294' }}>
-          Shown as self-reported until verified. Browser chat uses TLS, not end-to-end encryption.
+          Shown as self-reported until verified. Browser chat uses TLS; it is not end-to-end encrypted.
         </div>
       </div>
     </div>
