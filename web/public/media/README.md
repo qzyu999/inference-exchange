@@ -1,5 +1,40 @@
 # Local cinematic landing page media (#107, #185)
 
+## Canonical landing-page review branch (October 30, 2026)
+
+**Continue all cinematic landing-page work on**
+`feat/185-mineral-mandala-dissolve`. GitHub comparison verified this branch
+contains **all commits** from both previous prototype branches:
+
+- `feat/107-cinematic-lake-video-scroll` — ancestor, 0 commits missing
+- `feat/185-landing-editorial-snap-chapters` — ancestor, 0 commits missing
+
+No merge or cherry-pick is needed. Treat the prior branches as rollback
+checkpoints, not active development branches; the current review worktree
+is `~/projects/inference-exchange-mandala-review` (port 5176). Keep the
+separate worktrees intact while evaluating the experience. Do **not**
+merge to `main` until the visual review and alpha regressions pass.
+
+### Future high-resolution landscape plate
+
+For the next source video, aim for a **natively generated/mastered 3840×2160
+(16:9), 30-second, locked-camera, clean-loop** landscape (or an even
+higher-resolution master from which 16:9 desktop framing is composed).
+Keep the central mountain and its reflection unobstructed, preserve the
+symmetrical sun/moon positions, and leave sufficient room for the editorial
+copy at left. The current video source is 1650×720 (ultrawide); simple
+upscaling will not restore missing detail or fix aspect-ratio composition.
+
+**Do not default to forcing a 4K video download for every visitor.** Author
+a browser-optimized 1080p/1440p derivative, a good poster still, and a
+conditional 4K source for capable desktop connections. Keep video silent,
+reliable on Safari and Chrome, and small enough for a public alpha.
+The existing integration reads `/media/alpine-lake-hero.mp4` and
+`/media/alpine-lake-poster.webp`, so replacing those in the review worktree
+is sufficient for a first A/B test; keep originals for easy rollback. Test
+both `heroFit=cover` and `heroFit=contain` and verify loop seams.
+
+
 The photo/video files are intentionally not committed to GitHub on this
 experimental branch. Use the locally provided media bundle to test the scene.
 
