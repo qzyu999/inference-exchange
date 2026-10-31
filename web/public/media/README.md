@@ -1,5 +1,8 @@
 # Local cinematic landing page media (#107, #185)
 
+> **Deployment update (Cloudflare R2/CDN):** See [docs/hero-media-cloudflare-r2.md](../../../docs/hero-media-cloudflare-r2.md) for the new upload/verification workflow, public `media.inferenceex.com` proposal, `VITE_HERO_MEDIA_ORIGIN` build-time switch, local Vite vs CDN modes, and release gate. This PR remains draft until R2 assets are live and verified. The rest of this README preserves the earlier local-review history.
+
+
 ## 21:9 Runway Aleph desktop master (October 30, 2026) — CURRENT
 
 The new supplied Runway Aleph 2.0 widescreen export has been inspected:
