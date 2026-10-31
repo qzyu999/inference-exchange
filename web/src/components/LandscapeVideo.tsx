@@ -50,7 +50,7 @@ function makeCandidates(aspect: VideoAspect, quality: VideoQuality): VideoCandid
   // Prefer a lower bitrate with the correct composition over switching ratio.
   const qualities: VideoQuality[] = quality === '4k'
     ? ['4k', '1080p', '720p']
-    : quality === '1080p' ? ['1080p', '720p', '4k'] : ['720p', '1080p', '4k']
+    : quality === '1080p' ? ['1080p', '720p'] : ['720p']
   const aspects: VideoAspect[] = aspect === '21x9' ? ['21x9', '16x9'] : ['16x9']
   return [
     ...aspects.flatMap(a => qualities.map(q => ({
@@ -141,7 +141,7 @@ function getVideoFraming(aspect: VideoAspect): {
  * Serve exactly one web-optimized source at a time. This is NOT adaptive
  * bitrate streaming: quality is chosen once on page load, based on viewport
  * and optional connection hints. The browser progressively fetches/buffers the
- * selected MP4; it never requests the other renditions unless the first fails.
+ * selected MP4; it requests another rendition only when the first fails.
  * Full ABR would require HLS/DASH segmented media and a streaming pipeline.
  */
 export function LandscapeVideo({ progress, reducedMotion, onAvailabilityChange }: LandscapeVideoProps) {
@@ -228,7 +228,7 @@ export function LandscapeVideo({ progress, reducedMotion, onAvailabilityChange }
     >
       {/* Edge fill uses the already-requested static poster (not another video).
           It lives BEHIND the sharp video and is visible only in the letterbox
-          margins of the contained 16:9 frame. It never filters the main video. */}
+          margins of a contained source frame. It never filters the main video. */}
       {useAmbientEdges && (
         <div
           className="pointer-events-none absolute -inset-10"
@@ -243,7 +243,7 @@ export function LandscapeVideo({ progress, reducedMotion, onAvailabilityChange }
         />
       )}
       <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-        {/* A real 16:9 video-sized element avoids the opaque black letterboxing
+        {/* A source-aspect-matched frame avoids the opaque black letterboxing
             that <video object-fit=contain> can paint into its own full-screen
             layout box. In cover modes, keep the old full-stage geometry. */}
         <div
