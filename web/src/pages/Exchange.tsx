@@ -386,6 +386,17 @@ export function Exchange() {
   const [filterSize, setFilterSize] = useState<string | null>(null)
   const [filterPriceCap, setFilterPriceCap] = useState<number | null>(null)
   const [filterFamily, setFilterFamily] = useState<string | null>(null)
+  const filtersActive = filterOpen !== null || filterCache || filterBenchmarked ||
+    filterSize !== null || filterPriceCap !== null || filterFamily !== null
+
+  function clearFilters() {
+    setFilterOpen(null)
+    setFilterCache(false)
+    setFilterBenchmarked(false)
+    setFilterSize(null)
+    setFilterPriceCap(null)
+    setFilterFamily(null)
+  }
   const [sortCol, setSortCol] = useState<'output' | 'input' | 'cache' | 'quality' | 'tps'>('output')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
   // Resolve active model
@@ -607,6 +618,7 @@ export function Exchange() {
       <ModelSearch
         items={searchItems}
         value={activeKey}
+        selectedName={activeUnified?.name}
         onChange={setSelectedKey}
         label="Search exchange models"
         placeholder="Search models (qwen, llama 70b, deepseek, claude)"
@@ -645,6 +657,11 @@ export function Exchange() {
                 <option value="">All families</option>
                 {families.map(f => <option key={f}>{f}</option>)}
               </select>
+              <button type="button" onClick={clearFilters} disabled={!filtersActive}
+                className="rounded border border-gray-200 bg-white px-2 py-1 text-[10px] font-semibold disabled:opacity-40"
+                style={{ color: C.blueBlack }}>
+                Clear filters
+              </button>
             </div>
 
           </>

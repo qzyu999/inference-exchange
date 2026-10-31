@@ -61,6 +61,7 @@ jobs:
       - run: node src/lib/alpha-ui.test.mjs
       - run: node src/lib/chat-models.test.mjs
       - run: node src/lib/model-search.test.mjs
+      - run: node src/lib/exchange-filter-recovery.test.mjs
       - run: node src/lib/chat-model-picker.test.mjs
       - run: node src/lib/key-creation.test.mjs
       - run: node src/lib/admin-controls.test.mjs

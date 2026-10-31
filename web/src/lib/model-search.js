@@ -12,3 +12,11 @@ export function searchModelItems(items, query) {
     return tokens.every(token => haystack.includes(token))
   })
 }
+
+/**
+ * An empty result list may be the result of a *reversible filter*, not a
+ * permanently unavailable catalog. Keep the filter popup accessible (#194).
+ */
+export function isModelSearchDisabled({ disabled = false, loading = false, resultCount = 0, hasFilters = false }) {
+  return Boolean(disabled || loading || (resultCount === 0 && !hasFilters))
+}

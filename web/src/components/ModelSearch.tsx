@@ -1,5 +1,5 @@
 import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
-import { searchModelItems } from '../lib/model-search.js'
+import { searchModelItems, isModelSearchDisabled } from '../lib/model-search.js'
 import { C } from '../lib/theme'
 
 export interface ModelSearchItem {
@@ -24,6 +24,8 @@ interface ModelSearchProps {
   loading?: boolean
   disabled?: boolean
   selectedLabel?: string
+  /** Display the selected model even when it's temporarily hidden by Exchange filters. */
+  selectedName?: string
 }
 
 /**
@@ -34,7 +36,7 @@ interface ModelSearchProps {
 export function ModelSearch({
   items, value, onChange, label, placeholder, emptyMessage,
   className = '', filters, loading = false, disabled = false,
-  selectedLabel = 'Select a model',
+  selectedLabel = 'Select a model', selectedName,
 }: ModelSearchProps) {
   const listboxId = useId()
   const triggerRef = useRef<HTMLButtonElement>(null)
@@ -49,7 +51,11 @@ export function ModelSearch({
   const active = Math.min(activeIndex, Math.max(0, filtered.length - 1))
   const activeOptionId = filtered.length ? listboxId + '-option-' + active : undefined
   const selected = items.find(item => item.key === value)
-  const blocked = disabled || loading || items.length === 0
+  // Filters live inside the popover. Never disable it just because a filter
+  // yielded zero results, or users cannot turn that filter off (#194).
+  const blocked = isModelSearchDisabled({
+    disabled, loading, resultCount: items.length, hasFilters: Boolean(filters),
+  })
 
   useEffect(() => {
     if (!open) return
@@ -120,11 +126,13 @@ export function ModelSearch({
         </svg>
         <span className="min-w-0 flex-1">
           <span className="block truncate text-[13px] font-semibold">
-            {loading ? 'Checking models…' : selected?.name || value || (items.length ? selectedLabel : emptyMessage)}
+            {loading ? 'Checking models…' : selected?.name || selectedName || value || (items.length ? selectedLabel : emptyMessage)}
           </span>
           <span className="block truncate text-[10px] text-gray-500">
-            {value && !selected && !loading ? 'Unavailable — choose another model' :
-              items.length === 1 ? '1 model' : items.length + ' models'}
+            {value && !selected && !loading
+              ? (filters ? 'Selected model hidden by filters — adjust filters' : 'Unavailable — choose another model')
+              : items.length === 0 && filters ? 'No matches — adjust filters'
+              : items.length === 1 ? '1 model' : items.length + ' models'}
           </span>
         </span>
         <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="shrink-0 opacity-60">
@@ -191,7 +199,7 @@ export function ModelSearch({
               </div>
             ))}
             {!filtered.length && <div className="px-3 py-6 text-center text-xs text-gray-500">
-              No models match your search or filters.
+              No models match your search or filters. Change or clear the filters above.
             </div>}
           </div>
           <div className="border-t border-gray-100 px-3 py-2 text-[10px] text-gray-500">
