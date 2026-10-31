@@ -285,10 +285,11 @@ export function Provide() {
           a Metal-enabled llama.cpp inference server.
         </p>
         <div className="rounded-xl bg-amber-50 p-4 text-sm text-amber-900">
-          <strong>Provider enrollment is not open by default.</strong> This is a preview of the
-          self-service workflow. Credential issuance is available only in a supervised enrollment
-          window after independent Mac setup is qualified. Consumer testers do not need to
-          enroll a provider. Real payouts are not available.
+          <strong>Private-alpha availability:</strong> Provider enrollment is disabled by default while
+          independent Mac setup is qualified. This is a temporary testing restriction, not how
+          enrollment will work in general release: providers should be able to enroll on demand.
+          This page cannot verify the live global gate; an HTTP 503 means enrollment is unavailable.
+          Consumer testers do not need to enroll a provider. Real payouts are not available.
         </div>
         {loading ? <p role="status" className="text-sm text-gray-500">Checking your account…</p> :
           !user ? (
