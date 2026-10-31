@@ -55,6 +55,14 @@ def _add_trace(trace: dict, consumer_id: str | None = None):
     if len(_request_traces) > MAX_TRACES:
         _request_traces.pop(0)
 
+def _complete_trace(request_id: str, consumer_id: str, served_model: str | None, latency_ms: int):
+    """Amend the original match decision, keeping request history unambiguous."""
+    for trace in reversed(_request_traces):
+        if trace.get("request_id") == request_id[:8] and trace.get(TRACE_OWNER_KEY) == consumer_id:
+            if trace.get("status") in ("matched", "matched_from_queue"):
+                trace.update(status="completed", served_model=served_model, latency_ms=latency_ms)
+            return
+
 
 def traces_for(consumer_id: str | None, limit: int = 30) -> list[dict]:
     """Recent traces, newest first. consumer_id=None returns all traces (admin view)."""

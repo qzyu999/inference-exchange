@@ -147,6 +147,8 @@ class ProviderAgent:
         logger.info(f"[{req.request_id[:8]}] Inference started: {req.model}")
 
         try:
+            if req.model != "default" and req.model != self.engine.model_name:
+                raise ValueError("Requested model is not loaded by this provider")
             # Decrypt messages if E2E encrypted
             if req.encrypted_body:
                 payload = EncryptedPayload.from_dict(req.encrypted_body)
@@ -182,6 +184,7 @@ class ProviderAgent:
                 request_id=req.request_id,
                 tokens_generated=tokens_generated,
                 time_seconds=elapsed,
+                served_model=self.engine.model_name,
             )
             await ws.send(done.model_dump_json())
 

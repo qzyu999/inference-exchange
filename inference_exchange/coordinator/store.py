@@ -58,6 +58,8 @@ CREATE TABLE IF NOT EXISTS transactions (
     connection_id TEXT NOT NULL DEFAULT '',
     provider_name TEXT NOT NULL DEFAULT '',
     model TEXT NOT NULL,
+    requested_model TEXT,
+    served_model TEXT,
     input_tokens INTEGER NOT NULL,
     output_tokens INTEGER NOT NULL,
     cached_tokens INTEGER NOT NULL DEFAULT 0,
@@ -245,6 +247,13 @@ class Store:
 
     def _migrate(self):
         """Apply schema migrations for existing databases."""
+        # #134: idempotent additive attribution; never guess old transactions.
+        identity_columns = {r[1] for r in self._conn.execute("PRAGMA table_info(transactions)")}
+        for name in ("requested_model", "served_model"):
+            if name not in identity_columns:
+                self._conn.execute(f"ALTER TABLE transactions ADD COLUMN {name} TEXT")
+        self._conn.commit()
+
         # Add cached_tokens column to transactions (added in v0.2)
         columns = {row[1] for row in self._conn.execute("PRAGMA table_info(transactions)").fetchall()}
         if "cached_tokens" not in columns:
@@ -480,6 +489,8 @@ class Store:
         queued: bool = False,
         queue_wait_ms: int = 0,
         connection_id: str = "",
+        requested_model: str | None = None,
+        served_model: str | None = None,
     ) -> dict | None:
         """Charge consumer, credit provider, log transaction.
 
@@ -517,13 +528,15 @@ class Store:
             self._conn.execute(
                 """INSERT INTO transactions (
                     request_id, consumer_id, provider_id, connection_id, provider_name, model,
+                    requested_model, served_model,
                     input_tokens, output_tokens, cached_tokens,
                     cost_micro, cost_input_micro, cost_output_micro, cost_cache_micro,
                     provider_earning_micro, platform_fee_micro,
                     trust_level, encrypted, preference,
                     latency_ms, ttft_ms, tps, queued, queue_wait_ms, timestamp
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (request_id, consumer_id, provider_id, connection_id, provider_name, model,
+                 requested_model if requested_model is not None else model, served_model,
                  input_tokens, output_tokens, cached_tokens,
                  total_cost, input_cost, output_cost, cache_cost,
                  provider_earning, platform_fee,
@@ -899,6 +912,7 @@ class Store:
             params.append(before_id)
         rows = self._conn.execute(
             f"""SELECT t.id, n.node_id, t.timestamp, t.model,
+                       t.requested_model, t.served_model,
                        t.input_tokens, t.output_tokens, t.cached_tokens,
                        t.cost_micro, t.provider_earning_micro, t.platform_fee_micro
                 FROM transactions t

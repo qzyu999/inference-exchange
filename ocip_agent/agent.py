@@ -484,6 +484,10 @@ class OCIPAgent:
         request_id = req.request_id
 
         try:
+            served_model = self._model_identity.get("name", "")
+            if req.model != "default" and req.model != served_model:
+                raise ValueError("Requested model is not loaded by this provider")
+
             # Step 1: Decrypt request
             consumer_public_key = None
             if req.encrypted_body:
@@ -565,6 +569,7 @@ class OCIPAgent:
                 input_tokens=input_tokens,
                 cached_tokens=cached_tokens,
                 time_seconds=elapsed,
+                served_model=served_model,
             )
             await ws.send(done.model_dump_json())
 

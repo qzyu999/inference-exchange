@@ -191,7 +191,9 @@ async def get_history(request: Request):
         "transactions": [
             {
                 "request_id": dict(r)["request_id"][:8],
-                "model": dict(r)["model"],
+                "model": dict(r)["model"],  # legacy requested model
+                "requested_model": dict(r).get("requested_model") or dict(r)["model"],
+                "served_model": dict(r).get("served_model"),
                 "provider_name": dict(r).get("provider_name", ""),
                 "input_tokens": dict(r)["input_tokens"],
                 "output_tokens": dict(r)["output_tokens"],

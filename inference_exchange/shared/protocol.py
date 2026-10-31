@@ -123,6 +123,7 @@ class InferenceDone(BaseModel):
     input_tokens: int = 0
     cached_tokens: int = 0  # 0 if engine doesn't report cache hits
     time_seconds: float = 0
+    served_model: str | None = None  # Optional confirmation from updated providers.
 
 
 class InferenceError(BaseModel):
