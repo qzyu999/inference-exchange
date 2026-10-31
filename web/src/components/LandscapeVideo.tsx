@@ -6,26 +6,79 @@ interface LandscapeVideoProps {
   onAvailabilityChange: (available: boolean) => void
 }
 
-const VIDEO = '/media/alpine-lake-hero.mp4'
-const POSTER = '/media/alpine-lake-poster.webp'
+type VideoQuality = '720p' | '1080p' | '4k'
 
-// Fill the entire scene under the navbar with no letterbox gaps.
-// The 1650x720 footage is wider than a standard desktop scene: cover crops
-// a little of the sides rather than stretching the image or creating top/bottom
-// matte bars. ?heroFit=contain lets reviewers compare the uncropped framing.
+const VIDEO_BY_QUALITY: Record<VideoQuality, string> = {
+  '720p': '/media/seedance_2_5_mountain_lake_720p.mp4',
+  '1080p': '/media/seedance_2_5_mountain_lake_1080p.mp4',
+  '4k': '/media/seedance_2_5_mountain_lake_4k.mp4',
+}
+const POSTER = '/media/seedance_2_5_mountain_lake_poster.webp'
+const LEGACY_VIDEO = '/media/alpine-lake-hero.mp4'
+
+interface NetworkHints {
+  effectiveType?: string
+  downlink?: number
+  saveData?: boolean
+}
+
+function pickQuality(): VideoQuality {
+  // Deterministic reviewer override: ?heroQuality=720p|1080p|4k.
+  const override = new URLSearchParams(window.location.search).get('heroQuality')
+  if (override === '720p' || override === '1080p' || override === '4k') return override
+
+  const nav = navigator as Navigator & {
+    connection?: NetworkHints
+    deviceMemory?: number
+  }
+  const connection = nav.connection
+  const physicalWidth = window.innerWidth * (window.devicePixelRatio || 1)
+  const physicalHeight = window.innerHeight * (window.devicePixelRatio || 1)
+  const slowNetwork = connection?.saveData === true
+    || /^(slow-2g|2g|3g)$/.test(connection?.effectiveType ?? '')
+
+  // Err on the small side: media decoding and cellular data are often more
+  // important than having 4K pixels on a physically small screen.
+  if (slowNetwork || window.innerWidth < 768 || physicalWidth < 1280) return '720p'
+
+  // Four-K is opt-in automatically ONLY when the browser reports good network
+  // conditions and a large, capable display. Safari does not expose the
+  // Network Information API, so its safe default remains 1080p.
+  const largeDisplay = physicalWidth >= 3200 && physicalHeight >= 1800
+  const fastConnection = connection?.effectiveType === '4g'
+    && (connection.downlink ?? 0) >= 12
+  const capableMachine = (nav.deviceMemory ?? 8) >= 8
+    && (nav.hardwareConcurrency || 4) >= 4
+  return largeDisplay && fastConnection && capableMachine ? '4k' : '1080p'
+}
+
 function getVideoFit(): 'contain' | 'cover' {
   return new URLSearchParams(window.location.search).get('heroFit') === 'contain'
     ? 'contain'
     : 'cover'
 }
 
-// Optional media: if the MP4 isn't present, the existing Three.js scene remains
-// available. Copy video/poster into web/public/media (see media/README.md).
+/**
+ * Serve exactly one web-optimized source at a time. This is NOT adaptive
+ * bitrate streaming: quality is chosen once on page load, based on viewport
+ * and optional connection hints. The browser progressively fetches/buffers the
+ * selected MP4; it never requests the other renditions unless the first fails.
+ * Full ABR would require HLS/DASH segmented media and a streaming pipeline.
+ */
 export function LandscapeVideo({ progress, reducedMotion, onAvailabilityChange }: LandscapeVideoProps) {
   const videoRef = useRef<HTMLVideoElement>(null)
+  const [quality] = useState<VideoQuality>(pickQuality)
+  const candidateSources = quality === '4k'
+    ? [VIDEO_BY_QUALITY['4k'], VIDEO_BY_QUALITY['1080p'], LEGACY_VIDEO]
+    : quality === '720p'
+      ? [VIDEO_BY_QUALITY['720p'], VIDEO_BY_QUALITY['1080p'], LEGACY_VIDEO]
+      : [VIDEO_BY_QUALITY['1080p'], LEGACY_VIDEO]
+  const [sourceIndex, setSourceIndex] = useState(0)
   const [ready, setReady] = useState(false)
-  const fit = getVideoFit()
   const [loopEligible, setLoopEligible] = useState(false)
+  const [posterFailed, setPosterFailed] = useState(false)
+  const fit = getVideoFit()
+  const selectedSource = candidateSources[sourceIndex]
 
   useEffect(() => {
     onAvailabilityChange(ready)
@@ -38,6 +91,7 @@ export function LandscapeVideo({ progress, reducedMotion, onAvailabilityChange }
       video.pause()
       return
     }
+
     const sync = () => {
       if (document.hidden) video.pause()
       else if (!video.ended) void video.play().catch(() => {})
@@ -45,23 +99,21 @@ export function LandscapeVideo({ progress, reducedMotion, onAvailabilityChange }
     document.addEventListener('visibilitychange', sync)
     sync()
     return () => document.removeEventListener('visibilitychange', sync)
-  }, [reducedMotion, ready])
+  }, [reducedMotion, ready, sourceIndex])
 
-  // Loop only longer, near-stationary source footage. The original short Kling
-  // preview is not seamless, so it still stops rather than visibly jumping.
+  // The new sources are silent, 30-second, locked-off video plates.
+  // Keep the landscape bright until the very last crystal dissolve.
   const fade = Math.min(1, Math.max(0, (progress - 0.82) / 0.18))
 
-  // Match the opaque navigation bar. No blurred poster or color wash behind
-  // the actual footage (particularly at the letterbox edges).
   return (
     <div
       className="pointer-events-none absolute inset-0 overflow-hidden"
       aria-hidden="true"
       style={{ backgroundColor: '#0E1018', opacity: 1 - fade }}
     >
-      {/* Raw video only. Letterboxing uses a flat matte, not blurred footage. */}
       <video
         ref={videoRef}
+        key={selectedSource}
         className="absolute inset-0 h-full w-full"
         style={{
           objectFit: fit,
@@ -69,33 +121,32 @@ export function LandscapeVideo({ progress, reducedMotion, onAvailabilityChange }
           opacity: ready ? 1 : 0,
           transition: 'opacity 200ms ease-out',
         }}
-        src={VIDEO}
+        src={selectedSource}
         poster={POSTER}
+        data-hero-quality={quality}
+        data-hero-source={selectedSource}
         autoPlay={!reducedMotion}
         loop={loopEligible}
         muted
         playsInline
-        preload="metadata"
+        preload={reducedMotion ? 'none' : 'metadata'}
         onLoadedMetadata={(event) => {
-          // Use the 30-second stationary footage as an ambient loop. A missing
-          // asset or an old five-second draft retains the original hold behavior.
           setLoopEligible(event.currentTarget.duration >= 20)
         }}
         onLoadedData={() => setReady(true)}
         onError={() => {
-          setLoopEligible(false)
           setReady(false)
+          setLoopEligible(false)
+          setSourceIndex(index => Math.min(index + 1, candidateSources.length - 1))
         }}
       />
-
-      {/* Show the full-resolution still while the first video frame loads,
-          also for reduced-motion visitors whose video may not autoplay. */}
-      {!ready && (
+      {!ready && !posterFailed && (
         <img
           src={POSTER}
           alt=""
           className="absolute inset-0 h-full w-full"
           style={{ objectFit: fit, objectPosition: 'center center' }}
+          onError={() => setPosterFailed(true)}
         />
       )}
     </div>
