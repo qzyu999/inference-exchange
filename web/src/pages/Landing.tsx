@@ -111,9 +111,14 @@ const CHAPTER_COPY = [
 const HERO_TITLE_SHADOW = '0 1px 1px rgba(0,0,0,0.98), 0 2px 5px rgba(0,0,0,0.9), 0 4px 16px rgba(0,0,0,0.62)'
 const HERO_BODY_SHADOW = '0 1px 2px rgba(0,0,0,1), 0 2px 7px rgba(0,0,0,0.96), 0 3px 13px rgba(0,0,0,0.7)'
 
-// Optional comparison of the OLD full-left-screen vignette. The default
-// paints no overlay over the scenery: ?heroShade=legacy restores the old wash.
-const SHOW_LEGACY_SHADE = new URLSearchParams(window.location.search).get('heroShade') === 'legacy'
+// The default is a local, feathered text-area shade. It never blurs the
+// pixels or stretches across the mountain. URL options make fair A/B checks:
+// ?heroShade=off (no shade) | ?heroShade=legacy (old broad dark wash).
+const SHADE_MODE = new URLSearchParams(window.location.search).get('heroShade')
+const SHOW_LEGACY_SHADE = SHADE_MODE === 'legacy'
+const SHOW_TEXT_SHADE = SHADE_MODE !== 'off' && !SHOW_LEGACY_SHADE
+// Debug-only visual centerline, at the same 50% stage x used by the video.
+const SHOW_ALIGNMENT_GUIDES = new URLSearchParams(window.location.search).get('heroGuides') === '1'
 
 function EditorialStory({
   activeIndex,
@@ -131,9 +136,20 @@ function EditorialStory({
       className="pointer-events-none absolute inset-0 z-20"
       style={{ opacity: 1 - exitProgress }}
     >
+      {SHOW_TEXT_SHADE && (
+        <div
+          className="pointer-events-none absolute inset-y-0 left-0 w-[min(95vw,850px)] sm:w-[min(72vw,850px)] lg:w-[min(48vw,850px)]"
+          aria-hidden="true"
+          style={{
+            // Only the left-middle copy region has meaningful density.
+            // The sky, summit and center lake are free of a screen-wide tint.
+            background: 'radial-gradient(ellipse 97% 56% at 23% 50%, rgba(5,11,21,0.58) 0%, rgba(5,11,21,0.36) 44%, rgba(5,11,21,0.10) 76%, rgba(5,11,21,0) 100%)',
+          }}
+        />
+      )}
       {SHOW_LEGACY_SHADE && (
         <div
-          className="absolute inset-y-0 left-0 w-[88%] sm:w-[72%] lg:w-[58%]"
+          className="pointer-events-none absolute inset-y-0 left-0 w-[88%] sm:w-[72%] lg:w-[58%]"
           aria-hidden="true"
           style={{
             background: 'linear-gradient(90deg, rgba(6,14,26,0.82) 0%, rgba(6,14,26,0.62) 42%, rgba(6,14,26,0.24) 76%, transparent 100%)',
@@ -449,6 +465,18 @@ export function Landing() {
               onSkip={skipStory}
               onNext={() => navigateToChapter(1)}
             />
+          )}
+          {SHOW_ALIGNMENT_GUIDES && (
+            <div className="pointer-events-none absolute inset-0 z-50" aria-hidden="true">
+              <div className="absolute inset-y-0 left-1/2 border-l border-dashed border-amber-300/90" />
+              <span
+                className="absolute left-1/2 top-3 -translate-x-1/2 rounded px-2 py-1 text-[10px] font-mono tracking-wide text-white"
+                style={{ background: 'rgba(4,10,20,0.82)' }}
+              >
+                Video center / camera axis
+              </span>
+              <span className="absolute left-1/2 top-1/2 h-2 w-2 -translate-x-1/2 -translate-y-1/2 rounded-full border border-amber-300 bg-amber-300/40" />
+            </div>
           )}
           {/* One actual product screen, revealed in-place over the very same
               pigment canvas. It is NOT a second page or second WebGL field. */}
