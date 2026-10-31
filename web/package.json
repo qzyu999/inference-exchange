@@ -9,7 +9,6 @@
     "prebuild": "node src/lib/hero-media.test.mjs",
     "build": "tsc -b && vite build",
     "check:hero-media": "node scripts/check-hero-media.mjs",
-    "check:hero-media": "node scripts/check-hero-media.mjs",
     "lint": "eslint .",
     "preview": "vite preview"
   },
