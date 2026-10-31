@@ -115,7 +115,7 @@ def test_real_sqlite_callback_micro_ledger_and_private_history(
     monkeypatch.setattr(ri, "_complete_trace", Mock())
 
     before_consumer = store.get_account("consumer-a")["balance_micro"]
-    before_provider = store.get_or_create_provider(p.billing_account_id)["balance_micro"]
+    before_provider = store.get_or_create_account(p.billing_account_id)["balance_micro"]
     cb = _make_billing_callback("req-new", requested, p, "consumer-a", 9, time.time() - 1)
     cb(InferenceDone(
         request_id="req-new", input_tokens=9, tokens_generated=2,
