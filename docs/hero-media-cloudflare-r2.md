@@ -104,6 +104,121 @@ Official docs:
 - [Stream player autoplay/loop behavior](https://developers.cloudflare.com/stream/viewing-videos/using-the-stream-player/)
 - [Basic dashboard upload](https://developers.cloudflare.com/stream/uploading-videos/upload-video-file/)
 
+## Real Cloudflare Stream 21:9 pilot — uploaded October 31, 2026
+
+The user uploaded the original 3840×1644, 30s ultrawide Runway master
+to Cloudflare Stream and provided its actual HLS playback URL:
+
+```text
+https://customer-5w3ijts4etcd5hi9.cloudflarestream.com/02af62eaa08146a6efe21b8a4d76a569/manifest/video.m3u8
+```
+
+**Security:** This is a public *playback* URL, not an API key. Cloudflare
+Stream **Allowed Origins** have been requested for `inferenceex.com`
+and `localhost:5176`; verify these are saved in dashboard before
+testing. By itself, a public video UID is not access control, billing cap,
+or protection against all scripted playback abuse. Do not commit
+Cloudflare API credentials.
+
+**Status:** The manifest URL matches Cloudflare's documented format.
+Live variant resolutions and authenticated/allowed-origin playback
+were **not** accessible to the build agent, so do not claim real
+360/480/720/1080 variants are verified until local inspection succeeds.
+
+### 1. Inspect the *actual* adaptive bitrate manifest
+
+Open a terminal on the Mac mini:
+
+```bash
+cd ~/projects/inference-exchange-mandala-review
+git pull --ff-only
+cd web
+npm run inspect:stream-hls
+```
+
+The command sends a **single HLS manifest request** with localhost
+Origin/Referer headers; it deliberately does **not** request media segments
+or autoplay the video. It prints Cloudflare's actual `RESOLUTION`,
+`BANDWIDTH`, `CODECS`, and rendition URI entries. If it reports 403,
+verify the video is `Ready` and the Allowed Origins list includes
+`localhost:5176`. If it reports DNS/network failure, inspect from
+the Mac mini's unrestricted network.
+
+Inspect the output: the ladder may cap at 1080p and may preserve or
+normalize the original 21:9 display ratio. **Do not guess** before
+seeing the playlist. Cloudflare documentation says Stream does not
+offer native 4K playback.
+
+### 2. Compare MP4 and HLS in the *existing* real landing page
+
+The PR includes a **localhost-only** opt-in HLS pilot. It does not
+affect the public site or the default local review. The HLS test uses
+the existing full-screen `LandscapeVideo` element with the same
+posters, crystals, and scroll transition, not a standalone iframe.
+
+```bash
+cd ~/projects/inference-exchange-mandala-review/web
+npm run dev -- --port 5176 --strictPort
+```
+
+Open these separately (on the same viewport/window and network):
+
+- **MP4 baseline**:
+  `http://localhost:5176/?heroAspect=21x9&heroFit=contain`
+- **HLS pilot**:
+  `http://localhost:5176/?heroAspect=21x9&heroFit=contain&heroDelivery=stream`
+
+The `heroAspect=21x9` override is only available on localhost so
+ordinary 16:9 monitors can test the 21:9 source without accidental
+cropping. For a real wide desktop, omit `heroAspect` and test the default
+2.05:1 threshold and `heroFit=center`.
+
+The HLS mode uses **native HLS where the browser supports it (Safari)**
+and lazily loads a pinned **hls.js 1.7.4 UMD bundle** from jsDelivr for
+Chrome/Firefox/Edge. This third-party script is used only in the
+explicit localhost pilot: before production, replace with a lockfile-
+pinned npm `hls.js` dependency and audit CSP/supply-chain policy.
+
+The demo never attempts Stream delivery when reduced-motion or
+Save-Data is active. On a fatal HLS load/player error, it falls back to
+the same 21:9 MP4 as the normal page. Since we have uploaded only
+**21:9** to Stream, ordinary **16:9** still uses native MP4 until
+the second source has been uploaded and validated.
+
+In Chrome/Safari DevTools **Network**, disable cache for first-visit
+measurement; use the same network throttling profile for both modes.
+For HLS, expect `video.m3u8`, rendition playlists and segment requests
+(not the standalone 4K MP4). For MP4 expect `...21x9_*.mp4` requests.
+HLS may start in lower quality and increase over a few seconds.
+
+Check which mode actually ran:
+
+```js
+const video = document.querySelector('video[data-hero-delivery]')
+console.log({
+  delivery: video?.dataset.heroDelivery,
+  aspect: video?.dataset.heroAspect,
+  quality: video?.dataset.heroQuality,
+  currentSrc: video?.currentSrc,
+  dimensions: [video?.videoWidth, video?.videoHeight],
+})
+```
+
+The values in HLS mode are **decoded playback dimensions**, not
+necessarily the complete ABR ladder. Use the manifest inspector for
+the ladder and Network waterfall for actual segment/rendition choice.
+
+Test Chrome and Safari, page hidden/visible, backward/forward scroll,
+30s loop, reduced-motion / Save-Data, and throttled 3G/4G. Record
+transferred **bytes** and first-frame time for the Stream and MP4
+alternatives. Avoid looping unnecessarily while benchmarking, since
+Stream delivery minutes can be billable. If hls.js CDN is blocked,
+expect a console warning and MP4 fallback.
+
+The experiment **does not change default production playback** and
+does not constitute permission to merge PR #197. Keep the CDN/R2 and
+cost/abuse protections in issue [#198](https://github.com/qzyu999/inference-exchange/issues/198).
+
 ## What serves what?
 
 ```text
