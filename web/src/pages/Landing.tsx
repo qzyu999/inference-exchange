@@ -105,9 +105,16 @@ const CHAPTER_COPY = [
   },
 ] as const
 
-// Text floats directly on the landscape; no cards, borders or background blur.
-// The soft vignette is limited to the left side, leaving the central mountain
-// and reflection bright and unobstructed.
+// Protect legibility at the glyphs, not by dimming half the landscape.
+// These dark, close-in shadows create separation even over white snow/sky
+// without altering a single pixel of the source video.
+const HERO_TITLE_SHADOW = '0 1px 1px rgba(0,0,0,0.98), 0 2px 5px rgba(0,0,0,0.9), 0 4px 16px rgba(0,0,0,0.62)'
+const HERO_BODY_SHADOW = '0 1px 2px rgba(0,0,0,1), 0 2px 7px rgba(0,0,0,0.96), 0 3px 13px rgba(0,0,0,0.7)'
+
+// Optional comparison of the OLD full-left-screen vignette. The default
+// paints no overlay over the scenery: ?heroShade=legacy restores the old wash.
+const SHOW_LEGACY_SHADE = new URLSearchParams(window.location.search).get('heroShade') === 'legacy'
+
 function EditorialStory({
   activeIndex,
   exitProgress,
@@ -124,13 +131,15 @@ function EditorialStory({
       className="pointer-events-none absolute inset-0 z-20"
       style={{ opacity: 1 - exitProgress }}
     >
-      <div
-        className="absolute inset-y-0 left-0 w-[88%] sm:w-[72%] lg:w-[58%]"
-        aria-hidden="true"
-        style={{
-          background: 'linear-gradient(90deg, rgba(6,14,26,0.82) 0%, rgba(6,14,26,0.62) 42%, rgba(6,14,26,0.24) 76%, transparent 100%)',
-        }}
-      />
+      {SHOW_LEGACY_SHADE && (
+        <div
+          className="absolute inset-y-0 left-0 w-[88%] sm:w-[72%] lg:w-[58%]"
+          aria-hidden="true"
+          style={{
+            background: 'linear-gradient(90deg, rgba(6,14,26,0.82) 0%, rgba(6,14,26,0.62) 42%, rgba(6,14,26,0.24) 76%, transparent 100%)',
+          }}
+        />
+      )}
       {CHAPTER_COPY.map((chapter, index) => {
         const visible = index === activeIndex
         return (
@@ -150,21 +159,21 @@ function EditorialStory({
             <div className="relative w-full max-w-lg text-left pt-8">
               <div className="flex items-center gap-3 mb-7">
                 <span className="h-[2px] w-8 shrink-0" style={{ background: '#F0C77D' }} aria-hidden="true" />
-                <p className="text-[11px] font-semibold tracking-[0.23em] uppercase" style={{ color: '#F6D9AA' }}>
+                <p className="text-[11px] font-semibold tracking-[0.23em] uppercase" style={{ color: '#FFF1D6', textShadow: HERO_BODY_SHADOW }}>
                   {chapter.eyebrow}
                 </p>
               </div>
               <h1
                 id={'landing-chapter-title-' + index}
                 className="text-[clamp(2.65rem,4.6vw,4.9rem)] font-semibold tracking-[-0.045em] leading-[1.06]"
-                style={{ color: '#FFFFFF', textShadow: '0 2px 20px rgba(0,0,0,0.35)' }}
+                style={{ color: '#FFFFFF', textShadow: HERO_TITLE_SHADOW, WebkitTextStroke: '0.35px rgba(0,0,0,0.65)' }}
               >
                 <span className="block">{chapter.headline[0]}</span>
                 <span className="block">{chapter.headline[1]}</span>
               </h1>
               <p
                 className="mt-7 text-base md:text-lg leading-relaxed max-w-[29rem]"
-                style={{ color: '#F7F5F0', textShadow: '0 2px 9px rgba(0,0,0,0.5)' }}
+                style={{ color: '#FFFFFF', textShadow: HERO_BODY_SHADOW }}
               >
                 {chapter.description}
               </p>
@@ -180,21 +189,21 @@ function EditorialStory({
                   <Link
                     to="/provide"
                     className="rounded-lg px-5 py-3 text-sm font-semibold border focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#F0C77D]"
-                    style={{ borderColor: 'rgba(255,255,255,0.62)', color: '#FFFFFF', background: 'rgba(6,14,26,0.32)' }}
+                    style={{ borderColor: 'rgba(255,255,255,0.9)', color: '#FFFFFF', background: 'rgba(6,14,26,0.7)' }}
                   >
                     Become a provider
                   </Link>
                   <Link
                     to="/exchange"
                     className="rounded-lg px-5 py-3 text-sm font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#F0C77D]"
-                    style={{ color: '#FFFFFF', textDecoration: 'underline', textUnderlineOffset: '5px' }}
+                    style={{ color: '#FFFFFF', textDecoration: 'underline', textUnderlineOffset: '5px', textShadow: HERO_BODY_SHADOW }}
                   >
                     Explore exchange
                   </Link>
                 </div>
               )}
               {index === 2 && (
-                <p className="mt-5 text-xs leading-relaxed max-w-md" style={{ color: '#E5DDC9' }}>
+                <p className="mt-5 text-xs leading-relaxed max-w-md" style={{ color: '#FFF1D6', textShadow: HERO_BODY_SHADOW }}>
                   Trust levels are provider claims until independently verified. Browser chat uses TLS, not end-to-end encryption.
                 </p>
               )}
@@ -203,7 +212,7 @@ function EditorialStory({
                   type="button"
                   onClick={onSkip}
                   className="mt-8 text-sm font-semibold underline underline-offset-8 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#F0C77D]"
-                  style={{ color: '#F5D49B' }}
+                  style={{ color: '#F5D49B', textShadow: HERO_BODY_SHADOW }}
                 >
                   Enter the exchange →
                 </button>
@@ -222,7 +231,7 @@ function EditorialStory({
             type="button"
             onClick={onNext}
             className="text-xs font-semibold tracking-[0.13em] uppercase focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#F0C77D]"
-            style={{ color: '#FFFFFF', textShadow: '0 1px 7px rgba(0,0,0,0.8)' }}
+            style={{ color: '#FFFFFF', textShadow: HERO_BODY_SHADOW }}
           >
             Scroll to explore ↓
           </button>
@@ -231,7 +240,7 @@ function EditorialStory({
           type="button"
           onClick={onSkip}
           className="text-xs font-medium tracking-[0.13em] uppercase focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#F0C77D]"
-          style={{ color: '#ECE7DE', textShadow: '0 1px 7px rgba(0,0,0,0.8)' }}
+          style={{ color: '#FFFFFF', textShadow: HERO_BODY_SHADOW }}
         >
           Skip story
         </button>
