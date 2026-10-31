@@ -2,6 +2,7 @@ import useSWR from 'swr'
 import { Link } from 'react-router-dom'
 import { api } from '../lib/api'
 import { formatUsd, formatUsdPrecise, microToUsd, sumMicro } from '../lib/money.js'
+import { requestedModelLabel, servedModelLabel } from '../lib/model-attribution.js'
 import { C } from '../lib/theme'
 
 function formatTokens(n: number): string {
@@ -21,7 +22,7 @@ export function Billing() {
   const transactions = history?.transactions || []
   const microByModel: Record<string, number> = {}
   for (const t of transactions) {
-    const model = t.model || 'unknown'
+    const model = servedModelLabel(t)
     microByModel[model] = (microByModel[model] || 0) + sumMicro([t])
   }
   const spendByModel: Record<string, number> = Object.fromEntries(
@@ -201,7 +202,10 @@ export function Billing() {
                 <div key={i} className="grid grid-cols-12 gap-2 py-2.5 items-center border-b border-gray-50 last:border-0 text-xs">
                   <div className="col-span-2" style={{ color: '#999' }}>{time}</div>
                   <div className="col-span-1 font-mono truncate" style={{ color: '#bbb' }}>{t.request_id?.slice(0, 8) || '—'}</div>
-                  <div className="col-span-2 truncate" style={{ color: C.blueBlack }}>{t.model || '—'}</div>
+                  <div className="col-span-2 min-w-0" style={{ color: C.blueBlack }} title={`Requested: ${requestedModelLabel(t)}`}>
+                     <div className="truncate">{servedModelLabel(t)}</div>
+                     <div className="text-[9px] truncate" style={{ color: '#999' }}>Requested: {requestedModelLabel(t)}</div>
+                   </div>
                   <div className="col-span-1 text-right" style={{ color: C.deepBlue }}>{(t.input_tokens || 0).toLocaleString()}</div>
                   <div className="col-span-1 text-right" style={{ color: (t.cached_tokens || 0) > 0 ? C.turquoise : '#ddd' }}>
                     {(t.cached_tokens || 0) > 0 ? (t.cached_tokens || 0).toLocaleString() : '—'}

@@ -3,6 +3,7 @@ import { useSearchParams, Link } from 'react-router-dom'
 import useSWR from 'swr'
 import { api } from '../lib/api'
 import { formatUsdPrecise, microToUsd } from '../lib/money.js'
+import { requestedModelLabel, servedModelLabel } from '../lib/model-attribution.js'
 import { C, TRUST_COLORS } from '../lib/theme'
 
 const DOT_COLORS: Record<string, string> = {
@@ -111,7 +112,7 @@ export function Trace() {
           <div>
             <h2 className="text-lg font-bold font-mono" style={{ color: C.blueBlack }}>{trace.request_id}</h2>
             <div className="text-xs mt-0.5" style={{ color: '#999' }}>
-              {trace.model || 'default'}
+              {requestedModelLabel(billingTx || trace)}
               {' · '}{trace.providers_evaluated || scoring.length} provider{(trace.providers_evaluated || scoring.length) !== 1 ? 's' : ''} evaluated
               {preference && ` · ${preference} routing`}
             </div>
@@ -232,12 +233,12 @@ export function Trace() {
         <TraceStep
           number="04" label="INFERENCE"
           value={selectedTps > 0 ? `${selectedTps.toFixed(0)} tok/s` : '—'}
-          detail={`Observed throughput for this request${trace.model ? ` · ${trace.model}` : ''}`}
+          detail={`Observed throughput for this request · ${servedModelLabel(billingTx || trace)}`}
           dot="blue"
           expanded={expandedStep === '04'} onToggle={() => toggle('04')}
         >
           <div className="space-y-1.5">
-            <div>Model: {trace.model || 'default'}</div>
+            <div>Requested: {requestedModelLabel(billingTx || trace)} · Served: {servedModelLabel(billingTx || trace)}</div>
             <div>Provider TPS (observed): {selectedTps > 0 ? `${selectedTps.toFixed(1)} tok/s` : 'not yet measured'}</div>
             {selectedScoring?.load != null && <div>Provider load at match time: {(selectedScoring.load * 100).toFixed(0)}%</div>}
             <div className="text-[10px] mt-1" style={{ color: '#bbb' }}>

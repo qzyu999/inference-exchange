@@ -50,6 +50,7 @@ jobs:
       - run: npm run build
       - run: node src/lib/docs.test.mjs
       - run: node src/lib/money.test.mjs
+      - run: node src/lib/model-attribution.test.mjs
       - run: node src/lib/nav.test.mjs
       - run: node src/lib/settings-nav.test.mjs
       - run: node src/lib/provider-dashboard.test.mjs
