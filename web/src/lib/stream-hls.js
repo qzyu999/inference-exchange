@@ -64,7 +64,7 @@ export async function attachStreamHls(video, manifestUrl, onFatal) {
   hls.on(Hls.Events.ERROR, (_event, data) => {
     if (data?.fatal) onFatal(new Error(`Stream HLS failure: ${data.type || 'unknown'} / ${data.details || 'unknown'}`))
   })
-  hls.attachMedia(video)
   hls.on(Hls.Events.MEDIA_ATTACHED, () => hls.loadSource(manifestUrl))
+  hls.attachMedia(video)
   return () => hls.destroy()
 }
