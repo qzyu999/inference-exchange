@@ -200,26 +200,32 @@ export function LandscapeVideo({ progress, reducedMotion, onAvailabilityChange }
     if (!useStream) return
     const video = videoRef.current
     if (!video) return
-    let cancelled = false
+    const controller = new AbortController()
     let release: (() => void) | undefined
-    void attachStreamHls(video, STREAM_21X9_MANIFEST, error => {
-      if (!cancelled) {
-        console.warn('Cloudflare Stream pilot failed, using MP4:', error.message)
-        setStreamFailed(true)
+    const fail = (error: Error) => {
+      if (controller.signal.aborted) return
+      console.warn('[hero-stream] Stream preview failed, falling back to MP4:', error)
+      setStreamFailed(true)
+    }
+    try {
+      const attachment = attachStreamHls(video, STREAM_21X9_MANIFEST, fail, controller.signal)
+      // Native HLS must attach and tear down synchronously. In React 18
+      // StrictMode, the stale first cleanup otherwise runs *after* the second
+      // setup, silently removing its src (networkState=0, readyState=0).
+      if (typeof attachment === 'function') {
+        release = attachment
+      } else {
+        void attachment.then(stop => {
+          if (controller.signal.aborted) stop()
+          else release = stop
+        }).catch(fail)
       }
-    }).then(stop => {
-      if (cancelled) stop()
-      else release = stop
-    }).catch(error => {
-      if (!cancelled) {
-        console.warn('Cloudflare Stream preview unavailable, using MP4:', error)
-        setStreamFailed(true)
-      }
-    })
+    } catch (error) {
+      fail(error instanceof Error ? error : new Error(String(error)))
+    }
     return () => {
-      cancelled = true
+      controller.abort()
       release?.()
-      video.pause()
     }
   }, [useStream])
   useEffect(() => {
