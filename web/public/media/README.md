@@ -1,5 +1,54 @@
 # Local cinematic landing page media (#107, #185)
 
+## No-vignette, native-framing video QA (October 30)
+
+**Why the ordinary landing page looked softer than the preferred raw 4K
+preview:** these views previously combined three independent differences:
+
+1. A broad editorial overlay (`rgba(6,14,26,0.82)` at the left edge,
+   covering up to 58% of desktop scene width). This was **not a CSS blur
+   filter**, but it heavily flattened the sky, grass, and lake colors.
+2. Normal `/` often chose **1080p**, while the raw comparison explicitly
+   forced `heroQuality=4k`. The automatic chooser's old bandwidth
+   threshold also made 4K improbable on browsers without connection hints.
+3. The default `wide` framing cropped the 16:9 master, while the preferred
+   `contain` mode preserved the whole composition at a smaller scale.
+
+**New review defaults:** The full-screen editorial vignette is **absent**.
+Text contrast comes from tightly scoped, layered dark `text-shadow`
+and a fractional-width headline outline, not from a screen-wide dark
+tint, backdrop blur, filter, or saturation adjustment. The default video
+framing is `object-fit: contain`, which preserves sun, moon, mountain
+and reflection. The previous full-width `wide` crop is still available
+by URL. For local high-DPI desktop previews on `localhost` or
+`127.0.0.1`, auto-selection favors the real 4K source; **public**
+quality selection remains conservative (usually 1080p) to avoid
+unnecessary ~39 MB downloads.
+
+For an apples-to-apples comparison on port 5176, keep the same quality
+and crop and vary only the tint:
+
+- `/?heroQuality=4k&heroFit=contain` — **new default treatment**, clear
+  scene with localized text contrast
+- `/?heroQuality=4k&heroFit=contain&heroShade=legacy` — previous large
+  black wash for A/B comparison
+- `/?heroRaw=1&heroQuality=4k&heroFit=contain` — underlying original
+  footage, no editorial copy, no crystals
+- `/?heroQuality=1080p&heroFit=contain` — compare source sharpness,
+  leaving crop and text treatment identical
+- `/?heroQuality=4k&heroFit=wide` — compare the full-width crop to
+  `contain` without changing brightness or source quality
+
+**QA:** check full-screen browser playback on Retina and non-Retina
+desktops, especially whether copy remains readable over the bright
+water/sky. Confirm no unexpected fullscreen filter or CSS overlay
+appears before the mineral dissolve. Inspect
+`<video data-hero-source="...">` in DevTools to ensure the selected
+source really is 4K when requested. Side margins are an intentional
+consequence of maintaining the full 16:9 plate on a wider viewport.
+No binary assets have changed. Review in the isolated mandala worktree;
+do not change `main` until accepted.
+
 ## New full-width sun/moon-safe crop (October 30 review)
 
 The new Seedance footage is 16:9. When a browser viewport is wider than
