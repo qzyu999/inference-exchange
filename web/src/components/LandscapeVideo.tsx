@@ -121,6 +121,23 @@ export function LandscapeVideo({ progress, reducedMotion, onAvailabilityChange }
   const framing = getVideoFraming()
   const edges = getHeroEdges()
   const useAmbientEdges = framing.mode === 'contain' && edges === 'ambient'
+  // A wide stage letterboxes horizontally; a tall stage letterboxes vertically.
+  // Feather the actual boundary, not the unrelated pair of edges.
+  const [edgeDirection, setEdgeDirection] = useState<'to right' | 'to bottom'>(() =>
+    window.innerWidth / Math.max(1, window.innerHeight - 56) >= 16 / 9
+      ? 'to right' : 'to bottom'
+  )
+  useEffect(() => {
+    const update = () => setEdgeDirection(
+      window.innerWidth / Math.max(1, window.innerHeight - 56) >= 16 / 9
+        ? 'to right' : 'to bottom'
+    )
+    window.addEventListener('resize', update)
+    return () => window.removeEventListener('resize', update)
+  }, [])
+  const frameMask = useAmbientEdges
+    ? `linear-gradient(${edgeDirection}, transparent 0%, black 1.1%, black 98.9%, transparent 100%)`
+    : undefined
   const selectedSource = candidateSources[sourceIndex]
 
   useEffect(() => {
@@ -183,12 +200,8 @@ export function LandscapeVideo({ progress, reducedMotion, onAvailabilityChange }
             maxWidth: 'calc((100svh - 3.5rem) * 1.7777778)',
             // Feather only the foreground frame boundary into the side fill.
             // The video remains 100% sharp everywhere else.
-            WebkitMaskImage: useAmbientEdges
-              ? 'linear-gradient(to right, transparent 0%, black 1.1%, black 98.9%, transparent 100%)'
-              : undefined,
-            maskImage: useAmbientEdges
-              ? 'linear-gradient(to right, transparent 0%, black 1.1%, black 98.9%, transparent 100%)'
-              : undefined,
+            WebkitMaskImage: frameMask,
+            maskImage: frameMask,
           } : undefined}
           data-hero-edges={edges}
         >
