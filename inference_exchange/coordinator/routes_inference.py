@@ -135,7 +135,7 @@ def _make_billing_callback(
         tps = output_tokens / elapsed if elapsed > 0 and output_tokens > 0 else 0
 
         billing = get_billing()
-        billing.charge_request(
+        billed = billing.charge_request(
             request_id=request_id,
             consumer_id=consumer_id,
             provider_id=provider.billing_account_id or provider.provider_id,
@@ -178,8 +178,10 @@ def _make_billing_callback(
                 "model": model,
                 "requested_model": model,
                 "served_model": served_model,
-                "cost_usd": round(
-                    (output_tokens * provider.capabilities.price_per_mtok_output) / 1_000_000, 6
+                "cost_usd": (
+                    billed["cost_micro"] / 1_000_000 if isinstance(billed, dict)
+                    else getattr(billed, "cost_micro", None) / 1_000_000
+                    if getattr(billed, "cost_micro", None) is not None else None
                 ),
                 "tokens": output_tokens,
                 "input_tokens": actual_input,
@@ -513,6 +515,19 @@ async def _route_and_dispatch(request: ChatCompletionRequest, consumer_id: str):
         if retry_provider and retry_provider.provider_id != provider.provider_id:
             queue = hub.create_response_queue(request_id)
             provider = retry_provider  # Use the retry provider for billing/traces
+            # Ciphertext must be rebound to the final provider's public key.
+            retry_body = None
+            if retry_provider.encryption_public_key:
+                retry_payload = {"messages": messages_plain}
+                if request.ocip_consumer_public_key:
+                    retry_payload["consumer_public_key"] = request.ocip_consumer_public_key
+                retry_body = encrypt_json(retry_payload, retry_provider.encryption_public_key).to_dict()
+            inference_req = InferenceRequest(
+                request_id=request_id, model=request.model,
+                messages=messages_plain if retry_body is None else None,
+                encrypted_body=retry_body, max_tokens=request.max_tokens,
+                temperature=request.temperature, stream=request.stream,
+            )
             try:
                 await hub.send_to_provider(retry_provider, inference_req)
                 logger.info(f"[{request_id[:8]}] Retried on {retry_provider.name}")
