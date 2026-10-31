@@ -34,9 +34,11 @@ function getHls() {
  * @param {HTMLVideoElement} video
  * @param {string} manifestUrl
  * @param {(reason: Error) => void} onFatal
- * @returns {Promise<() => void>} teardown; call on React effect cleanup
+ * @param {AbortSignal} [signal] React effect lifetime; prevents stale async attachments
+ * @returns {(() => void) | Promise<() => void>} Sync teardown for native HLS,
+ * or async teardown for hls.js (after an optional library load).
  */
-export async function attachStreamHls(video, manifestUrl, onFatal) {
+export function attachStreamHls(video, manifestUrl, onFatal, signal) {
   if (!manifestUrl.startsWith('https://') || !manifestUrl.endsWith('/manifest/video.m3u8')) {
     throw new Error('Invalid Stream manifest URL')
   }
@@ -51,6 +53,11 @@ export async function attachStreamHls(video, manifestUrl, onFatal) {
     })
   }
 
+  // The React 18 StrictMode dev mount -> cleanup -> mount cycle is
+  // synchronous. Returning the native teardown synchronously is critical:
+  // with an async function the *first* mount's delayed Promise.then(stop)
+  // could detach the second mount's source, leaving networkState=0.
+  if (signal?.aborted) return () => {}
   // Prefer platform-native HLS where available, notably Safari and iOS.
   if (video.canPlayType('application/vnd.apple.mpegurl')) {
     console.info('[hero-stream] Native browser HLS selected')
@@ -68,7 +75,10 @@ export async function attachStreamHls(video, manifestUrl, onFatal) {
   }
 
   console.info('[hero-stream] Loading hls.js for adaptive playback')
-  const Hls = await getHls()
+  return getHls().then(Hls => {
+  // hls.js is loaded asynchronously. React may have unmounted the first
+  // StrictMode effect before this resolves, so do NOT attach stale media.
+  if (signal?.aborted) return () => {}
   if (!Hls.isSupported()) throw new Error('This browser cannot play HLS via MSE')
   const hls = new Hls({
     startLevel: -1, // Automatic bitrate selection; never lock to 4K.
@@ -103,4 +113,5 @@ export async function attachStreamHls(video, manifestUrl, onFatal) {
     video.removeEventListener('canplay', startWhenReady)
     hls.destroy()
   }
+  })
 }
