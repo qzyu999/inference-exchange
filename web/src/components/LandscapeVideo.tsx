@@ -159,11 +159,10 @@ function getVideoFraming(aspect: VideoAspect): {
 }
 
 /**
- * Serve exactly one web-optimized source at a time. This is NOT adaptive
- * bitrate streaming: quality is chosen once on page load, based on viewport
- * and optional connection hints. The browser progressively fetches/buffers the
- * selected MP4; it requests another rendition only when the first fails.
- * Full ABR would require HLS/DASH segmented media and a streaming pipeline.
+ * Default playback serves exactly one web-optimized MP4 selected on load;
+ * it is not adaptive bitrate streaming. On localhost only, ?heroDelivery=stream
+ * enables a Cloudflare Stream HLS adaptive-bitrate pilot for the 21:9 master.
+ * The pilot uses the same <video> and preserves MP4 fallback on HLS failure.
  */
 export function LandscapeVideo({ progress, reducedMotion, onAvailabilityChange }: LandscapeVideoProps) {
   const videoRef = useRef<HTMLVideoElement>(null)
