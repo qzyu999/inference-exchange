@@ -689,6 +689,17 @@ export function HeroScene({ scrollProgress, landscapeMode = false, reducedMotion
     s.upTetra.position.y = -sep
     s.downTetra.position.y = sep
 
+    // The landscape itself is centered with object-fit: contain, but the
+    // snow summit sits roughly 6px left of the exact midpoint in a 960px
+    // source-frame reference. In perspective the crystal silhouettes also
+    // drift perceptually as they rotate. Nudge the entire linked group
+    // (both tetrahedra, their inner octahedron and all mineral grains)
+    // ~0.09 world units left to register the top green vertex with that
+    // actual photographic summit. The camera and video remain untouched.
+    // ?heroAlign=geometric restores an exact x=0 pivot for comparison.
+    const opticalAlign = new URLSearchParams(window.location.search).get('heroAlign') !== 'geometric'
+    s.pivot.position.x = opticalAlign && landscapeRef.current ? -0.09 : 0
+
     // Slow Y rotation
     s.pivot.rotation.y = t * 0.15
 
