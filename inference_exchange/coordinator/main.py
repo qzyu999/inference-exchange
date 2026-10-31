@@ -67,7 +67,7 @@ class StoreAuthAdapter:
         self._store = store
 
     @property
-    def default_key(self) -> str:
+    def default_key(self) -> str | None:
         return self._store.default_key
 
     def create_key(self, name: str = "API Key") -> tuple[str, str]:
@@ -588,7 +588,15 @@ def create_app() -> FastAPI:
         }
         # Shared anonymous key, dev only; in prod users must sign in
         if raw_request.query_params.get("include_key") == "1" and not is_production():
-            result["default_api_key"] = auth.default_key
+            # Only available on first run. Never rotate or disclose stored hashes
+            # to recreate a key after a restart.
+            if auth.default_key is not None:
+                result["default_api_key"] = auth.default_key
+            else:
+                result["default_api_key_note"] = (
+                    "Existing default key preserved; raw value unavailable. "
+                    "Create an additional key explicitly if needed."
+                )
         return result
 
     @app.get("/readiness")
