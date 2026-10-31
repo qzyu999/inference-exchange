@@ -46,7 +46,7 @@ function pickQuality(): VideoQuality {
   // Network Information API, so its safe default remains 1080p.
   const largeDisplay = physicalWidth >= 3200 && physicalHeight >= 1800
   const fastConnection = connection?.effectiveType === '4g'
-    && (connection.downlink ?? 0) >= 12
+    && (connection.downlink ?? 0) >= 20
   const capableMachine = (nav.deviceMemory ?? 8) >= 8
     && (nav.hardwareConcurrency || 4) >= 4
   return largeDisplay && fastConnection && capableMachine ? '4k' : '1080p'
@@ -75,19 +75,24 @@ export function LandscapeVideo({ progress, reducedMotion, onAvailabilityChange }
       : [VIDEO_BY_QUALITY['1080p'], LEGACY_VIDEO]
   const [sourceIndex, setSourceIndex] = useState(0)
   const [ready, setReady] = useState(false)
+  const [posterReady, setPosterReady] = useState(false)
   const [loopEligible, setLoopEligible] = useState(false)
   const [posterFailed, setPosterFailed] = useState(false)
+  // When Data Saver is requested, show the still instead of starting video
+  // playback (which overrides the preload hint and consumes mobile data).
+  const saveData = (navigator as Navigator & { connection?: NetworkHints }).connection?.saveData === true
+  const shouldAutoplay = !reducedMotion && !saveData
   const fit = getVideoFit()
   const selectedSource = candidateSources[sourceIndex]
 
   useEffect(() => {
-    onAvailabilityChange(ready)
-  }, [ready, onAvailabilityChange])
+    onAvailabilityChange(ready || posterReady)
+  }, [ready, posterReady, onAvailabilityChange])
 
   useEffect(() => {
     const video = videoRef.current
     if (!video) return
-    if (reducedMotion) {
+    if (!shouldAutoplay) {
       video.pause()
       return
     }
@@ -99,7 +104,7 @@ export function LandscapeVideo({ progress, reducedMotion, onAvailabilityChange }
     document.addEventListener('visibilitychange', sync)
     sync()
     return () => document.removeEventListener('visibilitychange', sync)
-  }, [reducedMotion, ready, sourceIndex])
+  }, [shouldAutoplay, ready, sourceIndex])
 
   // The new sources are silent, 30-second, locked-off video plates.
   // Keep the landscape bright until the very last crystal dissolve.
@@ -125,11 +130,11 @@ export function LandscapeVideo({ progress, reducedMotion, onAvailabilityChange }
         poster={POSTER}
         data-hero-quality={quality}
         data-hero-source={selectedSource}
-        autoPlay={!reducedMotion}
+        autoPlay={shouldAutoplay}
         loop={loopEligible}
         muted
         playsInline
-        preload={reducedMotion ? 'none' : 'metadata'}
+        preload={shouldAutoplay ? 'metadata' : 'none'}
         onLoadedMetadata={(event) => {
           setLoopEligible(event.currentTarget.duration >= 20)
         }}
@@ -146,6 +151,7 @@ export function LandscapeVideo({ progress, reducedMotion, onAvailabilityChange }
           alt=""
           className="absolute inset-0 h-full w-full"
           style={{ objectFit: fit, objectPosition: 'center center' }}
+          onLoad={() => setPosterReady(true)}
           onError={() => setPosterFailed(true)}
         />
       )}
