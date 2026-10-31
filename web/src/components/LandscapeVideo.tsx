@@ -7,14 +7,58 @@ interface LandscapeVideoProps {
 }
 
 type VideoQuality = '720p' | '1080p' | '4k'
+type VideoAspect = '16x9' | '21x9'
 
-const VIDEO_BY_QUALITY: Record<VideoQuality, string> = {
-  '720p': '/media/seedance_2_5_mountain_lake_720p.mp4',
-  '1080p': '/media/seedance_2_5_mountain_lake_1080p.mp4',
-  '4k': '/media/seedance_2_5_mountain_lake_4k.mp4',
+// The 21:9 Runway source is reserved for wide desktop viewports. Keep the
+// original 16:9 Seedance files for laptop, tablet, and mobile layouts.
+const VIDEO_BY_ASPECT: Record<VideoAspect, Record<VideoQuality, string>> = {
+  '16x9': {
+    '720p': '/media/seedance_2_5_mountain_lake_720p.mp4',
+    '1080p': '/media/seedance_2_5_mountain_lake_1080p.mp4',
+    '4k': '/media/seedance_2_5_mountain_lake_4k.mp4',
+  },
+  '21x9': {
+    '720p': '/media/seedance_2_5_mountain_lake_21x9_720p.mp4',
+    '1080p': '/media/seedance_2_5_mountain_lake_21x9_1080p.mp4',
+    '4k': '/media/seedance_2_5_mountain_lake_21x9_4k.mp4',
+  },
 }
-const POSTER = '/media/seedance_2_5_mountain_lake_poster.webp'
+const POSTERS: Record<VideoAspect, string> = {
+  '16x9': '/media/seedance_2_5_mountain_lake_poster.webp',
+  '21x9': '/media/seedance_2_5_mountain_lake_21x9_poster.webp',
+}
+const VIDEO_ASPECT_RATIO: Record<VideoAspect, number> = {
+  '16x9': 16 / 9,
+  '21x9': 3840 / 1644,
+}
+const NAV_HEIGHT = 56
 const LEGACY_VIDEO = '/media/alpine-lake-hero.mp4'
+
+interface VideoCandidate {
+  path: string
+  poster: string
+  aspect: VideoAspect
+}
+
+function selectAspect(): VideoAspect {
+  // Compare the visible hero stage, subtracting the 56px navigation bar.
+  const stageAspect = window.innerWidth / Math.max(1, window.innerHeight - NAV_HEIGHT)
+  return stageAspect >= 2.05 ? '21x9' : '16x9'
+}
+
+function makeCandidates(aspect: VideoAspect, quality: VideoQuality): VideoCandidate[] {
+  // Prefer a lower bitrate with the correct composition over switching ratio.
+  const qualities: VideoQuality[] = quality === '4k'
+    ? ['4k', '1080p', '720p']
+    : quality === '1080p' ? ['1080p', '720p', '4k'] : ['720p', '1080p', '4k']
+  const aspects: VideoAspect[] = aspect === '21x9' ? ['21x9', '16x9'] : ['16x9']
+  return [
+    ...aspects.flatMap(a => qualities.map(q => ({
+      path: VIDEO_BY_ASPECT[a][q], poster: POSTERS[a], aspect: a,
+    }))),
+    { path: LEGACY_VIDEO, poster: POSTERS['16x9'], aspect: '16x9' },
+  ]
+}
 
 interface NetworkHints {
   effectiveType?: string
@@ -45,7 +89,7 @@ function pickQuality(): VideoQuality {
   // the previous implementation even localhost usually selected 1080p, so
   // comparing "/" with "?heroQuality=4k" was NOT an apples-to-apples test.
   // Production keeps the conservative bandwidth/device guard below.
-  const localHighDpiReview = /^(localhost|127\\.0\\.0\\.1)$/.test(window.location.hostname)
+  const localHighDpiReview = /^(localhost|127[.]0[.]0[.]1)$/.test(window.location.hostname)
     && window.innerWidth >= 1024 && physicalWidth >= 2600
   if (localHighDpiReview) return '4k'
 
@@ -71,26 +115,25 @@ function getHeroEdges(): HeroEdges {
     : 'ambient'
 }
 
-function getVideoFraming(): {
+function getVideoFraming(aspect: VideoAspect): {
   mode: HeroFraming
   fit: 'cover' | 'contain'
   position: string
 } {
   const setting = new URLSearchParams(window.location.search).get('heroFit')
-  // The user prefers the native, uncropped 16:9 composition (like the
-  // QuickTime preview). Make that the default instead of zooming/cropping
-  // the source, which magnifies any already-soft video detail.
-  // Full bleed is still available with ?heroFit=wide, and the previous
-  // center crop with ?heroFit=cover. Never distort/stretch the video.
-  const mode: HeroFraming = setting === 'wide'
-    ? 'wide'
-    : setting === 'center' || setting === 'cover'
-      ? 'center'
-      : 'contain'
+  // Wide video now fills wide viewports. On 16:9/portrait screens, preserve
+  // the full 16:9 plate. URL overrides retain existing A/B behavior.
+  const mode: HeroFraming = setting === 'contain'
+    ? 'contain'
+    : setting === 'wide'
+      ? 'wide'
+      : setting === 'center' || setting === 'cover'
+        ? 'center'
+        : aspect === '21x9' ? 'center' : 'contain'
   return {
     mode,
     fit: mode === 'contain' ? 'contain' : 'cover',
-    position: mode === 'wide' ? '50% 12%' : '50% 50%',
+    position: mode === 'wide' && aspect === '16x9' ? '50% 12%' : '50% 50%',
   }
 }
 
@@ -104,11 +147,13 @@ function getVideoFraming(): {
 export function LandscapeVideo({ progress, reducedMotion, onAvailabilityChange }: LandscapeVideoProps) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const [quality] = useState<VideoQuality>(pickQuality)
-  const candidateSources = quality === '4k'
-    ? [VIDEO_BY_QUALITY['4k'], VIDEO_BY_QUALITY['1080p'], LEGACY_VIDEO]
-    : quality === '720p'
-      ? [VIDEO_BY_QUALITY['720p'], VIDEO_BY_QUALITY['1080p'], LEGACY_VIDEO]
-      : [VIDEO_BY_QUALITY['1080p'], LEGACY_VIDEO]
+  const [requestedAspect, setRequestedAspect] = useState<VideoAspect>(selectAspect)
+  useEffect(() => {
+    const update = () => setRequestedAspect(selectAspect())
+    window.addEventListener('resize', update)
+    return () => window.removeEventListener('resize', update)
+  }, [])
+  const candidateSources = makeCandidates(requestedAspect, quality)
   const [sourceIndex, setSourceIndex] = useState(0)
   const [ready, setReady] = useState(false)
   const [posterReady, setPosterReady] = useState(false)
@@ -118,27 +163,37 @@ export function LandscapeVideo({ progress, reducedMotion, onAvailabilityChange }
   // playback (which overrides the preload hint and consumes mobile data).
   const saveData = (navigator as Navigator & { connection?: NetworkHints }).connection?.saveData === true
   const shouldAutoplay = !reducedMotion && !saveData
-  const framing = getVideoFraming()
+  const selectedCandidate = candidateSources[Math.min(sourceIndex, candidateSources.length - 1)]
+  const selectedSource = selectedCandidate.path
+  const selectedPoster = selectedCandidate.poster
+  const framing = getVideoFraming(selectedCandidate.aspect)
   const edges = getHeroEdges()
   const useAmbientEdges = framing.mode === 'contain' && edges === 'ambient'
+  const frameRatio = VIDEO_ASPECT_RATIO[selectedCandidate.aspect]
+  const frameAspectCss = selectedCandidate.aspect === '21x9' ? '3840 / 1644' : '16 / 9'
+  useEffect(() => {
+    setSourceIndex(0)
+    setReady(false)
+    setPosterReady(false)
+    setPosterFailed(false)
+  }, [requestedAspect])
   // A wide stage letterboxes horizontally; a tall stage letterboxes vertically.
   // Feather the actual boundary, not the unrelated pair of edges.
   const [edgeDirection, setEdgeDirection] = useState<'to right' | 'to bottom'>(() =>
-    window.innerWidth / Math.max(1, window.innerHeight - 56) >= 16 / 9
+    window.innerWidth / Math.max(1, window.innerHeight - NAV_HEIGHT) >= frameRatio
       ? 'to right' : 'to bottom'
   )
   useEffect(() => {
     const update = () => setEdgeDirection(
-      window.innerWidth / Math.max(1, window.innerHeight - 56) >= 16 / 9
+      window.innerWidth / Math.max(1, window.innerHeight - NAV_HEIGHT) >= frameRatio
         ? 'to right' : 'to bottom'
     )
     window.addEventListener('resize', update)
     return () => window.removeEventListener('resize', update)
-  }, [])
+  }, [frameRatio])
   const frameMask = useAmbientEdges
     ? `linear-gradient(${edgeDirection}, transparent 0%, black 1.1%, black 98.9%, transparent 100%)`
     : undefined
-  const selectedSource = candidateSources[sourceIndex]
 
   useEffect(() => {
     onAvailabilityChange(ready || posterReady)
@@ -179,7 +234,7 @@ export function LandscapeVideo({ progress, reducedMotion, onAvailabilityChange }
           className="pointer-events-none absolute -inset-10"
           aria-hidden="true"
           style={{
-            backgroundImage: `url("${POSTER}")`,
+            backgroundImage: `url("${selectedPoster}")`,
             backgroundPosition: 'center center',
             backgroundSize: 'cover',
             filter: 'blur(24px) brightness(0.57) saturate(0.82)',
@@ -196,8 +251,8 @@ export function LandscapeVideo({ progress, reducedMotion, onAvailabilityChange }
             ? 'relative w-full max-h-full shrink-0 overflow-hidden'
             : 'absolute inset-0 overflow-hidden'}
           style={framing.mode === 'contain' ? {
-            aspectRatio: '16 / 9',
-            maxWidth: 'calc((100svh - 3.5rem) * 1.7777778)',
+            aspectRatio: frameAspectCss,
+            maxWidth: `calc((100svh - 3.5rem) * ${frameRatio})`,
             // Feather only the foreground frame boundary into the side fill.
             // The video remains 100% sharp everywhere else.
             WebkitMaskImage: frameMask,
@@ -216,7 +271,8 @@ export function LandscapeVideo({ progress, reducedMotion, onAvailabilityChange }
               transition: 'opacity 200ms ease-out',
             }}
             src={selectedSource}
-            poster={POSTER}
+            poster={selectedPoster}
+            data-hero-aspect={selectedCandidate.aspect}
             data-hero-quality={quality}
             data-hero-source={selectedSource}
             data-hero-framing={framing.mode}
@@ -231,13 +287,15 @@ export function LandscapeVideo({ progress, reducedMotion, onAvailabilityChange }
             onLoadedData={() => setReady(true)}
             onError={() => {
               setReady(false)
+              setPosterReady(false)
+              setPosterFailed(false)
               setLoopEligible(false)
               setSourceIndex(index => Math.min(index + 1, candidateSources.length - 1))
             }}
           />
           {!ready && !posterFailed && (
             <img
-              src={POSTER}
+              src={selectedPoster}
               alt=""
               className="absolute inset-0 h-full w-full"
               style={{
