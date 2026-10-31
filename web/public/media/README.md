@@ -1,5 +1,84 @@
 # Local cinematic landing page media (#107, #185)
 
+## 21:9 Runway Aleph desktop master (October 30, 2026) — CURRENT
+
+The new supplied Runway Aleph 2.0 widescreen export has been inspected:
+**3840×1644**, 24 fps, exactly 30 seconds, H.264 yuv420p, no audio,
+90,148,108 bytes (~90.1 MB decimal). It is a genuine 2.336:1 ultrawide
+master, not a crop of the old 16:9 source.
+
+The original export was renamed in the ChatGPT conversation to
+`seedance_2_5_mountain_lake_21x9_master_4k.mp4` and preserved unmodified.
+Do not serve that 90 MB master to ordinary website visitors or commit
+it to Git.
+
+The separate download `seedance_2_5_mountain_lake_21x9_web_assets.zip`
+contains four web assets at the ZIP root:
+
+| Filename | Dimensions | Bytes | Purpose |
+| --- | --- | ---: | --- |
+| `seedance_2_5_mountain_lake_21x9_4k.mp4` | 3840×1644 | 45,794,488 | capable high-DPI desktop |
+| `seedance_2_5_mountain_lake_21x9_1080p.mp4` | 2522×1080 | 20,210,096 | ordinary wide desktop |
+| `seedance_2_5_mountain_lake_21x9_720p.mp4` | 1682×720 | 7,701,632 | constrained connections |
+| `seedance_2_5_mountain_lake_21x9_poster.webp` | 2522×1080 | 384,400 | first paint, Data Saver |
+
+These renditions are 30-second, 24fps, silent, H.264/yuv420p
+`-movflags +faststart` MP4, with the poster reused as a still background.
+Only the master copy is preserved at the original encoded bitrate;
+web versions are smaller and will have some compression loss.
+
+### Install the new ultrawide assets in the existing isolated worktree
+
+Keep the **previous 16:9 web bundle** installed in
+`web/public/media/`: both sets are required for responsive selection.
+Download this new ZIP to `~/Downloads/`, then:
+
+```sh
+cd ~/projects/inference-exchange-mandala-review
+git pull --ff-only
+unzip -o ~/Downloads/seedance_2_5_mountain_lake_21x9_web_assets.zip -d web/public/media
+cd web
+npm run build
+npm run dev -- --port 5176 --strictPort
+```
+
+The adaptive selection now checks the actual pinned stage ratio
+`viewportWidth / (viewportHeight - 56px)` and uses:
+
+- **At least 2.05:1** — the new **21:9** video. By default it fills the
+  stage with a centered `object-fit: cover` crop, trimming very little
+  on widescreen desktop displays. This removes black sidebars and the
+  need for blurred side extensions on those viewports.
+- **Below 2.05:1** — the original **16:9** video, preserving the full frame
+  through `contain` with subtle ambient fill where needed. This avoids
+  forcing a 21:9 crop on normal-height laptops, tablets and phones.
+
+Resolution is selected separately: local high-DPI desktop preview favors
+4K; normal public desktop typically receives 1080p; mobile and slower
+connections get 720p. The page downloads only the selected MP4 (plus a
+lightweight poster); if a source is missing, it tries a lower quality,
+then the legacy 16:9 family. No video assets have been committed.
+
+### QA URLs and acceptance criteria
+
+- `http://localhost:5176/?heroQuality=4k` — automatic **aspect ratio**
+  with a forced high-quality source
+- `http://localhost:5176/?heroQuality=1080p` — same selection at lower
+  source resolution
+- `http://localhost:5176/?heroQuality=4k&heroFit=contain` — complete
+  source frame without cropping; ambient fill if viewport ratio differs
+- `http://localhost:5176/?heroQuality=4k&heroFit=center` — video fills
+  the stage, cropping minimally when ratios differ
+
+DevTools should show `data-hero-aspect="21x9"` and the
+`..._21x9_4k.mp4` source on sufficiently wide, high-DPI desktop
+viewports. Test 1920×900, 1920×1080, 1440×900, and phone portrait.
+Inspect edge-seam continuity, sun/moon/mountain alignment with crystals,
+30-second looping, network payload and browser performance.
+This is a **review branch only**; do not merge to `main` without QA.
+
+
+
 ## Ambient side fill for the contained 16:9 landscape
 
 The preferred `heroFit=contain` framing preserves the full 16:9 mountain,
