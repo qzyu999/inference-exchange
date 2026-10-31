@@ -244,9 +244,10 @@ export function GettingStarted() {
 
         {step.gate && (
           <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
-            <strong>Enrollment is off by default.</strong> This guide cannot verify the live global enrollment switch.
-            Do not issue a credential until the coordinator has approved a supervised window.
-            A 503 from /provide means enrollment is closed. This is not a live “enabled” indicator.
+            <strong>Private-alpha availability:</strong> Provider enrollment is disabled by default while independent Mac onboarding is qualified.
+            In the intended general release, signup and provider enrollment are self-service without scheduled windows.
+            This guide cannot check the live global enrollment switch. Follow the coordinator’s current alpha instructions;
+            HTTP 503 from /provide means enrollment is unavailable. Never bypass the gate.
           </div>
         )}
 
