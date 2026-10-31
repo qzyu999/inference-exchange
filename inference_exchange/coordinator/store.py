@@ -19,7 +19,7 @@ from contextlib import contextmanager
 from functools import wraps
 from pathlib import Path
 
-from inference_exchange.config import MODELS_DIR
+from inference_exchange.config import MODELS_DIR, is_production
 
 logger = logging.getLogger(__name__)
 
@@ -366,33 +366,40 @@ class Store:
             self._ensure_account_in_transaction(account_id, name)
 
     @serialized_write
-    def _ensure_default_key(self) -> str:
-        """Ensure a default key exists, return it."""
-        # Check if we have one stored
-        row = self._conn.execute(
-            "SELECT key_hash FROM api_keys WHERE consumer_id = 'default-consumer' LIMIT 1"
-        ).fetchone()
-        if row:
-            # We can't recover the raw key from the hash, so generate a new one
-            # and store it in a special way (or just always regenerate on startup)
-            pass
+    def _ensure_default_key(self) -> str | None:
+        """Create a development-only bootstrap key once; never rotate persisted keys.
 
-        # Always generate a fresh default key on startup (it's printed to logs)
+        Only the SHA-256 hash of an API key is stored, so its raw secret cannot be
+        recovered on restart. Existing keys must remain valid; callers receive
+        None rather than a freshly rotated key when one already exists.
+        Production never silently mints a new shared anonymous credential.
+        """
+        exists = self._conn.execute(
+            "SELECT 1 FROM api_keys WHERE consumer_id = ? LIMIT 1",
+            (DEFAULT_CONSUMER_ID,),
+        ).fetchone()
+        if exists:
+            logger.info("Existing default-consumer API credentials preserved on startup")
+            return None
+
+        if is_production():
+            logger.info("Production startup: no shared default API key auto-created")
+            return None
+
+        # Fresh development database only. The raw secret is never persisted;
+        # create additional keys explicitly rather than rotating this one.
         raw = KEY_PREFIX + secrets.token_hex(16)
         key_hash = hashlib.sha256(raw.encode()).hexdigest()
-        key_id = key_hash[:8]
-
-        # Upsert: delete old default keys, insert new
-        self._conn.execute("DELETE FROM api_keys WHERE consumer_id = 'default-consumer'")
         self._conn.execute(
-            "INSERT INTO api_keys (key_hash, key_id, consumer_id, name, created_at) VALUES (?, ?, ?, ?, ?)",
-            (key_hash, key_id, "default-consumer", "Default Key", time.time()),
+            "INSERT INTO api_keys (key_hash, key_id, consumer_id, name, created_at) "
+            "VALUES (?, ?, ?, ?, ?)",
+            (key_hash, key_hash[:8], DEFAULT_CONSUMER_ID, "Default Key", time.time()),
         )
-        logger.info(f"Default API key: {raw[:8]}...")
+        logger.info("Created first-run development default API key: %s...", raw[:8])
         return raw
 
     @property
-    def default_key(self) -> str:
+    def default_key(self) -> str | None:
         return self._default_key
 
     # --- Auth ---
