@@ -585,6 +585,10 @@ export function HeroScene({ scrollProgress, landscapeMode = false, reducedMotion
   progressRef.current = scrollProgress
   const landscapeRef = useRef(landscapeMode)
   const reducedMotionRef = useRef(reducedMotion)
+  // Parse once instead of allocating URLSearchParams on every animation frame.
+  const opticalAlignRef = useRef(
+    new URLSearchParams(window.location.search).get('heroAlign') !== 'geometric',
+  )
   landscapeRef.current = landscapeMode
   reducedMotionRef.current = reducedMotion
 
@@ -697,8 +701,7 @@ export function HeroScene({ scrollProgress, landscapeMode = false, reducedMotion
     // ~0.09 world units left to register the top green vertex with that
     // actual photographic summit. The camera and video remain untouched.
     // ?heroAlign=geometric restores an exact x=0 pivot for comparison.
-    const opticalAlign = new URLSearchParams(window.location.search).get('heroAlign') !== 'geometric'
-    s.pivot.position.x = opticalAlign && landscapeRef.current ? -0.09 : 0
+    s.pivot.position.x = opticalAlignRef.current && landscapeRef.current ? -0.09 : 0
 
     // Slow Y rotation
     s.pivot.rotation.y = t * 0.15
