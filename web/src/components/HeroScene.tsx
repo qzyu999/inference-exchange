@@ -203,7 +203,7 @@ function makeTetra(
 // of a regular octahedron. Its 6 vertices are the edge-midpoints
 // of either tetrahedron. We compute them and draw the 12 edges.
 
-function makeOctahedronWireframe(): THREE.LineSegments {
+function makeOctahedronWireframe(erosion: { value: number }): THREE.LineSegments {
   // The octahedron vertices are midpoints of the 6 edges of tetra A.
   // A tetrahedron has 4 vertices → C(4,2) = 6 edges → 6 midpoints.
   const midpoints: THREE.Vector3[] = []
@@ -261,6 +261,9 @@ function makeOctahedronWireframe(): THREE.LineSegments {
     opacity: 0,
     depthWrite: false,
   })
+  // The inner octahedron must fragment under the same erosion front as
+  // both outer tetrahedrons—not just fade while their grains blow away.
+  addErosionToSurface(mat, erosion)
 
   return new THREE.LineSegments(geo, mat)
 }
@@ -323,8 +326,14 @@ function makeOrbit(count: number): OrbitData {
 // current; reversing the scroll reconstructs the same exact geometry.
 // No copied iconography, no random frame-to-frame forces, no extra renderer.
 
-function makeMineralGrains(): THREE.Points<THREE.BufferGeometry, THREE.ShaderMaterial> {
+function makeMineralGrains(octaWire: THREE.LineSegments): THREE.Points<THREE.BufferGeometry, THREE.ShaderMaterial> {
+  // Keep the existing particle budget. Reserve ~12% for the third, inner
+  // octahedron: these grains come from its ACTUAL wireframe segments.
   const count = window.innerWidth < 768 ? 8500 : 30000
+  const octaCount = window.innerWidth < 768 ? 1000 : 3600
+  const faceCount = count - octaCount
+  const octaPositions = octaWire.geometry.getAttribute('position') as THREE.BufferAttribute
+  const octaEdges = octaPositions.count / 2
   const positions = new Float32Array(count * 3)
   const pigments = new Float32Array(count * 3)
   const drifts = new Float32Array(count * 3)
@@ -338,6 +347,9 @@ function makeMineralGrains(): THREE.Points<THREE.BufferGeometry, THREE.ShaderMat
     0xC83A32, 0xD77A2F, 0xC49A45, 0x087F5B,
     0x4D9A91, 0x315B72, 0x4A465F, 0x702F32,
   ]
+  // The inner intersection already cycles through the mineral spectrum.
+  // Favor luminous turquoise and sapphire, with occasional gold/indigo.
+  const intersectionAccents = [0x4D9A91, 0x315B72, 0xC49A45, 0x4A465F]
   const pale = new THREE.Color()
   const a = new THREE.Vector3()
   const b = new THREE.Vector3()
@@ -351,25 +363,41 @@ function makeMineralGrains(): THREE.Points<THREE.BufferGeometry, THREE.ShaderMat
   }
 
   for (let i = 0; i < count; i++) {
-    const green = i % 2 === 0
-    const verts = green ? VERTS_UP : VERTS_DOWN
-    const face = faces[Math.floor(rand() * 4)]
-    a.copy(verts[face[0]])
-    b.copy(verts[face[1]])
-    c.copy(verts[face[2]])
-
-    // Square-root barycentric sampling gives constant area density.
-    const u = Math.sqrt(rand())
-    const v = rand()
     const i3 = i * 3
-    positions[i3] = a.x * (1 - u) + b.x * (u * (1 - v)) + c.x * u * v
-    positions[i3 + 1] = a.y * (1 - u) + b.y * (u * (1 - v)) + c.y * u * v
-    positions[i3 + 2] = a.z * (1 - u) + b.z * (u * (1 - v)) + c.z * u * v
+    if (i < faceCount) {
+      const green = i % 2 === 0
+      const verts = green ? VERTS_UP : VERTS_DOWN
+      const face = faces[Math.floor(rand() * 4)]
+      a.copy(verts[face[0]])
+      b.copy(verts[face[1]])
+      c.copy(verts[face[2]])
 
-    // Keep the original red/green poles recognizable while adding the
-    // mineral spectrum at the intersection, not as a uniform rainbow.
-    pale.setHex(accents[Math.floor(rand() * accents.length)])
-    pale.lerp(new THREE.Color(green ? EMERALD : RED), 0.54)
+      // Square-root barycentric sampling gives constant area density.
+      const u = Math.sqrt(rand())
+      const v = rand()
+      positions[i3] = a.x * (1 - u) + b.x * (u * (1 - v)) + c.x * u * v
+      positions[i3 + 1] = a.y * (1 - u) + b.y * (u * (1 - v)) + c.y * u * v
+      positions[i3 + 2] = a.z * (1 - u) + b.z * (u * (1 - v)) + c.z * u * v
+
+      // Preserve recognizable red/green poles with mineral accents.
+      pale.setHex(accents[Math.floor(rand() * accents.length)])
+      pale.lerp(new THREE.Color(green ? EMERALD : RED), 0.54)
+    } else {
+      // Sample points directly along each of the twelve REAL octahedron
+      // edges. Cycling the edges spreads the third shape's grains evenly;
+      // sampling the same BufferGeometry guarantees exact alignment.
+      const edge = (i - faceCount) % octaEdges
+      const blend = rand()
+      const start = edge * 2
+      const end = start + 1
+      positions[i3] = octaPositions.getX(start) * (1 - blend) + octaPositions.getX(end) * blend
+      positions[i3 + 1] = octaPositions.getY(start) * (1 - blend) + octaPositions.getY(end) * blend
+      positions[i3 + 2] = octaPositions.getZ(start) * (1 - blend) + octaPositions.getZ(end) * blend
+
+      pale.setHex(intersectionAccents[Math.floor(rand() * intersectionAccents.length)])
+      pale.lerp(MINERAL_COLORS[4], 0.35)
+    }
+
     pigments[i3] = pale.r
     pigments[i3 + 1] = pale.g
     pigments[i3 + 2] = pale.b
@@ -618,9 +646,9 @@ export function HeroScene({ scrollProgress, landscapeMode = false, reducedMotion
     pivot.add(upTetra)
     pivot.add(downTetra)
 
-    const octaWire = makeOctahedronWireframe()
+    const octaWire = makeOctahedronWireframe(erosion)
     pivot.add(octaWire)
-    const mineralGrains = makeMineralGrains()
+    const mineralGrains = makeMineralGrains(octaWire)
     mineralGrains.material.uniforms.uDpr.value = renderer.getPixelRatio()
     pivot.add(mineralGrains)
 
@@ -753,7 +781,9 @@ export function HeroScene({ scrollProgress, landscapeMode = false, reducedMotion
     uEdge.opacity = eO
     dEdge.opacity = eO
     oMat.opacity = orbitFade * 0.5 * inv
-    octaMat.opacity = merge * 0.5 * inv
+    // The third shape now erodes via the SAME spatial discard mask as the
+    // outer tetrahedrons. Do not fade it out ahead of its sampled grains.
+    octaMat.opacity = merge * 0.5
 
     // Hide sun/moon during fadeout
     if (fade > 0.5) {
