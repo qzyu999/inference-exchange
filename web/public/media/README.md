@@ -1,5 +1,37 @@
 # Local cinematic landing page media (#107, #185)
 
+## New full-width sun/moon-safe crop (October 30 review)
+
+The new Seedance footage is 16:9. When a browser viewport is wider than
+16:9, `object-fit: contain` displays the full video but leaves side margins;
+the old `object-fit: cover; object-position: center` fills the width but
+cropped equal amounts from the sky and foreground, risking clipping the
+sun/moon. **Default framing is now `wide`**: cover the viewport without any
+nonuniform stretch, with `object-position: 50% 12%`, which keeps almost all
+the sky and preferentially crops the lower foreground.
+
+For example, in a 1920×900 story viewport (~2.13:1), the displayed frame is
+equivalent to a 3840×1800 crop of the 3840×2160 original. With the new 12%
+vertical bias, ~43 original pixels are cropped from the top and ~317 from
+the bottom. The sun, moon, central summit, and reflection all remain visible
+in the sampled frame. On an actual 16:9 viewport, no crop is needed.
+This is **CSS-only framing**; no new video downloads/encodes or changes to the
+crystal/shader timeline are required.
+
+Preview the exact same 4K source side by side:
+
+- `http://localhost:5176/?heroRaw=1&heroQuality=4k&heroFit=wide` — new default, full width, sky preserved
+- `http://localhost:5176/?heroRaw=1&heroQuality=4k&heroFit=cover` — previous centered crop
+- `http://localhost:5176/?heroRaw=1&heroQuality=4k&heroFit=contain` — uncropped, side margins on a wide viewport
+
+The poster image and actual video use the exact same crop parameters so
+there is no framing jump as the first frame loads. The selected mode is
+visible on the `<video data-hero-framing="...">` attribute. For a full UI
+comparison, omit `heroRaw=1`. **Mobile remains a special case**: no 16:9
+horizontal video can show both far-apart sky objects on a tall portrait
+screen while filling the viewport; a separate mobile composition would be
+needed for that.
+
 ## Current Seedance 2.5 media — adaptive-quality preview
 
 Two new 30-second locked-camera source clips were provided on October 30:
@@ -46,8 +78,9 @@ Network or inspect the video's `data-hero-source` DOM attribute.
   **and** sufficient memory/CPU: 4K
 
 Debug / override the automatic choice with `?heroQuality=720p`,
-`?heroQuality=1080p`, or `?heroQuality=4k`. Keep `?heroFit=cover` or
-`?heroFit=contain` as before. Missing variants fall back to 1080p or the
+`?heroQuality=1080p`, or `?heroQuality=4k`. The default framing is now
+`heroFit=wide`; `heroFit=cover` is the former centered crop and
+`heroFit=contain` preserves the full source image. Missing variants fall back to 1080p or the
 legacy `alpine-lake-hero.mp4` if present. There is **no runtime quality
 switch while playing**: each `<video>` fetches only the selected asset.
 
@@ -85,7 +118,7 @@ The canonical experiment now uses native 3840×2160 and 1920×1080 Seedance
 footage instead of the old 1650×720 ultrawide plate. Preserve the centered
 mountain/reflection, left-side editorial typography and sun/moon composition.
 The legacy `alpine-lake-hero.mp4` remains only a local-media fallback.
-Inspect `heroFit=cover` and `heroFit=contain` plus the loop seam on multiple
+Inspect `heroFit=wide`, `heroFit=cover` and `heroFit=contain` plus the loop seam on multiple
 desktop aspect ratios; avoid over-optimizing away detail in the snow or water.
 
 
