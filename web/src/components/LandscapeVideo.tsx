@@ -41,9 +41,17 @@ function pickQuality(): VideoQuality {
   // important than having 4K pixels on a physically small screen.
   if (slowNetwork || window.innerWidth < 768 || physicalWidth < 1280) return '720p'
 
-  // Four-K is opt-in automatically ONLY when the browser reports good network
-  // conditions and a large, capable display. Safari does not expose the
-  // Network Information API, so its safe default remains 1080p.
+  // Local high-DPI desktop review should actually show the 4K plate. In
+  // the previous implementation even localhost usually selected 1080p, so
+  // comparing "/" with "?heroQuality=4k" was NOT an apples-to-apples test.
+  // Production keeps the conservative bandwidth/device guard below.
+  const localHighDpiReview = /^(localhost|127\\.0\\.0\\.1)$/.test(window.location.hostname)
+    && window.innerWidth >= 1024 && physicalWidth >= 2600
+  if (localHighDpiReview) return '4k'
+
+  // Four-K is selected in production ONLY when the browser reports good
+  // conditions and a large display. Safari lacks consistent connection
+  // hints, so public visitors there still default to 1080p.
   const largeDisplay = physicalWidth >= 3200 && physicalHeight >= 1800
   const fastConnection = connection?.effectiveType === '4g'
     && (connection.downlink ?? 0) >= 20
@@ -60,15 +68,16 @@ function getVideoFraming(): {
   position: string
 } {
   const setting = new URLSearchParams(window.location.search).get('heroFit')
-  // `?heroFit=cover` preserves the previous centered crop as a comparison.
-  // `?heroFit=contain` shows all of the 16:9 frame, with side margins in a
-  // wider browser viewport. The default `wide` fills the viewport and crops
-  // MOSTLY the lower foreground, keeping the high sun and moon visible.
-  const mode: HeroFraming = setting === 'contain'
-    ? 'contain'
+  // The user prefers the native, uncropped 16:9 composition (like the
+  // QuickTime preview). Make that the default instead of zooming/cropping
+  // the source, which magnifies any already-soft video detail.
+  // Full bleed is still available with ?heroFit=wide, and the previous
+  // center crop with ?heroFit=cover. Never distort/stretch the video.
+  const mode: HeroFraming = setting === 'wide'
+    ? 'wide'
     : setting === 'center' || setting === 'cover'
       ? 'center'
-      : 'wide'
+      : 'contain'
   return {
     mode,
     fit: mode === 'contain' ? 'contain' : 'cover',
