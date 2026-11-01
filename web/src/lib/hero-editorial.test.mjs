@@ -37,14 +37,14 @@ assert.match(landing, /className="hero-exchange-card relative rounded-xl/)
 assert.match(styles, /\.hero-exchange-card \{/)
 // The CTA surfaces and live card share the same cool-mist to ochre wash;
  // no separate flat tan or strong jade/gold solid CTA fills.
-assert.match(styles, /--hero-atmosphere-wash: linear-gradient\\(138deg/)
+assert.match(styles, /--hero-atmosphere-wash: linear-gradient\(138deg/)
 for (const color of ['#B2C0BB', '#D2D6C9', '#E2D2B8', '#E6CEAA', '#F2E5D0', '#FAF7EE']) {
   assert.ok(styles.includes(color), `missing atmospheric wash stop ${color}`)
 }
-assert.match(styles, /\\.hero-pigment-primary \\{[\\s\\S]*?background: var\\(--hero-atmosphere-wash\\)/)
-assert.match(styles, /\\.hero-pigment-secondary \\{[\\s\\S]*?var\\(--hero-atmosphere-wash\\)/)
-assert.match(styles, /\\.hero-exchange-card \\{[\\s\\S]*?var\\(--hero-atmosphere-wash\\)/)
-assert.doesNotMatch(styles, /rgba\\(30, 94, 86, 0\\.93\\)/)
+assert.match(styles, /\.hero-pigment-primary \{[\s\S]*?background: var\(--hero-atmosphere-wash\)/)
+assert.match(styles, /\.hero-pigment-secondary \{[\s\S]*?var\(--hero-atmosphere-wash\)/)
+assert.match(styles, /\.hero-exchange-card \{[\s\S]*?var\(--hero-atmosphere-wash\)/)
+assert.doesNotMatch(styles, /rgba\(30, 94, 86, 0\.93\)/)
 assert.doesNotMatch(landing, /rgba\(16,45,109,0\.76\)/)
 assert.match(landing, /hero-body-inscription/)
 assert.match(landing, /hero-fine-inscription/)
