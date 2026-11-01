@@ -47,18 +47,21 @@ export const APP_PIGMENTS = {
   malachite: '#3F7B67',
   silk: '#F2DFC0',
   cloud: '#FBF4E4',
-  parchment: '#F7F2E8',
-  paper: '#FFFDF7',
-  line: '#D9C8AA',
+  // Muted workbench surfaces: less glare against the cooler image-derived
+  // atmosphere; dark ink retains high contrast.
+  parchment: '#CEDCD2',
+  paper: '#D9E4DC',
+  line: '#92AA9E',
   ink: '#263A63',
   body: '#46546A',
   goldInk: '#845918',
   jadeInk: '#31644E',
   sidebarText: '#EADFCB',
   sidebarMuted: '#C4BBD0',
-  // Soft illustrated-sky wash: sage-gray mist above, a small ochre sun haze
-  // at the horizon, resolving to light silk. The entire page stays readable.
-  atmosphere: 'radial-gradient(ellipse 59% 39% at 84% 27%, rgba(229,171,101,0.23) 0%, transparent 75%), radial-gradient(ellipse 65% 40% at 12% 8%, rgba(107,149,146,0.17) 0%, transparent 76%), linear-gradient(180deg, #B2C0BB 0%, #D2D6C9 19%, #E2D2B8 43%, #E6CEAA 57%, #F2E5D0 80%, #FAF7EE 100%)',
+  // Reference-inspired landscape gradient: dusky sky-blue/teal overhead,
+  // softened mineral greens at mid-height and an earthy sage base.
+  // No near-white, high-luminance or saffron hotspot in the page backdrop.
+  atmosphere: 'radial-gradient(ellipse 72% 35% at 14% 6%, rgba(93,145,151,0.14) 0%, transparent 80%), radial-gradient(ellipse 59% 39% at 88% 84%, rgba(104,137,99,0.09) 0%, transparent 82%), linear-gradient(180deg, #426A75 0%, #537A7C 27%, #6A8E87 54%, #829C8B 77%, #91A48B 100%)',
 } as const
 
 /**
@@ -106,6 +109,8 @@ export const GRADIENTS = {
   mineralGlow: 'radial-gradient(ellipse at 12% 0%, rgba(215,122,47,0.045) 0%, transparent 58%), radial-gradient(ellipse at 88% 100%, rgba(77,154,145,0.04) 0%, transparent 58%)',
   cardBorder: 'linear-gradient(135deg, ' + C.red + '33, ' + C.gold + '55, ' + C.turquoise + '44, ' + C.deepBlue + '33)',
   titleText: 'linear-gradient(135deg, ' + C.blueBlack + ', ' + C.indigo + ')',
+  // Subtle, high-contrast ink for titles ON the darker app-page backdrop.
+  appTitle: 'linear-gradient(100deg, #EFF2E7 0%, #CCE2D7 55%, #E4EAD6 100%)',
 } as const
 
 export const GL = {
