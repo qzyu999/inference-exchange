@@ -104,13 +104,22 @@ Official docs:
 - [Stream player autoplay/loop behavior](https://developers.cloudflare.com/stream/viewing-videos/using-the-stream-player/)
 - [Basic dashboard upload](https://developers.cloudflare.com/stream/uploading-videos/upload-video-file/)
 
-## Real Cloudflare Stream 21:9 pilot — uploaded October 31, 2026
+## Real Cloudflare Stream 16:9 and 21:9 pilot — October 31, 2026
 
-The user uploaded the original 3840×1644, 30s ultrawide Runway master
-to Cloudflare Stream and provided its actual HLS playback URL:
+The user uploaded two separate video compositions to Cloudflare Stream:
+
+- **21:9 ultrawide**, original 3840×1644 / ~30s Runway master:
+
 
 ```text
 https://customer-5w3ijts4etcd5hi9.cloudflarestream.com/02af62eaa08146a6efe21b8a4d76a569/manifest/video.m3u8
+```
+
+- **16:9 standard landscape**, new upload with video UID
+  `6dcc0a01091fa0a720a7482f5c758b79`:
+
+```text
+https://customer-5w3ijts4etcd5hi9.cloudflarestream.com/6dcc0a01091fa0a720a7482f5c758b79/manifest/video.m3u8
 ```
 
 **Security:** This is a public *playback* URL, not an API key. Cloudflare
@@ -120,10 +129,14 @@ testing. By itself, a public video UID is not access control, billing cap,
 or protection against all scripted playback abuse. Do not commit
 Cloudflare API credentials.
 
-**Status:** The manifest URL matches Cloudflare's documented format.
-Live variant resolutions and authenticated/allowed-origin playback
-were **not** accessible to the build agent, so do not claim real
-360/480/720/1080 variants are verified until local inspection succeeds.
+**Status:** The 21:9 manifest was verified on the owner's Mac (HTTP
+200, five ~2.33:1 H.264 renditions from 560×240 through 2522×1080).
+The owner also successfully played the 21:9 HLS stream in the actual
+React landing page (1120×480 active, readyState 4, playing true) and
+approved its appearance. The 16:9 URL was provided later: **not yet
+verified for readiness, aspect ratio, or live playback**. Neither
+playlist could be downloaded from the build agent's environment.
+Public rollout, actual transfer savings and cost validation are pending.
 
 ### 1. Inspect the *actual* adaptive bitrate manifest
 
@@ -134,9 +147,13 @@ cd ~/projects/inference-exchange-mandala-review
 git pull --ff-only
 cd web
 npm run inspect:stream-hls
+
+# Verify the new 16:9 upload separately:
+npm run inspect:stream-hls -- \
+  'https://customer-5w3ijts4etcd5hi9.cloudflarestream.com/6dcc0a01091fa0a720a7482f5c758b79/manifest/video.m3u8'
 ```
 
-The command sends a **single HLS manifest request** with localhost
+Each command sends **one HLS manifest request** with localhost
 Origin/Referer headers; it deliberately does **not** request media segments
 or autoplay the video. It prints Cloudflare's actual `RESOLUTION`,
 `BANDWIDTH`, `CODECS`, and rendition URI entries. If it reports 403,
@@ -198,8 +215,12 @@ Open these separately (on the same viewport/window and network):
 
 - **MP4 baseline**:
   `http://localhost:5176/?heroAspect=21x9&heroFit=contain`
-- **HLS pilot**:
+- **21:9 HLS pilot**:
   `http://localhost:5176/?heroAspect=21x9&heroFit=contain&heroDelivery=stream`
+- **16:9 MP4 baseline**:
+  `http://localhost:5176/?heroAspect=16x9&heroFit=contain`
+- **16:9 HLS pilot**:
+  `http://localhost:5176/?heroAspect=16x9&heroFit=contain&heroDelivery=stream`
 
 The `heroAspect=21x9` override is only available on localhost so
 ordinary 16:9 monitors can test the 21:9 source without accidental
@@ -214,14 +235,16 @@ pinned npm `hls.js` dependency and audit CSP/supply-chain policy.
 
 The demo never attempts Stream delivery when reduced-motion or
 Save-Data is active. On a fatal HLS load/player error, it falls back to
-the same 21:9 MP4 as the normal page. Since we have uploaded only
-**21:9** to Stream, ordinary **16:9** still uses native MP4 until
-the second source has been uploaded and validated.
+an MP4 for the same aspect ratio as the normal page. **Both 16:9 and
+21:9 use HLS only with the explicit localhost query flag.** The
+16:9 source is uploaded but unverified, so do not declare it
+production-ready until the Mac's manifest and browser checks pass.
 
 In Chrome/Safari DevTools **Network**, disable cache for first-visit
 measurement; use the same network throttling profile for both modes.
 For HLS, expect `video.m3u8`, rendition playlists and segment requests
-(not the standalone 4K MP4). For MP4 expect `...21x9_*.mp4` requests.
+(not the standalone 4K MP4). For MP4 expect `...21x9_*.mp4` or
+`...mountain_lake_*.mp4` requests, depending on aspect.
 HLS may start in lower quality and increase over a few seconds.
 
 Check which mode actually ran:
