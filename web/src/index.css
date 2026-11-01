@@ -108,17 +108,18 @@ body {
 /* Issue #203: mineral workbench pilot. The app stays calm and
    task-oriented; cinematic colors live primarily in its navigation. */
 .ie-mineral-app {
-  --ie-app-surface: #D9E4DC;
-  --ie-app-paper: #CEDCD2;
+  --ie-app-surface: #C6D1CB;
+  --ie-app-paper: #C4CAC7;
   --ie-app-ink: #263A63;
-  --ie-app-line: #92AA9E;
+  --ie-app-line: #859B94;
   --ie-app-gold: #845918;
 }
 
-/* Give existing white utility cards a calm sage-paper surface in the app
-   shell only. The cinematic landing and its text/video remain untouched. */
+/* The app uses the very same dark mineral field as the landing's final
+   product slide. Keep dense content on muted, low-glare reading surfaces
+   instead of applying its dark background to data tables and forms. */
 .ie-mineral-app .bg-white {
-  background-color: #D9E4DC;
+  background-color: #C6D1CB;
 }
 
 .ie-mineral-sidebar .ie-app-wordmark {
@@ -151,9 +152,9 @@ body {
 }
 
 .ie-mineral-app .ie-mineral-panel {
-  background: linear-gradient(140deg, #D9E4DC 0%, #CEDCD2 100%);
+  background: linear-gradient(140deg, #C6D1CB 0%, #C4CAC7 100%);
   border-color: var(--ie-app-line);
-  box-shadow: 0 3px 18px rgba(27, 53, 56, 0.07);
+  box-shadow: 0 3px 18px rgba(4, 10, 20, 0.10);
 }
 .ie-mineral-app .ie-mineral-journey {
   position: relative;
