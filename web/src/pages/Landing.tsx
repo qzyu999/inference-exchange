@@ -273,7 +273,7 @@ function LiveExchangeCard() {
     <div
       className="hero-exchange-card relative rounded-xl p-6 w-full max-w-sm"
     >
-      <div className="text-[10px] uppercase tracking-wider font-medium mb-1.5" style={{ color: '#806448' }}>
+      <div className="text-[10px] uppercase tracking-wider font-medium mb-1.5" style={{ color: '#514735' }}>
         Live Exchange
       </div>
       <h3 className="text-xl font-bold mb-5" style={{ color: C.blueBlack }}>
@@ -297,10 +297,10 @@ function LiveExchangeCard() {
                 </span>
               </div>
               <div className="flex items-center gap-4 shrink-0 text-right">
-                <span className="text-xs" style={{ color: '#71685D' }}>
+                <span className="text-xs" style={{ color: '#4B4E47' }}>
                   {m.provider_count} provider{m.provider_count !== 1 ? 's' : ''}
                 </span>
-                <span className="text-sm font-semibold" style={{ color: '#78502C' }}>
+                <span className="text-sm font-semibold" style={{ color: '#654326' }}>
                   {priceRange}
                 </span>
               </div>
@@ -319,10 +319,10 @@ function LiveExchangeCard() {
       </div>
 
       <div className="mt-5 pt-4" style={{ borderTop: '1px solid rgba(128,111,89,0.22)' }}>
-        <div className="text-[10px] uppercase tracking-wider font-medium" style={{ color: '#806448' }}>
+        <div className="text-[10px] uppercase tracking-wider font-medium" style={{ color: '#514735' }}>
           Trust levels are claims
         </div>
-        <div className="text-xs mt-0.5" style={{ color: '#615E56' }}>
+        <div className="text-xs mt-0.5" style={{ color: '#4B4E47' }}>
           Shown as self-reported until verified. Browser chat uses TLS; it is not end-to-end encrypted.
         </div>
       </div>
