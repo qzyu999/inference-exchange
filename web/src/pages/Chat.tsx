@@ -208,7 +208,7 @@ export function Chat() {
           Explore models and prices without an account. To run inference, sign in with GitHub.
           New accounts receive simulated alpha credits; no real payment is taken.
         </p>
-        <p className="text-xs" style={{ color: '#888' }}>
+        <p className="text-xs leading-relaxed" style={{ color: '#536171' }}>
           Browser chat uses TLS, not end-to-end encryption. The coordinator can read prompts and responses.
           Use nonsensitive test prompts.
         </p>
@@ -332,7 +332,7 @@ export function Chat() {
           </div>
         )}
 
-        <div className="text-[11px] mb-3" style={{ color: '#888' }}>
+        <div className="text-xs leading-relaxed mb-3" style={{ color: '#536171' }}>
           Browser chat uses TLS, not end-to-end encryption. The coordinator can read prompts
           and responses regardless of the provider trust selection.
         </div>

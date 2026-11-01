@@ -31,6 +31,58 @@ export const C = {
   pageText: '#292F35',
 } as const
 
+/**
+ * Product workbench pilot (#203). These semantic mineral tones reconcile
+ * the new Tibetan/Sichuan-inspired landing art with dense data interfaces.
+ * Keep C/TRUST_COLORS untouched while piloting the shared shell.
+ */
+export const APP_PIGMENTS = {
+  deepLapis: '#102D6D',
+  lapis: '#163E8C',
+  indigoSmoke: '#433763',
+  orpiment: '#F0C54B',
+  saffron: '#E29A2D',
+  cinnabar: '#C94C2F',
+  jade: '#5F8E61',
+  malachite: '#3F7B67',
+  silk: '#F2DFC0',
+  cloud: '#FBF4E4',
+  parchment: '#F7F2E8',
+  paper: '#FFFDF7',
+  line: '#D9C8AA',
+  ink: '#263A63',
+  body: '#46546A',
+  goldInk: '#845918',
+  jadeInk: '#31644E',
+  sidebarText: '#EADFCB',
+  sidebarMuted: '#C4BBD0',
+  // Matches the established main application shell, not a scenic wash.
+  // Genuine 2400 K color temperature belongs to display-level software.
+  atmosphere: 'linear-gradient(180deg, #F8F8F5 0%, ' + C.pageBg + ' 40%, #F3F2EE 100%)',
+} as const
+
+/**
+ * Landing-only color study, drawn from the user's Tibetan painting references:
+ * lapis-blue grounds, saffron/orpiment-gold light, cinnabar flame, coral
+ * lotus, jade-green landscapes and warm silk. Do not swap the global product
+ * UI theme; these pigments belong to the cinematic landing editorial layer.
+ */
+export const HERO_PIGMENTS = {
+  lapis: '#163E8C',
+  deepLapis: '#102D6D',
+  indigoSmoke: '#433763',
+  orpiment: '#F0C54B',
+  saffron: '#E29A2D',
+  cinnabar: '#C94C2F',
+  coralLotus: '#E48773',
+  jade: '#5F8E61',
+  malachite: '#3F7B67',
+  cream: '#F6E7C7',
+  silk: '#F2DFC0',
+  cloud: '#FBF4E4',
+  label: '#EFCB86',
+} as const
+
 // Trust levels are claimed by providers and not yet independently verified (see #1). Say so wherever they are shown.
 export const TRUST_CLAIM_NOTE = 'Self-reported by the provider. Independent verification is not live yet.'
 

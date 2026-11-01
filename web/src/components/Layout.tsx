@@ -1,10 +1,10 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, Outlet, useLocation } from 'react-router-dom'
 import { useCoordinatorStatus, useWebSocket } from '../lib/useWebSocket'
 import { useAuth } from '../lib/auth'
 import { loginHref } from '../lib/nav.js'
 import { canShowAdminConsole, canShowProviderDashboard } from '../lib/role-nav.js'
-import { C, TRUST_COLORS, GRADIENTS } from '../lib/theme'
+import { C, TRUST_COLORS, GRADIENTS, APP_PIGMENTS as AP } from '../lib/theme'
 import { ErrorBoundary } from './ErrorBoundary'
 import { MineralAurora, NetworkHeartbeat, useNetworkPulses } from './MineralAurora'
 
@@ -18,7 +18,7 @@ const PRIMARY_NAV = [
   { path: '/exchange', label: 'Exchange', icon: ExchangeIcon },
   { path: '/models', label: 'Models', icon: ModelsIcon },
   { path: '/providers', label: 'Providers', icon: ProvidersIcon },
-  { path: '/provide', label: 'Provide (preview)', icon: ProvidersIcon },
+  { path: '/provide', label: 'Offer Compute', icon: ProvidersIcon },
 ]
 
 const ACCOUNT_NAV = [
@@ -135,15 +135,90 @@ function NavItem({ path, label, icon: Icon, active }: {
     <Link
       to={path}
       reloadDocument={path === '/admin'}
-      className={`flex items-center gap-3 px-3 py-2 rounded-lg text-[13px] font-medium transition-colors ${active ? 'sidebar-active-bar' : ''}`}
+      aria-current={active ? 'page' : undefined}
+      className={`ie-app-nav-item flex items-center gap-3 px-3 py-2 rounded-lg text-[13px] font-medium transition-colors ${active ? 'sidebar-active-bar' : ''}`}
       style={{
+        // Preserve the live alpha active item: neutral charcoal and a
+        // four-color mineral indicator (the gradient lives in CSS).
         background: active ? C.sidebarHover : 'transparent',
-        color: active ? '#fff' : C.sidebarText,
+        color: active ? '#fff' : AP.sidebarText,
       }}
     >
       <Icon className="shrink-0" />
       <span>{label}</span>
     </Link>
+  )
+}
+
+// A single, explicit non-landing appearance preference. Light is the default
+// even for users who previously saw the optional warm tint enabled by default.
+const APPEARANCE_KEY = 'ie-app-appearance'
+const APPEARANCE_MODES = [
+  { value: 'light', label: 'Light' },
+  { value: 'dark', label: 'Dark' },
+  { value: 'blue-light', label: 'Night Shift' },
+] as const
+type AppAppearance = (typeof APPEARANCE_MODES)[number]['value']
+
+// Small custom SVGs share one stroke style and fit the compact sidebar.
+// Keep labels visible: icons are decoration, not the sole mode identifier.
+function AppearanceIcon({ mode }: { mode: AppAppearance }) {
+  const common = {
+    width: 18, height: 18, viewBox: '0 0 24 24',
+    fill: 'none', stroke: 'currentColor', strokeWidth: 1.7,
+    strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const,
+    'aria-hidden': true as const,
+  }
+  if (mode === 'light') {
+    return (
+      <svg {...common}>
+        <circle cx="12" cy="12" r="4" />
+        <path d="M12 2v2M12 20v2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M2 12h2m16 0h2M4.93 19.07l1.42-1.42m11.3-11.3 1.42-1.42" />
+      </svg>
+    )
+  }
+  if (mode === 'dark') {
+    return (
+      <svg {...common}>
+        <path d="M20.1 14.9A8.5 8.5 0 0 1 9.1 3.9 8.5 8.5 0 1 0 20.1 14.9Z" />
+      </svg>
+    )
+  }
+  return (
+    <svg {...common}>
+      <path d="M3 18h18M6 21h12M7 14a5 5 0 0 1 10 0M12 3v3M4.8 6.8l2.1 2.1M19.2 6.8l-2.1 2.1M3 12h2m14 0h2" />
+    </svg>
+  )
+}
+
+function readAppearance(): AppAppearance {
+  try {
+    const stored = window.localStorage.getItem(APPEARANCE_KEY)
+    if (stored === 'dark' || stored === 'blue-light') return stored
+  } catch { /* Storage can be disabled in private browsing. */ }
+  return 'light'
+}
+
+function AppearanceSelector({ value, onChange }: {
+  value: AppAppearance
+  onChange: (next: AppAppearance) => void
+}) {
+  return (
+    <div role="group" aria-label="Appearance" className="ie-app-appearance-selector grid grid-cols-3 gap-1 rounded-xl p-1">
+      {APPEARANCE_MODES.map(mode => (
+        <button
+          key={mode.value}
+          type="button"
+          aria-pressed={value === mode.value}
+          onClick={() => onChange(mode.value)}
+          className="ie-app-appearance-option flex min-h-[56px] min-w-0 flex-col items-center justify-center gap-1 rounded-lg px-1 py-1.5 text-[10px] leading-tight font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#F0C54B]"
+          title={mode.value === 'blue-light' ? 'Warm blue-light filtering overlay; not a calibrated screen whitepoint' : mode.label + ' appearance'}
+        >
+          <AppearanceIcon mode={mode.value} />
+          <span className="text-center">{mode.label}</span>
+        </button>
+      ))}
+    </div>
   )
 }
 
@@ -154,6 +229,11 @@ export function Layout() {
   const coordinatorOnline = useCoordinatorStatus()
   const { user, loading: authLoading, logout } = useAuth()
   const [mobileOpen, setMobileOpen] = useState(false)
+  const [appearance, setAppearance] = useState<AppAppearance>(readAppearance)
+  useEffect(() => {
+    try { window.localStorage.setItem(APPEARANCE_KEY, appearance) }
+    catch { /* Retain in-session preference if storage is unavailable. */ }
+  }, [appearance])
 
   // Subscribe to live exchange events for reactive aurora
   const { events } = useWebSocket('/ws/events')
@@ -170,15 +250,20 @@ export function Layout() {
 
   if (location.pathname === '/login') {
     return (
-      <div className="min-h-screen" style={{ background: `linear-gradient(180deg, #F8F8F5 0%, ${C.pageBg} 40%, #F3F2EE 100%)` }}>
-        <div className="px-6 py-4">
+      <div className="ie-app-appearance-scope min-h-screen" data-appearance={appearance} style={{ background: `linear-gradient(180deg, #F8F8F5 0%, ${C.pageBg} 40%, #F3F2EE 100%)` }}>
+        <div className="relative z-10 flex items-center justify-between gap-4 px-6 py-4">
           <Link to="/" className="text-sm font-semibold tracking-tight uppercase" style={{ color: C.gold }}>
             Inference Exchange
           </Link>
+          <div className="w-64 max-w-[65vw]">
+            <AppearanceSelector value={appearance} onChange={setAppearance} />
+          </div>
         </div>
-        <ErrorBoundary>
-          <Outlet />
-        </ErrorBoundary>
+        <div className="ie-app-content">
+          <ErrorBoundary>
+            <Outlet />
+          </ErrorBoundary>
+        </div>
       </div>
     )
   }
@@ -186,14 +271,14 @@ export function Layout() {
   const sidebarContent = (
     <>
       {/* Brand */}
-      <div className="px-4 pt-5 pb-6" style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+      <div className="px-4 pt-5 pb-6" style={{ borderBottom: '1px solid rgba(240,197,75,0.24)' }}>
         <Link to="/" className="flex items-center gap-2.5">
           <img src="/logo-icon.svg" alt="IE" className="w-6 h-6" />
           <div>
-            <div className="text-sm font-bold uppercase tracking-wider mineral-spectrum-text">
+            <div className="ie-app-wordmark text-sm font-bold uppercase tracking-wider mineral-spectrum-text">
               Inference
             </div>
-            <div className="text-[11px] uppercase tracking-wider" style={{ color: '#666' }}>
+            <div className="text-[11px] uppercase tracking-wider" style={{ color: AP.silk }}>
               Exchange
             </div>
           </div>
@@ -213,8 +298,8 @@ export function Layout() {
 
       {/* Mineral stratum vein separator */}
       <div className="px-4 mt-6 mb-3">
-        <div className="h-[1px] rounded-full" style={{ background: GRADIENTS.mineralBar, opacity: 0.25 }} />
-        <div className="text-[10px] uppercase tracking-wider mt-4 mb-2" style={{ color: '#555' }}>
+        <div className="ie-app-spectrum-rule h-[1px] rounded-full" style={{ background: GRADIENTS.mineralBar, opacity: 0.8 }} />
+        <div className="text-[10px] uppercase tracking-wider mt-4 mb-2" style={{ color: AP.sidebarMuted }}>
           Account
         </div>
       </div>
@@ -234,12 +319,16 @@ export function Layout() {
       {/* Spacer */}
       <div className="flex-1" />
 
+      {/* App appearance only: never affects the cinematic landing screen. */}
+      <div className="px-3 pb-3">
+        <AppearanceSelector value={appearance} onChange={setAppearance} />
+      </div>
       {/* Network status + user */}
       <div className="px-4 pb-5 space-y-3">
         {coordinatorOnline !== null && (
           <div className="flex items-center gap-2">
             <NetworkHeartbeat online={!!coordinatorOnline} eventCount={events.length} />
-            <span className="text-xs" style={{ color: coordinatorOnline ? C.green : '#B7443B' }}>
+            <span className="text-xs" style={{ color: coordinatorOnline ? '#B4E3B5' : '#FFC3AD' }}>
               {coordinatorOnline ? 'Network online' : 'Network offline'}
             </span>
           </div>
@@ -247,15 +336,15 @@ export function Layout() {
         {user && (
           <div className="flex items-center justify-between">
             <div className="min-w-0">
-              <div className="text-xs truncate" style={{ color: '#888' }}>{user.name || user.email}</div>
-              <div className="text-[10px]" style={{ color: '#555' }}>
+              <div className="text-xs truncate" style={{ color: AP.sidebarText }}>{user.name || user.email}</div>
+              <div className="text-[10px]" style={{ color: AP.sidebarMuted }}>
                 {user.email !== user.name ? user.email.split('@')[0] : ''}
               </div>
             </div>
             <button
               onClick={logout}
               className="text-[10px] px-2 py-1 rounded-lg transition-colors"
-              style={{ color: '#666' }}
+              style={{ color: AP.sidebarText }}
             >
               Sign out
             </button>
@@ -265,7 +354,7 @@ export function Layout() {
           <Link
             to={loginHref(location.pathname + location.search)}
             className="block text-center text-xs font-medium px-3 py-2 rounded-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#E8C77A]"
-            style={{ color: '#fff', background: 'rgba(255,255,255,0.08)' }}
+            style={{ color: AP.cloud, background: 'rgba(240,197,75,0.16)', border: '1px solid rgba(240,197,75,0.3)' }}
           >
             Sign in with GitHub
           </Link>
@@ -275,10 +364,10 @@ export function Layout() {
   )
 
   return (
-    <div className="flex min-h-screen" style={{ background: `linear-gradient(180deg, #F8F8F5 0%, ${C.pageBg} 40%, #F3F2EE 100%)` }}>
+    <div className="ie-mineral-app ie-app-appearance-scope flex min-h-screen" data-appearance={appearance} style={{ background: `linear-gradient(180deg, #F8F8F5 0%, ${C.pageBg} 40%, #F3F2EE 100%)` }}>
       {/* Desktop sidebar */}
       <aside
-        className="hidden lg:flex flex-col w-52 shrink-0 sticky top-0 h-screen overflow-y-auto"
+        className="ie-mineral-sidebar hidden lg:flex flex-col w-52 shrink-0 sticky top-0 h-screen overflow-y-auto"
         style={{ background: GRADIENTS.sidebar }}
       >
         {sidebarContent}
@@ -286,15 +375,15 @@ export function Layout() {
 
       {/* Mobile hamburger + overlay */}
       <div className="lg:hidden fixed top-0 left-0 right-0 z-50 px-4 py-3 flex items-center justify-between"
-        style={{ background: '#F8F8F5', borderBottom: '1px solid rgba(0,0,0,0.05)' }}
+        style={{ background: GRADIENTS.sidebar, borderBottom: '1px solid rgba(240,197,75,0.34)' }}
       >
-        <Link to="/" className="text-sm font-bold uppercase tracking-wider" style={{ color: C.gold }}>
+        <Link to="/" className="text-sm font-bold uppercase tracking-wider" style={{ color: AP.orpiment }}>
           IE
         </Link>
         <button
           onClick={() => setMobileOpen(!mobileOpen)}
           className="p-2 rounded-lg"
-          style={{ color: C.pageText }}
+          style={{ color: AP.cloud }}
         >
           <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             {mobileOpen
@@ -313,7 +402,7 @@ export function Layout() {
             onClick={() => setMobileOpen(false)}
           />
           <aside
-            className="lg:hidden fixed top-0 left-0 bottom-0 z-50 w-56 flex flex-col overflow-y-auto"
+            className="ie-mineral-sidebar lg:hidden fixed top-0 left-0 bottom-0 z-50 w-56 flex flex-col overflow-y-auto"
             style={{ background: GRADIENTS.sidebar }}
             onClick={(e) => {
               // Close on nav link clicks
@@ -326,22 +415,22 @@ export function Layout() {
       )}
 
       {/* Main content */}
-      <div className="flex-1 min-w-0 lg:ml-0 relative">
+      <div className="ie-app-content flex-1 min-w-0 lg:ml-0 relative">
         {/* Continuous mineral light field. Product surfaces stay quiet; the spectrum lives behind them. */}
-        <div className="absolute left-0 right-0 top-0 z-20 h-[2px]" style={{ background: GRADIENTS.fullSpectrum }} />
+        <div className="ie-app-spectrum-rule absolute left-0 right-0 top-0 z-20 h-[2px]" style={{ background: GRADIENTS.fullSpectrum }} />
         {/* Living mineral aurora — reactive to network events */}
         <div className="absolute inset-0 z-0 overflow-hidden">
-          <MineralAurora variant="light" opacity={0.06} speed={0.0002} pulses={pulses} className="absolute inset-0" />
+          <MineralAurora variant={appearance === 'dark' ? 'dark' : 'light'} opacity={0.06} speed={0.0002} pulses={pulses} className="absolute inset-0" />
         </div>
 
         {/* Page title area + network status */}
         <div className="relative z-10 px-6 md:px-10 pt-14 lg:pt-8 pb-6 flex items-start justify-between">
           <div>
-            <PageTitle pathname={location.pathname} />
+            <PageTitle pathname={location.pathname} dark={appearance === 'dark'} />
           </div>
           {coordinatorOnline !== null && (
             <div className="hidden lg:flex items-center gap-2 pt-1">
-              <span className="text-xs" style={{ color: coordinatorOnline ? C.green : '#B7443B' }}>
+              <span className="text-xs" style={{ color: coordinatorOnline ? '#B4E3B5' : '#FFC3AD' }}>
                 Network · {coordinatorOnline ? 'live' : 'offline'}
               </span>
               <NetworkHeartbeat online={!!coordinatorOnline} eventCount={events.length} />
@@ -369,7 +458,7 @@ const PAGE_META: Record<string, { title: string; subtitle: string }> = {
   '/exchange': { title: 'Exchange', subtitle: 'A serious market surface for users who care about the routing mechanics.' },
   '/models': { title: 'Models', subtitle: 'Choose the model first; then inspect how the exchange can serve it.' },
   '/providers': { title: 'Providers', subtitle: 'Browse supply as evidence, not a directory of marketing claims.' },
-  '/provide': { title: 'Provide compute', subtitle: 'Bring your own Apple Silicon to the exchange.' },
+  '/provide': { title: 'Offer Compute', subtitle: 'Bring your own Apple Silicon to the exchange.' },
   '/billing': { title: 'Billing', subtitle: 'Alpha credits, usage and the economics of every request.' },
   '/keys': { title: 'API keys', subtitle: 'One secure place for keys, quick start and request attribution.' },
   '/settings': { title: 'Settings', subtitle: 'Manage your IE account and owned provider nodes.' },
@@ -379,11 +468,12 @@ const PAGE_META: Record<string, { title: string; subtitle: string }> = {
   '/docs': { title: 'Docs', subtitle: 'Principles and requirements. The code implements these.' },
 }
 
-function PageTitle({ pathname }: { pathname: string }) {
+function PageTitle({ pathname, dark }: { pathname: string; dark: boolean }) {
   const meta = PAGE_META[pathname.startsWith('/docs') ? '/docs' : pathname.startsWith('/start/') ? '/start' : pathname]
   if (!meta) return null
 
   const gradient =
+    dark ? 'linear-gradient(110deg, #F2DCA8 0%, #B2D2C3 54%, #B9C9EA 100%)' :
     pathname === '/chat' ? GRADIENTS.demandToExchange :
     pathname === '/exchange' || pathname === '/models' ? GRADIENTS.market :
     pathname === '/providers' || pathname === '/dashboard' ? GRADIENTS.supplyToValue :
@@ -403,7 +493,7 @@ function PageTitle({ pathname }: { pathname: string }) {
       >
         {meta.title}
       </h1>
-      <p className="text-sm mt-1" style={{ color: '#888' }}>
+      <p className="text-sm mt-1" style={{ color: dark ? '#C6D0D5' : AP.body }}>
         {meta.subtitle}
       </p>
     </div>

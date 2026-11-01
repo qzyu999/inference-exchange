@@ -34,5 +34,10 @@ for (const want of ['/chat', '/exchange', '/models', '/providers', '/provide', '
   assert.ok(LANDING_LINKS.some(l => l.to === want), `landing nav missing ${want}`)
 }
 
+// Supply discovery and compute contribution are distinct destinations.
+assert.equal(LANDING_LINKS.find(l => l.to === '/providers')?.label, 'Providers')
+assert.equal(LANDING_LINKS.find(l => l.to === '/provide')?.label, 'Offer Compute')
+assert.equal(LANDING_LINKS.filter(l => l.to === '/provide').length, 1)
+
 // The python and JS validators must agree: the same cases are in tests/test_oauth_return_path.py
 console.log(`nav helpers: ${unsafe.length + safe.length} return-path cases ok`)

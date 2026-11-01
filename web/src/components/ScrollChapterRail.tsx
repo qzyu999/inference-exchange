@@ -1,0 +1,98 @@
+import { HERO_PIGMENTS as HP } from '../lib/theme'
+
+// Seven original main reading states: the intro plus all six original
+// transition messages. Extra holds interpolate through the same 0 -> .82
+// crystal timeline; the final extended gust still runs from .82 to 1.
+export const STORY_CHAPTERS = [
+  { label: 'Inference Exchange', sceneProgress: 0 },
+  { label: 'Supply meets demand', sceneProgress: 0.12 },
+  { label: 'Two forces converge', sceneProgress: 0.35 },
+  { label: 'The intersection is the product', sceneProgress: 0.53 },
+  { label: 'Trust is labelled, not assumed', sceneProgress: 0.60 },
+  { label: 'Providers compete. You benefit.', sceneProgress: 0.72 },
+  { label: 'Distributed AI inference, powered by everyone.', sceneProgress: 0.82 },
+] as const
+
+// A restrained sequence of pigments, mirroring the red/green crystal pair
+// and the mineral field. A hand-cut chip marks each chapter, not a UI dot.
+const CHAPTER_PIGMENTS = [HP.orpiment, HP.cinnabar, HP.orpiment, HP.jade, HP.lapis, HP.cinnabar, HP.orpiment] as const
+
+interface ScrollChapterRailProps {
+  activeIndex: number
+  onSelect: (index: number) => void
+}
+
+export function ScrollChapterRail({ activeIndex, onSelect }: ScrollChapterRailProps) {
+  return (
+    <>
+      <nav
+        aria-label="Landing story chapters"
+        className="fixed right-5 lg:right-9 top-1/2 -translate-y-1/2 z-40 hidden md:flex flex-col items-end gap-1"
+      >
+        {STORY_CHAPTERS.map((chapter, index) => {
+          const active = index === activeIndex
+          const pigment = CHAPTER_PIGMENTS[index]
+          return (
+            <button
+              key={chapter.label}
+              type="button"
+              onClick={() => onSelect(index)}
+              aria-label={'Chapter ' + (index + 1) + ' of ' + STORY_CHAPTERS.length + ': ' + chapter.label}
+              aria-current={active ? 'step' : undefined}
+              className="group min-h-11 flex items-center gap-3 py-2 pl-4 pr-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#E8C77A]"
+            >
+              <span
+                className="text-[10px] font-medium tracking-[0.16em] uppercase transition-opacity duration-300"
+                style={{
+                  color: HP.cream,
+                  opacity: active ? 1 : 0,
+                  textShadow: '0 1px 2px rgba(43,34,72,0.96), 0 3px 10px rgba(19,49,99,0.72)',
+                }}
+              >
+                {chapter.label}
+              </span>
+              <span className="flex items-center gap-2" aria-hidden="true">
+                <span
+                  className="h-[5px] w-[5px] rotate-45 transition-opacity duration-300"
+                  style={{
+                    background: active ? pigment : HP.silk,
+                    opacity: active ? 1 : 0.6,
+                    boxShadow: '0 0 0 1px rgba(240,197,75,0.73), 0 1px 5px rgba(43,34,72,0.8)',
+                  }}
+                />
+                <span
+                  className="block h-[2px] transition-all duration-300"
+                  style={{
+                    width: active ? 30 : 12,
+                    background: active ? `linear-gradient(90deg, ${pigment}, ${HP.orpiment})` : 'rgba(242,223,192,0.85)',
+                    boxShadow: '0 1px 5px rgba(43,34,72,0.8)',
+                  }}
+                />
+              </span>
+            </button>
+          )
+        })}
+        <span
+          aria-live="off"
+          className="mr-0.5 mt-2 text-[10px] font-medium tracking-[0.16em] tabular-nums"
+          style={{ color: HP.cream, textShadow: '0 1px 2px rgba(43,34,72,0.96), 0 3px 8px rgba(19,49,99,0.72)' }}
+        >
+          {String(activeIndex + 1).padStart(2, '0')} / {String(STORY_CHAPTERS.length).padStart(2, '0')}
+        </span>
+      </nav>
+      <div
+        className="pointer-events-none fixed bottom-0 left-0 right-0 h-[2px] z-40 md:hidden"
+        aria-hidden="true"
+        style={{ background: 'rgba(16,45,109,0.35)' }}
+      >
+        <div
+          className="h-full transition-[width] duration-300"
+          style={{
+            width: ((activeIndex + 1) / STORY_CHAPTERS.length * 100) + '%',
+            background: `linear-gradient(90deg, ${HP.lapis}, ${HP.orpiment} 33%, ${HP.cinnabar} 64%, ${HP.jade})`,
+          }}
+        />
+      </div>
+    </>
+  )
+}

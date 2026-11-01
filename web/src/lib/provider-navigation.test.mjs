@@ -17,7 +17,7 @@ const provide = readFileSync(new URL('../pages/Provide.tsx', import.meta.url), '
 const primary = layout.split('const PRIMARY_NAV = [')[1]?.split('\n]')[0] ?? ''
 const account = layout.split('const ACCOUNT_NAV = [')[1]?.split('\n]')[0] ?? ''
 assert.match(primary, /path: '\/providers', label: 'Providers'/)
-assert.match(primary, /path: '\/provide', label: 'Provide \(preview\)'/)
+assert.match(primary, /path: '\/provide', label: 'Offer Compute'/)
 assert.match(account, /path: '\/dashboard', label: 'Provider Dashboard'/)
 assert.match(account, /path: '\/billing', label: 'Billing'/)
 assert.doesNotMatch(primary, /path: '\/dashboard'/)

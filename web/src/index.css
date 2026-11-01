@@ -11,6 +11,38 @@
   --mineral-blue: #315B72;
   --mineral-indigo: #4A465F;
   --mineral-maroon: #702F32;
+  /* Original live /main "Become a provider" border: one canonical paint
+     recipe, shared by its existing mineral-border and the interactive CTA. */
+  --mineral-border-paint: linear-gradient(135deg,
+    #C83A3240, #D77A2F55, #C49A4555, #087F5B44,
+    #4D9A9144, #315B7240, #4A465F38, #702F3238);
+  /* Landing-only pigments, lifted from the user's thangka painting references. */
+  --hero-lapis: #163E8C;
+  --hero-deep-lapis: #102D6D;
+  --hero-indigo-smoke: #433763;
+  --hero-orpiment: #F0C54B;
+  --hero-saffron: #E29A2D;
+  --hero-cinnabar: #C94C2F;
+  --hero-coral-lotus: #E48773;
+  --hero-jade: #5F8E61;
+  --hero-malachite: #3F7B67;
+  --hero-cream: #F6E7C7;
+  --hero-silk: #F2DFC0;
+  --hero-cloud: #FBF4E4;
+  /* Exact seven-stop landing wordmark mineral spectrum. Both the logo
+     lettering and pointer-responsive CTA wash reference these same values. */
+  --hero-spectrum-apricot: #F5A475;
+  --hero-spectrum-orpiment: #F0C54B;
+  --hero-spectrum-coral: #E48773;
+  --hero-spectrum-jade: #A3C899;
+  --hero-spectrum-turquoise: #7FD5D1;
+  --hero-spectrum-lapis: #A5BEF4;
+  --hero-spectrum-lotus: #E4A4CB;
+  /* Same dusty-sage → ochre → ivory colors as the app's painted-sky wash.
+     These colors affect only small surfaces, never the mountain video. */
+  --hero-atmosphere-wash: linear-gradient(138deg,
+    #B2C0BB 0%, #D2D6C9 19%, #E2D2B8 43%,
+    #E6CEAA 57%, #F2E5D0 80%, #FAF7EE 100%);
 }
 
 body {
@@ -36,9 +68,7 @@ body {
   inset: 0;
   border-radius: inherit;
   padding: 1px;
-  background: linear-gradient(135deg,
-    #C83A3240, #D77A2F55, #C49A4555, #087F5B44,
-    #4D9A9144, #315B7240, #4A465F38, #702F3238);
+  background: var(--mineral-border-paint);
   background-size: 220% 220%;
   animation: mineral-shift 14s ease-in-out infinite;
   mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
@@ -85,6 +115,591 @@ body {
   -webkit-text-fill-color: transparent;
   background-clip: text;
   animation: mineral-shift 12s ease-in-out infinite;
+}
+
+/* Issue #203: mineral workbench pilot. The app stays calm and
+   task-oriented; cinematic colors live primarily in its navigation. */
+.ie-mineral-app {
+  --ie-app-surface: #FFFDF7;
+  --ie-app-paper: #F7F2E8;
+  --ie-app-ink: #263A63;
+  --ie-app-line: #D9C8AA;
+  --ie-app-gold: #845918;
+}
+
+/* The optional 2400K-inspired color wash is now one explicit appearance
+   choice. Light (the default) and Dark render with no overlay. This is not a
+   calibrated display whitepoint; f.lux remains a separate system setting. */
+.ie-app-appearance-scope[data-appearance="blue-light"]::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  pointer-events: none;
+  background: #FF995B;
+  opacity: 0.48;
+  mix-blend-mode: multiply;
+}
+
+@media (forced-colors: active), print {
+  .ie-app-appearance-scope[data-appearance="blue-light"]::after {
+    display: none;
+  }
+}
+
+.ie-mineral-sidebar .ie-app-wordmark {
+  /* Preserve the living mineral spectrum on the restored charcoal shell. */
+  background: linear-gradient(95deg,
+    #EE967D 0%, #F0C54B 16%, #E48773 32%, #AFDAA0 50%,
+    #73D0C4 66%, #B4BFFF 84%, #E2A0BC 100%);
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: mineral-shift 12s ease-in-out infinite;
+}
+
+/* Keep the original alpha mineral-spectrum selection stripe and neutral
+   charcoal active row. Do not replace it with a gold hover or animated stripe. */
+.ie-mineral-sidebar .ie-app-nav-item:hover {
+  background: rgba(255,255,255,0.06) !important;
+}
+.ie-mineral-sidebar .ie-app-nav-item[aria-current="page"]:hover {
+  background: rgba(255,255,255,0.06) !important;
+}
+.ie-mineral-sidebar .ie-app-nav-item:focus-visible {
+  outline: 2px solid #F0C54B;
+  outline-offset: -2px;
+}
+.ie-app-spectrum-rule {
+  background-size: 230% 100% !important;
+  animation: mineral-shift 20s ease-in-out infinite;
+}
+
+.ie-mineral-app .ie-mineral-panel {
+  background: linear-gradient(140deg, #FFFDF7 0%, #FAF5E9 100%);
+  border-color: var(--ie-app-line);
+  box-shadow: 0 3px 18px rgba(34, 49, 101, 0.045);
+}
+.ie-mineral-app .ie-mineral-journey {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+}
+.ie-mineral-app .ie-mineral-journey::before {
+  content: '';
+  pointer-events: none;
+  position: absolute;
+  inset: 0 0 auto;
+  height: 3px;
+  background: linear-gradient(90deg,
+    #163E8C 0%, #F0C54B 25%, #C94C2F 49%,
+    #5F8E61 75%, #73D0C4 100%);
+  background-size: 220% 100%;
+  animation: mineral-shift 18s ease-in-out infinite;
+}
+.ie-mineral-app .ie-mineral-journey:hover {
+  border-color: #BA975E;
+  box-shadow: 0 7px 22px rgba(34, 49, 101, 0.10);
+}
+.ie-mineral-app .ie-mineral-journey:focus-visible {
+  outline: 2px solid #845918;
+  outline-offset: 3px;
+}
+
+.ie-mineral-app .ie-mineral-action {
+  background: #163E8C;
+  border: 1px solid #102D6D;
+  color: #FBF4E4;
+  box-shadow: inset 0 1px 0 rgba(251,244,228,0.2);
+}
+.ie-mineral-app .ie-mineral-action:hover { background: #102D6D; }
+.ie-mineral-app .ie-mineral-action:focus-visible { outline: 2px solid #845918; outline-offset: 2px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .ie-mineral-sidebar .ie-app-wordmark,
+  .ie-app-spectrum-rule,
+  .ie-mineral-app .ie-mineral-journey::before { animation: none; }
+}
+
+/* Three exclusive non-landing appearance choices.
+   The sidebar keeps its established dark charcoal across all appearances.
+   Light preserves existing paper surfaces; blue-light adds the overlay above;
+   Dark substitutes semantic charcoal surfaces and contrasting content ink. */
+.ie-app-appearance-selector {
+  background: rgba(13, 19, 24, 0.42);
+  border: 1px solid rgba(240, 197, 75, 0.22);
+}
+.ie-app-appearance-option {
+  color: #EADFCB;
+  border: 1px solid transparent;
+  transition: background-color 150ms ease, color 150ms ease;
+}
+.ie-app-appearance-option:hover:not([aria-pressed="true"]) {
+  background: rgba(255, 255, 255, 0.09);
+}
+.ie-app-appearance-option[aria-pressed="true"] {
+  background: #E8DDC4;
+  border-color: rgba(240, 197, 75, 0.42);
+  color: #252A30;
+  box-shadow: 0 1px 4px rgba(8, 15, 23, 0.18);
+}
+/* The login header is on a LIGHT canvas, unlike the dark sidebar. */
+.ie-app-appearance-scope:not(.ie-mineral-app) .ie-app-appearance-selector {
+  background: #E7E8E5;
+  border-color: #D1D1CC;
+}
+.ie-app-appearance-scope:not(.ie-mineral-app) .ie-app-appearance-option {
+  color: #33404A;
+}
+.ie-app-appearance-scope:not(.ie-mineral-app) .ie-app-appearance-option[aria-pressed="true"] {
+  background: #FFFFFF;
+  color: #252A30;
+  border-color: #C8C4B7;
+}
+.ie-app-appearance-scope[data-appearance="dark"]:not(.ie-mineral-app) .ie-app-appearance-selector {
+  background: #222A30;
+  border-color: #515E67;
+}
+.ie-app-appearance-scope[data-appearance="dark"]:not(.ie-mineral-app) .ie-app-appearance-option {
+  color: #D9E2E2;
+}
+.ie-app-appearance-scope[data-appearance="dark"]:not(.ie-mineral-app) .ie-app-appearance-option[aria-pressed="true"] {
+  background: #E8DDC4;
+  color: #252A30;
+}
+
+/* Dark mode deliberately changes actual surfaces/text, NOT a tint or
+   whole-page inverse filter (which would distort mineral colors and charts).
+   Selectors stay inside the app content: the landing page, sidebar spectrum,
+   and semantic warning/alert fills are not recolored. */
+.ie-app-appearance-scope[data-appearance="dark"] {
+  --ie-app-surface: #353F47;
+  --ie-app-paper: #313B43;
+  --ie-app-ink: #EDE9DE;
+  --ie-app-line: #52606A;
+  --ie-app-gold: #E9C786;
+  color-scheme: dark;
+  color: #E8E4DA;
+  background: linear-gradient(160deg, #292F35 0%, #252D33 55%, #21282F 100%) !important;
+}
+.ie-app-appearance-scope[data-appearance="dark"] .ie-app-content {
+  color: #E8E4DA;
+}
+.ie-app-appearance-scope[data-appearance="dark"] .ie-app-content :is(
+  .bg-white, .bg-gray-50, .bg-gray-100, .bg-slate-50, .bg-stone-50,
+  .ie-mineral-panel
+) {
+  background: var(--ie-app-surface) !important;
+  border-color: var(--ie-app-line) !important;
+}
+/* A few older data-heavy pages use inline white/off-white card surfaces. */
+.ie-app-appearance-scope[data-appearance="dark"] .ie-app-content :is(
+  [style*="background: rgb(255, 255, 255)"],
+  [style*="background: rgb(255, 253, 247)"],
+  [style*="background: rgb(250, 250, 248)"],
+  [style*="background: rgb(247, 242, 232)"],
+  [style*="background: rgb(245, 245, 243)"],
+  [style*="background: rgb(229, 229, 227)"]
+):not(button):not(a):not(input):not(textarea) {
+  background: var(--ie-app-surface) !important;
+  border-color: var(--ie-app-line) !important;
+}
+.ie-app-appearance-scope[data-appearance="dark"] .ie-app-content :is(
+  .border-gray-50, .border-gray-100, .border-gray-200, .border-gray-300,
+  .divide-gray-100, .divide-gray-200
+) {
+  border-color: var(--ie-app-line) !important;
+}
+.ie-app-appearance-scope[data-appearance="dark"] .ie-app-content :is(
+  .text-gray-400, .text-gray-500, .text-gray-600, .text-gray-700,
+  .text-gray-800, .text-slate-500, .text-slate-600
+) {
+  color: #C1CCD1 !important;
+}
+/* The JSX's old inline neutral ink colors are retained for Light but must be
+   readable on charcoal. Leave colored trust pills and semantic alert surfaces
+   alone: those often set their own light background beside the ink. */
+.ie-app-appearance-scope[data-appearance="dark"] .ie-app-content :is(
+  [style*="color: rgb(41, 47, 53)"],
+  [style*="color: rgb(38, 58, 99)"],
+  [style*="color: rgb(41, 43, 42)"],
+  [style*="color: rgb(70, 84, 106)"]
+):not([style*="background:"]):not([style*="background-color:"]) {
+  color: #E8E4DA !important;
+}
+.ie-app-appearance-scope[data-appearance="dark"] .ie-app-content :is(
+  [style*="color: rgb(119, 119, 119)"],
+  [style*="color: rgb(136, 136, 136)"],
+  [style*="color: rgb(153, 153, 153)"],
+  [style*="color: rgb(170, 170, 170)"],
+  [style*="color: rgb(187, 187, 187)"],
+  [style*="color: rgb(204, 204, 204)"],
+  [style*="color: rgb(83, 97, 113)"]
+):not([style*="background:"]):not([style*="background-color:"]) {
+  color: #BDCACF !important;
+}
+/* User chat bubbles are a legacy exception: their neutral surface and dark
+   ink share one inline style object. Both must change together in Dark mode;
+   the general ink overrides deliberately leave colored alert fills alone. */
+.ie-app-appearance-scope[data-appearance="dark"] .ie-app-content
+  [style*="background: rgb(229, 229, 227)"][style*="color: rgb(41, 47, 53)"] {
+  background: #394753 !important;
+  color: #F0EBDD !important;
+}
+/* Deep-lapis links readable on charcoal; don't touch the colors on their
+   semantic, independently colored trust/availability badges. */
+.ie-app-appearance-scope[data-appearance="dark"] .ie-app-content :is(
+  [style*="color: rgb(22, 62, 140)"],
+  [style*="color: rgb(16, 45, 109)"]
+):not([style*="background:"]):not([style*="background-color:"]) {
+  color: #ABC9FA !important;
+}
+.ie-app-appearance-scope[data-appearance="dark"] .ie-app-content :is(
+  input:not([type="checkbox"]):not([type="radio"]), textarea, select
+) {
+  background: #29343B !important;
+  color: #F1EBDF !important;
+  border-color: #66727A !important;
+}
+.ie-app-appearance-scope[data-appearance="dark"] .ie-app-content :is(
+  input, textarea
+)::placeholder {
+  color: #A3B0B8 !important;
+}
+.ie-app-appearance-scope[data-appearance="dark"] .ie-app-content :is(
+  .docs-body, .docs-body h1, .docs-body h2, .docs-body p,
+  .docs-body li, .docs-body td, .docs-body strong
+) {
+  color: #E8E4DA;
+}
+.ie-app-appearance-scope[data-appearance="dark"] .ie-app-content .docs-body :is(
+  code, th
+) {
+  background: #263139;
+  color: #E8E4DA;
+}
+.ie-app-appearance-scope[data-appearance="dark"] .ie-app-content .docs-body pre {
+  background: #1C252C;
+}
+@media (prefers-reduced-motion: reduce) {
+  .ie-app-appearance-option { transition: none; }
+}
+
+/* Landing / application identity: the same slowly drifting mineral
+   spectrum as the existing sidebar wordmark, with lighter lapis-safe
+   pigment values on the shared charcoal navbar. Animation is a
+   deterministic CSS background-position shift, not a random algorithm. */
+.hero-mineral-wordmark {
+  background-image: linear-gradient(95deg,
+    var(--hero-spectrum-apricot) 0%, var(--hero-spectrum-orpiment) 16%,
+    var(--hero-spectrum-coral) 34%, var(--hero-spectrum-jade) 51%,
+    var(--hero-spectrum-turquoise) 67%, var(--hero-spectrum-lapis) 83%,
+    var(--hero-spectrum-lotus) 100%);
+  background-size: 200% auto;
+  text-shadow: 0 1px 2px rgba(27, 27, 32, 0.65);
+  animation: mineral-shift 15s ease-in-out infinite;
+}
+
+.hero-mineral-thread {
+  background-size: 220% 100% !important;
+  animation: mineral-shift 17s ease-in-out infinite;
+}
+
+/* Tibetan mani-stone reference: opaque pale mineral paint over irregular
+   dark rock, with a narrow recessed edge around each glyph. These classes
+   improve SMALL lettering on moving landscape footage, not the scene itself.
+   No backdrop panel, bloom, animated rainbow text or whole-screen scrim. */
+.hero-mani-copy,
+.hero-mani-fine {
+  color: #F8EAD5;
+  font-weight: 600;
+  paint-order: stroke fill;
+  -webkit-text-stroke: 0.35px rgba(19, 28, 33, 0.98);
+  text-shadow:
+    0 1px 1px rgba(12, 20, 25, 0.98),
+    0 2px 4px rgba(12, 20, 25, 0.87),
+    0 4px 9px rgba(12, 20, 25, 0.62);
+}
+.hero-mani-fine {
+  -webkit-text-stroke-width: 0.25px;
+  letter-spacing: 0.015em;
+}
+/* Charcoal navbar and product finale have steady dark backgrounds. They
+   need higher-value pigment ink and stronger weight, not heavy outlines. */
+.hero-mani-nav {
+  color: #F7EAD6;
+  font-weight: 600;
+  text-shadow: 0 1px 1px rgba(11, 16, 23, 0.8);
+}
+.hero-mani-meta {
+  font-weight: 600;
+  text-shadow: 0 1px 2px rgba(11, 16, 23, 0.85);
+}
+
+/* Painted mani-stone relief without cutting into glyph counters.
+   Opaque mineral-ivory is the pigment; a tiny upper chalk highlight and
+   OFFSET shadows imply stone depth. No dark text stroke: it traces the
+   enclosed parts of e/a/P and produces black cross-lines in Chromium. */
+.hero-mani-heading {
+  color: #F8EAD5;
+  -webkit-text-stroke: 0;
+  text-shadow:
+    0 -1px 0 rgba(255, 247, 228, 0.22),
+    0 1px 1px rgba(37, 26, 23, 0.62),
+    0 3px 6px rgba(11, 18, 24, 0.76),
+    0 6px 12px rgba(11, 18, 24, 0.30);
+}
+/* Keep the original STATIC pigment gradients, too. A shadow of the fully
+   composed gradient glyph (rather than a stroke or transparent text-shadow)
+   reads as pigment pressed onto stone without drawing inside letter holes. */
+.hero-mani-heading-pigment {
+  -webkit-text-stroke: 0;
+  text-shadow: none;
+  filter:
+    drop-shadow(0 1px 1px rgba(11, 18, 24, 0.76))
+    drop-shadow(0 3px 5px rgba(11, 18, 24, 0.42));
+}
+@media (prefers-contrast: more) {
+  .hero-mani-copy,
+  .hero-mani-fine {
+    -webkit-text-stroke-width: 0.55px;
+    text-shadow: 0 1px 2px #0B1119, 0 3px 6px #0B1119;
+  }
+  .hero-mani-heading {
+    text-shadow:
+      0 -1px 0 rgba(255, 247, 228, 0.28),
+      0 2px 2px rgba(10, 17, 22, 0.9),
+      0 4px 9px rgba(10, 17, 22, 0.7);
+  }
+}
+
+/* Dark blue letterpress edges follow the GLYPHS, not the landscape.
+   The text retains a stable, bright silk fill; animations live only on
+   small accents, since moving rainbow paragraphs reduce readability. */
+.hero-body-inscription {
+  -webkit-text-stroke: 0.75px rgba(16, 45, 109, 0.95);
+  paint-order: stroke fill;
+  text-shadow:
+    0 1px 1px rgba(16, 45, 109, 0.98),
+    0 0 3px rgba(36, 32, 91, 0.92),
+    0 2px 7px rgba(31, 37, 104, 0.90),
+    0 4px 15px rgba(34, 31, 86, 0.75);
+}
+
+.hero-fine-inscription {
+  font-weight: 600;
+  -webkit-text-stroke: 0.55px rgba(16, 45, 109, 0.98);
+  paint-order: stroke fill;
+  text-shadow: 0 1px 2px rgba(16, 45, 109, 0.97),
+    0 2px 7px rgba(43, 34, 72, 0.85),
+    0 3px 12px rgba(43, 34, 72, 0.7);
+}
+
+@media (prefers-contrast: more) {
+  .hero-body-inscription { -webkit-text-stroke-width: 1.1px; }
+  .hero-fine-inscription { -webkit-text-stroke-width: 0.85px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-mineral-wordmark,
+  .hero-mineral-thread { animation: none; }
+}
+
+/* Painted-silk editorial layer: vibrant mineral pigments with lapis ink
+   depth. The scenic video is never tinted; color lives on the letters and
+   individual controls. Avoid glows and shifting rainbow gradients. */
+.hero-pigment-ink {
+  width: fit-content;
+  max-width: 100%;
+  color: var(--hero-orpiment);
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.hero-pigment-primary,
+.hero-pigment-secondary {
+  transition: transform 180ms ease, box-shadow 180ms ease, background-color 180ms ease;
+}
+
+/* Echo the painted background wash: cool mineral mist rolls gently into
+   ochre sunlight and ivory. No flat tan, loud gold or solid jade fills.
+   Hierarchy comes from edge, weight and texture rather than saturation. */
+.hero-pigment-primary {
+  color: #293439;
+  background: var(--hero-atmosphere-wash);
+  border: 1px solid rgba(245, 241, 223, 0.92);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.86),
+    inset 0 -1px 0 rgba(78, 91, 83, 0.18),
+    0 3px 12px rgba(33, 33, 35, 0.26);
+}
+.hero-pigment-secondary {
+  color: #293439;
+  background:
+    linear-gradient(90deg, rgba(255,255,255,0.25), rgba(255,255,255,0.15)),
+    var(--hero-atmosphere-wash);
+  border: 1px solid rgba(72, 92, 89, 0.69);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.68),
+    0 3px 12px rgba(33, 33, 35, 0.20);
+}
+.hero-pigment-link {
+  color: #FCE4AA;
+  text-decoration-line: underline;
+  text-decoration-color: var(--hero-cinnabar);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 5px;
+  transition: color 180ms ease, text-decoration-color 180ms ease;
+}
+
+@media (hover: hover) {
+  .hero-pigment-primary:hover,
+  .hero-pigment-secondary:hover {
+    transform: translateY(-1px);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.68),
+      0 5px 16px rgba(31, 32, 35, 0.28);
+  }
+  .hero-pigment-link:hover {
+    color: var(--hero-cloud);
+    text-decoration-color: var(--hero-jade);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-pigment-primary,
+  .hero-pigment-secondary,
+  .hero-pigment-link { transition: none; }
+  .hero-pigment-primary:hover,
+  .hero-pigment-secondary:hover { transform: none; }
+}
+
+
+/* Landing CTA: restrained mineral inlay, not an animated sand effect.
+   The Tibetan painted-stone reference is expressed as a hairline of
+   matte cinnabar / ochre / malachite pigment revealed in a carved edge.
+   Keep the original calm button fills and readable, stationary lettering.
+   No particles, clip paths, shimmer, looping gradients or screen overlay. */
+.hero-stone-cta {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  min-height: 44px;
+  padding: 0.75rem 1.5rem;
+  border-radius: 0.75rem;
+  border: 1px solid transparent;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  font-weight: 600;
+  text-decoration: none;
+  transition: border-color 180ms ease, box-shadow 180ms ease, background-color 180ms ease;
+}
+.hero-stone-cta--light {
+  color: #292B2A;
+  background: #D8D1BE;
+  border-color: rgba(247, 235, 210, 0.85);
+}
+.hero-stone-cta--outline {
+  /* The same charcoal fill as Go to Exchange ensures readable text
+     over bright moving scenery; the finer outline distinguishes this action. */
+  color: #F8EAD5;
+  background: rgba(14, 16, 24, 0.58);
+  border-color: rgba(216, 209, 190, 0.55);
+}
+.hero-stone-cta--quiet {
+  color: #F8EAD5;
+  background: rgba(14, 16, 24, 0.58);
+  border-color: rgba(216, 209, 190, 0.14);
+}
+/* A fine, static inlaid edge—pigment stays at the edge of the stone,
+   never travels across the lettering. */
+.hero-stone-cta::after {
+  content: '';
+  position: absolute;
+  pointer-events: none;
+  left: 15%;
+  right: 15%;
+  bottom: 0;
+  height: 2px;
+  border-radius: 2px 2px 0 0;
+  background: linear-gradient(90deg, #9D5C47 0%, #C49A45 52%, #668B78 100%);
+  opacity: 0;
+  transition: opacity 180ms ease;
+}
+.hero-stone-cta:is(:hover, :focus-visible) {
+  border-color: #C9AE7E;
+  box-shadow: 0 2px 9px rgba(11, 18, 24, 0.24), inset 0 1px 0 rgba(255, 249, 231, 0.16);
+}
+.hero-stone-cta--light:is(:hover, :focus-visible) {
+  background: #E6DDC9;
+  box-shadow: 0 2px 9px rgba(11, 18, 24, 0.24), inset 0 1px 0 rgba(255, 255, 255, 0.43);
+}
+.hero-stone-cta:is(:hover, :focus-visible)::after {
+  opacity: 1;
+}
+.hero-stone-cta:focus-visible {
+  outline: 2px solid #F0C54B;
+  outline-offset: 3px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .hero-stone-cta,
+  .hero-stone-cta::after {
+    transition: none;
+  }
+}
+
+/* Interactive form of the exact live /main provider CTA gradient.
+   The original .mineral-border::before remains the authoritative masked
+   1px border. Pointer motion only shifts its background-position; a second
+   layer reveals THE SAME semi-transparent mineral paint inside the button.
+   No conic palette, blur wash, particles, mouse-trail or animation package. */
+.hero-stone-cta--interactive {
+  --pigment-x: 50%;
+  --pigment-y: 50%;
+  isolation: isolate;
+}
+.hero-stone-cta--interactive::before {
+  z-index: 2;
+  /* At rest, inherit the exact original .mineral-border 14s drift. */
+}
+.hero-stone-cta--interactive:is(:hover, :focus-visible)::before {
+  /* While interacting, cursor position takes over from the autonomous
+     animation; the paint, border mask and color stops stay identical. */
+  animation: none;
+  background-position: var(--pigment-x) var(--pigment-y);
+}
+.hero-stone-cta--interactive::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  height: auto;
+  border-radius: inherit;
+  z-index: 0;
+  pointer-events: none;
+  /* Exactly the same 8 mineral stops and translucencies as the live border. */
+  background: var(--mineral-border-paint);
+  background-size: 220% 220%;
+  background-position: var(--pigment-x) var(--pigment-y);
+  opacity: 0;
+  transition: opacity 220ms ease;
+}
+.hero-stone-cta__label {
+  position: relative;
+  z-index: 1;
+  /* Never animate the glyphs or put an outline inside letter counters. */
+}
+.hero-stone-cta--interactive:is(:hover, :focus-visible)::after {
+  opacity: 1;
+}
+.hero-stone-cta--interactive:is(:hover, :focus-visible) {
+  border-color: rgba(216, 209, 190, 0.55);
+  box-shadow: 0 2px 9px rgba(11, 18, 24, 0.26);
+}
+@media (prefers-reduced-motion: reduce) {
+  .hero-stone-cta--interactive::after { transition: none; }
 }
 
 .sidebar-active-bar {
