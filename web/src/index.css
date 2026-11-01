@@ -98,7 +98,7 @@ body {
 }
 
 .ie-mineral-sidebar .ie-app-wordmark {
-  /* Same living spectrum as the old sidebar name, lifted for lapis contrast. */
+  /* Preserve the living mineral spectrum on the restored charcoal shell. */
   background: linear-gradient(95deg,
     #EE967D 0%, #F0C54B 16%, #E48773 32%, #AFDAA0 50%,
     #73D0C4 66%, #B4BFFF 84%, #E2A0BC 100%);
