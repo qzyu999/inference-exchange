@@ -7,7 +7,7 @@ import { HeroScene } from '../components/HeroScene'
 import { LandingNav } from '../components/LandingNav'
 import { MineralFlowField } from '../components/MineralFlowField'
 import { LandscapeVideo } from '../components/LandscapeVideo'
-import { STORY_CHAPTERS, ScrollChapterRail } from '../components/ScrollChapterRail'
+import { STORY_CHAPTERS } from '../components/ScrollChapterRail'
 
 const NAV_HEIGHT = 56
 const LAST_CHAPTER = STORY_CHAPTERS.length - 1
@@ -82,25 +82,15 @@ function useScrollUnits(ref: React.RefObject<HTMLDivElement | null>) {
   return units
 }
 
+// Intro + all six verbatim original main transition messages.
 const CHAPTER_COPY = [
-  {
-    title: 'Inference Exchange',
-    description: 'An open market for AI inference. Send OpenAI-compatible requests; providers with spare hardware compete to serve them.',
-  },
-  {
-    eyebrow: 'SUPPLY MEETS DEMAND',
-    title: 'Two forces converge',
-    description: 'Consumers bid. Providers offer. The exchange matches.',
-  },
-  {
-    title: 'The intersection is the product',
-    description: 'Trust is labelled, not assumed.',
-    trustNote: 'Provider trust levels are claims until independently verified. Browser chat uses TLS, not end-to-end encryption.',
-  },
-  {
-    title: 'Providers compete. You benefit.',
-    description: 'Price, speed and self-reported trust shape how each request is routed.',
-  },
+  { title: 'Inference Exchange', description: 'An open market for AI inference. Send OpenAI-compatible requests; providers with spare hardware compete to serve them.' },
+  { title: 'Supply meets demand' },
+  { title: 'Two forces converge', description: 'Consumers bid. Providers offer. The exchange matches.' },
+  { title: 'The intersection is the product' },
+  { title: 'Trust is labelled, not assumed', description: 'Providers report a trust level. The exchange shows it as claimed until evidence verifies it. Browser chat uses TLS; it is not end-to-end encrypted.' },
+  { title: 'Providers compete. You benefit.', description: 'Price, speed, privacy — the matching engine optimizes for what you care about.' },
+  { title: 'Distributed AI inference, powered by everyone.' },
 ] as const
 
 // The pinned story uses the original main text styling (not the later
@@ -381,8 +371,8 @@ export function Landing() {
   }, [])
 
   // Keep the browser's native, continuous scroll momentum. This page must
-  // never trap trackpad/wheel input with mandatory snapping. Explicit chapter
-  // clicks still scroll smoothly to the start of a chapter's reading hold.
+  // never trap trackpad/wheel input with mandatory snapping. The original
+  // landing had no RHS chapter rail; the intro Explore action remains.
   useEffect(() => {
     const root = document.documentElement
     const previousType = root.style.scrollSnapType
@@ -543,7 +533,7 @@ export function Landing() {
             </section>
           )}
         </div>
-        {/* Three regular chapter transitions plus an extended 2.2-viewport
+        {/* Six original message transitions with smooth holds plus extended 2.2-viewport
             GPU-sand transition. A final reading hold keeps the in-place product
             visible without introducing nested desktop scrolling or a new page. */}
         {storyEnabled && STORY_CHAPTERS.slice(0, -1).map(chapter => (
@@ -557,9 +547,7 @@ export function Landing() {
         )}
       </div>
 
-      {storyEnabled && chapterPosition < EXIT_POSITION - 0.03 && (
-        <ScrollChapterRail activeIndex={activeIndex} onSelect={navigateToChapter} />
-      )}
+
     </>
   )
 }
