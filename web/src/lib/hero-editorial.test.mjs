@@ -151,10 +151,6 @@ assert.match(landing, /window\.matchMedia\('\(prefers-reduced-motion: reduce\)'\
 assert.match(landing, /hero-stone-cta--spotlight/)
 assert.match(landing, /className="hero-stone-cta__label"/)
 assert.match(styles, /\.hero-stone-cta--spotlight::before \{/)
-// Full-pigment fidelity: no cream/white radial layer may wash out the logo's
-// canonical colors on CTA hover. The conic center and angle still track mouse.
-assert.doesNotMatch(spotlightRule, /radial-gradient|rgba\(255, 250, 225/,
-  'CTA gradient must not dilute mineral pigments with a white spotlight')
 assert.match(styles, /conic-gradient\(from var\(--pigment-angle\) at var\(--pigment-x\) var\(--pigment-y\)/)
 // The CTA spectrum must be the ACTUAL landing wordmark palette, not the
 // six muted substitutes from the initial spotlight experiment. A shared
@@ -171,6 +167,10 @@ const wordmarkSpectrum = [
 const wordmarkRule = styles.match(/\.hero-mineral-wordmark \{([^}]+)\}/)?.[1]
 const spotlightRule = styles.match(/\.hero-stone-cta--spotlight::before \{([^}]+)\}/)?.[1]
 assert.ok(wordmarkRule && spotlightRule, 'wordmark and button spotlight must exist')
+// Full-pigment fidelity: no cream/white radial layer may wash out the logo's
+// canonical colors on CTA hover. The conic center and angle still track mouse.
+assert.doesNotMatch(spotlightRule, /radial-gradient|rgba\(255, 250, 225/,
+  'CTA gradient must not dilute mineral pigments with a white spotlight')
 let logoOffset = -1
 let ctaOffset = -1
 for (const [name, hex] of wordmarkSpectrum) {
