@@ -128,7 +128,7 @@ export function Overview() {
                 <div className="flex items-center gap-3">
                   <span className="text-xs font-mono" style={{ color: APP_TEXT.soft }}>{c.status}</span>
                   <span className="text-[10px] font-medium px-2 py-0.5 rounded-full"
-                    style={{ background: c.ok ? '#edf7f1' : '#f3f3f3', color: c.ok ? C.green : '#999' }}>
+                    style={{ background: c.ok ? '#edf7f1' : '#f3f3f3', color: c.ok ? APP_TEXT.green : APP_TEXT.soft }}>
                     {c.ok ? 'observed' : 'unknown'}
                   </span>
                 </div>
