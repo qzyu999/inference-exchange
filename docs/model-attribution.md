@@ -1,7 +1,8 @@
 # Model attribution contract (#134)
 
-The request `model` can be an exact ID or the `default` routing alias,
-which is **never** an actual model.
+New public chat requests must name an exact, nonblank model ID.
+The old `default` routing alias is **not** accepted in new chat requests.
+It may still appear in historical transaction data, and it is never an actual model.
 
 **Backward compatibility:** existing SQLite `transactions.model`, history
 JSON `model`, and OpenAI-compatible response/SSE `model` retain their
@@ -15,9 +16,11 @@ older single-model providers, the one registered eligible model suffices.
 An unconfirmed multi-model provider is **unknown**, never `models[0]`.
 Provider identity is self-reported, not cryptographically attested.
 
-**History:** migrations only add nullable columns. Previously billed rows
-are never backfilled, even if `model` names a concrete model. A NULL
-`requested_model` reads as the original `model`, while `served_model`
+**History:** automatic migrations only add nullable columns and never
+backfill prior transactions. A separate owner-approved, reviewed, audited
+one-time correction may attribute eligible historical transactions without
+changing their original `transactions.model` values. A NULL
+`requested_model` reads as the original `model`; a NULL `served_model`
 remains unknown. Billing groups on `served_model` only, with clear unknown
 labels. Charge amounts, provider principals, credentials and balances are
 unmodified.

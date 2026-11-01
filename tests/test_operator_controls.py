@@ -14,7 +14,7 @@ from inference_exchange.coordinator.provider_hub import ProviderHub
 from inference_exchange.shared.errors import ConcurrencyLimit, InferencePaused
 from inference_exchange.shared.protocol import InferenceRequest
 
-CHAT = {"messages": [{"role": "user", "content": "hi"}], "stream": False}
+CHAT = {"model": "test-model", "messages": [{"role": "user", "content": "hi"}], "stream": False}
 ADMIN = "admin@example.com"
 
 

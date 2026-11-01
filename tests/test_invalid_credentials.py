@@ -6,7 +6,7 @@ from fastapi.testclient import TestClient
 from inference_exchange.coordinator.main import create_app
 from inference_exchange.coordinator.routes_auth import create_jwt
 
-CHAT = {"messages": [{"role": "user", "content": "hi"}], "stream": False}
+CHAT = {"model": "test-model", "messages": [{"role": "user", "content": "hi"}], "stream": False}
 
 # Every endpoint that resolves the caller's account
 PRIVATE_ENDPOINTS = [

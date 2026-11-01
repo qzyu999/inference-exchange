@@ -21,6 +21,7 @@ def prod_client(monkeypatch, tmp_path):
 @pytest.mark.parametrize("trust", ["Hardened", "hardened ", "unknown", ""])
 def test_unknown_minimum_trust_returns_400(prod_client, trust):
     response = prod_client.post("/v1/chat/completions", json={
+        "model": "test-model",
         "messages": [{"role": "user", "content": "hello"}],
         "ocip_min_confidence": trust,
         "stream": False,

@@ -85,7 +85,7 @@ Note: If a provider can serve the request but is busy, the request waits in the 
 
 - Principle: P1
 - Status: implemented
-- Verified by: tests/test_fail_fast_routing.py::TestEndpoint::test_hardened_default_with_open_provider_fails_fast, tests/test_fail_fast_routing.py::TestEndpoint::test_no_provider_fails_fast, tests/test_fail_fast_routing.py::TestEndpoint::test_trust_is_not_downgraded, tests/test_fail_fast_routing.py::TestExplainNoMatch::test_trust_mismatch_names_available_level, tests/test_fail_fast_routing.py::TestExplainNoMatch::test_unknown_model, tests/test_fail_fast_routing.py::TestExplainNoMatch::test_price_ceiling, tests/test_fail_fast_routing.py::TestExplainNoMatch::test_busy_compatible_provider_can_queue
+- Verified by: tests/test_fail_fast_routing.py::TestEndpoint::test_hardened_named_model_with_open_provider_fails_fast, tests/test_fail_fast_routing.py::TestEndpoint::test_no_provider_fails_fast, tests/test_fail_fast_routing.py::TestEndpoint::test_trust_is_not_downgraded, tests/test_fail_fast_routing.py::TestExplainNoMatch::test_trust_mismatch_names_available_level, tests/test_fail_fast_routing.py::TestExplainNoMatch::test_unknown_model, tests/test_fail_fast_routing.py::TestExplainNoMatch::test_price_ceiling, tests/test_fail_fast_routing.py::TestExplainNoMatch::test_busy_compatible_provider_can_queue
 
 ### ROUTE-011: Errors use the OpenAI format
 
@@ -102,3 +102,18 @@ MUST: The standard `openai` Python package can list models and send streaming an
 - Principle: P8
 - Status: implemented
 - Verified by: tests/test_mock_provider_e2e.py::test_python_sdk_guide_examples
+
+
+### ROUTE-013: Require an explicit model ID for new public chat requests
+
+MUST: A new `POST /v1/chat/completions` request names one concrete model ID in `model`.
+
+MUST NOT: The public API silently routes a missing, null, empty, whitespace-only, or literal `default` model value. It returns HTTP 400 with an OpenAI-compatible error body containing code `invalid_model` and guidance to use `GET /v1/models`. A model ID with surrounding whitespace is also invalid.
+
+MUST: The matching engine continues to choose an eligible provider for an explicitly named model. The routing constraints for trust, price, and capacity still apply.
+
+MUST NOT: This API change rewrite the original requested model or money fields in historical transactions.
+
+- Principle: P1, P2, P6, P8
+- Status: implemented
+- Verified by: tests/test_routes_inference.py::TestExplicitModelContract::test_rejects_missing_and_wildcard_model, tests/test_routes_inference.py::TestExplicitModelContract::test_named_model_reaches_existing_fail_fast, tests/test_mock_provider_e2e.py::test_python_sdk_guide_examples

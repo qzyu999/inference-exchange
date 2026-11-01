@@ -42,7 +42,7 @@ class TestSessions:
         monkeypatch.setenv("IE_ENV", "prod")
         monkeypatch.setenv("IE_JWT_SECRET", "s")
         c = TestClient(create_app())
-        r = c.post("/v1/chat/completions", json={"messages": [{"role": "user", "content": "hi"}], "stream": False})
+        r = c.post("/v1/chat/completions", json={"model": "test-model", "messages": [{"role": "user", "content": "hi"}], "stream": False})
         assert r.status_code == 401
 
 
