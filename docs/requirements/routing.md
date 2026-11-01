@@ -85,7 +85,7 @@ Note: If a provider can serve the request but is busy, the request waits in the 
 
 - Principle: P1
 - Status: implemented
-- Verified by: tests/test_fail_fast_routing.py::TestEndpoint::test_hardened_default_with_open_provider_fails_fast, tests/test_fail_fast_routing.py::TestEndpoint::test_no_provider_fails_fast, tests/test_fail_fast_routing.py::TestEndpoint::test_trust_is_not_downgraded, tests/test_fail_fast_routing.py::TestExplainNoMatch::test_trust_mismatch_names_available_level, tests/test_fail_fast_routing.py::TestExplainNoMatch::test_unknown_model, tests/test_fail_fast_routing.py::TestExplainNoMatch::test_price_ceiling, tests/test_fail_fast_routing.py::TestExplainNoMatch::test_busy_compatible_provider_can_queue
+- Verified by: tests/test_fail_fast_routing.py::TestEndpoint::test_hardened_named_model_with_open_provider_fails_fast, tests/test_fail_fast_routing.py::TestEndpoint::test_no_provider_fails_fast, tests/test_fail_fast_routing.py::TestEndpoint::test_trust_is_not_downgraded, tests/test_fail_fast_routing.py::TestExplainNoMatch::test_trust_mismatch_names_available_level, tests/test_fail_fast_routing.py::TestExplainNoMatch::test_unknown_model, tests/test_fail_fast_routing.py::TestExplainNoMatch::test_price_ceiling, tests/test_fail_fast_routing.py::TestExplainNoMatch::test_busy_compatible_provider_can_queue
 
 ### ROUTE-011: Errors use the OpenAI format
 
