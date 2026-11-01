@@ -103,11 +103,8 @@ const CHAPTER_COPY = [
   },
 ] as const
 
-// Warm painted silk and gold pigment over the untouched mountain landscape.
-// Legibility comes from lapis / indigo ink hugging the letterforms, never black
-// shading across the photographic scene.
-const HERO_TITLE_SHADOW = '0 1px 2px rgba(43,34,72,0.94), 0 3px 8px rgba(19,49,99,0.76), 0 7px 17px rgba(43,34,72,0.48)'
-const HERO_BODY_SHADOW = '0 1px 2px rgba(43,34,72,0.98), 0 2px 7px rgba(19,49,99,0.79), 0 4px 13px rgba(43,34,72,0.54)'
+// The pinned story uses the original main text styling (not the later
+// animated rainbow/letterpress experiment). Keep the final product accent.
 const HERO_PRODUCT_GRADIENT = `linear-gradient(90deg, ${HP.orpiment} 0%, ${HP.saffron} 28%, ${HP.coralLotus} 64%, #C2E1B7 100%)`
 
 // No landscape tint. All contrast stays within text glyphs and controls.
@@ -133,15 +130,13 @@ function EditorialStory({
     >
       {CHAPTER_COPY.map((chapter, index) => {
         const visible = index === activeIndex
-        const titleStyle = {
-          color: HP.cream,
-          textShadow: HERO_TITLE_SHADOW,
-          WebkitTextStroke: '0.65px rgba(43,34,72,0.83)',
-        }
-        // Share the exact landing-logo mineral spectrum and slow drift on
-        // each locked-in story headline; retain still ink for supporting copy.
-        const shortTitle = (
-          <span className="mineral-spectrum-text hero-mineral-wordmark hero-story-spectrum">
+        // Original main typography, text fills, buttons and centered sizing.
+        // Only the four new locked chapter holds and crossfade are retained.
+        const shortTitle = index === 0 ? chapter.title : (
+          <span
+            className="bg-clip-text text-transparent"
+            style={{ backgroundImage: 'linear-gradient(135deg, ' + C.warmWhite + ', ' + C.sand + ')' }}
+          >
             {chapter.title}
           </span>
         )
@@ -159,11 +154,11 @@ function EditorialStory({
               pointerEvents: visible && exitProgress < 0.95 ? 'auto' : 'none',
             }}
           >
-            <div className="relative mx-auto w-full max-w-3xl pt-6 text-center">
+            <div className="relative mx-auto w-full max-w-2xl text-center">
               {'eyebrow' in chapter && (
                 <p
-                  className="mb-4 text-xs font-semibold uppercase tracking-[0.20em]"
-                  style={{ color: HP.label, textShadow: HERO_BODY_SHADOW }}
+                  className="mb-4 text-xs font-medium uppercase tracking-wider"
+                  style={{ color: C.gold }}
                 >
                   {chapter.eyebrow}
                 </p>
@@ -171,23 +166,26 @@ function EditorialStory({
               {index === 0 ? (
                 <h1
                   id={'landing-chapter-title-' + index}
-                  className="text-[clamp(2.5rem,5vw,4.7rem)] font-semibold tracking-tight leading-[1.12]"
-                  style={titleStyle}
+                  className="text-4xl md:text-6xl font-bold tracking-tight"
+                  style={{ color: C.warmWhite, textShadow: '0 2px 24px rgba(0,0,0,0.6)' }}
                 >
                   {shortTitle}
                 </h1>
               ) : (
                 <h2
                   id={'landing-chapter-title-' + index}
-                  className="text-[clamp(2.3rem,4.7vw,4.45rem)] font-semibold tracking-tight leading-[1.12]"
-                  style={titleStyle}
+                  className="text-3xl md:text-5xl font-bold tracking-tight leading-tight"
                 >
                   {shortTitle}
                 </h2>
               )}
               <p
-                className="hero-body-inscription mx-auto mt-5 max-w-xl text-base md:text-lg font-medium leading-relaxed"
-                style={{ color: HP.cloud, textShadow: HERO_BODY_SHADOW }}
+                className={index === 0
+                  ? 'mt-4 max-w-xl mx-auto text-base md:text-lg leading-relaxed'
+                  : 'text-base md:text-lg mt-4 leading-relaxed max-w-lg mx-auto'}
+                style={index === 0
+                  ? { color: '#e6e0cf', textShadow: '0 1px 12px rgba(0,0,0,0.7)' }
+                  : { color: '#8a8578' }}
               >
                 {chapter.description}
               </p>
@@ -195,20 +193,22 @@ function EditorialStory({
                 <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
                   <Link
                     to="/chat"
-                    className="hero-pigment-primary inline-flex items-center rounded-md px-5 py-3 text-sm font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#F2D59C]"
+                    className="px-6 py-3 rounded-xl text-sm font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#E8C77A]"
+                    style={{ background: C.warmWhite, color: C.black }}
                   >
                     Start chatting
                   </Link>
                   <Link
                     to="/provide"
-                    className="hero-pigment-secondary inline-flex items-center rounded-md px-5 py-3 text-sm font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#F2D59C]"
+                    className="px-6 py-3 rounded-xl text-sm font-medium border focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#E8C77A]"
+                    style={{ color: C.warmWhite, borderColor: 'rgba(216,209,190,0.4)', background: 'rgba(14,16,24,0.5)' }}
                   >
                     Become a provider
                   </Link>
                   <Link
                     to="/exchange"
-                    className="hero-pigment-link px-1 py-3 text-sm font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#F2D59C]"
-                    style={{ textShadow: HERO_BODY_SHADOW }}
+                    className="px-6 py-3 rounded-xl text-sm font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#E8C77A]"
+                    style={{ color: '#e6e0cf', background: 'rgba(14,16,24,0.5)' }}
                   >
                     Go to Exchange
                   </Link>
@@ -216,8 +216,8 @@ function EditorialStory({
               )}
               {index === 2 && 'trustNote' in chapter && (
                 <p
-                  className="hero-fine-inscription mx-auto mt-4 max-w-lg text-xs md:text-sm leading-relaxed"
-                  style={{ color: HP.silk, textShadow: HERO_BODY_SHADOW }}
+                  className="mx-auto mt-4 max-w-lg text-xs md:text-sm leading-relaxed"
+                  style={{ color: '#a9a294' }}
                 >
                   {chapter.trustNote}
                 </p>
@@ -226,8 +226,8 @@ function EditorialStory({
                 <button
                   type="button"
                   onClick={onSkip}
-                  className="hero-pigment-link mt-8 text-sm font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#F2D59C]"
-                  style={{ textShadow: HERO_BODY_SHADOW }}
+                  className="mt-8 text-sm font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#E8C77A]"
+                  style={{ color: C.warmWhite, textShadow: '0 1px 12px rgba(0,0,0,0.6)' }}
                 >
                   Enter the exchange →
                 </button>
@@ -236,7 +236,6 @@ function EditorialStory({
           </section>
         )
       })}
-
       <div
         className="absolute bottom-7 inset-x-6 flex items-center justify-center gap-4"
         style={{ pointerEvents: exitProgress < 0.95 ? 'auto' : 'none' }}
@@ -245,8 +244,8 @@ function EditorialStory({
           <button
             type="button"
             onClick={onNext}
-            className="text-xs font-semibold tracking-[0.13em] uppercase focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#F0C77D]"
-            style={{ color: HP.cream, textShadow: HERO_BODY_SHADOW }}
+            className="text-xs tracking-wider uppercase px-3 py-2 rounded-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#E8C77A]"
+            style={{ color: C.warmWhite }}
           >
             Scroll to explore ↓
           </button>
@@ -254,8 +253,8 @@ function EditorialStory({
         <button
           type="button"
           onClick={onSkip}
-          className="text-xs font-medium tracking-[0.13em] uppercase focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#F0C77D]"
-          style={{ color: HP.cream, textShadow: HERO_BODY_SHADOW }}
+          className="text-xs tracking-wider uppercase px-3 py-2 rounded-lg border focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#E8C77A]"
+          style={{ color: C.warmWhite, borderColor: 'rgba(216,209,190,0.3)' }}
         >
           Skip story
         </button>
