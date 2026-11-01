@@ -153,8 +153,49 @@ assert.match(landing, /className="hero-stone-cta__label"/)
 assert.match(styles, /\.hero-stone-cta--spotlight::before \{/)
 assert.match(styles, /radial-gradient\(circle at var\(--pigment-x\) var\(--pigment-y\)/)
 assert.match(styles, /conic-gradient\(from var\(--pigment-angle\) at var\(--pigment-x\) var\(--pigment-y\)/)
-assert.match(styles, /#D89582 0deg, #EFC67C 63deg, #B4C992 117deg/)
-assert.match(styles, /#90C4BF 179deg, #A6B8DF 240deg, #DBA5B6 310deg/)
+// The CTA spectrum must be the ACTUAL landing wordmark palette, not the
+// six muted substitutes from the initial spotlight experiment. A shared
+// set of tokens prevents subtle color drift between wordmark and CTA.
+const wordmarkSpectrum = [
+  ['apricot', '#F5A475'],
+  ['orpiment', '#F0C54B'],
+  ['coral', '#E48773'],
+  ['jade', '#A3C899'],
+  ['turquoise', '#7FD5D1'],
+  ['lapis', '#A5BEF4'],
+  ['lotus', '#E4A4CB'],
+]
+const wordmarkRule = styles.match(/\.hero-mineral-wordmark \{([^}]+)\}/)?.[1]
+const spotlightRule = styles.match(/\.hero-stone-cta--spotlight::before \{([^}]+)\}/)?.[1]
+assert.ok(wordmarkRule && spotlightRule, 'wordmark and button spotlight must exist')
+let logoOffset = -1
+let ctaOffset = -1
+for (const [name, hex] of wordmarkSpectrum) {
+  assert.ok(styles.includes('--hero-spectrum-' + name + ': ' + hex + ';'),
+    'missing canonical wordmark pigment ' + name)
+  const token = 'var(--hero-spectrum-' + name + ')'
+  const nextLogo = wordmarkRule.indexOf(token)
+  const nextCTA = spotlightRule.indexOf(token)
+  assert.ok(nextLogo > logoOffset, 'wrong/missing wordmark spectrum order for ' + name)
+  assert.ok(nextCTA > ctaOffset, 'CTA spectrum differs from wordmark at ' + name)
+  logoOffset = nextLogo
+  ctaOffset = nextCTA
+}
+assert.ok(spotlightRule.indexOf('var(--hero-spectrum-apricot) 360deg') > ctaOffset,
+  'conic CTA fill must close seamlessly back to first pigment')
+assert.match(styles, /conic-gradient\(from 25deg at 50% 50%/)
+  'reduced-motion CTA must retain the same palette')
+const staticSpotlight = styles.slice(styles.indexOf('conic-gradient(from 25deg at 50% 50%'))
+for (const [name] of wordmarkSpectrum) {
+  assert.ok(staticSpotlight.includes('var(--hero-spectrum-' + name + ')'),
+    'reduced-motion CTA is missing wordmark pigment ' + name)
+}
+// Each original wordmark stop passes WCAG AA against the CTA's dark label.
+for (const [, pigment] of wordmarkSpectrum) {
+  assert.ok(contrast(pigment, '#182B31') >= 4.5, pigment + ' CTA label contrast too low')
+}
+assert.doesNotMatch(spotlightRule, /#D89582|#EFC67C|#B4C992|#90C4BF|#A6B8DF|#DBA5B6/,
+  'old muted CTA-only colors must not return')
 assert.match(styles, /\.hero-stone-cta--spotlight:is\(:hover, :focus-visible\)::before \{\s*opacity: 1;/)
 assert.match(styles, /\.hero-stone-cta--spotlight:is\(:hover, :focus-visible\) \{\s*color: #182B31;/)
 assert.match(styles, /@media \(prefers-reduced-motion: reduce\) \{[\s\S]*?\.hero-stone-cta--spotlight::before \{[\s\S]*?conic-gradient\(from 25deg at 50% 50%/)
