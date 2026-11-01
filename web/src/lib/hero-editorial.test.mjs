@@ -36,10 +36,12 @@ for (const phrase of originalCopy) {
 for (const exactSub of [
   'An open market for AI inference. Send OpenAI-compatible requests; providers with spare hardware compete to serve them.',
   'Consumers bid. Providers offer. The exchange matches.',
-  'Providers report a trust level. The exchange shows it as claimed until evidence verifies it. Browser chat uses TLS; it is not end-to-end encrypted.',
+  'Providers report a trust level. The exchange shows it as claimed until evidence verifies it.',
   'Price, speed, privacy — the matching engine optimizes for what you care about.',
 ]) assert.ok(copy.includes(exactSub), 'missing original main support copy: ' + exactSub)
 assert.ok(!copy.includes('SUPPLY MEETS DEMAND'), 'newer eyebrow should be gone')
+assert.doesNotMatch(landing, /Browser chat uses TLS|end-to-end encrypt/i,
+  'security transport detail belongs in Chat, not the landing story or exchange card')
 assert.equal((rail.match(/sceneProgress: /g) || []).length, 7,
   'exactly seven pinned states must map to continuous crystal poses')
 assert.ok(rail.includes('sceneProgress: 0.82'),
