@@ -70,8 +70,14 @@ assert.match(landing, /className="bg-clip-text text-transparent"/)
 assert.ok(landing.includes('backgroundImage: index === 1 || index === LAST_CHAPTER'))
 assert.ok(landing.includes('GRADIENTS.heroText'))
 assert.ok(landing.includes('linear-gradient(135deg, ${C.warmWhite}, ${C.sand})'))
-assert.match(landing, /color: '#e6e0cf', textShadow: '0 1px 12px rgba\(0,0,0,0\.7\)'/)
-assert.match(landing, /color: '#8a8578'/)
+// Mani-stone inspired small lettering replaces low-contrast gray on video.
+assert.match(landing, /hero-mani-copy mt-4 max-w-xl/)
+assert.match(landing, /hero-mani-copy text-base md:text-lg mt-4/)
+assert.match(landing, /hero-mani-fine text-\[13px\]/)
+assert.doesNotMatch(landing, /color: '#8a8578'/)
+assert.match(landing, /hero-mani-meta text-\[13px\]/)
+assert.match(landing, /color: '#F4E8D4'/)
+assert.match(landing, /color: '#F0C978'/)
 assert.match(landing, /style=\{\{ background: C\.warmWhite, color: C\.black \}\}/)
 assert.match(landing, /background: 'rgba\(14,16,24,0\.5\)'/)
 assert.doesNotMatch(landing, /mineral-spectrum-text hero-mineral-wordmark hero-story-spectrum/)
@@ -126,6 +132,34 @@ assert.match(styles, /\.hero-body-inscription/)
 assert.match(styles, /\.hero-mineral-wordmark/)
 assert.match(styles, /\.hero-mineral-thread/)
 assert.match(styles, /\.hero-mineral-wordmark,\s*\.hero-mineral-thread \{ animation: none; \}/)
+// Mani stone-inspired painted glyphs: opaque lime-white pigment with a
+// controlled dark carved edge. Avoid a paragraph-wide landscape scrim.
+assert.match(styles, /\.hero-mani-copy,\s*\.hero-mani-fine \{/)
+assert.match(styles, /color: #F8EAD5;/)
+assert.match(styles, /-webkit-text-stroke: 0\.35px rgba\(19, 28, 33, 0\.98\);/)
+assert.match(styles, /paint-order: stroke fill;/)
+assert.match(styles, /\.hero-mani-nav \{/)
+assert.match(styles, /color: #F7EAD6;/)
+assert.match(styles, /\.hero-mani-meta \{/)
+assert.match(nav, /const NAV_PAINT = '#F7EAD6'/)
+assert.match(nav, /hero-mani-nav text-\[13px\]/)
+assert.doesNotMatch(landing, /style=\{\{ color: '#8a8578' \}\}/)
+assert.doesNotMatch(landing, /background: 'rgba\(16,45,109,0\.76\)'/)
+// For stable dark surfaces we can test actual WCAG contrast numerically.
+function luma(hex) {
+  const channels = hex.slice(1).match(/.{2}/g).map(x => parseInt(x, 16) / 255)
+    .map(x => x <= 0.04045 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4)
+  return channels[0] * 0.2126 + channels[1] * 0.7152 + channels[2] * 0.0722
+}
+function contrast(a, b) {
+  const [lighter, darker] = [luma(a), luma(b)].sort((a, b) => b - a)
+  return (lighter + 0.05) / (darker + 0.05)
+}
+for (const ink of ['#F7EAD6', '#F4E8D4', '#F0C978']) {
+  assert.ok(contrast(ink, '#292F35') >= 7, ink + ' should be high contrast on dark mineral cards')
+  assert.ok(contrast(ink, '#252A30') >= 7, ink + ' should be high contrast on charcoal navbar')
+}
+
 assert.match(nav, /HERO_PIGMENTS as HP/)
 assert.match(nav, /background: GRADIENTS\.sidebar/)
 // Navbar covers the same 16px video seam as before, but now with a truly
@@ -133,7 +167,7 @@ assert.match(nav, /background: GRADIENTS\.sidebar/)
 assert.match(nav, /className="max-w-7xl mx-auto px-4 md:px-8 h-\[72px\] flex items-center/)
 assert.match(nav, /hero-mineral-wordmark text-base font-bold uppercase/)
 assert.match(nav, /src="\/logo-icon\.svg" alt="" className="w-7 h-7"/)
-assert.match(nav, /to=\{l\.to\} className=\{\x60text-\[15px\] \$\{FOCUS\}\x60\}/)
+assert.match(nav, /to=\{l\.to\} className=\{\x60hero-mani-nav text-\[15px\] \$\{FOCUS\}\x60\}/)
 assert.match(nav, /borderBottom: '1px solid rgba\(240,197,75,0\.34\)'/)
 assert.match(nav, /boxShadow: '0 2px 12px rgba\(31,31,32,0\.22\)'/)
 assert.doesNotMatch(nav, /absolute inset-x-0 top-full h-4/,
