@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
-import { HERO_PIGMENTS as HP } from './theme.ts'
 
+const paletteSource = readFileSync(new URL('./theme.ts', import.meta.url), 'utf8')
 const landing = readFileSync(new URL('../pages/Landing.tsx', import.meta.url), 'utf8')
 const rail = readFileSync(new URL('../components/ScrollChapterRail.tsx', import.meta.url), 'utf8')
 const nav = readFileSync(new URL('../components/LandingNav.tsx', import.meta.url), 'utf8')
@@ -25,7 +25,7 @@ for (const [name, color] of Object.entries({
   saffron: '#E29A2D', cinnabar: '#C94C2F', coralLotus: '#E48773',
   jade: '#5F8E61', cream: '#F6E7C7', silk: '#F2DFC0',
 })) {
-  assert.equal(HP[name], color, `changed hero reference pigment ${name}`)
+  assert.match(paletteSource, new RegExp(`${name}: '${color}'`), `changed hero reference pigment ${name}`)
 }
 assert.match(styles, /--hero-lapis: #163E8C/)
 assert.match(styles, /--hero-orpiment: #F0C54B/)
