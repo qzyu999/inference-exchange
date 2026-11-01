@@ -5,7 +5,7 @@ import { api, post } from '../lib/api'
 import { useAuth } from '../lib/auth'
 import { loginHref } from '../lib/nav.js'
 import { createUserKey } from '../lib/key-creation.js'
-import { C, APP_TEXT } from '../lib/theme'
+import { C } from '../lib/theme'
 
 // Public alpha quick start. The key is supplied locally, never embedded in the page.
 const SDK_NONSTREAM = "import os\nfrom openai import OpenAI\n\nclient = OpenAI(\n    api_key=os.environ[\"IE_API_KEY\"],\n    base_url=\"https://alpha.inferenceex.com/v1\",\n)\nmodels = client.models.list().data\nif not models:\n    raise RuntimeError(\"No IE models are online\")\nmodel = models[0].id\n\nresult = client.chat.completions.create(\n    model=model,\n    messages=[{\"role\": \"user\", \"content\": \"Say hello.\"}],\n    extra_body={\"ocip_min_confidence\": \"open\"},\n)\nprint(result.choices[0].message.content)\n"
@@ -74,8 +74,8 @@ export function Keys() {
   if (!user) {
     return (
       <div className="max-w-md mx-auto text-center py-16">
-        <div className="text-sm mb-3" style={{ color: APP_TEXT.soft }}>Sign in to manage API keys</div>
-        <Link to={loginHref('/keys')} className="text-sm font-medium" style={{ color: APP_TEXT.gold }}>Sign in or create an account</Link>
+        <div className="text-sm mb-3" style={{ color: '#888' }}>Sign in to manage API keys</div>
+        <Link to={loginHref('/keys')} className="text-sm font-medium" style={{ color: C.gold }}>Sign in or create an account</Link>
       </div>
     )
   }
@@ -86,13 +86,13 @@ export function Keys() {
       <div className="flex gap-5 flex-col lg:flex-row">
         {/* Create new key */}
         <div className="flex-1 bg-white rounded-2xl border border-gray-200/40 p-5">
-          <div className="text-[10px] uppercase tracking-wider font-medium mb-3" style={{ color: APP_TEXT.gold }}>
+          <div className="text-[10px] uppercase tracking-wider font-medium mb-3" style={{ color: C.gold }}>
             Create New Key
           </div>
 
           <div className="space-y-3">
             <div>
-              <div className="text-xs mb-1.5" style={{ color: APP_TEXT.soft }}>Name</div>
+              <div className="text-xs mb-1.5" style={{ color: '#888' }}>Name</div>
               <input
                 type="text" value={newKeyName}
                 onChange={e => setNewKeyName(e.target.value)}
@@ -103,10 +103,10 @@ export function Keys() {
             </div>
 
             <div>
-              <div className="text-xs mb-1.5" style={{ color: APP_TEXT.soft }}>Scope</div>
+              <div className="text-xs mb-1.5" style={{ color: '#888' }}>Scope</div>
               <span
                 className="text-[11px] font-medium px-3 py-1 rounded-full"
-                style={{ background: '#fdf6ec', color: APP_TEXT.gold, border: '1px solid rgba(196,154,69,0.2)' }}
+                style={{ background: '#fdf6ec', color: C.gold, border: '1px solid rgba(196,154,69,0.2)' }}
               >
                 Chat + Exchange
               </span>
@@ -125,8 +125,8 @@ export function Keys() {
 
           {createdKey && (
             <div className="mt-4 rounded-xl p-4" style={{ background: '#edf7f1', border: '1px solid rgba(63,128,85,0.15)' }}>
-              <div className="text-sm font-semibold" style={{ color: APP_TEXT.green }}>Key created</div>
-              <div className="text-xs mb-2" style={{ color: APP_TEXT.soft }}>Copy now — you won't see it again.</div>
+              <div className="text-sm font-semibold" style={{ color: C.green }}>Key created</div>
+              <div className="text-xs mb-2" style={{ color: '#888' }}>Copy now — you won't see it again.</div>
               <div className="flex items-center gap-2">
                 <code className="flex-1 text-xs font-mono break-all p-2 rounded-lg bg-white border border-gray-100">
                   {createdKey}
@@ -145,7 +145,7 @@ export function Keys() {
 
         {/* Your keys list */}
         <div className="w-full lg:w-72 shrink-0 bg-white rounded-2xl border border-gray-200/40 p-5">
-          <div className="text-[10px] uppercase tracking-wider font-medium mb-3" style={{ color: APP_TEXT.gold }}>
+          <div className="text-[10px] uppercase tracking-wider font-medium mb-3" style={{ color: C.gold }}>
             Your Keys
           </div>
 
@@ -155,12 +155,12 @@ export function Keys() {
                 <div key={k.key_id} className="flex items-center justify-between py-2 border-b border-gray-50 last:border-0">
                   <div>
                     <div className="text-sm font-medium" style={{ color: C.blueBlack }}>{k.name}</div>
-                    <div className="text-xs" style={{ color: APP_TEXT.soft }}>
+                    <div className="text-xs" style={{ color: '#999' }}>
                       {k.requests_made.toLocaleString()} req
                     </div>
                   </div>
                   <div className="flex items-center gap-3">
-                    <div className="text-xs" style={{ color: APP_TEXT.soft }}>
+                    <div className="text-xs" style={{ color: '#bbb' }}>
                       {k.last_used_at
                         ? new Date(k.last_used_at * 1000).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
                         : 'never'
@@ -179,7 +179,7 @@ export function Keys() {
               ))}
             </div>
           ) : (
-            <div className="text-xs py-6 text-center" style={{ color: APP_TEXT.soft }}>No keys yet</div>
+            <div className="text-xs py-6 text-center" style={{ color: '#ccc' }}>No keys yet</div>
           )}
         </div>
       </div>
@@ -187,7 +187,7 @@ export function Keys() {
       {/* Public SDK example works without cloning the repository or reading docs. */}
       <section className="bg-white rounded-2xl border border-gray-200/40 p-5 space-y-3">
         <h2 className="text-sm font-semibold" style={{ color: C.blueBlack }}>Run your first API request</h2>
-        <p className="text-xs" style={{ color: APP_TEXT.muted }}>
+        <p className="text-xs" style={{ color: '#777' }}>
           No repository checkout is needed. Credits are simulated, not real money.
           At L0/Open, the coordinator and provider can read prompts and responses.
           Use only nonsensitive test prompts.
@@ -215,7 +215,7 @@ export function Keys() {
           style={{ background: C.blueBlack, color: '#d4d4cd' }}>
           <code>{quickstartCode}</code>
         </pre>
-        <p className="text-xs" style={{ color: APP_TEXT.soft }}>
+        <p className="text-xs" style={{ color: '#888' }}>
           The example selects the first model advertised by the exchange.
           If no models are online, it stops with a clear error. Your API key is only shown once.
         </p>
