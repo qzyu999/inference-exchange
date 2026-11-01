@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { useAuth } from '../lib/auth'
 import { LANDING_LINKS, authState, loginHref } from '../lib/nav.js'
-import { HERO_PIGMENTS as HP } from '../lib/theme'
+import { C, GRADIENTS, HERO_PIGMENTS as HP } from '../lib/theme'
 
 // Persistent first-viewport navigation for "/" (#107 P0).
 // Plain HTML above the WebGL canvas: it works before, during, and without the scene.
@@ -68,15 +68,15 @@ export function LandingNav() {
     <header
       className="fixed top-0 left-0 right-0 z-50"
       style={{
-        background: '#0E1018',
-        borderBottom: '1px solid rgba(240,197,75,0.66)',
-        boxShadow: '0 2px 10px rgba(43,34,72,0.25)',
+        background: GRADIENTS.sidebar,
+        borderBottom: '1px solid rgba(240,197,75,0.34)',
+        boxShadow: '0 2px 12px rgba(31,31,32,0.22)',
       }}
     >
       <a
         href="#landing-main"
         className={`sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:px-3 focus:py-2 focus:rounded-lg ${FOCUS}`}
-        style={{ background: HP.orpiment, color: HP.deepLapis }}
+        style={{ background: '#F2E6D0', color: C.blueBlack }}
       >
         Skip to content
       </a>
@@ -101,7 +101,7 @@ export function LandingNav() {
           <Link
             to="/chat"
             className={`px-4 py-2 rounded-lg text-sm font-semibold ${FOCUS}`}
-            style={{ background: HP.orpiment, color: HP.deepLapis }}
+            style={{ background: '#F2E6D0', color: C.blueBlack }}
           >
             Try inference
           </Link>
@@ -112,7 +112,7 @@ export function LandingNav() {
           <Link
             to="/chat"
             className={`px-2.5 py-2 rounded-lg text-sm font-semibold ${FOCUS}`}
-            style={{ background: HP.orpiment, color: HP.deepLapis }}
+            style={{ background: '#F2E6D0', color: C.blueBlack }}
             aria-label="Try inference"
           >
             Try
@@ -146,7 +146,7 @@ export function LandingNav() {
       </nav>
 
       {open && (
-        <div id="landing-mobile-menu" className="md:hidden px-4 pb-4" style={{ background: '#0E1018' }}>
+        <div id="landing-mobile-menu" className="md:hidden px-4 pb-4" style={{ background: GRADIENTS.sidebar }}>
           <ul className="flex flex-col">
             {LANDING_LINKS.map(l => (
               <li key={l.to}>
