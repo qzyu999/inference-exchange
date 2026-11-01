@@ -3,7 +3,7 @@ import { Link, useParams } from 'react-router-dom'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { DOC_NAV, isIndexSlug, loadDoc, resolveDocLink } from '../lib/docs'
-import { C } from '../lib/theme'
+import { C, APP_TEXT } from '../lib/theme'
 
 const REPO_BLOB = 'https://github.com/qzyu999/inference-exchange/blob/main/'
 
@@ -28,7 +28,7 @@ export function Docs() {
       <nav aria-label="Documentation" className="lg:w-52 shrink-0 lg:sticky lg:top-6 self-start">
         {DOC_NAV.map(section => (
           <div key={section.title} className="mb-5">
-            <div className="text-[10px] uppercase tracking-wider font-medium mb-2" style={{ color: C.gold }}>
+            <div className="text-[10px] uppercase tracking-wider font-medium mb-2" style={{ color: APP_TEXT.gold }}>
               {section.title}
             </div>
             <ul className="space-y-0.5">
@@ -59,7 +59,7 @@ export function Docs() {
             <p>No document exists at <code>/docs/{slug}</code>. <Link to="/docs">Go to the docs index</Link>.</p>
           </div>
         ) : content === null ? (
-          <div className="text-sm" style={{ color: '#aaa' }}>Loading...</div>
+          <div className="text-sm" style={{ color: APP_TEXT.soft }}>Loading...</div>
         ) : (
           <ReactMarkdown
             remarkPlugins={[remarkGfm]}
