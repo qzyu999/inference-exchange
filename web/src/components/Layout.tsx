@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, Outlet, useLocation } from 'react-router-dom'
 import { useCoordinatorStatus, useWebSocket } from '../lib/useWebSocket'
 import { useAuth } from '../lib/auth'
@@ -157,6 +157,16 @@ export function Layout() {
   const coordinatorOnline = useCoordinatorStatus()
   const { user, loading: authLoading, logout } = useAuth()
   const [mobileOpen, setMobileOpen] = useState(false)
+  // On by default for the visual review. Users with f.lux already active can
+  // turn this off to avoid stacking two warm color transforms.
+  const [warmTint, setWarmTint] = useState(() => {
+    try { return window.localStorage.getItem('ie-app-bedtime-tint') !== 'off' }
+    catch { return true }
+  })
+  useEffect(() => {
+    try { window.localStorage.setItem('ie-app-bedtime-tint', warmTint ? 'on' : 'off') }
+    catch { /* Retain in-session preference if storage is unavailable. */ }
+  }, [warmTint])
 
   // Subscribe to live exchange events for reactive aurora
   const { events } = useWebSocket('/ws/events')
@@ -173,11 +183,15 @@ export function Layout() {
 
   if (location.pathname === '/login') {
     return (
-      <div className="min-h-screen" style={{ background: `linear-gradient(180deg, #F8F8F5 0%, ${C.pageBg} 40%, #F3F2EE 100%)` }}>
-        <div className="px-6 py-4">
+      <div className="ie-app-temperature-scope min-h-screen" data-warm-tint={warmTint ? 'on' : 'off'} style={{ background: `linear-gradient(180deg, #F8F8F5 0%, ${C.pageBg} 40%, #F3F2EE 100%)` }}>
+        <div className="relative z-10 flex items-center justify-between gap-4 px-6 py-4">
           <Link to="/" className="text-sm font-semibold tracking-tight uppercase" style={{ color: C.gold }}>
             Inference Exchange
           </Link>
+          <button type="button" aria-pressed={warmTint} onClick={() => setWarmTint(value => !value)}
+            className="rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#845918]">
+            Bedtime tint: {warmTint ? 'On' : 'Off'}
+          </button>
         </div>
         <ErrorBoundary>
           <Outlet />
@@ -237,6 +251,20 @@ export function Layout() {
       {/* Spacer */}
       <div className="flex-1" />
 
+      {/* Color-temperature simulation, not a true display whitepoint change. */}
+      <div className="px-4 pb-3">
+        <button
+          type="button"
+          aria-pressed={warmTint}
+          onClick={() => setWarmTint(value => !value)}
+          className="w-full flex items-center justify-between gap-2 rounded-lg border border-white/20 px-3 py-2 text-xs font-medium transition-colors hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#F0C54B]"
+          style={{ color: AP.sidebarText }}
+          title="2400K-inspired warm color overlay. Switch off if you already use f.lux."
+        >
+          <span>Bedtime tint</span>
+          <span aria-hidden="true">{warmTint ? 'On' : 'Off'}</span>
+        </button>
+      </div>
       {/* Network status + user */}
       <div className="px-4 pb-5 space-y-3">
         {coordinatorOnline !== null && (
@@ -278,7 +306,7 @@ export function Layout() {
   )
 
   return (
-    <div className="ie-mineral-app flex min-h-screen" style={{ background: `linear-gradient(180deg, #F8F8F5 0%, ${C.pageBg} 40%, #F3F2EE 100%)` }}>
+    <div className="ie-mineral-app ie-app-temperature-scope flex min-h-screen" data-warm-tint={warmTint ? 'on' : 'off'} style={{ background: `linear-gradient(180deg, #F8F8F5 0%, ${C.pageBg} 40%, #F3F2EE 100%)` }}>
       {/* Desktop sidebar */}
       <aside
         className="ie-mineral-sidebar hidden lg:flex flex-col w-52 shrink-0 sticky top-0 h-screen overflow-y-auto"
