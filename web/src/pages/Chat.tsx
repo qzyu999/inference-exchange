@@ -9,7 +9,7 @@ import { authState, loginHref } from '../lib/nav.js'
 import { formatUsd } from '../lib/money.js'
 import { normalizeOnlineModels, isRunnableChatModel } from '../lib/chat-models.js'
 import { ChatModelPicker } from '../components/ChatModelPicker'
-import { C, TRUST_CLAIM_NOTE, TRUST_COLORS } from '../lib/theme'
+import { C, TRUST_CLAIM_NOTE, TRUST_COLORS, APP_TEXT } from '../lib/theme'
 
 interface Message {
   role: 'user' | 'assistant'
@@ -198,17 +198,17 @@ export function Chat() {
 
   // Guests may inspect the exchange, but cannot submit billable inference.
   if (authState(authLoading, user) === 'loading') {
-    return <div role="status" className="py-16 text-center text-sm" style={{ color: '#888' }}>Checking sign-in…</div>
+    return <div role="status" className="py-16 text-center text-sm" style={{ color: APP_TEXT.soft }}>Checking sign-in…</div>
   }
   if (authState(authLoading, user) === 'signed-out') {
     return (
       <div className="max-w-xl mx-auto bg-white rounded-2xl border border-gray-200/60 p-8 md:p-12 text-center space-y-5">
         <h2 className="text-2xl font-bold" style={{ color: C.blueBlack }}>Sign in to start chatting</h2>
-        <p className="text-sm leading-relaxed" style={{ color: '#777' }}>
+        <p className="text-sm leading-relaxed" style={{ color: APP_TEXT.muted }}>
           Explore models and prices without an account. To run inference, sign in with GitHub.
           New accounts receive simulated alpha credits; no real payment is taken.
         </p>
-        <p className="text-xs" style={{ color: '#888' }}>
+        <p className="text-xs" style={{ color: APP_TEXT.soft }}>
           Browser chat uses TLS, not end-to-end encryption. The coordinator can read prompts and responses.
           Use nonsensitive test prompts.
         </p>
@@ -251,7 +251,7 @@ export function Chat() {
           <button
             onClick={() => { setMessages([]); if (chatKey) localStorage.removeItem(chatKey) }}
             className="text-xs px-3 py-1.5 rounded-lg border transition-colors"
-            style={{ color: '#888', borderColor: '#ddd' }}
+            style={{ color: APP_TEXT.soft, borderColor: '#ddd' }}
           >
             New chat
           </button>
@@ -261,7 +261,7 @@ export function Chat() {
             aria-expanded={showSidebar}
             aria-controls="chat-advanced-settings"
             className="text-xs px-3 py-1.5 rounded-lg border"
-            style={{ color: '#888', borderColor: '#ddd' }}
+            style={{ color: APP_TEXT.soft, borderColor: '#ddd' }}
           >
             {showSidebar ? 'Hide settings' : 'Advanced settings'}
           </button>
@@ -310,7 +310,7 @@ export function Chat() {
             <button
               onClick={() => setMinTrust('open')}
               className="font-semibold px-3 py-1.5 rounded-lg border shrink-0"
-              style={{ borderColor: C.gold, color: C.gold }}
+              style={{ borderColor: C.gold, color: APP_TEXT.gold }}
             >
               I understand — use L0/Open
             </button>
@@ -319,20 +319,20 @@ export function Chat() {
 
         {/* Privacy downgrade warning */}
         {(minTrust === 'open' || minTrust === 'contained') && (
-          <div className="flex items-center gap-2 px-4 py-2.5 mb-3 rounded-xl text-xs" style={{ background: '#fdf6ec', color: C.gold, border: '1px solid rgba(196,154,69,0.15)' }}>
+          <div className="flex items-center gap-2 px-4 py-2.5 mb-3 rounded-xl text-xs" style={{ background: '#fdf6ec', color: APP_TEXT.gold, border: '1px solid rgba(196,154,69,0.15)' }}>
             <span>⚠</span>
             <span>
               {minTrust === 'open'
                 ? 'L0/Open selected: the coordinator and provider can read prompts and responses. Do not send secrets.'
                 : 'L1 providers have basic isolation only.'}
             </span>
-            <button onClick={() => setMinTrust('hardened')} className="ml-auto font-medium shrink-0" style={{ color: C.gold }}>
+            <button onClick={() => setMinTrust('hardened')} className="ml-auto font-medium shrink-0" style={{ color: APP_TEXT.gold }}>
               Use L2
             </button>
           </div>
         )}
 
-        <div className="text-[11px] mb-3" style={{ color: '#888' }}>
+        <div className="text-[11px] mb-3" style={{ color: APP_TEXT.soft }}>
           Browser chat uses TLS, not end-to-end encryption. The coordinator can read prompts
           and responses regardless of the provider trust selection.
         </div>
@@ -342,8 +342,8 @@ export function Chat() {
           {messages.length === 0 && (
             <div className="text-center mt-24">
               <img src="/logo-icon.svg" alt="IE" className="w-14 h-14 mx-auto mb-4 opacity-30" />
-              <div className="text-sm font-medium" style={{ color: '#999' }}>Send a message to start</div>
-              <div className="text-xs mt-1" style={{ color: '#bbb' }}>
+              <div className="text-sm font-medium" style={{ color: APP_TEXT.soft }}>Send a message to start</div>
+              <div className="text-xs mt-1" style={{ color: APP_TEXT.soft }}>
                 {modelReady ? 'Using ' + model : 'Select a connected model above'}
               </div>
             </div>
@@ -352,7 +352,7 @@ export function Chat() {
             <div key={i}>
               {m.role === 'user' ? (
                 <div>
-                  <div className="text-[10px] uppercase tracking-wider mb-1.5" style={{ color: '#bbb' }}>You</div>
+                  <div className="text-[10px] uppercase tracking-wider mb-1.5" style={{ color: APP_TEXT.soft }}>You</div>
                   <div
                     className="inline-block px-4 py-3 rounded-2xl text-sm"
                     style={{ background: '#e5e5e3', color: C.blueBlack }}
@@ -362,7 +362,7 @@ export function Chat() {
                 </div>
               ) : (
                 <div>
-                  <div className="text-[10px] uppercase tracking-wider mb-1.5" style={{ color: C.gold }}>
+                  <div className="text-[10px] uppercase tracking-wider mb-1.5" style={{ color: APP_TEXT.gold }}>
                     Inference Exchange
                   </div>
                   <div
@@ -383,7 +383,7 @@ export function Chat() {
                   </div>
                   {/* Message metadata */}
                   {(m.input_tokens != null || m.tokens != null || m.cost_usd != null) && (
-                    <div className="text-[11px] mt-1.5 flex gap-2" style={{ color: '#bbb' }}>
+                    <div className="text-[11px] mt-1.5 flex gap-2" style={{ color: APP_TEXT.soft }}>
                       {m.input_tokens != null && m.output_tokens != null && (
                         <span>{(m.input_tokens / 1000).toFixed(1)}k input · {(m.output_tokens / 1000).toFixed(1)}k output</span>
                       )}
@@ -435,12 +435,12 @@ export function Chat() {
           className="order-first lg:order-last w-full lg:w-60 shrink-0 rounded-2xl border border-gray-200/60 bg-white p-4 space-y-4">
           <div>
             <h2 className="text-sm font-semibold" style={{ color: C.blueBlack }}>Advanced request settings</h2>
-            <p className="text-xs mt-1" style={{ color: '#777' }}>
+            <p className="text-xs mt-1" style={{ color: APP_TEXT.muted }}>
               Matching is automatic. With one eligible provider, there is no provider choice to optimize.
             </p>
           </div>
           <div>
-            <div className="text-xs mb-2" style={{ color: '#777' }}>Minimum OCIP level</div>
+            <div className="text-xs mb-2" style={{ color: APP_TEXT.muted }}>Minimum OCIP level</div>
             <div className="flex flex-wrap gap-1.5">
               {TRUST_LEVELS.map(t => {
                 const tc = TRUST_COLORS[t.value] || TRUST_COLORS.hardened
@@ -455,7 +455,7 @@ export function Chat() {
                 )
               })}
             </div>
-            <p className="text-[11px] mt-2" style={{ color: '#888' }}>{TRUST_CLAIM_NOTE}</p>
+            <p className="text-[11px] mt-2" style={{ color: APP_TEXT.soft }}>{TRUST_CLAIM_NOTE}</p>
           </div>
           <div>
             <div className="flex justify-between gap-2 text-xs mb-2" style={{ color: C.blueBlack }}>
@@ -465,7 +465,7 @@ export function Chat() {
             <input id="chat-max-output" type="range" min="0.01" max="1.00" step="0.01"
               value={maxPrice} onChange={e => setMaxPrice(e.target.value)}
               className="w-full accent-amber-500" />
-            <p className="text-[11px] mt-2" style={{ color: '#888' }}>
+            <p className="text-[11px] mt-2" style={{ color: APP_TEXT.soft }}>
               This ceiling applies only to the provider output rate. It is not a total-request
               budget and does not cap input or cached-input prices. Simulated requests may
               include a minimum charge.
