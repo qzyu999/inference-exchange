@@ -85,6 +85,14 @@ assert.match(landscape, /opacity: showVideo \? 0 : 1/,
 assert.match(landscape, /onPlaying=\{\(\) => setPlaying\(true\)\}/)
 assert.match(landscape, /onPause=\{\(\) => setPlaying\(false\)\}/)
 assert.match(landscape, /onWaiting=\{\(\) => setPlaying\(false\)\}/)
+
+// In the contained ultrawide layout, video touches the navbar and any
+// letterboxing/ambient poster blur is relegated to the bottom of the stage.
+assert.match(landscape, /requestedAspect === '21x9' && framing\.mode === 'contain'/)
+assert.match(landscape, /topAnchorUltrawide \? 'items-start' : 'items-center'/)
+assert.match(landscape, /topAnchorUltrawide && edgeDirection === 'to bottom'/)
+assert.match(landscape, /linear-gradient\(to bottom, black 0%, black 98\.9%, transparent 100%\)/)
+assert.match(landscape, /linear-gradient\(\$\{edgeDirection\}, transparent 0%, black 1\.1%, black 98\.9%, transparent 100%\)/)
 assert.match(landscape, /STREAM_ENABLED && !reducedMotion && !saveData && !streamFailed/)
 assert.match(landscape, /thumbnails\/thumbnail\.jpg/)
 assert.match(landscape, /data-hero-delivery=\{useStream \? 'cloudflare-stream-hls' : 'poster-only'\}/)
