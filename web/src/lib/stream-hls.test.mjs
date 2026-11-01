@@ -59,6 +59,15 @@ stopStale()
 assert.equal(destroys, 0, 'aborted setup must not tear down active playback')
 stopCurrent()
 assert.equal(destroys, 1, 'active HLS should clean up on unmount')
+// The lazily imported Stream HLS adapter must be pre-optimized with the
+// React stack at Vite dev-server startup. Otherwise late discovery can
+// invalidate pre-bundled React chunks mid-render (duplicate React/hook crash).
+const viteConfig = (await import('node:fs')).readFileSync(
+  new URL('../../vite.config.ts', import.meta.url), 'utf8'
+)
+assert.match(viteConfig, /dedupe:\s*\['react', 'react-dom'\]/)
+assert.match(viteConfig, /optimizeDeps:\s*\{[\s\S]*?include:\s*\[[^\]]*'react'[^\]]*'react-router-dom'[^\]]*'hls\.js'/)
+
 // Production rendering must never expose a traditional MP4 request.
 const landscape = (await import('node:fs')).readFileSync(
   new URL('../components/LandscapeVideo.tsx', import.meta.url), 'utf8'
