@@ -152,12 +152,20 @@ assert.ok(largeHeading && pigmentHeading, 'both headline styles must exist')
 for (const rule of [largeHeading, pigmentHeading]) {
   assert.match(rule, /-webkit-text-stroke: 0;/,
     'large lettering must explicitly disable interior glyph outlines')
-  assert.doesNotMatch(rule, /paint-order: stroke fill|drop-shadow|filter:/,
-    'no stroke or filter effects on large letterforms')
+  assert.doesNotMatch(rule, /paint-order: stroke fill|stroke-width:/,
+    'large letter counters must remain smooth: no hidden stroke overrides')
 }
 assert.match(largeHeading, /color: #F8EAD5;/)
-assert.match(largeHeading, /text-shadow: 0 2px 5px rgba\(10, 17, 22, 0\.7\);/)
-assert.match(pigmentHeading, /text-shadow: none;/)
+assert.match(largeHeading, /0 -1px 0 rgba\(255, 247, 228, 0\.22\)/,
+  'subtle upper mineral-pigment highlight creates painted-stone relief')
+assert.match(largeHeading, /0 3px 6px rgba\(11, 18, 24, 0\.76\)/,
+  'downward shadow supplies depth without a dark edge inside counters')
+assert.doesNotMatch(largeHeading, /filter:|drop-shadow/,
+  'only gradient spans need composited-alpha shadowing')
+assert.match(pigmentHeading, /text-shadow: none;/,
+  'clipped gradient glyphs must not use ordinary text-shadow')
+assert.match(pigmentHeading, /filter:\s*drop-shadow\(0 1px 1px rgba\(11, 18, 24, 0\.76\)\)\s*drop-shadow\(0 3px 5px rgba\(11, 18, 24, 0\.42\)\)/,
+  'only soft offset shadows on the final gradient glyph, no hard black border')
 assert.doesNotMatch(styles, /\.hero-mani-heading,\s*\.hero-mani-heading-pigment\s*\{[^}]*-webkit-text-stroke-width:/)
 assert.doesNotMatch(landing, /0 2px 24px rgba\(0,0,0,0\.6\)/)
 assert.match(nav, /const NAV_PAINT = '#F7EAD6'/)
