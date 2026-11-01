@@ -334,7 +334,7 @@ export function Layout() {
         <div className="ie-app-spectrum-rule absolute left-0 right-0 top-0 z-20 h-[2px]" style={{ background: GRADIENTS.fullSpectrum }} />
         {/* Living mineral aurora — reactive to network events */}
         <div className="absolute inset-0 z-0 overflow-hidden">
-          <MineralAurora variant="dark" opacity={0.10} speed={0.0002} pulses={pulses} className="absolute inset-0" />
+          <MineralAurora variant="light" opacity={0.06} speed={0.0002} pulses={pulses} className="absolute inset-0" />
         </div>
 
         {/* Page title area + network status */}
@@ -352,14 +352,12 @@ export function Layout() {
           )}
         </div>
 
-        {/* Every app route was authored for dark ink on a light reading
-            surface. Keep the charcoal landing-finale field around it, but
-            provide one neutral, low-glare workspace inside for contrast. */}
-        <main className="ie-app-workspace relative z-10 mx-4 md:mx-8 mb-10 rounded-2xl p-4 md:p-6">
+        {/* Page content */}
+        <div className="relative z-10 px-6 md:px-10 pb-10 mineral-glow">
           <ErrorBoundary>
             <Outlet />
           </ErrorBoundary>
-        </main>
+        </div>
       </div>
     </div>
   )
@@ -388,9 +386,12 @@ function PageTitle({ pathname }: { pathname: string }) {
   const meta = PAGE_META[pathname.startsWith('/docs') ? '/docs' : pathname.startsWith('/start/') ? '/start' : pathname]
   if (!meta) return null
 
-  // Page headings sit on the same dark mineral field as the landing finale.
-  // Light ink remains readable without the bright white page wash.
-  const gradient = GRADIENTS.appTitle
+  const gradient =
+    pathname === '/chat' ? GRADIENTS.demandToExchange :
+    pathname === '/exchange' || pathname === '/models' ? GRADIENTS.market :
+    pathname === '/providers' || pathname === '/dashboard' ? GRADIENTS.supplyToValue :
+    pathname === '/trace' ? GRADIENTS.trust :
+    GRADIENTS.titleText
 
   return (
     <div>
@@ -405,7 +406,7 @@ function PageTitle({ pathname }: { pathname: string }) {
       >
         {meta.title}
       </h1>
-      <p className="text-sm mt-1" style={{ color: '#E2EBE2' }}>
+      <p className="text-sm mt-1" style={{ color: AP.body }}>
         {meta.subtitle}
       </p>
     </div>
