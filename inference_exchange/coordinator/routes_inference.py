@@ -218,26 +218,28 @@ def _make_billing_callback(
 @router.post("/v1/chat/completions")
 async def chat_completions(request: ChatCompletionRequest, raw_request: Request):
     """OpenAI-compatible chat completions endpoint."""
-    # Resolve consumer identity (raises InvalidCredentials -> 401 for a bad key)
+    # Preserve existing input validation order (e.g. invalid trust -> HTTP 400).
+    from fastapi.responses import JSONResponse
+    validation_error = request.validate_inputs()
+    if validation_error:
+        return JSONResponse(
+            {"error": {"message": validation_error, "type": "invalid_request", "code": "invalid_request"}},
+            status_code=400,
+        )
+
+    # Resolve caller before applying the new model requirement. Invalid or suspended
+    # callers must retain the established authentication and authorization responses.
     from .routes_auth import anonymous_inference_blocked, resolve_caller, sign_in_required_response
     consumer_id = resolve_caller(raw_request)
 
     if anonymous_inference_blocked(consumer_id):
         return sign_in_required_response()
 
-    # ROUTE-013: deny missing or wildcard model names after authorization, before matching or billing.
-    from fastapi.responses import JSONResponse
+    # ROUTE-013: deny missing or wildcard model names before matching or billing.
     model_error = request.validate_model()
     if model_error:
         return JSONResponse(
             {"error": {"message": model_error, "type": "invalid_request_error", "code": "invalid_model"}},
-            status_code=400,
-        )
-
-    validation_error = request.validate_inputs()
-    if validation_error:
-        return JSONResponse(
-            {"error": {"message": validation_error, "type": "invalid_request", "code": "invalid_request"}},
             status_code=400,
         )
 
