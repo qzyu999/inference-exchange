@@ -40,12 +40,12 @@ const LOCAL_PREVIEW = /^(localhost|127[.]0[.]0[.]1)$/.test(window.location.hostn
 const PREVIEW_MODE = LOCAL_PREVIEW
   ? new URLSearchParams(window.location.search).get('heroDelivery')
   : null
-// Production video is explicitly OFF by default. Stream can be enabled with
-// VITE_HERO_STREAM_ENABLED=true at build/deploy time; rebuild with false for
-// a poster-only emergency rollback. Local query flags work ONLY on localhost.
+// The cinematic hero is Stream HLS by default for this approved PR.
+// VITE_HERO_STREAM_ENABLED=false (rebuild/redeploy) is a poster-only rollback.
+// Local query flags are debugging overrides and work ONLY on localhost.
 const STREAM_ENABLED = PREVIEW_MODE === 'poster' ? false
   : PREVIEW_MODE === 'stream' ? true
-    : import.meta.env.VITE_HERO_STREAM_ENABLED === 'true'
+    : import.meta.env.VITE_HERO_STREAM_ENABLED !== 'false'
 
 interface NetworkHints {
   saveData?: boolean
@@ -87,8 +87,9 @@ function getVideoFraming(aspect: VideoAspect): {
 
 /**
  * Production delivery policy (#198):
- * - Video: adaptive Cloudflare Stream HLS only, when explicitly enabled.
+ * - Video: adaptive Cloudflare Stream HLS by default (build opt-out available).
  * - Fallback: one static Stream thumbnail, never a standalone MP4 request.
+ * - Poster remains visible UNTIL playback actually starts, and while stalled.
  * - Save-Data, reduced motion, fatal HLS error or rollout-off: poster only.
  * Native Safari HLS returns synchronous cleanup for React StrictMode replay.
  */
@@ -96,6 +97,7 @@ export function LandscapeVideo({ progress, reducedMotion, onAvailabilityChange }
   const videoRef = useRef<HTMLVideoElement>(null)
   const [requestedAspect, setRequestedAspect] = useState<VideoAspect>(selectAspect)
   const [ready, setReady] = useState(false)
+  const [playing, setPlaying] = useState(false)
   const [posterReady, setPosterReady] = useState(false)
   const [posterFailed, setPosterFailed] = useState(false)
   const [streamFailed, setStreamFailed] = useState(false)
@@ -109,6 +111,7 @@ export function LandscapeVideo({ progress, reducedMotion, onAvailabilityChange }
 
   useEffect(() => {
     setReady(false)
+    setPlaying(false)
     setPosterReady(false)
     setPosterFailed(false)
     setStreamFailed(false)
@@ -122,6 +125,9 @@ export function LandscapeVideo({ progress, reducedMotion, onAvailabilityChange }
   const framing = getVideoFraming(requestedAspect)
   const edges = getHeroEdges()
   const useAmbientEdges = framing.mode === 'contain' && edges === 'ambient'
+  // loadeddata is not proof of successful autoplay: never expose a black video
+  // layer until the browser emits playing, and restore the poster on stalls.
+  const showVideo = useStream && ready && playing
   const frameRatio = VIDEO_ASPECT_RATIO[requestedAspect]
   const frameAspectCss = requestedAspect === '21x9' ? '3840 / 1644' : '16 / 9'
 
@@ -136,6 +142,7 @@ export function LandscapeVideo({ progress, reducedMotion, onAvailabilityChange }
       if (controller.signal.aborted) return
       console.warn('[hero-stream] HLS unavailable; showing static poster:', error)
       setReady(false)
+      setPlaying(false)
       setLoopEligible(false)
       setStreamFailed(true)
     }
@@ -237,7 +244,7 @@ export function LandscapeVideo({ progress, reducedMotion, onAvailabilityChange }
             style={{
               objectFit: framing.mode === 'contain' ? 'cover' : framing.fit,
               objectPosition: framing.position,
-              opacity: useStream && ready ? 1 : 0,
+              opacity: showVideo ? 1 : 0,
               transition: 'opacity 200ms ease-out',
             }}
             // Source is attached only by attachStreamHls; no direct MP4 path.
@@ -254,21 +261,27 @@ export function LandscapeVideo({ progress, reducedMotion, onAvailabilityChange }
             preload={useStream ? 'metadata' : 'none'}
             onLoadedMetadata={event => setLoopEligible(event.currentTarget.duration >= 20)}
             onLoadedData={() => setReady(true)}
+            onPlaying={() => setPlaying(true)}
+            onPause={() => setPlaying(false)}
+            onWaiting={() => setPlaying(false)}
             onError={() => {
               setReady(false)
+              setPlaying(false)
               setLoopEligible(false)
               setStreamFailed(true)
             }}
           />
-          {(!useStream || !ready) && !posterFailed && (
+          {!posterFailed && (
             <img
               key={poster}
               src={poster}
               alt=""
-              className="absolute inset-0 h-full w-full"
+              className="pointer-events-none absolute inset-0 h-full w-full"
               style={{
                 objectFit: framing.mode === 'contain' ? 'cover' : framing.fit,
                 objectPosition: framing.position,
+                opacity: showVideo ? 0 : 1,
+                transition: 'opacity 200ms ease-out',
               }}
               onLoad={() => setPosterReady(true)}
               onError={() => setPosterFailed(true)}
