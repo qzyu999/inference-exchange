@@ -4,7 +4,7 @@ import { useAuth } from '../lib/auth'
 import { api } from '../lib/api'
 import { loginHref } from '../lib/nav.js'
 import { formatUsdPrecise, microToUsd } from '../lib/money.js'
-import { C } from '../lib/theme'
+import { C, APP_TEXT } from '../lib/theme'
 
 /**
  * Read-only owner dashboard. All data comes from authenticated, owner-scoped
@@ -32,7 +32,7 @@ export function ProviderDashboard() {
         <p className="text-sm text-gray-600">
           Sign in with your IE GitHub account to see only the provider nodes and simulated earnings that belong to you.
         </p>
-        <Link to={loginHref('/dashboard')} className="inline-block underline text-sm" style={{ color: C.gold }}>
+        <Link to={loginHref('/dashboard')} className="inline-block underline text-sm" style={{ color: APP_TEXT.gold }}>
           Sign in with GitHub
         </Link>
       </section>
@@ -48,7 +48,7 @@ export function ProviderDashboard() {
       <section className="bg-white rounded-2xl border border-gray-200/60 p-6 space-y-3">
         <div className="flex flex-wrap justify-between items-center gap-3">
           <h2 className="font-semibold text-lg" style={{ color: C.blueBlack }}>Your provider activity</h2>
-          <Link to="/provide" className="text-sm underline" style={{ color: C.gold }}>
+          <Link to="/provide" className="text-sm underline" style={{ color: APP_TEXT.gold }}>
             Provider setup and requirements
           </Link>
         </div>
