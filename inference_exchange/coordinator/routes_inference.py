@@ -218,7 +218,14 @@ def _make_billing_callback(
 @router.post("/v1/chat/completions")
 async def chat_completions(request: ChatCompletionRequest, raw_request: Request):
     """OpenAI-compatible chat completions endpoint."""
-    # ROUTE-013: deny missing or wildcard model names before matching or billing.
+    # Resolve consumer identity (raises InvalidCredentials -> 401 for a bad key)
+    from .routes_auth import anonymous_inference_blocked, resolve_caller, sign_in_required_response
+    consumer_id = resolve_caller(raw_request)
+
+    if anonymous_inference_blocked(consumer_id):
+        return sign_in_required_response()
+
+    # ROUTE-013: deny missing or wildcard model names after authorization, before matching or billing.
     from fastapi.responses import JSONResponse
     model_error = request.validate_model()
     if model_error:
@@ -233,13 +240,6 @@ async def chat_completions(request: ChatCompletionRequest, raw_request: Request)
             {"error": {"message": validation_error, "type": "invalid_request_error", "code": "invalid_request"}},
             status_code=400,
         )
-
-    # Resolve consumer identity (raises InvalidCredentials -> 401 for a bad key)
-    from .routes_auth import anonymous_inference_blocked, resolve_caller, sign_in_required_response
-    consumer_id = resolve_caller(raw_request)
-
-    if anonymous_inference_blocked(consumer_id):
-        return sign_in_required_response()
 
     if get_controls().inference_paused:
         raise InferencePaused()
