@@ -33,17 +33,26 @@ for (const name of ['ink', 'primary', 'secondary', 'link']) {
   assert.match(styles, new RegExp(`\\.hero-pigment-${name}`))
 }
 assert.match(rail, /CHAPTER_PIGMENTS = \[HP\.orpiment, HP\.cinnabar, HP\.jade, HP\.lapis\]/)
-assert.match(landing, /className="hero-exchange-card relative rounded-xl/)
-assert.match(styles, /\.hero-exchange-card \{/)
-// The CTA surfaces and live card share the same cool-mist to ochre wash;
- // no separate flat tan or strong jade/gold solid CTA fills.
+// The opening scenic chapter retains its light atmospheric pigment CTAs.
+// The final product slide deliberately restores the original live alpha scheme:
+// translucent dark Live Exchange card, warm-white gradient-hover primary action,
+// and the quiet transparent mineral-bordered provider CTA.
+assert.match(landing, /className="rounded-2xl p-6 w-full max-w-sm mineral-border"/)
+assert.match(landing, /background: 'rgba\(255,255,255,0\.06\)'/)
+assert.match(landing, /style=\{\{ color: C\.warmWhite, background: 'rgba\(216,209,190,0\.06\)' \}\}/)
+assert.match(landing, /group-hover:opacity-100 transition-opacity" style=\{\{ background: GRADIENTS\.heroText \}\}/)
+const finalSlide = landing.slice(landing.indexOf('{/* One actual product screen'))
+assert.ok(finalSlide.includes('Start a conversation') && finalSlide.includes('Become a provider'))
+assert.doesNotMatch(finalSlide, /hero-pigment-(primary|secondary)/)
+assert.doesNotMatch(landing, /hero-exchange-card/)
+assert.match(styles, /\.mineral-border::before/)
+// Atmospheric wash stays for the opening chapter, not the last product slide.
 assert.match(styles, /--hero-atmosphere-wash: linear-gradient\(138deg/)
 for (const color of ['#B2C0BB', '#D2D6C9', '#E2D2B8', '#E6CEAA', '#F2E5D0', '#FAF7EE']) {
   assert.ok(styles.includes(color), `missing atmospheric wash stop ${color}`)
 }
 assert.match(styles, /\.hero-pigment-primary \{[\s\S]*?background: var\(--hero-atmosphere-wash\)/)
 assert.match(styles, /\.hero-pigment-secondary \{[\s\S]*?var\(--hero-atmosphere-wash\)/)
-assert.match(styles, /\.hero-exchange-card \{[\s\S]*?var\(--hero-atmosphere-wash\)/)
 assert.doesNotMatch(styles, /rgba\(30, 94, 86, 0\.93\)/)
 assert.doesNotMatch(landing, /rgba\(16,45,109,0\.76\)/)
 assert.match(landing, /hero-body-inscription/)
