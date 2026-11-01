@@ -11,6 +11,11 @@
   --mineral-blue: #315B72;
   --mineral-indigo: #4A465F;
   --mineral-maroon: #702F32;
+  /* Original live /main "Become a provider" border: one canonical paint
+     recipe, shared by its existing mineral-border and the interactive CTA. */
+  --mineral-border-paint: linear-gradient(135deg,
+    #C83A3240, #D77A2F55, #C49A4555, #087F5B44,
+    #4D9A9144, #315B7240, #4A465F38, #702F3238);
   /* Landing-only pigments, lifted from the user's thangka painting references. */
   --hero-lapis: #163E8C;
   --hero-deep-lapis: #102D6D;
@@ -63,9 +68,7 @@ body {
   inset: 0;
   border-radius: inherit;
   padding: 1px;
-  background: linear-gradient(135deg,
-    #C83A3240, #D77A2F55, #C49A4555, #087F5B44,
-    #4D9A9144, #315B7240, #4A465F38, #702F3238);
+  background: var(--mineral-border-paint);
   background-size: 220% 220%;
   animation: mineral-shift 14s ease-in-out infinite;
   mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
@@ -492,64 +495,52 @@ body {
   }
 }
 
-/* Full-surface mineral spectrum. A pointer-following conic gradient uses the
-   SAME opaque seven pigments as the navbar wordmark. No white radial wash:
-   the previous 52% cream spotlight made the colors look pastel. Cursor angle
-   and center still shift gently, without particles, canvas or dependencies. */
-.hero-stone-cta--spotlight {
+/* Interactive form of the exact live /main provider CTA gradient.
+   The original .mineral-border::before remains the authoritative masked
+   1px border. Pointer motion only shifts its background-position; a second
+   layer reveals THE SAME semi-transparent mineral paint inside the button.
+   No conic palette, blur wash, particles, mouse-trail or animation package. */
+.hero-stone-cta--interactive {
   --pigment-x: 50%;
   --pigment-y: 50%;
-  --pigment-angle: 25deg;
   isolation: isolate;
-  transition: color 200ms ease, border-color 200ms ease, box-shadow 200ms ease,
-    background-color 200ms ease;
 }
-.hero-stone-cta--spotlight::before {
+.hero-stone-cta--interactive::before {
+  z-index: 2;
+  /* Override the 14s autonomous mineral-border animation so it does not
+     fight the user's pointer. The original gradient/mask stays unchanged. */
+  animation: none;
+  background-position: var(--pigment-x) var(--pigment-y);
+}
+.hero-stone-cta--interactive::after {
   content: '';
   position: absolute;
   inset: 0;
+  height: auto;
+  border-radius: inherit;
   z-index: 0;
   pointer-events: none;
-  border-radius: inherit;
-  background: conic-gradient(from var(--pigment-angle) at var(--pigment-x) var(--pigment-y),
-      var(--hero-spectrum-apricot) 0deg, var(--hero-spectrum-orpiment) 52deg,
-      var(--hero-spectrum-coral) 104deg, var(--hero-spectrum-jade) 156deg,
-      var(--hero-spectrum-turquoise) 208deg, var(--hero-spectrum-lapis) 260deg,
-      var(--hero-spectrum-lotus) 312deg, var(--hero-spectrum-apricot) 360deg);
+  /* Exactly the same 8 mineral stops and translucencies as the live border. */
+  background: var(--mineral-border-paint);
+  background-size: 220% 220%;
+  background-position: var(--pigment-x) var(--pigment-y);
   opacity: 0;
   transition: opacity 220ms ease;
 }
 .hero-stone-cta__label {
   position: relative;
   z-index: 1;
-  /* Solid ink on a light mineral wash; no moving glyphs or letter strokes. */
+  /* Never animate the glyphs or put an outline inside letter counters. */
 }
-.hero-stone-cta--spotlight:is(:hover, :focus-visible) {
-  color: #182B31;
-  border-color: rgba(246, 225, 172, 0.85);
-  box-shadow: 0 3px 12px rgba(11, 18, 24, 0.28), inset 0 1px 0 rgba(255, 250, 229, 0.37);
-}
-.hero-stone-cta--spotlight:is(:hover, :focus-visible)::before {
+.hero-stone-cta--interactive:is(:hover, :focus-visible)::after {
   opacity: 1;
 }
-/* The optional 2px mineral inlay remains subdued under the full fill. */
-.hero-stone-cta--spotlight::after {
-  z-index: 2;
+.hero-stone-cta--interactive:is(:hover, :focus-visible) {
+  border-color: rgba(216, 209, 190, 0.55);
+  box-shadow: 0 2px 9px rgba(11, 18, 24, 0.26);
 }
 @media (prefers-reduced-motion: reduce) {
-  .hero-stone-cta--spotlight,
-  .hero-stone-cta--spotlight::before {
-    transition: none;
-  }
-  /* Keyboard/touch focus keeps a static, undiluted pigment spectrum;
-     pointer tracking is suppressed for reduced-motion users. */
-  .hero-stone-cta--spotlight::before {
-    background: conic-gradient(from 25deg at 50% 50%,
-        var(--hero-spectrum-apricot), var(--hero-spectrum-orpiment),
-        var(--hero-spectrum-coral), var(--hero-spectrum-jade),
-        var(--hero-spectrum-turquoise), var(--hero-spectrum-lapis),
-        var(--hero-spectrum-lotus), var(--hero-spectrum-apricot));
-  }
+  .hero-stone-cta--interactive::after { transition: none; }
 }
 
 .sidebar-active-bar {
