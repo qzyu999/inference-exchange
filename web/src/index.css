@@ -100,6 +100,56 @@ body {
   animation: mineral-shift 12s ease-in-out infinite;
 }
 
+/* Landing / application identity: the same slowly drifting mineral
+   spectrum as the existing sidebar wordmark, with lighter lapis-safe
+   pigment values on the cinematic dark-blue navbar. Animation is a
+   deterministic CSS background-position shift, not a random algorithm. */
+.hero-mineral-wordmark {
+  background-image: linear-gradient(95deg,
+    #F5A475 0%, #F0C54B 16%, #E48773 34%, #A3C899 51%,
+    #7FD5D1 67%, #A5BEF4 83%, #E4A4CB 100%);
+  background-size: 200% auto;
+  text-shadow: 0 1px 2px rgba(16, 45, 109, 0.6);
+  animation: mineral-shift 15s ease-in-out infinite;
+}
+
+.hero-mineral-thread {
+  background-size: 220% 100% !important;
+  animation: mineral-shift 17s ease-in-out infinite;
+}
+
+/* Dark blue letterpress edges follow the GLYPHS, not the landscape.
+   The text retains a stable, bright silk fill; animations live only on
+   small accents, since moving rainbow paragraphs reduce readability. */
+.hero-body-inscription {
+  -webkit-text-stroke: 0.75px rgba(16, 45, 109, 0.95);
+  paint-order: stroke fill;
+  text-shadow:
+    0 1px 1px rgba(16, 45, 109, 0.98),
+    0 0 3px rgba(36, 32, 91, 0.92),
+    0 2px 7px rgba(31, 37, 104, 0.90),
+    0 4px 15px rgba(34, 31, 86, 0.75);
+}
+
+.hero-fine-inscription {
+  font-weight: 600;
+  -webkit-text-stroke: 0.55px rgba(16, 45, 109, 0.98);
+  paint-order: stroke fill;
+  text-shadow: 0 1px 2px rgba(16, 45, 109, 0.97),
+    0 2px 7px rgba(43, 34, 72, 0.85),
+    0 3px 12px rgba(43, 34, 72, 0.7);
+}
+
+@media (prefers-contrast: more) {
+  .hero-body-inscription { -webkit-text-stroke-width: 1.1px; }
+  .hero-fine-inscription { -webkit-text-stroke-width: 0.85px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-mineral-wordmark,
+  .hero-mineral-thread { animation: none; }
+}
+
 /* Painted-silk editorial layer: vibrant mineral pigments with lapis ink
    depth. The scenic video is never tinted; color lives on the letters and
    individual controls. Avoid glows and shifting rainbow gradients. */
