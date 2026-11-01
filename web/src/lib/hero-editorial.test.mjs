@@ -33,6 +33,12 @@ for (const name of ['ink', 'primary', 'secondary', 'link']) {
   assert.match(styles, new RegExp(`\\.hero-pigment-${name}`))
 }
 assert.match(rail, /CHAPTER_PIGMENTS = \[HP\.orpiment, HP\.cinnabar, HP\.jade, HP\.lapis\]/)
+assert.match(landing, /className="hero-exchange-card relative rounded-xl/)
+assert.match(styles, /\.hero-exchange-card \{/)
+assert.match(styles, /rgba\(253, 250, 243, 0\.96\)/)
+assert.match(styles, /#FBF5E9/)
+assert.match(styles, /rgba\(250, 246, 237, 0\.88\)/)
+assert.doesNotMatch(landing, /rgba\(16,45,109,0\.76\)/)
 assert.match(landing, /hero-body-inscription/)
 assert.match(landing, /hero-fine-inscription/)
 assert.match(landing, /hero-mineral-thread/)
@@ -42,7 +48,9 @@ assert.match(styles, /\.hero-mineral-wordmark/)
 assert.match(styles, /\.hero-mineral-thread/)
 assert.match(styles, /\.hero-mineral-wordmark,\s*\.hero-mineral-thread \{ animation: none; \}/)
 assert.match(nav, /HERO_PIGMENTS as HP/)
-assert.match(nav, /background: '#0E1018'/)
+assert.match(nav, /background: GRADIENTS\.sidebar/)
+assert.match(nav, /GRADIENTS, HERO_PIGMENTS as HP/)
+assert.doesNotMatch(nav, /background: '#0E1018'/)
 assert.doesNotMatch(nav, /background: 'linear-gradient\(95deg, #102D6D/)
 
 // Preserve real routes, chapter semantics and reduced-motion controls.
