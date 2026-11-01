@@ -73,11 +73,11 @@ export const APP_PIGMENTS = {
  * These are NOT the vivid branding/charts/trust semantics colors in C. */
 export const APP_TEXT = {
   muted: '#42505A',
-  soft: '#4D5860',
+  soft: '#42505A',
   gold: '#644718',
   green: '#1A5542',
-  turquoise: '#245769',
-  red: '#843B38',
+  turquoise: '#205566',
+  red: '#7B3834',
 } as const
 
 /**
