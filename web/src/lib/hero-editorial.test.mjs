@@ -40,7 +40,17 @@ assert.doesNotMatch(landing, /'Intelligence,'|'without borders\.'|'A network'|'i
 // The new inscription colors reference actual user-supplied painting motifs.
 // Lapis / indigo replace black shadows; saffron and cinnabar replace white ink.
 assert.match(landing, /HERO_PIGMENTS as HP/)
-assert.match(landing, /HERO_PIGMENT_WORD.*HP\.cream.*HP\.orpiment.*HP\.saffron.*HP\.cinnabar/)
+// The headline on EVERY locked-in chapter inherits precisely the same
+// drifting mineral spectrum as the landing logo; supporting paragraphs stay
+// legible and do not receive animated text backgrounds.
+assert.match(landing, /className="mineral-spectrum-text hero-mineral-wordmark hero-story-spectrum"/)
+assert.match(landing, /CHAPTER_COPY\.map\(\(chapter, index\) =>/)
+assert.match(landing, /<span className="mineral-spectrum-text hero-mineral-wordmark hero-story-spectrum">[\s\S]*?\{chapter\.title\}/)
+assert.match(styles, /\.hero-mineral-wordmark \{[\s\S]*?animation: mineral-shift 15s ease-in-out infinite/)
+assert.match(styles, /@media \(prefers-reduced-motion: reduce\) \{\s*\.hero-mineral-wordmark,[\s\S]*?animation: none/)
+assert.doesNotMatch(landing, /HERO_PIGMENT_WORD/)
+assert.match(landing, /className="hero-body-inscription mx-auto mt-5 max-w-xl/)
+
 assert.match(landing, /HERO_PRODUCT_GRADIENT/)
 assert.match(landing, /WebkitTextStroke: '0\.65px rgba\(43,34,72,0\.83\)'/)
 for (const [name, color] of Object.entries({
