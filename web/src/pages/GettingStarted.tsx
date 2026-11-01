@@ -221,7 +221,7 @@ export function GettingStarted() {
                   className={'flex items-start gap-2 rounded-xl border px-3 py-3 text-xs leading-relaxed ' + focus}
                   style={{
                     borderColor: i === stepIndex ? AP.goldInk : AP.line,
-                    background: i === stepIndex ? '#CFC9BA' : AP.paper,
+                    background: i === stepIndex ? '#F8EDD7' : AP.paper,
                     color: AP.ink,
                   }}>
                   <span aria-hidden="true" className="font-semibold shrink-0" style={{ color: visibleConfirmations[journey.id + '/' + item.id] ? AP.jadeInk : AP.goldInk }}>
@@ -274,7 +274,7 @@ export function GettingStarted() {
                 <button type="button" key={id} aria-pressed={platform === id}
                   onClick={() => { setPlatform(id); setCopyMessage('') }}
                   className={'px-3 py-2 rounded-lg border text-xs ' + focus}
-                  style={{ borderColor: platform === id ? AP.goldInk : AP.line, background: platform === id ? '#CFC9BA' : AP.paper, color: AP.ink }}>
+                  style={{ borderColor: platform === id ? AP.goldInk : AP.line, background: platform === id ? '#F8EDD7' : AP.paper, color: AP.ink }}>
                   {label}
                 </button>
               ))}
