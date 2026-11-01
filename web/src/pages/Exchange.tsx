@@ -1,7 +1,7 @@
 import useSWR from 'swr'
 import { api } from '../lib/api'
 import { useState, useMemo, useRef, useEffect } from 'react'
-import { C, TRUST_COLORS, APP_TEXT } from '../lib/theme'
+import { C, TRUST_COLORS } from '../lib/theme'
 import { ModelSearch, type ModelSearchItem } from '../components/ModelSearch'
 
 // ─── Constants ───────────────────────────────────────────────
@@ -90,9 +90,9 @@ const CHART_COLORS = [C.gold, C.turquoise, C.deepBlue, C.orange, C.red, '#888', 
 
 type PriceTier = 'output' | 'input' | 'cache'
 const TIER_META: Record<PriceTier, { label: string; color: string; key: keyof OfferRow }> = {
-  output: { label: 'Output', color: APP_TEXT.gold, key: 'priceOutput' },
+  output: { label: 'Output', color: C.gold, key: 'priceOutput' },
   input: { label: 'Input', color: C.deepBlue, key: 'priceInput' },
-  cache: { label: 'Cache', color: APP_TEXT.turquoise, key: 'priceCache' },
+  cache: { label: 'Cache', color: C.turquoise, key: 'priceCache' },
 }
 
 function PriceChart({ offerRows, modelName }: { offerRows: OfferRow[]; modelName: string }) {
@@ -237,8 +237,8 @@ function PriceChart({ offerRows, modelName }: { offerRows: OfferRow[]; modelName
   }
 
   return (
-    <div style={{ background: '#D0D4D3', borderRadius: 12, border: '1px solid #eaeae8', padding: 14, paddingBottom: 8, overflow: 'hidden' }}>
-      <h4 style={{ fontSize: 8, textTransform: 'uppercase', letterSpacing: '.06em', color: APP_TEXT.soft, marginBottom: 8, fontWeight: 600 }}>
+    <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #eaeae8', padding: 14, paddingBottom: 8, overflow: 'hidden' }}>
+      <h4 style={{ fontSize: 8, textTransform: 'uppercase', letterSpacing: '.06em', color: '#888', marginBottom: 8, fontWeight: 600 }}>
         {modelName} — provider prices (30d)
       </h4>
 
@@ -259,7 +259,7 @@ function PriceChart({ offerRows, modelName }: { offerRows: OfferRow[]; modelName
       {providers.length > 0 ? (
         <div ref={containerRef} style={{ position: 'relative' }}>
           <canvas ref={canvasRef}
-            style={{ width: '100%', height: 160, borderRadius: 8, background: '#DADDDC', cursor: 'crosshair', display: 'block' }}
+            style={{ width: '100%', height: 160, borderRadius: 8, background: '#fafaf8', cursor: 'crosshair', display: 'block' }}
             onMouseMove={handleMove}
             onMouseLeave={() => setTooltip(null)}
           />
@@ -288,15 +288,15 @@ function PriceChart({ offerRows, modelName }: { offerRows: OfferRow[]; modelName
             ))}
           </div>
 
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 8, color: APP_TEXT.soft, marginTop: 2 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 8, color: '#aaa', marginTop: 2 }}>
             <span>30d ago</span><span>Today</span>
           </div>
-          <div style={{ fontSize: 8, color: APP_TEXT.soft, marginTop: 4 }}>
+          <div style={{ fontSize: 8, color: '#aaa', marginTop: 4 }}>
             Hover for details. Click legend to toggle. Historical data fills in as the coordinator collects snapshots.
           </div>
         </div>
       ) : (
-        <div style={{ fontSize: 11, color: APP_TEXT.soft, padding: '12px 0', textAlign: 'center' }}>
+        <div style={{ fontSize: 11, color: '#ccc', padding: '12px 0', textAlign: 'center' }}>
           No {TIER_META[tier].label.toLowerCase()} pricing data for this tier
         </div>
       )}
@@ -480,8 +480,8 @@ export function Exchange() {
       priceLabel: m.price > 0 ? (m.price < 1 ? '$' + m.price.toFixed(2) : '$' + m.price.toFixed(0)) : undefined,
       badges: [
         { label: m.source === 'ref' ? 'Reference only' : m.source === 'both' ? 'IE + reference' : 'On IE',
-          color: m.source === 'ref' ? C.indigo : APP_TEXT.green, background: m.source === 'ref' ? '#f3eef7' : '#edf7f1' },
-        ...(m.cache ? [{ label: 'Cache', color: APP_TEXT.turquoise, background: '#e8f5f3' }] : []),
+          color: m.source === 'ref' ? C.indigo : C.green, background: m.source === 'ref' ? '#f3eef7' : '#edf7f1' },
+        ...(m.cache ? [{ label: 'Cache', color: C.turquoise, background: '#e8f5f3' }] : []),
         ...(m.quality != null ? [{ label: '★ ' + m.quality, color: C.deepBlue, background: '#f0f4f8' }] : []),
       ],
     }))), [groupedModels])
@@ -583,7 +583,7 @@ export function Exchange() {
       <div style={{ maxWidth: 500, margin: '60px auto', textAlign: 'center' }}>
         <img src="/logo-icon.svg" alt="IE" style={{ width: 48, height: 48, margin: '0 auto 20px', opacity: 0.2 }} />
         <h2 style={{ fontSize: 18, fontWeight: 700, color: C.blueBlack, marginBottom: 8 }}>The exchange is quiet</h2>
-        <p style={{ fontSize: 13, color: APP_TEXT.soft, marginBottom: 24 }}>No providers connected and no reference data loaded.</p>
+        <p style={{ fontSize: 13, color: '#888', marginBottom: 24 }}>No providers connected and no reference data loaded.</p>
         <div style={{ background: C.blueBlack, color: C.warmWhite, borderRadius: 10, padding: 16, fontFamily: 'SF Mono,Menlo,Consolas,monospace', fontSize: 12, textAlign: 'left' }}>
           <div><span style={{ color: '#666' }}>$</span> pip install ie-provider</div>
           <div><span style={{ color: '#666' }}>$</span> ie-provider start</div>
@@ -597,21 +597,21 @@ export function Exchange() {
       {/* ── 1. Live status strip ── */}
       <div className="spot" style={{
         display: 'flex', alignItems: 'center', gap: 12, padding: '8px 12px',
-        background: '#D0D4D3', borderRadius: 10, border: '1px solid #eaeae8',
-        marginBottom: 16, fontSize: 11, color: APP_TEXT.soft, flexWrap: 'wrap',
+        background: '#fff', borderRadius: 10, border: '1px solid #eaeae8',
+        marginBottom: 16, fontSize: 11, color: '#888', flexWrap: 'wrap',
       }}>
         <span style={{ width: 5, height: 5, borderRadius: '50%', background: C.green, animation: 'pulse 2s infinite' }} />
-        <span style={{ color: APP_TEXT.green }}>Live</span>
+        <span style={{ color: C.green }}>Live</span>
         <span style={{ color: '#ddd' }}>|</span>
         {stats && <>
           <span>{stats.providers_online} providers online</span>
           <span style={{ color: '#ddd' }}>|</span>
           <span>{stats.models_available} models</span>
           <span style={{ color: '#ddd' }}>|</span>
-          <span style={{ color: APP_TEXT.gold }}>{stats.total_requests.toLocaleString()} fills / 24h</span>
+          <span style={{ color: C.gold }}>{stats.total_requests.toLocaleString()} fills / 24h</span>
         </>}
         <span style={{ flex: 1 }} />
-        <span style={{ fontSize: 9, color: APP_TEXT.soft }}>Updated live</span>
+        <span style={{ fontSize: 9, color: '#bbb' }}>Updated live</span>
       </div>
 
       {/* ── 2. Model Selector — Shared Search (same component as Chat) ── */}
@@ -629,7 +629,7 @@ export function Exchange() {
           <>
             {/* Filter bar */}
             <div style={{ padding: '6px 12px', borderBottom: '1px solid #f0f0f0', display: 'flex', gap: 4, flexWrap: 'wrap', alignItems: 'center' }}>
-              <span style={{ fontSize: 8, textTransform: 'uppercase', letterSpacing: '.06em', color: APP_TEXT.soft, marginRight: 2 }}>Filter</span>
+              <span style={{ fontSize: 8, textTransform: 'uppercase', letterSpacing: '.06em', color: '#aaa', marginRight: 2 }}>Filter</span>
               <Chip label="Open-weight" active={filterOpen === true} color={C.green} bg="#edf7f1"
                 onClick={() => setFilterOpen(filterOpen === true ? null : true)} />
               <Chip label="Proprietary" active={filterOpen === false} color={C.indigo} bg="#f3eef7"
@@ -640,20 +640,20 @@ export function Exchange() {
               <Chip label="Benchmarked" active={filterBenchmarked} color={C.deepBlue} bg="#eef3f7"
                 onClick={() => setFilterBenchmarked(!filterBenchmarked)} />
               <Sep />
-              <span style={{ fontSize: 8, color: APP_TEXT.soft }}>Size:</span>
+              <span style={{ fontSize: 8, color: '#aaa' }}>Size:</span>
               {['<7B', '7-30B', '30-100B', '100B+'].map(r => (
                 <Chip key={r} label={r} active={filterSize === r} color={C.gold} bg="#fdf6ec"
                   onClick={() => setFilterSize(filterSize === r ? null : r)} />
               ))}
               <Sep />
-              <span style={{ fontSize: 8, color: APP_TEXT.soft }}>Max $:</span>
+              <span style={{ fontSize: 8, color: '#aaa' }}>Max $:</span>
               {[1, 5, 15].map(cap => (
                 <Chip key={cap} label={`$${cap}`} active={filterPriceCap === cap} color={C.red} bg="#fef2f2"
                   onClick={() => setFilterPriceCap(filterPriceCap === cap ? null : cap)} />
               ))}
               <Sep />
               <select value={filterFamily || ''} onChange={e => setFilterFamily(e.target.value || null)}
-                style={{ fontSize: 9, border: '1px solid #e5e5e5', borderRadius: 5, padding: '2px 4px', color: APP_TEXT.soft, background: '#D4D8D7', cursor: 'pointer', outline: 'none' }}>
+                style={{ fontSize: 9, border: '1px solid #e5e5e5', borderRadius: 5, padding: '2px 4px', color: '#888', background: '#f5f5f3', cursor: 'pointer', outline: 'none' }}>
                 <option value="">All families</option>
                 {families.map(f => <option key={f}>{f}</option>)}
               </select>
@@ -672,17 +672,17 @@ export function Exchange() {
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 14, marginBottom: 4, flexWrap: 'wrap' }}>
         <h1 style={{ fontSize: 20, fontWeight: 700 }}>{activeUnified?.name || 'Select a model'}</h1>
         {bestPrice > 0 && (
-          <span style={{ fontSize: 11, color: APP_TEXT.soft }}>
-            Best <b style={{ fontFamily: 'SF Mono,Menlo,Consolas,monospace', color: APP_TEXT.green }}>{fmtPrice(bestPrice)}</b> /Mtok out
+          <span style={{ fontSize: 11, color: '#888' }}>
+            Best <b style={{ fontFamily: 'SF Mono,Menlo,Consolas,monospace', color: C.green }}>{fmtPrice(bestPrice)}</b> /Mtok out
           </span>
         )}
         {spreadPct > 0 && (
-          <span style={{ fontSize: 11, color: APP_TEXT.soft }}>
+          <span style={{ fontSize: 11, color: '#888' }}>
             Spread <b style={{ fontFamily: 'SF Mono,Menlo,Consolas,monospace', color: C.orange }}>
               {fmtPrice(bestPrice)} — {fmtPrice(worstPrice)}</b> ({spreadPct}%)
           </span>
         )}
-        <span style={{ fontSize: 11, color: APP_TEXT.soft }}><b>{offerRows.length}</b> providers</span>
+        <span style={{ fontSize: 11, color: '#888' }}><b>{offerRows.length}</b> providers</span>
       </div>
       <div style={{ display: 'flex', gap: 4, marginBottom: 16, flexWrap: 'wrap' }}>
         {activeUnified?.open && <CapBadge bg="#eef7f0" color={C.green}>open-weight</CapBadge>}
@@ -701,7 +701,7 @@ export function Exchange() {
       {/* ── 4. Main Grid ── */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginBottom: 16 }}>
         {/* ── Sortable offer table (full width) ── */}
-        <div style={{ background: '#D0D4D3', borderRadius: 12, border: '1px solid #eaeae8', overflow: 'auto' }}>
+        <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #eaeae8', overflow: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr>
@@ -723,8 +723,8 @@ export function Exchange() {
                     onMouseEnter={e => { if (!r.isIE) (e.currentTarget as HTMLElement).style.background = '#fafaf8' }}
                     onMouseLeave={e => { if (!r.isIE) (e.currentTarget as HTMLElement).style.background = '' }}>
                     <td style={{ padding: '9px 10px', borderBottom: '1px solid #fafaf8', textAlign: 'left', borderLeft: r.isIE ? `3px solid ${C.gold}` : '3px solid transparent' }}>
-                      <div style={{ fontWeight: 600, fontSize: 12, color: r.isIE ? APP_TEXT.gold : C.blueBlack }}>{r.name}</div>
-                      <div style={{ fontSize: 9, color: APP_TEXT.soft, marginTop: 1, display: 'flex', gap: 3, flexWrap: 'wrap', alignItems: 'center' }}>
+                      <div style={{ fontWeight: 600, fontSize: 12, color: r.isIE ? C.gold : C.blueBlack }}>{r.name}</div>
+                      <div style={{ fontSize: 9, color: '#999', marginTop: 1, display: 'flex', gap: 3, flexWrap: 'wrap', alignItems: 'center' }}>
                         {tc && <span style={{ fontSize: 7, fontWeight: 600, padding: '1px 4px', borderRadius: 3, background: tc.bg, color: tc.text }}>{tc.label}</span>}
                         {r.encrypted && <span style={{ fontSize: 7, fontWeight: 600, padding: '1px 4px', borderRadius: 3, background: '#eef3f7', color: C.deepBlue }}>E2E</span>}
                         {cachePct > 0 && <span style={{ fontSize: 7, fontWeight: 600, padding: '1px 4px', borderRadius: 3, background: '#f3eef7', color: C.indigo }}>-{cachePct}% cache</span>}
@@ -740,7 +740,7 @@ export function Exchange() {
                   </tr>
                 )
               }) : (
-                <tr><td colSpan={6} style={{ padding: '40px 10px', textAlign: 'center', color: APP_TEXT.soft, fontSize: 13 }}>
+                <tr><td colSpan={6} style={{ padding: '40px 10px', textAlign: 'center', color: '#ccc', fontSize: 13 }}>
                   {activeUnified ? 'No provider data available for this model.' : 'Select a model above.'}
                 </td></tr>
               )}
@@ -753,8 +753,8 @@ export function Exchange() {
           {/* Left: DOM stacked on chart */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             {/* 3-column DOM */}
-            <div style={{ background: '#D0D4D3', borderRadius: 12, border: '1px solid #eaeae8', padding: 14, overflow: 'hidden' }}>
-              <h4 style={{ fontSize: 8, textTransform: 'uppercase', letterSpacing: '.06em', color: APP_TEXT.soft, marginBottom: 10, fontWeight: 600 }}>
+            <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #eaeae8', padding: 14, overflow: 'hidden' }}>
+              <h4 style={{ fontSize: 8, textTransform: 'uppercase', letterSpacing: '.06em', color: '#888', marginBottom: 10, fontWeight: 600 }}>
                 Depth of market — three-tier pricing
               </h4>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, minWidth: 0 }}>
@@ -762,11 +762,11 @@ export function Exchange() {
                 <DOMColumn label="Cache read" unit="$/Mtok" color={C.turquoise} levels={domData.cache} emptyMsg="Only IE publishes cache pricing" offerRows={offerRows} />
                 <DOMColumn label="Output" unit="$/Mtok" color={C.gold} levels={domData.output} />
               </div>
-              <div style={{ fontSize: 8, color: APP_TEXT.soft, marginTop: 8 }}>
+              <div style={{ fontSize: 8, color: '#aaa', marginTop: 8 }}>
                 Cheapest at bottom (best ask). Bars = relative supply at each price level.
               </div>
               {offerRows.length > 0 && (
-                <div style={{ fontSize: 8, color: APP_TEXT.soft, marginTop: 6, paddingTop: 6, borderTop: '1px solid #f0f0f0' }}>
+                <div style={{ fontSize: 8, color: '#999', marginTop: 6, paddingTop: 6, borderTop: '1px solid #f0f0f0' }}>
                   <b style={{ color: '#666' }}>Abbreviations: </b>
                   {[...new Set(offerRows.map(r => r.name))]
                     .map(n => `${providerAbbr(n)} = ${n}`)
@@ -780,8 +780,8 @@ export function Exchange() {
           </div>
 
           {/* Right: Recent fills with in/cache/out details */}
-          <div style={{ background: '#D0D4D3', borderRadius: 12, border: '1px solid #eaeae8', padding: 14, overflow: 'hidden' }}>
-            <h4 style={{ fontSize: 8, textTransform: 'uppercase', letterSpacing: '.06em', color: APP_TEXT.soft, marginBottom: 10, fontWeight: 600 }}>
+          <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #eaeae8', padding: 14, overflow: 'hidden' }}>
+            <h4 style={{ fontSize: 8, textTransform: 'uppercase', letterSpacing: '.06em', color: '#888', marginBottom: 10, fontWeight: 600 }}>
               Recent fills
             </h4>
             {recentFills.length > 0 ? recentFills.map((t: any) => {
@@ -794,11 +794,11 @@ export function Exchange() {
                   {/* Row 1: status, time, model, price */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
                     <div style={{ width: 4, height: 4, borderRadius: '50%', background: ok ? C.green : C.red, flexShrink: 0 }} />
-                    <div style={{ fontFamily: 'SF Mono,Menlo,Consolas,monospace', color: APP_TEXT.soft, width: 52, flexShrink: 0 }}>{time}</div>
+                    <div style={{ fontFamily: 'SF Mono,Menlo,Consolas,monospace', color: '#bbb', width: 52, flexShrink: 0 }}>{time}</div>
                     <div style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 500 }}>
-                      <span style={{ color: APP_TEXT.gold }}>Inference Exchange</span>
+                      <span style={{ color: C.gold }}>Inference Exchange</span>
                       {t.selected_provider && (
-                        <span style={{ color: APP_TEXT.soft, fontWeight: 400 }}> · {t.selected_provider}</span>
+                        <span style={{ color: '#aaa', fontWeight: 400 }}> · {t.selected_provider}</span>
                       )}
                     </div>
                   </div>
@@ -806,14 +806,14 @@ export function Exchange() {
                   <div style={{ display: 'flex', gap: 8, marginTop: 3, marginLeft: 9, fontSize: 9, fontFamily: 'SF Mono,Menlo,Consolas,monospace' }}>
                     <span><span style={{ color: C.deepBlue }}>in </span>
                       <span style={{ color: '#555' }}>{t.selected_price_input > 0 ? `$${t.selected_price_input.toFixed(2)}` : '—'}</span></span>
-                    <span><span style={{ color: APP_TEXT.turquoise }}>cache </span>
+                    <span><span style={{ color: C.turquoise }}>cache </span>
                       <span style={{ color: '#555' }}>{t.selected_price_cache > 0 ? `$${t.selected_price_cache.toFixed(2)}` : '—'}</span></span>
-                    <span><span style={{ color: APP_TEXT.gold }}>out </span>
-                      <span style={{ color: APP_TEXT.gold, fontWeight: 600 }}>{t.selected_price != null ? `$${t.selected_price.toFixed(2)}` : '—'}</span></span>
-                    <span style={{ color: APP_TEXT.soft, marginLeft: 'auto' }}>/Mtok</span>
+                    <span><span style={{ color: C.gold }}>out </span>
+                      <span style={{ color: C.gold, fontWeight: 600 }}>{t.selected_price != null ? `$${t.selected_price.toFixed(2)}` : '—'}</span></span>
+                    <span style={{ color: '#bbb', marginLeft: 'auto' }}>/Mtok</span>
                   </div>
                   {/* Row 3: trust + tokens */}
-                  <div style={{ display: 'flex', gap: 4, marginTop: 2, marginLeft: 9, fontSize: 9, color: APP_TEXT.soft }}>
+                  <div style={{ display: 'flex', gap: 4, marginTop: 2, marginLeft: 9, fontSize: 9, color: '#aaa' }}>
                     {t.selected_trust && (
                       <span style={{
                         fontSize: 8, fontWeight: 600, padding: '1px 4px', borderRadius: 3,
@@ -830,14 +830,14 @@ export function Exchange() {
                 </div>
               )
             }) : (
-              <div style={{ fontSize: 11, color: APP_TEXT.soft, padding: '12px 0', textAlign: 'center' }}>No recent fills</div>
+              <div style={{ fontSize: 11, color: '#ccc', padding: '12px 0', textAlign: 'center' }}>No recent fills</div>
             )}
           </div>
         </div>
       </div>
 
       {/* ── 5. Footer ── */}
-      <div style={{ fontSize: 9, color: APP_TEXT.soft, marginTop: 8 }}>
+      <div style={{ fontSize: 9, color: '#bbb', marginTop: 8 }}>
         Prices $/Mtok. Data: OpenRouter API + IE static reference prices + IE provider network.
         Quality = Artificial Analysis intelligence/coding index. TPS = observed tokens/sec for IE providers.
       </div>
@@ -883,7 +883,7 @@ function Th({ children, align, style, onClick }: {
 }) {
   return (
     <th onClick={onClick} style={{
-      fontSize: 8, textTransform: 'uppercase', letterSpacing: '.06em', color: APP_TEXT.soft,
+      fontSize: 8, textTransform: 'uppercase', letterSpacing: '.06em', color: '#aaa',
       padding: '8px 10px', textAlign: (align as any) || 'right', borderBottom: '1px solid #f0f0f0',
       fontWeight: 600, cursor: onClick ? 'pointer' : 'default', userSelect: 'none', whiteSpace: 'nowrap',
       ...style,
@@ -930,16 +930,16 @@ function DOMColumn({ label, unit, color, levels, emptyMsg, offerRows }: {
         }}>
           {label} {unit}
         </div>
-        <div style={{ fontSize: 10, color: APP_TEXT.soft, padding: '12px 0', textAlign: 'center' }}>{emptyMsg}</div>
+        <div style={{ fontSize: 10, color: '#ccc', padding: '12px 0', textAlign: 'center' }}>{emptyMsg}</div>
         {ieCache && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 0' }}>
-            <span style={{ fontFamily: 'SF Mono,Menlo,Consolas,monospace', fontSize: 9, width: 36, textAlign: 'right', color: APP_TEXT.green, fontWeight: 600 }}>
+            <span style={{ fontFamily: 'SF Mono,Menlo,Consolas,monospace', fontSize: 9, width: 36, textAlign: 'right', color: C.green, fontWeight: 600 }}>
               ${ieCache.priceCache.toFixed(2)}
             </span>
-            <div style={{ flex: 1, height: 14, background: '#DADDDC', borderRadius: 3, overflow: 'hidden' }}>
+            <div style={{ flex: 1, height: 14, background: '#fafaf8', borderRadius: 3, overflow: 'hidden' }}>
               <div style={{ height: '100%', width: '100%', background: C.green, borderRadius: 3 }} />
             </div>
-            <span title="Inference Exchange" style={{ fontSize: 8, color: APP_TEXT.gold, fontWeight: 600 }}>1 IE</span>
+            <span title="Inference Exchange" style={{ fontSize: 8, color: C.gold, fontWeight: 600 }}>1 IE</span>
           </div>
         )}
       </div>
@@ -969,14 +969,14 @@ function DOMColumn({ label, unit, color, levels, emptyMsg, offerRows }: {
             }}>
               ${level.price.toFixed(2)}
             </span>
-            <div style={{ flex: 1, height: 14, background: '#DADDDC', borderRadius: 3, overflow: 'hidden' }}>
+            <div style={{ flex: 1, height: 14, background: '#fafaf8', borderRadius: 3, overflow: 'hidden' }}>
               <div style={{
                 height: '100%', width: `${barW}%`, borderRadius: 3,
                 background: isBest ? C.green : (hasIE ? C.gold : color),
               }} />
             </div>
             <span title={fullNames} style={{
-              fontSize: 8, color: hasIE ? APP_TEXT.gold : APP_TEXT.soft, width: 80, flexShrink: 0,
+              fontSize: 8, color: hasIE ? C.gold : '#888', width: 80, flexShrink: 0,
               overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
             }}>
               {level.providers.length} {names}
@@ -985,7 +985,7 @@ function DOMColumn({ label, unit, color, levels, emptyMsg, offerRows }: {
         )
       })}
       {levels.length === 0 && (
-        <div style={{ fontSize: 10, color: APP_TEXT.soft, padding: '12px 0', textAlign: 'center' }}>No data</div>
+        <div style={{ fontSize: 10, color: '#ccc', padding: '12px 0', textAlign: 'center' }}>No data</div>
       )}
     </div>
   )
