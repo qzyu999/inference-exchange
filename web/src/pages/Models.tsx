@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import useSWR from 'swr'
 import { api } from '../lib/api'
-import { C, TRUST_COLORS } from '../lib/theme'
+import { C, TRUST_COLORS, APP_TEXT } from '../lib/theme'
 
 // ─── Types ───────────────────────────────────────────────────
 
@@ -118,26 +118,26 @@ function ModelCard({ m, isSelected, onSelect }: { m: MarketModel; isSelected: bo
               <span className="text-sm font-bold" style={{ color: C.blueBlack }}>${cheapest.price_input.toFixed(2)}</span>
             </div>
             <div className="flex items-center gap-1.5">
-              <span className="text-[9px] uppercase font-medium" style={{ color: C.turquoise }}>cache</span>
+              <span className="text-[9px] uppercase font-medium" style={{ color: APP_TEXT.turquoise }}>cache</span>
               <span className="text-sm font-bold" style={{ color: cheapest.price_cache > 0 ? C.blueBlack : '#ddd' }}>
                 {cheapest.price_cache > 0 ? `$${cheapest.price_cache.toFixed(2)}` : '—'}
               </span>
             </div>
             <div className="flex items-center gap-1.5">
-              <span className="text-[9px] uppercase font-medium" style={{ color: C.gold }}>out</span>
+              <span className="text-[9px] uppercase font-medium" style={{ color: APP_TEXT.gold }}>out</span>
               <span className="text-sm font-bold" style={{ color: C.blueBlack }}>${cheapest.price_output.toFixed(2)}</span>
             </div>
-            <span className="text-[9px]" style={{ color: '#bbb' }}>$/Mtok</span>
+            <span className="text-[9px]" style={{ color: APP_TEXT.soft }}>$/Mtok</span>
           </div>
         )}
 
         {/* Row 4: Stats row */}
         <div className="flex items-center gap-3 mt-3 flex-wrap">
-          <span className="text-xs" style={{ color: '#888' }}>
+          <span className="text-xs" style={{ color: APP_TEXT.soft }}>
             <span className="font-semibold" style={{ color: C.blueBlack }}>{m.provider_count}</span> provider{m.provider_count !== 1 ? 's' : ''}
           </span>
           {speedMax > 0 && (
-            <span className="text-xs" style={{ color: C.turquoise }}>
+            <span className="text-xs" style={{ color: APP_TEXT.turquoise }}>
               {speedMin === speedMax ? `${speedMax.toFixed(0)}` : `${speedMin.toFixed(0)}–${speedMax.toFixed(0)}`} tok/s
             </span>
           )}
@@ -145,7 +145,7 @@ function ModelCard({ m, isSelected, onSelect }: { m: MarketModel; isSelected: bo
             <span className="text-xs" style={{ color: C.deepBlue }}>{encryptedCount} provider keys</span>
           )}
           {verifiedCount > 0 && (
-            <span className="text-xs" style={{ color: C.green }}>{verifiedCount} verified</span>
+            <span className="text-xs" style={{ color: APP_TEXT.green }}>{verifiedCount} verified</span>
           )}
         </div>
       </div>
@@ -168,11 +168,11 @@ function ModelDetail({ m }: { m: MarketModel }) {
     <div className="bg-white rounded-2xl border border-gray-200/40 overflow-hidden">
       {/* Header */}
       <div className="p-5 border-b" style={{ borderColor: '#eaeae8' }}>
-        <div className="text-[10px] uppercase tracking-wider font-medium mb-1" style={{ color: C.gold }}>
+        <div className="text-[10px] uppercase tracking-wider font-medium mb-1" style={{ color: APP_TEXT.gold }}>
           Model Detail
         </div>
         <h2 className="text-lg font-bold" style={{ color: C.blueBlack }}>{m.model}</h2>
-        <div className="flex items-center gap-4 mt-2 text-xs" style={{ color: '#888' }}>
+        <div className="flex items-center gap-4 mt-2 text-xs" style={{ color: APP_TEXT.soft }}>
           <span>{m.provider_count} provider{m.provider_count !== 1 ? 's' : ''}</span>
           <span>{quants.length} quantization{quants.length !== 1 ? 's' : ''}</span>
           <span>{trustLevels.length} trust level{trustLevels.length !== 1 ? 's' : ''}</span>
@@ -191,7 +191,7 @@ function ModelDetail({ m }: { m: MarketModel }) {
       {/* Quantization breakdown */}
       {quants.length > 0 && (
         <div className="px-5 py-4 border-b" style={{ borderColor: '#eaeae8', background: '#f8f8f7' }}>
-          <div className="text-[10px] uppercase tracking-wider font-medium mb-3" style={{ color: '#aaa' }}>
+          <div className="text-[10px] uppercase tracking-wider font-medium mb-3" style={{ color: APP_TEXT.soft }}>
             Quantization variants
           </div>
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
@@ -204,14 +204,14 @@ function ModelDetail({ m }: { m: MarketModel }) {
               return (
                 <div key={q} className="bg-white rounded-xl border border-gray-100 p-3">
                   <div className="font-mono text-sm font-bold" style={{ color: C.blueBlack }}>{q}</div>
-                  <div className="text-xs mt-1" style={{ color: '#888' }}>
+                  <div className="text-xs mt-1" style={{ color: APP_TEXT.soft }}>
                     {provs.length} provider{provs.length !== 1 ? 's' : ''}
                   </div>
-                  <div className="text-sm font-semibold mt-1.5" style={{ color: C.gold }}>
+                  <div className="text-sm font-semibold mt-1.5" style={{ color: APP_TEXT.gold }}>
                     {minP === maxP ? `$${minP.toFixed(2)}` : `$${minP.toFixed(2)}–$${maxP.toFixed(2)}`}
                   </div>
                   {bestSpeed > 0 && (
-                    <div className="text-xs mt-0.5" style={{ color: C.turquoise }}>
+                    <div className="text-xs mt-0.5" style={{ color: APP_TEXT.turquoise }}>
                       up to {bestSpeed.toFixed(0)} tok/s
                     </div>
                   )}
@@ -224,12 +224,12 @@ function ModelDetail({ m }: { m: MarketModel }) {
 
       {/* Provider table */}
       <div className="px-5 py-4">
-        <div className="text-[10px] uppercase tracking-wider font-medium mb-3" style={{ color: '#aaa' }}>
+        <div className="text-[10px] uppercase tracking-wider font-medium mb-3" style={{ color: APP_TEXT.soft }}>
           Providers serving this model
         </div>
 
         {/* Table header */}
-        <div className="grid grid-cols-12 gap-2 text-[9px] uppercase tracking-wider pb-2 border-b border-gray-100" style={{ color: '#bbb' }}>
+        <div className="grid grid-cols-12 gap-2 text-[9px] uppercase tracking-wider pb-2 border-b border-gray-100" style={{ color: APP_TEXT.soft }}>
           <div className="col-span-2">Provider</div>
           <div className="col-span-1">Quant</div>
           <div className="col-span-1 text-right">In</div>
@@ -254,16 +254,16 @@ function ModelDetail({ m }: { m: MarketModel }) {
                   <div className="text-xs font-semibold truncate" style={{ color: C.blueBlack }}>{p.name}</div>
                   <div className="flex items-center gap-1 mt-0.5">
                     {p.encrypted && <span className="text-[7px] px-1 rounded" style={{ background: '#eef3f7', color: C.deepBlue }}>Key</span>}
-                    {p.verified && <span className="text-[7px] px-1 rounded" style={{ background: '#edf7f1', color: C.green }}>✓</span>}
+                    {p.verified && <span className="text-[7px] px-1 rounded" style={{ background: '#edf7f1', color: APP_TEXT.green }}>✓</span>}
                   </div>
                 </div>
-                <div className="col-span-1 text-[10px] font-mono" style={{ color: C.gold }}>{p.quantization || '—'}</div>
+                <div className="col-span-1 text-[10px] font-mono" style={{ color: APP_TEXT.gold }}>{p.quantization || '—'}</div>
                 <div className="col-span-1 text-right text-xs" style={{ color: C.deepBlue }}>${p.price_input.toFixed(2)}</div>
                 <div className="col-span-1 text-right text-xs" style={{ color: p.price_cache > 0 ? C.turquoise : '#ddd' }}>
                   {p.price_cache > 0 ? `$${p.price_cache.toFixed(2)}` : '—'}
                 </div>
-                <div className="col-span-1 text-right text-xs font-semibold" style={{ color: C.gold }}>${p.price_output.toFixed(2)}</div>
-                <div className="col-span-1 text-right text-xs" style={{ color: C.turquoise }}>
+                <div className="col-span-1 text-right text-xs font-semibold" style={{ color: APP_TEXT.gold }}>${p.price_output.toFixed(2)}</div>
+                <div className="col-span-1 text-right text-xs" style={{ color: APP_TEXT.turquoise }}>
                   {p.tps > 0 ? `${p.tps.toFixed(0)}` : '—'}
                 </div>
                 <div className="col-span-1 text-center">
@@ -283,7 +283,7 @@ function ModelDetail({ m }: { m: MarketModel }) {
                   <Link
                     to={`/exchange?model=${encodeURIComponent(m.model)}`}
                     className="text-[10px] font-medium px-2 py-1 rounded-lg border"
-                    style={{ color: '#888', borderColor: '#ddd' }}
+                    style={{ color: APP_TEXT.soft, borderColor: '#ddd' }}
                     onClick={e => e.stopPropagation()}
                   >
                     Market
@@ -304,14 +304,14 @@ function ModelDetail({ m }: { m: MarketModel }) {
                 <div className="py-3 px-3 border-b border-gray-50" style={{ background: '#f8f8f7' }}>
                   <div className="grid grid-cols-3 gap-4 text-xs">
                     <div>
-                      <div className="text-[9px] uppercase tracking-wider mb-1.5" style={{ color: '#aaa' }}>Hardware</div>
+                      <div className="text-[9px] uppercase tracking-wider mb-1.5" style={{ color: APP_TEXT.soft }}>Hardware</div>
                       <div style={{ color: C.blueBlack }}>{p.hardware || 'Unknown'}</div>
-                      {p.context_length > 0 && <div className="mt-0.5" style={{ color: '#888' }}>{formatCtx(p.context_length)} ctx</div>}
-                      {p.format && <div className="mt-0.5" style={{ color: '#888' }}>{p.format.toUpperCase()}</div>}
-                      <div className="mt-0.5" style={{ color: '#888' }}>Slots: {p.slots || '—'}</div>
+                      {p.context_length > 0 && <div className="mt-0.5" style={{ color: APP_TEXT.soft }}>{formatCtx(p.context_length)} ctx</div>}
+                      {p.format && <div className="mt-0.5" style={{ color: APP_TEXT.soft }}>{p.format.toUpperCase()}</div>}
+                      <div className="mt-0.5" style={{ color: APP_TEXT.soft }}>Slots: {p.slots || '—'}</div>
                     </div>
                     <div>
-                      <div className="text-[9px] uppercase tracking-wider mb-1.5" style={{ color: '#aaa' }}>Security</div>
+                      <div className="text-[9px] uppercase tracking-wider mb-1.5" style={{ color: APP_TEXT.soft }}>Security</div>
                       <div className="flex items-center gap-1.5">
                         <span className="w-1.5 h-1.5 rounded-full" style={{ background: ptc.text }} />
                         <span>{ptc.label}</span>
@@ -326,9 +326,9 @@ function ModelDetail({ m }: { m: MarketModel }) {
                       </div>
                     </div>
                     <div>
-                      <div className="text-[9px] uppercase tracking-wider mb-1.5" style={{ color: '#aaa' }}>Performance</div>
+                      <div className="text-[9px] uppercase tracking-wider mb-1.5" style={{ color: APP_TEXT.soft }}>Performance</div>
                       <div>
-                        <span style={{ color: C.turquoise }}>{p.tps > 0 ? `${p.tps.toFixed(1)} tok/s` : '—'}</span>
+                        <span style={{ color: APP_TEXT.turquoise }}>{p.tps > 0 ? `${p.tps.toFixed(1)} tok/s` : '—'}</span>
                       </div>
                       <div className="mt-0.5">
                         Load: <span style={{ color: p.load > 0.8 ? C.red : p.load > 0.5 ? C.orange : C.green }}>
@@ -347,7 +347,7 @@ function ModelDetail({ m }: { m: MarketModel }) {
       {/* Reference pricing comparison */}
       {sameModelRefs.length > 0 && (
         <div className="px-5 py-4 border-t" style={{ borderColor: '#eaeae8', background: '#f8f8f7' }}>
-          <div className="text-[10px] uppercase tracking-wider font-medium mb-3" style={{ color: '#aaa' }}>
+          <div className="text-[10px] uppercase tracking-wider font-medium mb-3" style={{ color: APP_TEXT.soft }}>
             Same model — external market
           </div>
           <div className="space-y-1.5">
@@ -356,12 +356,12 @@ function ModelDetail({ m }: { m: MarketModel }) {
                 <span className="w-20 truncate font-medium" style={{ color: C.blueBlack }}>
                   {({ openai: 'OpenAI', anthropic: 'Anthropic', google: 'Google', deepseek: 'DeepSeek', together: 'Together AI', openrouter: 'OpenRouter', groq: 'Groq', fireworks: 'Fireworks' } as Record<string, string>)[r.provider] || r.provider}
                 </span>
-                <span className="flex-1 truncate" style={{ color: '#888' }}>{r.model}</span>
+                <span className="flex-1 truncate" style={{ color: APP_TEXT.soft }}>{r.model}</span>
                 <span style={{ color: C.deepBlue }}>${r.price_input.toFixed(2)}</span>
-                <span style={{ color: C.turquoise }}>{r.price_cache > 0 ? `$${r.price_cache.toFixed(2)}` : '—'}</span>
-                <span className="font-semibold" style={{ color: C.gold }}>${r.price_output.toFixed(2)}</span>
+                <span style={{ color: APP_TEXT.turquoise }}>{r.price_cache > 0 ? `$${r.price_cache.toFixed(2)}` : '—'}</span>
+                <span className="font-semibold" style={{ color: APP_TEXT.gold }}>${r.price_output.toFixed(2)}</span>
                 {r.cheaper && (
-                  <span className="text-[9px] font-medium px-1.5 py-0.5 rounded-full" style={{ background: '#edf7f1', color: C.green }}>
+                  <span className="text-[9px] font-medium px-1.5 py-0.5 rounded-full" style={{ background: '#edf7f1', color: APP_TEXT.green }}>
                     {r.diff_pct}% more
                   </span>
                 )}
@@ -373,7 +373,7 @@ function ModelDetail({ m }: { m: MarketModel }) {
 
       {/* CTA */}
       <div className="px-5 py-4 border-t flex items-center justify-between" style={{ borderColor: '#eaeae8' }}>
-        <div className="text-xs" style={{ color: '#888' }}>
+        <div className="text-xs" style={{ color: APP_TEXT.soft }}>
           Route through the exchange for the best available offer.
         </div>
         <div className="flex gap-2">
@@ -403,20 +403,20 @@ function SearchCard({ m }: { m: { repo_id: string; downloads: number; available_
   return (
     <div className="bg-white rounded-xl border border-gray-200/40 p-4 hover:shadow-sm transition-shadow">
       <div className="text-sm font-medium truncate" style={{ color: C.blueBlack }}>{m.repo_id}</div>
-      <div className="text-xs mt-0.5" style={{ color: '#aaa' }}>{m.downloads.toLocaleString()} downloads</div>
+      <div className="text-xs mt-0.5" style={{ color: APP_TEXT.soft }}>{m.downloads.toLocaleString()} downloads</div>
       <div className="mt-2 flex items-center justify-between">
         {m.available_on_exchange ? (
-          <span className="text-[9px] font-medium px-2 py-0.5 rounded-full" style={{ background: '#edf7f1', color: C.green }}>
+          <span className="text-[9px] font-medium px-2 py-0.5 rounded-full" style={{ background: '#edf7f1', color: APP_TEXT.green }}>
             Live · {m.provider_count} provider{m.provider_count !== 1 ? 's' : ''}
           </span>
         ) : (
-          <span className="text-[9px] px-2 py-0.5 rounded-full" style={{ background: '#f3f3f3', color: '#999' }}>
+          <span className="text-[9px] px-2 py-0.5 rounded-full" style={{ background: '#f3f3f3', color: APP_TEXT.soft }}>
             Not on exchange
           </span>
         )}
         {m.available_on_exchange && (
           <Link to={`/chat?model=${encodeURIComponent(m.repo_id)}`}
-            className="text-[10px] font-medium" style={{ color: C.gold }}>Chat →</Link>
+            className="text-[10px] font-medium" style={{ color: APP_TEXT.gold }}>Chat →</Link>
         )}
       </div>
     </div>
@@ -487,7 +487,7 @@ export function Models() {
           ))}
         </div>
 
-        <div className="flex items-center gap-1 text-xs" style={{ color: '#888' }}>
+        <div className="flex items-center gap-1 text-xs" style={{ color: APP_TEXT.soft }}>
           Sort:
           <select value={sortMode} onChange={e => setSortMode(e.target.value as SortMode)}
             className="text-xs bg-transparent focus:outline-none cursor-pointer font-medium" style={{ color: C.blueBlack }}>
@@ -500,18 +500,18 @@ export function Models() {
 
       {/* Fleet summary */}
       {allModels.length > 0 && (
-        <div className="flex items-center gap-4 text-xs flex-wrap" style={{ color: '#888' }}>
+        <div className="flex items-center gap-4 text-xs flex-wrap" style={{ color: APP_TEXT.soft }}>
           <span><span className="font-semibold" style={{ color: C.blueBlack }}>{allModels.length}</span> model{allModels.length !== 1 ? 's' : ''}</span>
           <span><span className="font-semibold" style={{ color: C.blueBlack }}>{totalProviders}</span> provider{totalProviders !== 1 ? 's' : ''}</span>
           {totalEncrypted > 0 && <span><span className="font-semibold" style={{ color: C.deepBlue }}>{totalEncrypted}</span> provider keys</span>}
-          {totalVerified > 0 && <span><span className="font-semibold" style={{ color: C.green }}>{totalVerified}</span> verified</span>}
+          {totalVerified > 0 && <span><span className="font-semibold" style={{ color: APP_TEXT.green }}>{totalVerified}</span> verified</span>}
         </div>
       )}
 
       {/* HF search results */}
       {searchResults?.models && searchResults.models.length > 0 && (
         <div>
-          <div className="text-[10px] uppercase tracking-wider font-medium mb-2" style={{ color: '#aaa' }}>
+          <div className="text-[10px] uppercase tracking-wider font-medium mb-2" style={{ color: APP_TEXT.soft }}>
             HuggingFace · "{query}"
           </div>
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
@@ -536,7 +536,7 @@ export function Models() {
         </div>
       ) : (
         <div className="bg-white rounded-2xl border border-gray-200/40 p-16 text-center">
-          <div className="text-sm" style={{ color: '#ccc' }}>No models available yet</div>
+          <div className="text-sm" style={{ color: APP_TEXT.soft }}>No models available yet</div>
           <div className="text-xs font-mono mt-4 px-4 py-3 rounded-xl inline-block" style={{ background: '#f5f3f0', color: '#666' }}>
             python -m ocip_agent.agent --model your-model.gguf
           </div>
