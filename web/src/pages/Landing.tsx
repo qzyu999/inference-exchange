@@ -187,14 +187,14 @@ function EditorialStory({
                     to="/chat"
                     className="hero-pigment-primary inline-flex items-center gap-2 rounded-md px-5 py-3 text-sm font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#F2D59C]"
                   >
-                    <span aria-hidden="true" className="h-[6px] w-[6px] shrink-0 rotate-45" style={{ background: HP.cinnabar, boxShadow: '0 0 0 1px rgba(255,230,174,0.72)' }} />
+                    
                     Start chatting
                   </Link>
                   <Link
                     to="/provide"
                     className="hero-pigment-secondary inline-flex items-center gap-2 rounded-md px-5 py-3 text-sm font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#F2D59C]"
                   >
-                    <span aria-hidden="true" className="h-[6px] w-[6px] shrink-0 rotate-45" style={{ background: HP.jade, boxShadow: '0 0 0 1px rgba(240,197,75,0.72)' }} />
+                    
                     Become a provider
                   </Link>
                   <Link
@@ -271,18 +271,12 @@ function LiveExchangeCard() {
 
   return (
     <div
-      className="rounded-2xl p-6 w-full max-w-sm mineral-border"
-      style={{
-        background: 'rgba(16,45,109,0.76)',
-        border: '1px solid rgba(240,197,75,0.42)',
-        boxShadow: '0 12px 40px rgba(30,28,74,0.26), inset 0 1px 0 rgba(251,244,228,0.12)',
-        backdropFilter: 'blur(12px)',
-      }}
+      className="hero-exchange-card relative rounded-xl p-6 w-full max-w-sm"
     >
-      <div className="text-[10px] uppercase tracking-wider font-medium mb-1.5" style={{ color: HP.orpiment }}>
+      <div className="text-[10px] uppercase tracking-wider font-medium mb-1.5" style={{ color: '#806448' }}>
         Live Exchange
       </div>
-      <h3 className="text-xl font-bold mb-5" style={{ color: HP.cream }}>
+      <h3 className="text-xl font-bold mb-5" style={{ color: C.blueBlack }}>
         Supply &times; demand
       </h3>
 
@@ -298,15 +292,15 @@ function LiveExchangeCard() {
           return (
             <div key={m.model} className="flex items-center justify-between">
               <div className="flex items-center gap-3 min-w-0">
-                <span className="text-sm font-medium truncate" style={{ color: HP.cream }}>
+                <span className="text-sm font-medium truncate" style={{ color: C.blueBlack }}>
                   {m.model}
                 </span>
               </div>
               <div className="flex items-center gap-4 shrink-0 text-right">
-                <span className="text-xs" style={{ color: '#E8C9A3' }}>
+                <span className="text-xs" style={{ color: '#71685D' }}>
                   {m.provider_count} provider{m.provider_count !== 1 ? 's' : ''}
                 </span>
-                <span className="text-sm font-semibold" style={{ color: HP.orpiment }}>
+                <span className="text-sm font-semibold" style={{ color: '#78502C' }}>
                   {priceRange}
                 </span>
               </div>
@@ -316,19 +310,19 @@ function LiveExchangeCard() {
           <>
             {[1, 2, 3].map(i => (
               <div key={i} className="flex items-center justify-between">
-                <div className="h-3 rounded-full w-28" style={{ background: 'rgba(240,197,75,0.12)' }} />
-                <div className="h-3 rounded-full w-16" style={{ background: 'rgba(240,197,75,0.12)' }} />
+                <div className="h-3 rounded-full w-28" style={{ background: 'rgba(108,98,85,0.11)' }} />
+                <div className="h-3 rounded-full w-16" style={{ background: 'rgba(108,98,85,0.11)' }} />
               </div>
             ))}
           </>
         )}
       </div>
 
-      <div className="mt-5 pt-4" style={{ borderTop: '1px solid rgba(240,197,75,0.25)' }}>
-        <div className="text-[10px] uppercase tracking-wider font-medium" style={{ color: HP.orpiment }}>
+      <div className="mt-5 pt-4" style={{ borderTop: '1px solid rgba(128,111,89,0.22)' }}>
+        <div className="text-[10px] uppercase tracking-wider font-medium" style={{ color: '#806448' }}>
           Trust levels are claims
         </div>
-        <div className="text-xs mt-0.5" style={{ color: HP.silk }}>
+        <div className="text-xs mt-0.5" style={{ color: '#615E56' }}>
           Shown as self-reported until verified. Browser chat uses TLS; it is not end-to-end encrypted.
         </div>
       </div>
@@ -512,7 +506,7 @@ export function Landing() {
                       tabIndex={productOpacity > 0.95 ? undefined : -1}
                       className="hero-pigment-primary inline-flex items-center gap-2 rounded-md px-6 py-3 font-semibold text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#F0C54B]"
                     >
-                      <span aria-hidden="true" className="h-[6px] w-[6px] rotate-45" style={{ background: HP.cinnabar }} />
+                      
                       Start a conversation
                     </Link>
                     <Link
@@ -520,7 +514,7 @@ export function Landing() {
                       tabIndex={productOpacity > 0.95 ? undefined : -1}
                       className="hero-pigment-secondary inline-flex items-center gap-2 rounded-md px-6 py-3 font-semibold text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#F0C54B]"
                     >
-                      <span aria-hidden="true" className="h-[6px] w-[6px] rotate-45" style={{ background: HP.jade }} />
+                      
                       Become a provider
                     </Link>
                   </div>
