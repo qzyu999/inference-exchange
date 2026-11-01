@@ -269,20 +269,28 @@ body {
   text-shadow: 0 1px 2px rgba(11, 16, 23, 0.85);
 }
 
-/* Large text needs clean counters: dark strokes trace the INTERIOR
-   outlines of e/a/P and cut across clipped gradient text in Chromium.
-   Keep the opaque mineral-ivory paint and one soft glyph shadow, but
-   intentionally draw NO outline around large headings. */
+/* Painted mani-stone relief without cutting into glyph counters.
+   Opaque mineral-ivory is the pigment; a tiny upper chalk highlight and
+   OFFSET shadows imply stone depth. No dark text stroke: it traces the
+   enclosed parts of e/a/P and produces black cross-lines in Chromium. */
 .hero-mani-heading {
   color: #F8EAD5;
   -webkit-text-stroke: 0;
-  text-shadow: 0 2px 5px rgba(10, 17, 22, 0.7);
+  text-shadow:
+    0 -1px 0 rgba(255, 247, 228, 0.22),
+    0 1px 1px rgba(37, 26, 23, 0.62),
+    0 3px 6px rgba(11, 18, 24, 0.76),
+    0 6px 12px rgba(11, 18, 24, 0.30);
 }
-/* Preserve the original main's STATIC gradient letter fill. No strokes,
-   filters or shadows: they created dark seams in letter counters. */
+/* Keep the original STATIC pigment gradients, too. A shadow of the fully
+   composed gradient glyph (rather than a stroke or transparent text-shadow)
+   reads as pigment pressed onto stone without drawing inside letter holes. */
 .hero-mani-heading-pigment {
   -webkit-text-stroke: 0;
   text-shadow: none;
+  filter:
+    drop-shadow(0 1px 1px rgba(11, 18, 24, 0.76))
+    drop-shadow(0 3px 5px rgba(11, 18, 24, 0.42));
 }
 @media (prefers-contrast: more) {
   .hero-mani-copy,
@@ -291,7 +299,10 @@ body {
     text-shadow: 0 1px 2px #0B1119, 0 3px 6px #0B1119;
   }
   .hero-mani-heading {
-    text-shadow: 0 2px 7px rgba(10, 17, 22, 0.9);
+    text-shadow:
+      0 -1px 0 rgba(255, 247, 228, 0.28),
+      0 2px 2px rgba(10, 17, 22, 0.9),
+      0 4px 9px rgba(10, 17, 22, 0.7);
   }
 }
 
