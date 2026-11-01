@@ -10,7 +10,7 @@ import {
   revokeSelfServiceCredential,
   type ProviderEnrollmentReceipt,
 } from '../lib/provider-enrollment.js'
-import { C, APP_TEXT } from '../lib/theme'
+import { C } from '../lib/theme'
 
 /** One-time secret lives only in this mounted component, not SWR/browser storage. */
 function EnrollmentWizard({ userId }: { userId: string }) {
@@ -119,7 +119,7 @@ function EnrollmentWizard({ userId }: { userId: string }) {
       <section className="bg-white rounded-2xl border border-gray-200/60 p-6 space-y-4">
         <div className="flex items-center justify-between flex-wrap gap-2">
           <h3 className="text-lg font-semibold" style={{ color: C.blueBlack }}>1. Your provider credentials</h3>
-          <Link to="/dashboard" className="text-sm underline" style={{ color: APP_TEXT.gold }}>Private node and earnings dashboard</Link>
+          <Link to="/dashboard" className="text-sm underline" style={{ color: C.gold }}>Private node and earnings dashboard</Link>
         </div>
         <p className="text-sm text-gray-600">
           Only self-service credentials created by this IE account appear below. Operator-issued
@@ -274,7 +274,7 @@ export function Provide() {
   return (
     <div className="max-w-4xl space-y-6">
       <section className="bg-white rounded-2xl border border-gray-200/60 p-6 md:p-8 space-y-4">
-        <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: APP_TEXT.gold }}>
+        <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: C.gold }}>
           Provider preview · Apple Silicon · L0/Open
         </p>
         <h2 className="text-2xl font-bold" style={{ color: C.blueBlack }}>Provide compute from your Mac</h2>
@@ -326,9 +326,9 @@ export function Provide() {
             with no withdrawal or payout capability.
           </p>
           <div className="flex gap-3 flex-wrap">
-            <Link to="/dashboard" className="text-sm underline" style={{ color: APP_TEXT.gold }}>Live owner dashboard</Link>
-            <Link to="/settings" className="text-sm underline" style={{ color: APP_TEXT.gold }}>Settings</Link>
-            <Link to="/billing" className="text-sm underline" style={{ color: APP_TEXT.gold }}>Account billing</Link>
+            <Link to="/dashboard" className="text-sm underline" style={{ color: C.gold }}>Live owner dashboard</Link>
+            <Link to="/settings" className="text-sm underline" style={{ color: C.gold }}>Settings</Link>
+            <Link to="/billing" className="text-sm underline" style={{ color: C.gold }}>Account billing</Link>
           </div>
         </section>
       </div>
