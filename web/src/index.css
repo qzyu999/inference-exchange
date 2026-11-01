@@ -127,22 +127,17 @@ body {
   animation: mineral-shift 12s ease-in-out infinite;
 }
 
+/* Keep the original alpha mineral-spectrum selection stripe and neutral
+   charcoal active row. Do not replace it with a gold hover or animated stripe. */
 .ie-mineral-sidebar .ie-app-nav-item:hover {
-  background: rgba(240,197,75,0.09) !important;
+  background: rgba(255,255,255,0.06) !important;
 }
 .ie-mineral-sidebar .ie-app-nav-item[aria-current="page"]:hover {
-  background: rgba(240,197,75,0.18) !important;
+  background: rgba(255,255,255,0.06) !important;
 }
 .ie-mineral-sidebar .ie-app-nav-item:focus-visible {
   outline: 2px solid #F0C54B;
   outline-offset: -2px;
-}
-.ie-mineral-sidebar .sidebar-active-bar::after {
-  background: linear-gradient(145deg,
-    #C94C2F 0%, #E29A2D 26%, #F0C54B 47%,
-    #5F8E61 69%, #73D0C4 85%, #163E8C 100%);
-  background-size: 220% 220%;
-  animation: mineral-shift 13s ease-in-out infinite;
 }
 .ie-app-spectrum-rule {
   background-size: 230% 100% !important;
@@ -191,7 +186,6 @@ body {
 
 @media (prefers-reduced-motion: reduce) {
   .ie-mineral-sidebar .ie-app-wordmark,
-  .ie-mineral-sidebar .sidebar-active-bar::after,
   .ie-app-spectrum-rule,
   .ie-mineral-app .ie-mineral-journey::before { animation: none; }
 }
