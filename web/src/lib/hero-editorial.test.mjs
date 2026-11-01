@@ -183,7 +183,7 @@ for (const [name, hex] of wordmarkSpectrum) {
 }
 assert.ok(spotlightRule.indexOf('var(--hero-spectrum-apricot) 360deg') > ctaOffset,
   'conic CTA fill must close seamlessly back to first pigment')
-assert.match(styles, /conic-gradient\(from 25deg at 50% 50%/)
+assert.match(styles, /conic-gradient\(from 25deg at 50% 50%/,
   'reduced-motion CTA must retain the same palette')
 const staticSpotlight = styles.slice(styles.indexOf('conic-gradient(from 25deg at 50% 50%'))
 for (const [name] of wordmarkSpectrum) {
