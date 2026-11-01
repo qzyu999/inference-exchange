@@ -42,7 +42,8 @@ assert.match(styles, /\.hero-mineral-wordmark/)
 assert.match(styles, /\.hero-mineral-thread/)
 assert.match(styles, /\.hero-mineral-wordmark,\s*\.hero-mineral-thread \{ animation: none; \}/)
 assert.match(nav, /HERO_PIGMENTS as HP/)
-assert.match(nav, /background: 'linear-gradient\(95deg, #102D6D/)
+assert.match(nav, /background: '#0E1018'/)
+assert.doesNotMatch(nav, /background: 'linear-gradient\(95deg, #102D6D/)
 
 // Preserve real routes, chapter semantics and reduced-motion controls.
 for (const route of ['/chat', '/provide', '/exchange']) {
