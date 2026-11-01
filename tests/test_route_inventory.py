@@ -80,7 +80,7 @@ ROUTES = {
 
 # Valid-shaped bodies, so that auth runs before body validation where it matters
 BODIES = {
-    "/v1/chat/completions": {"messages": [{"role": "user", "content": "x"}], "ocip_min_confidence": "open"},
+    "/v1/chat/completions": {"model": "route-inventory-test", "messages": [{"role": "user", "content": "x"}], "ocip_min_confidence": "open"},
     "/v1/confidential/infer": {"session_id": "s", "encrypted_envelope": {}},
     "/v1/admin/accounts/{user_id}/suspend": {"reason": "test", "days": 1},
 }
