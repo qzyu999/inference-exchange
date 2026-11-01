@@ -187,11 +187,16 @@ def plan(conn: sqlite3.Connection, canonical: str) -> dict:
     }
 
 
-def consolidate(conn: sqlite3.Connection, canonical: str) -> dict:
-    """Recheck all assumptions inside a single IMMEDIATE write transaction."""
-    conn.execute("PRAGMA foreign_keys=ON")
-    conn.execute("PRAGMA busy_timeout=5000")
-    conn.execute("BEGIN IMMEDIATE")
+def consolidate(
+    conn: sqlite3.Connection, canonical: str, *, already_locked: bool = False,
+) -> dict:
+    """Recheck assumptions inside a single IMMEDIATE write transaction."""
+    if not already_locked:
+        conn.execute("PRAGMA foreign_keys=ON")
+        conn.execute("PRAGMA busy_timeout=5000")
+        conn.execute("BEGIN IMMEDIATE")
+    elif not conn.in_transaction:
+        raise ConsolidationError("Expected a caller-held IMMEDIATE transaction")
     try:
         before = plan(conn, canonical)
         legacy = before["legacy_accounts"]
@@ -385,9 +390,9 @@ def run(args: argparse.Namespace) -> dict:
         try:
             if snapshot_digest(live) != baseline_digest:
                 raise ConsolidationError("Live database changed after backup; no writes made")
-            # consolidate() owns its own IMMEDIATE transaction.
-            live.rollback()
-            result = consolidate(live, args.canonical_principal)
+            # Keep the same write lock through snapshot comparison and commit.
+            # Releasing it here would allow a billing write between the checks.
+            result = consolidate(live, args.canonical_principal, already_locked=True)
         except BaseException:
             live.rollback()
             raise
