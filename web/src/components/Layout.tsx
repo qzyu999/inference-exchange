@@ -4,7 +4,7 @@ import { useCoordinatorStatus, useWebSocket } from '../lib/useWebSocket'
 import { useAuth } from '../lib/auth'
 import { loginHref } from '../lib/nav.js'
 import { canShowAdminConsole, canShowProviderDashboard } from '../lib/role-nav.js'
-import { C, TRUST_COLORS, GRADIENTS } from '../lib/theme'
+import { C, TRUST_COLORS, GRADIENTS, APP_PIGMENTS as AP } from '../lib/theme'
 import { ErrorBoundary } from './ErrorBoundary'
 import { MineralAurora, NetworkHeartbeat, useNetworkPulses } from './MineralAurora'
 
@@ -135,10 +135,11 @@ function NavItem({ path, label, icon: Icon, active }: {
     <Link
       to={path}
       reloadDocument={path === '/admin'}
-      className={`flex items-center gap-3 px-3 py-2 rounded-lg text-[13px] font-medium transition-colors ${active ? 'sidebar-active-bar' : ''}`}
+      aria-current={active ? 'page' : undefined}
+      className={`ie-app-nav-item flex items-center gap-3 px-3 py-2 rounded-lg text-[13px] font-medium transition-colors ${active ? 'sidebar-active-bar' : ''}`}
       style={{
-        background: active ? C.sidebarHover : 'transparent',
-        color: active ? '#fff' : C.sidebarText,
+        background: active ? 'rgba(240,197,75,0.14)' : 'transparent',
+        color: active ? AP.cloud : AP.sidebarText,
       }}
     >
       <Icon className="shrink-0" />
@@ -186,14 +187,14 @@ export function Layout() {
   const sidebarContent = (
     <>
       {/* Brand */}
-      <div className="px-4 pt-5 pb-6" style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+      <div className="px-4 pt-5 pb-6" style={{ borderBottom: '1px solid rgba(240,197,75,0.24)' }}>
         <Link to="/" className="flex items-center gap-2.5">
           <img src="/logo-icon.svg" alt="IE" className="w-6 h-6" />
           <div>
-            <div className="text-sm font-bold uppercase tracking-wider mineral-spectrum-text">
+            <div className="ie-app-wordmark text-sm font-bold uppercase tracking-wider mineral-spectrum-text">
               Inference
             </div>
-            <div className="text-[11px] uppercase tracking-wider" style={{ color: '#666' }}>
+            <div className="text-[11px] uppercase tracking-wider" style={{ color: AP.silk }}>
               Exchange
             </div>
           </div>
@@ -213,8 +214,8 @@ export function Layout() {
 
       {/* Mineral stratum vein separator */}
       <div className="px-4 mt-6 mb-3">
-        <div className="h-[1px] rounded-full" style={{ background: GRADIENTS.mineralBar, opacity: 0.25 }} />
-        <div className="text-[10px] uppercase tracking-wider mt-4 mb-2" style={{ color: '#555' }}>
+        <div className="ie-app-spectrum-rule h-[1px] rounded-full" style={{ background: GRADIENTS.mineralBar, opacity: 0.8 }} />
+        <div className="text-[10px] uppercase tracking-wider mt-4 mb-2" style={{ color: AP.sidebarMuted }}>
           Account
         </div>
       </div>
@@ -239,7 +240,7 @@ export function Layout() {
         {coordinatorOnline !== null && (
           <div className="flex items-center gap-2">
             <NetworkHeartbeat online={!!coordinatorOnline} eventCount={events.length} />
-            <span className="text-xs" style={{ color: coordinatorOnline ? C.green : '#B7443B' }}>
+            <span className="text-xs" style={{ color: coordinatorOnline ? '#B4E3B5' : '#FFC3AD' }}>
               {coordinatorOnline ? 'Network online' : 'Network offline'}
             </span>
           </div>
@@ -247,15 +248,15 @@ export function Layout() {
         {user && (
           <div className="flex items-center justify-between">
             <div className="min-w-0">
-              <div className="text-xs truncate" style={{ color: '#888' }}>{user.name || user.email}</div>
-              <div className="text-[10px]" style={{ color: '#555' }}>
+              <div className="text-xs truncate" style={{ color: AP.sidebarText }}>{user.name || user.email}</div>
+              <div className="text-[10px]" style={{ color: AP.sidebarMuted }}>
                 {user.email !== user.name ? user.email.split('@')[0] : ''}
               </div>
             </div>
             <button
               onClick={logout}
               className="text-[10px] px-2 py-1 rounded-lg transition-colors"
-              style={{ color: '#666' }}
+              style={{ color: AP.sidebarText }}
             >
               Sign out
             </button>
@@ -265,7 +266,7 @@ export function Layout() {
           <Link
             to={loginHref(location.pathname + location.search)}
             className="block text-center text-xs font-medium px-3 py-2 rounded-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#E8C77A]"
-            style={{ color: '#fff', background: 'rgba(255,255,255,0.08)' }}
+            style={{ color: AP.cloud, background: 'rgba(240,197,75,0.16)', border: '1px solid rgba(240,197,75,0.3)' }}
           >
             Sign in with GitHub
           </Link>
@@ -275,26 +276,26 @@ export function Layout() {
   )
 
   return (
-    <div className="flex min-h-screen" style={{ background: `linear-gradient(180deg, #F8F8F5 0%, ${C.pageBg} 40%, #F3F2EE 100%)` }}>
+    <div className="ie-mineral-app flex min-h-screen" style={{ background: `linear-gradient(180deg, #FCF9F1 0%, ${AP.parchment} 48%, #F3EBDC 100%)` }}>
       {/* Desktop sidebar */}
       <aside
-        className="hidden lg:flex flex-col w-52 shrink-0 sticky top-0 h-screen overflow-y-auto"
-        style={{ background: GRADIENTS.sidebar }}
+        className="ie-mineral-sidebar hidden lg:flex flex-col w-52 shrink-0 sticky top-0 h-screen overflow-y-auto"
+        style={{ background: AP.sidebar }}
       >
         {sidebarContent}
       </aside>
 
       {/* Mobile hamburger + overlay */}
       <div className="lg:hidden fixed top-0 left-0 right-0 z-50 px-4 py-3 flex items-center justify-between"
-        style={{ background: '#F8F8F5', borderBottom: '1px solid rgba(0,0,0,0.05)' }}
+        style={{ background: AP.deepLapis, borderBottom: '1px solid rgba(240,197,75,0.55)' }}
       >
-        <Link to="/" className="text-sm font-bold uppercase tracking-wider" style={{ color: C.gold }}>
+        <Link to="/" className="text-sm font-bold uppercase tracking-wider" style={{ color: AP.orpiment }}>
           IE
         </Link>
         <button
           onClick={() => setMobileOpen(!mobileOpen)}
           className="p-2 rounded-lg"
-          style={{ color: C.pageText }}
+          style={{ color: AP.cloud }}
         >
           <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             {mobileOpen
@@ -313,8 +314,8 @@ export function Layout() {
             onClick={() => setMobileOpen(false)}
           />
           <aside
-            className="lg:hidden fixed top-0 left-0 bottom-0 z-50 w-56 flex flex-col overflow-y-auto"
-            style={{ background: GRADIENTS.sidebar }}
+            className="ie-mineral-sidebar lg:hidden fixed top-0 left-0 bottom-0 z-50 w-56 flex flex-col overflow-y-auto"
+            style={{ background: AP.sidebar }}
             onClick={(e) => {
               // Close on nav link clicks
               if ((e.target as HTMLElement).closest('a')) setMobileOpen(false)
@@ -328,7 +329,7 @@ export function Layout() {
       {/* Main content */}
       <div className="flex-1 min-w-0 lg:ml-0 relative">
         {/* Continuous mineral light field. Product surfaces stay quiet; the spectrum lives behind them. */}
-        <div className="absolute left-0 right-0 top-0 z-20 h-[2px]" style={{ background: GRADIENTS.fullSpectrum }} />
+        <div className="ie-app-spectrum-rule absolute left-0 right-0 top-0 z-20 h-[2px]" style={{ background: GRADIENTS.fullSpectrum }} />
         {/* Living mineral aurora — reactive to network events */}
         <div className="absolute inset-0 z-0 overflow-hidden">
           <MineralAurora variant="light" opacity={0.06} speed={0.0002} pulses={pulses} className="absolute inset-0" />
@@ -341,7 +342,7 @@ export function Layout() {
           </div>
           {coordinatorOnline !== null && (
             <div className="hidden lg:flex items-center gap-2 pt-1">
-              <span className="text-xs" style={{ color: coordinatorOnline ? C.green : '#B7443B' }}>
+              <span className="text-xs" style={{ color: coordinatorOnline ? '#B4E3B5' : '#FFC3AD' }}>
                 Network · {coordinatorOnline ? 'live' : 'offline'}
               </span>
               <NetworkHeartbeat online={!!coordinatorOnline} eventCount={events.length} />
@@ -403,7 +404,7 @@ function PageTitle({ pathname }: { pathname: string }) {
       >
         {meta.title}
       </h1>
-      <p className="text-sm mt-1" style={{ color: '#888' }}>
+      <p className="text-sm mt-1" style={{ color: AP.body }}>
         {meta.subtitle}
       </p>
     </div>
