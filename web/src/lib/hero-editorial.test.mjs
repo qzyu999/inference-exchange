@@ -13,20 +13,44 @@ assert.doesNotMatch(landing, /SHOW_(?:LEGACY|TEXT)_SHADE|heroShade=legacy|heroSh
 assert.doesNotMatch(landing, /HERO_TITLE_SHADOW|HERO_BODY_SHADOW/)
 assert.doesNotMatch(landing, /hero-story-spectrum|WebkitTextStroke/)
 
-// Bring back the original live-alpha narrative, centered and concise,
-// while retaining the *new* four scroll holds/scene poses/transition logic.
-for (const phrase of [
+// Original main had one intro plus six transition messages (not four new
+// chapter slogans). Verify exact wording/order inside CHAPTER_COPY, without
+// imposing the original free-flowing fade timeline on the pinned experience.
+const originalCopy = [
   'Inference Exchange',
-  'An open market for AI inference. Send OpenAI-compatible requests;',
-  'SUPPLY MEETS DEMAND',
+  'Supply meets demand',
   'Two forces converge',
-  'Consumers bid. Providers offer. The exchange matches.',
   'The intersection is the product',
-  'Trust is labelled, not assumed.',
+  'Trust is labelled, not assumed',
   'Providers compete. You benefit.',
-]) {
-  assert.ok(landing.includes(phrase), 'missing original centered story copy: ' + phrase)
+  'Distributed AI inference, powered by everyone.',
+]
+const copy = landing.slice(landing.indexOf('const CHAPTER_COPY = ['),
+  landing.indexOf('] as const', landing.indexOf('const CHAPTER_COPY = [')))
+let previous = -1
+for (const phrase of originalCopy) {
+  const at = copy.indexOf(`title: '${phrase}'`)
+  assert.ok(at > previous, 'missing/out-of-order original main title: ' + phrase)
+  previous = at
 }
+for (const exactSub of [
+  'An open market for AI inference. Send OpenAI-compatible requests; providers with spare hardware compete to serve them.',
+  'Consumers bid. Providers offer. The exchange matches.',
+  'Providers report a trust level. The exchange shows it as claimed until evidence verifies it. Browser chat uses TLS; it is not end-to-end encrypted.',
+  'Price, speed, privacy — the matching engine optimizes for what you care about.',
+]) assert.ok(copy.includes(exactSub), 'missing original main support copy: ' + exactSub)
+assert.ok(!copy.includes('SUPPLY MEETS DEMAND'), 'newer eyebrow should be gone')
+assert.equal((rail.match(/sceneProgress: /g) || []).length, 7,
+  'exactly seven pinned states must map to continuous crystal poses')
+assert.ok(rail.includes('sceneProgress: 0.82'),
+  'final pre-gust crystal pose must remain at 0.82')
+assert.doesNotMatch(landing, /<ScrollChapterRail/,
+  'original main had NO right-hand progress rail')
+assert.doesNotMatch(landing, /ScrollChapterRail activeIndex/)
+assert.match(landing, /\{activeIndex === 0 && \(/)
+assert.match(landing, /Skip intro/)
+assert.doesNotMatch(landing, /Skip story|Enter the exchange →/)
+
 assert.match(landing, /const CHAPTER_HOLD = 0\.60/)
 assert.match(landing, /const FINAL_HOLD_UNITS = 0\.35/)
 assert.match(landing, /const FINAL_SCROLL_UNITS = LAST_CHAPTER \+ 2\.2/)
@@ -43,7 +67,9 @@ assert.match(landing, /className="text-4xl md:text-6xl font-bold tracking-tight"
 assert.match(landing, /color: C\.warmWhite, textShadow: '0 2px 24px rgba\(0,0,0,0\.6\)'/)
 assert.match(landing, /className="text-3xl md:text-5xl font-bold tracking-tight leading-tight"/)
 assert.match(landing, /className="bg-clip-text text-transparent"/)
-assert.match(landing, /backgroundImage: 'linear-gradient\(135deg, ' \+ C\.warmWhite \+ ', ' \+ C\.sand \+ '\)'/)
+assert.ok(landing.includes('backgroundImage: index === 1 || index === LAST_CHAPTER'))
+assert.ok(landing.includes('GRADIENTS.heroText'))
+assert.ok(landing.includes('linear-gradient(135deg, ${C.warmWhite}, ${C.sand})'))
 assert.match(landing, /color: '#e6e0cf', textShadow: '0 1px 12px rgba\(0,0,0,0\.7\)'/)
 assert.match(landing, /color: '#8a8578'/)
 assert.match(landing, /style=\{\{ background: C\.warmWhite, color: C\.black \}\}/)
@@ -71,8 +97,8 @@ assert.match(styles, /--hero-orpiment: #F0C54B/)
 for (const name of ['ink', 'primary', 'secondary', 'link']) {
   assert.match(styles, new RegExp(`\\.hero-pigment-${name}`))
 }
-assert.match(rail, /CHAPTER_PIGMENTS = \[HP\.orpiment, HP\.cinnabar, HP\.jade, HP\.lapis\]/)
-// The opening scenic chapter retains its light atmospheric pigment CTAs.
+assert.doesNotMatch(landing, /<ScrollChapterRail/, 'RHS design must not render')
+// The opening scenic chapter restores the original alpha CTA styling.
 // The final product slide deliberately restores the original live alpha scheme:
 // translucent dark Live Exchange card, warm-white gradient-hover primary action,
 // and the quiet transparent mineral-bordered provider CTA.
@@ -118,6 +144,6 @@ assert.doesNotMatch(nav, /background: 'linear-gradient\(95deg, #102D6D/)
 for (const route of ['/chat', '/provide', '/exchange']) {
   assert.ok(landing.includes(`to="${route}"`), `missing hero CTA ${route}`)
 }
-assert.match(rail, /aria-label="Landing story chapters"/)
+assert.match(rail, /export const STORY_CHAPTERS = \[/)
 assert.match(styles, /@media \(prefers-reduced-motion: reduce\)/)
-console.log('Landing pinned chapters: original main text styling, original CTAs, stable scroll, and video tint preserved')
+console.log('Landing: all original six transitions, intro, seven smooth pinned holds, no RHS rail, video tint preserved')
