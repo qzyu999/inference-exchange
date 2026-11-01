@@ -2,6 +2,27 @@
 
 **Status:** documented and wired for review in draft [PR #197](https://github.com/qzyu999/inference-exchange/pull/197), not yet deployed. **No R2 bucket, DNS record, or production asset availability has been verified by this change.** Do not merge or deploy the new landing page until the checklist below passes.
 
+## Delivery direction — Stream-only motion, poster-only failure
+
+As of October 31, the owner explicitly selected **Cloudflare Stream HLS**
+for motion-video delivery. Do **not** serve standalone MP4s to real
+visitors as a fallback, optional 4K upgrade, or alternate delivery route.
+HLS streaming still transfers small video segments to the browser.
+
+- Normal visit: 16:9 or 21:9 Cloudflare Stream HLS ABR.
+- Stream unavailable, reduced motion, Save-Data, or emergency kill switch:
+  **optimized static poster only**, no MP4 network request.
+- The localhost-only `?heroDelivery=stream` preview now follows this rule.
+- The default non-preview site still selects MP4 because the production
+  migration, poster hosting, reviewed HLS.js dependency, billing alerts,
+  and rollout have **not** been completed. PR #197 remains draft.
+- Earlier R2 4K, MP4 fallback and hybrid strategies documented below are
+  historical alternatives **superseded by this decision**, not release
+  requirements.
+- Test Cloudflare Stream performance alone: transferred HLS segment bytes
+  and first playable frame under normal and throttled mobile connections;
+  loop request volume and actual Stream delivery cost.
+
 ## Update: Cloudflare Stream adaptive streaming evaluation (Oct 31, 2026)
 
 **Do not treat the R2-only approach below as a final product decision.**
@@ -70,7 +91,7 @@ Local dev on port 5176 (private preview with explicit experimental flag)
                         -> HLS.js loaded on demand (other browsers)
                         -> ABR rendition based on throughput/buffer
          |
-         +-- Fallback: existing MP4/R2 path when Stream fails
+         +-- Pilot fallback: optimized static poster when Stream fails
 ```
 
 **Do not use a generic iframe as an untested replacement** for the
@@ -234,8 +255,8 @@ explicit localhost pilot: before production, replace with a lockfile-
 pinned npm `hls.js` dependency and audit CSP/supply-chain policy.
 
 The demo never attempts Stream delivery when reduced-motion or
-Save-Data is active. On a fatal HLS load/player error, it falls back to
-an MP4 for the same aspect ratio as the normal page. **Both 16:9 and
+Save-Data is active. On a fatal HLS load/player error, it shows the
+static poster (without requesting any MP4). **Both 16:9 and
 21:9 use HLS only with the explicit localhost query flag.** The
 16:9 source is uploaded but unverified, so do not declare it
 production-ready until the Mac's manifest and browser checks pass.
@@ -272,7 +293,9 @@ Stream delivery minutes can be billable. If hls.js CDN is blocked,
 expect a console warning and MP4 fallback.
 
 The experiment **does not change default production playback** and
-does not constitute permission to merge PR #197. Keep the CDN/R2 and
+does not constitute permission to merge PR #197. Under the opt-in
+`?heroDelivery=stream` preview, MP4s are never requested, including
+when HLS cannot initialize. Keep the CDN/R2 and
 cost/abuse protections in issue [#198](https://github.com/qzyu999/inference-exchange/issues/198).
 
 ## What serves what?
