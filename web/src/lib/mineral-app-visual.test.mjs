@@ -12,8 +12,8 @@ const css = read('../index.css')
 assert.match(theme, /export const APP_PIGMENTS = \{/)
 for (const [name, hex] of Object.entries({
   deepLapis: '#102D6D', lapis: '#163E8C', orpiment: '#F0C54B',
-  cinnabar: '#C94C2F', jade: '#5F8E61', parchment: '#E8D8C3',
-  paper: '#EEE1CE', ink: '#263A63',
+  cinnabar: '#C94C2F', jade: '#5F8E61', parchment: '#F7F2E8',
+  paper: '#FFFDF7', ink: '#263A63',
 })) assert.ok(theme.includes(`${name}: '${hex}'`), `missing ${name} token`)
 
 assert.match(shell, /className="ie-mineral-app flex min-h-screen"/)
@@ -22,15 +22,14 @@ assert.match(shell, /ie-mineral-sidebar/)
 assert.ok(theme.includes("sidebar: 'linear-gradient(180deg, ' + C.blueBlack"))
 assert.equal(shell.split('background: GRADIENTS.sidebar').length - 1, 3)
 assert.ok(shell.includes('background: GRADIENTS.sidebar, borderBottom'))
-// Revert to the pre-experiment tan shell with a softly amber, dimmer bedtime
-// palette. Never tint product semantics or change the monitor whitepoint.
-assert.ok(theme.includes("atmosphere: 'radial-gradient("))
-assert.ok(theme.includes('#D0C3B1 0%'))
-assert.ok(theme.includes('#DEC9AC 53%'))
-assert.ok(theme.includes('#E5D8C5 100%'))
+// Match the current main branch's actual neutral/off-white page gradient,
+// rather than the preceding green-sage/tan or amber bedtime experiments.
+assert.ok(theme.includes("atmosphere: 'linear-gradient(180deg, #F8F8F5 0%, ' + C.pageBg"))
+assert.ok(shell.includes('background: `linear-gradient(180deg, #F8F8F5 0%, ${C.pageBg} 40%, #F3F2EE 100%)`'))
+assert.ok(!theme.includes('#D0C3B1 0%'))
+assert.ok(!theme.includes('#E5D8C5 100%'))
 assert.ok(!theme.includes('MINERAL_FIELD_BACKGROUND'))
 assert.ok(!theme.includes("APP_TEXT ="))
-assert.ok(shell.includes('background: AP.atmosphere'))
 assert.ok(shell.includes('variant="light" opacity={0.06}'))
 assert.ok(!shell.includes('ie-app-workspace'))
 assert.ok(!css.includes('.ie-app-workspace'))
@@ -57,9 +56,9 @@ assert.match(start, /Copy setup commands/)
 assert.match(css, /\.ie-mineral-sidebar \.ie-app-wordmark/)
 assert.match(css, /\.ie-mineral-app \.ie-mineral-journey/)
 assert.match(css, /\.ie-mineral-app \.ie-mineral-panel/)
-assert.ok(css.includes('--ie-app-surface: #EEE1CE'))
-assert.ok(css.includes('background-color: var(--ie-app-surface)'))
-assert.ok(css.includes('background: linear-gradient(140deg, #EEE1CE 0%, #E8D8C3 100%)'))
+assert.ok(css.includes('--ie-app-surface: #FFFDF7'))
+assert.ok(!css.includes('.ie-mineral-app .bg-white {'))
+assert.ok(css.includes('background: linear-gradient(140deg, #FFFDF7 0%, #FAF5E9 100%)'))
 // No broad CSS filters: status indicators, charts and text retain their hues.
 assert.doesNotMatch(css, /\.ie-mineral-app\s*\{[^}]*filter:/)
 assert.doesNotMatch(css, /\.ie-mineral-app::after\s*\{/)
@@ -73,9 +72,9 @@ const contrast = (a, b) => {
   return (lighter + 0.05) / (darker + 0.05)
 }
 for (const ink of ['#263A63', '#46546A', '#845918', '#31644E']) {
-  assert.ok(contrast(ink, '#EEE1CE') >= 4.5, 'readable ink on warm paper: ' + ink)
+  assert.ok(contrast(ink, '#FFFDF7') >= 4.5, 'readable ink on original app paper: ' + ink)
 }
-assert.ok(luminance('#E5D8C5') < 0.72, 'warm page endpoint must be dimmer than original ivory')
+assert.ok(luminance('#F8F8F5') > 0.8, 'original main background should remain a light neutral')
 for (const name of [
   'Overview', 'Chat', 'Exchange', 'Models', 'Providers', 'Provide', 'Billing',
   'Keys', 'Settings', 'Admin', 'Trace', 'ProviderDashboard', 'Docs',
