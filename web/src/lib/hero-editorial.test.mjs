@@ -13,10 +13,33 @@ assert.doesNotMatch(landing, /SHOW_(?:LEGACY|TEXT)_SHADE|heroShade=legacy|heroSh
 assert.match(landing, /HERO_TITLE_SHADOW/)
 assert.match(landing, /HERO_BODY_SHADOW/)
 
+// Bring back the original live-alpha narrative, centered and concise,
+// while retaining the *new* four scroll holds/scene poses/transition logic.
+for (const phrase of [
+  'Inference Exchange',
+  'An open market for AI inference. Send OpenAI-compatible requests;',
+  'SUPPLY MEETS DEMAND',
+  'Two forces converge',
+  'Consumers bid. Providers offer. The exchange matches.',
+  'The intersection is the product',
+  'Trust is labelled, not assumed.',
+  'Providers compete. You benefit.',
+]) {
+  assert.ok(landing.includes(phrase), 'missing original centered story copy: ' + phrase)
+}
+assert.match(landing, /const CHAPTER_HOLD = 0\.60/)
+assert.match(landing, /const FINAL_HOLD_UNITS = 0\.35/)
+assert.match(landing, /const FINAL_SCROLL_UNITS = LAST_CHAPTER \+ 2\.2/)
+assert.match(landing, /const SCENE_POSES = \[\.\.\.STORY_CHAPTERS\.map/)
+assert.match(landing, /key=\{chapter\.title\}/)
+assert.match(landing, /className="absolute inset-0 flex items-center justify-center px-6 sm:px-10 text-center"/)
+assert.match(landing, /className="relative mx-auto w-full max-w-3xl pt-6 text-center"/)
+assert.match(landing, /className="mt-8 flex flex-wrap items-center justify-center gap-3"/)
+assert.doesNotMatch(landing, /'Intelligence,'|'without borders\.'|'A network'|'in motion\.'/)
+
 // The new inscription colors reference actual user-supplied painting motifs.
 // Lapis / indigo replace black shadows; saffron and cinnabar replace white ink.
 assert.match(landing, /HERO_PIGMENTS as HP/)
-assert.match(landing, /HERO_PIGMENT_RULE.*HP\.lapis.*HP\.saffron.*HP\.orpiment.*HP\.cinnabar.*HP\.jade/)
 assert.match(landing, /HERO_PIGMENT_WORD.*HP\.cream.*HP\.orpiment.*HP\.saffron.*HP\.cinnabar/)
 assert.match(landing, /HERO_PRODUCT_GRADIENT/)
 assert.match(landing, /WebkitTextStroke: '0\.65px rgba\(43,34,72,0\.83\)'/)
@@ -57,7 +80,6 @@ assert.doesNotMatch(styles, /rgba\(30, 94, 86, 0\.93\)/)
 assert.doesNotMatch(landing, /rgba\(16,45,109,0\.76\)/)
 assert.match(landing, /hero-body-inscription/)
 assert.match(landing, /hero-fine-inscription/)
-assert.match(landing, /hero-mineral-thread/)
 assert.match(nav, /mineral-spectrum-text hero-mineral-wordmark/)
 assert.match(styles, /\.hero-body-inscription/)
 assert.match(styles, /\.hero-mineral-wordmark/)
