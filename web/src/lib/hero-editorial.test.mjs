@@ -108,18 +108,42 @@ for (const name of ['ink', 'primary', 'secondary', 'link']) {
   assert.match(styles, new RegExp(`\\.hero-pigment-${name}`))
 }
 assert.doesNotMatch(landing, /<ScrollChapterRail/, 'RHS design must not render')
-// The opening scenic chapter restores the original alpha CTA styling.
-// The final product slide deliberately restores the original live alpha scheme:
-// translucent dark Live Exchange card, warm-white gradient-hover primary action,
-// and the quiet transparent mineral-bordered provider CTA.
-assert.match(landing, /className="rounded-2xl p-6 w-full max-w-sm mineral-border"/)
-assert.match(landing, /background: 'rgba\(255,255,255,0\.06\)'/)
-assert.match(landing, /style=\{\{ color: C\.warmWhite, background: 'rgba\(216,209,190,0\.06\)' \}\}/)
-assert.match(landing, /group-hover:opacity-100 transition-opacity" style=\{\{ background: GRADIENTS\.heroText \}\}/)
+// Five CTAs — three opening, two on the in-place finale — share a
+// brush-painted mineral sweep and a one-shot scattering-sand wisp on hover
+// and keyboard focus. Their actual routes and readable labels stay intact.
+assert.match(landing, /function SandCTA\(/)
+assert.match(landing, /<Link to=\{to\} tabIndex=\{tabIndex\}/)
+assert.equal((landing.match(/<SandCTA to=/g) || []).length, 5)
+for (const [route, label, tone] of [
+  ['/chat', 'Start chatting', 'light'],
+  ['/provide', 'Become a provider', 'outline'],
+  ['/exchange', 'Go to Exchange', 'quiet'],
+]) {
+  assert.ok(landing.includes(`<SandCTA to="${route}" tone="${tone}">${label}</SandCTA>`),
+    'missing opening mineral CTA ' + label)
+}
 const finalSlide = landing.slice(landing.indexOf('{/* One actual product screen'))
-assert.ok(finalSlide.includes('Start a conversation') && finalSlide.includes('Become a provider'))
+assert.match(finalSlide, /<SandCTA to="\/chat" tone="light"[\s\S]*?Start a conversation\s*<\/SandCTA>/)
+assert.match(finalSlide, /<SandCTA to="\/provide" tone="outline"[\s\S]*?Become a provider\s*<\/SandCTA>/)
+assert.equal((finalSlide.match(/<SandCTA to=/g) || []).length, 2)
+assert.match(finalSlide, /tabIndex=\{productOpacity > 0\.95 \? undefined : -1\}/)
+assert.match(landing, /className="hero-sand-cta__wash" aria-hidden="true"/)
+assert.match(landing, /className="hero-sand-cta__grains" aria-hidden="true"/)
+assert.match(landing, /className="hero-sand-cta__label"/)
+assert.match(styles, /\.hero-sand-cta__label \{[\s\S]*?z-index: 2;/)
+assert.match(styles, /\.hero-sand-cta__wash \{[\s\S]*?clip-path: polygon\(/)
+assert.match(styles, /@keyframes hero-sand-wisp/)
+assert.match(styles, /\.hero-sand-cta:is\(:hover, :focus-visible\) \.hero-sand-cta__grains \{\s*animation: hero-sand-wisp 760ms ease-out both;/)
+assert.doesNotMatch(styles, /hero-sand-wisp[^;]*infinite/,
+  'the sand wisp must play once, not loop while hovered')
+assert.match(styles, /\.hero-sand-cta:focus-visible \{\s*outline: 2px solid/)
+assert.match(styles, /@media \(prefers-reduced-motion: reduce\) \{[\s\S]*?\.hero-sand-cta__grains,[\s\S]*?animation: none;/)
+assert.doesNotMatch(finalSlide, /group-hover:text-white|group-hover:opacity-100/,
+  'the old flat full-surface gradient hover should be removed')
 assert.doesNotMatch(finalSlide, /hero-pigment-(primary|secondary)/)
 assert.doesNotMatch(landing, /hero-exchange-card/)
+assert.match(landing, /className="rounded-2xl p-6 w-full max-w-sm mineral-border"/)
+assert.match(landing, /background: 'rgba\(255,255,255,0\.06\)'/)
 assert.match(styles, /\.mineral-border::before/)
 // Atmospheric wash stays for the opening chapter, not the last product slide.
 assert.match(styles, /--hero-atmosphere-wash: linear-gradient\(138deg/)
@@ -216,4 +240,4 @@ for (const route of ['/chat', '/provide', '/exchange']) {
 }
 assert.match(rail, /export const STORY_CHAPTERS = \[/)
 assert.match(styles, /@media \(prefers-reduced-motion: reduce\)/)
-console.log('Landing: all original six transitions, intro, seven smooth pinned holds, no RHS rail, video tint preserved')
+console.log('Landing: seven smooth holds, all five mineral sand-hover CTAs, accessible focus/reduced motion, video tint preserved')
