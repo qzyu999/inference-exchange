@@ -347,6 +347,14 @@ body {
 ):not([style*="background:"]):not([style*="background-color:"]) {
   color: #BDCACF !important;
 }
+/* User chat bubbles are a legacy exception: their neutral surface and dark
+   ink share one inline style object. Both must change together in Dark mode;
+   the general ink overrides deliberately leave colored alert fills alone. */
+.ie-app-appearance-scope[data-appearance="dark"] .ie-app-content
+  [style*="background: rgb(229, 229, 227)"][style*="color: rgb(41, 47, 53)"] {
+  background: #394753 !important;
+  color: #F0EBDD !important;
+}
 /* Deep-lapis links readable on charcoal; don't touch the colors on their
    semantic, independently colored trust/availability badges. */
 .ie-app-appearance-scope[data-appearance="dark"] .ie-app-content :is(
