@@ -108,18 +108,49 @@ body {
 /* Issue #203: mineral workbench pilot. The app stays calm and
    task-oriented; cinematic colors live primarily in its navigation. */
 .ie-mineral-app {
-  --ie-app-surface: #C6D1CB;
-  --ie-app-paper: #C4CAC7;
+  --ie-app-surface: #D0D4D3;
+  --ie-app-paper: #BDC5C7;
   --ie-app-ink: #263A63;
-  --ie-app-line: #859B94;
-  --ie-app-gold: #845918;
+  --ie-app-line: #8D9BA0;
+  --ie-app-gold: #67471E;
 }
 
-/* The app uses the very same dark mineral field as the landing's final
-   product slide. Keep dense content on muted, low-glare reading surfaces
-   instead of applying its dark background to data tables and forms. */
+/* Keep the final landing's dark mineral field around the content, not
+   behind light-theme labels, form elements, or data tables. One calm,
+   neutral workbench is shared by every non-landing route. */
+.ie-app-workspace {
+  background: #BAC3C5;
+  color: #263844;
+  border: 1px solid rgba(205, 215, 217, 0.28);
+  box-shadow: 0 10px 34px rgba(3, 8, 15, 0.22);
+  isolation: isolate;
+}
 .ie-mineral-app .bg-white {
-  background-color: #C6D1CB;
+  background-color: var(--ie-app-surface);
+}
+/* Small utility labels were authored for white backgrounds; preserve
+   readable ink when these components appear on subdued neutral panels. */
+.ie-app-workspace .text-gray-300,
+.ie-app-workspace .text-gray-400,
+.ie-app-workspace .text-gray-500,
+.ie-app-workspace .text-slate-400,
+.ie-app-workspace .text-slate-500 {
+  color: #40505B;
+}
+.ie-app-workspace .text-gray-600,
+.ie-app-workspace .text-slate-600 {
+  color: #354650;
+}
+.ie-app-workspace input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+.ie-app-workspace textarea,
+.ie-app-workspace select {
+  color: #263844;
+  background-color: #D9DDDC;
+}
+.ie-app-workspace input::placeholder,
+.ie-app-workspace textarea::placeholder {
+  color: #53616A;
+  opacity: 1;
 }
 
 .ie-mineral-sidebar .ie-app-wordmark {
@@ -152,7 +183,7 @@ body {
 }
 
 .ie-mineral-app .ie-mineral-panel {
-  background: linear-gradient(140deg, #C6D1CB 0%, #C4CAC7 100%);
+  background: linear-gradient(140deg, #D0D4D3 0%, #C5CBCC 100%);
   border-color: var(--ie-app-line);
   box-shadow: 0 3px 18px rgba(4, 10, 20, 0.10);
 }
