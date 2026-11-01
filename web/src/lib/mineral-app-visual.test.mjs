@@ -81,7 +81,6 @@ const tint = (hex, overlay = '#FF995B', strength = 0.48) =>
 const warmPaper = tint('#FFFDF7')
 assert.equal(warmPaper[0], 255)
 assert.ok(warmPaper[1] < 215 && warmPaper[2] < 180, 'white paper becomes orange-warm, not green')
-assert.ok(contrast('#263A63', '#FFFDF7') >= 7, 'original untinted paper retains strong contrast')
 const luminance = (hex) => {
   const [r, g, b] = hex.match(/[a-f0-9]{2}/gi).map(x => parseInt(x, 16) / 255)
     .map(x => x <= 0.04045 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4)
@@ -91,6 +90,7 @@ const contrast = (a, b) => {
   const [lighter, darker] = [luminance(a), luminance(b)].sort((a, b) => b - a)
   return (lighter + 0.05) / (darker + 0.05)
 }
+assert.ok(contrast('#263A63', '#FFFDF7') >= 7, 'original untinted paper retains strong contrast')
 for (const ink of ['#263A63', '#46546A', '#845918', '#31644E']) {
   assert.ok(contrast(ink, '#FFFDF7') >= 4.5, 'readable ink on original app paper: ' + ink)
 }
