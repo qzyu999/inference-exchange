@@ -386,12 +386,9 @@ function PageTitle({ pathname }: { pathname: string }) {
   const meta = PAGE_META[pathname.startsWith('/docs') ? '/docs' : pathname.startsWith('/start/') ? '/start' : pathname]
   if (!meta) return null
 
-  const gradient =
-    pathname === '/chat' ? GRADIENTS.demandToExchange :
-    pathname === '/exchange' || pathname === '/models' ? GRADIENTS.market :
-    pathname === '/providers' || pathname === '/dashboard' ? GRADIENTS.supplyToValue :
-    pathname === '/trace' ? GRADIENTS.trust :
-    GRADIENTS.titleText
+  // Page headings sit directly on the darker teal portion of the backdrop.
+  // The previous dark mineral gradients lost contrast on that surface.
+  const gradient = GRADIENTS.appTitle
 
   return (
     <div>
@@ -406,7 +403,7 @@ function PageTitle({ pathname }: { pathname: string }) {
       >
         {meta.title}
       </h1>
-      <p className="text-sm mt-1" style={{ color: AP.body }}>
+      <p className="text-sm mt-1" style={{ color: '#E2EBE2' }}>
         {meta.subtitle}
       </p>
     </div>
