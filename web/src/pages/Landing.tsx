@@ -156,7 +156,7 @@ function EditorialStory({
                   decorative religious motif. The scene itself remains clear. */}
               <div className="flex items-center gap-3 mb-6">
                 <span className="flex h-2 w-11 shrink-0 items-center" aria-hidden="true">
-                  <span className="block h-px w-9" style={{ background: HERO_PIGMENT_RULE, boxShadow: '0 1px 3px rgba(43,34,72,0.55)' }} />
+                  <span className="hero-mineral-thread block h-px w-9" style={{ background: HERO_PIGMENT_RULE, boxShadow: '0 1px 3px rgba(43,34,72,0.55)' }} />
                   <span className="block h-[5px] w-[5px] rotate-45" style={{ background: index % 2 === 0 ? HP.cinnabar : HP.jade, boxShadow: '0 0 0 1px rgba(240,197,75,0.75), 0 1px 4px rgba(43,34,72,0.6)' }} />
                 </span>
                 <p className="text-[11px] font-semibold tracking-[0.24em] uppercase" style={{ color: HP.label, textShadow: HERO_BODY_SHADOW }}>
@@ -172,12 +172,12 @@ function EditorialStory({
                 <span className="block hero-pigment-ink" style={{ backgroundImage: HERO_PIGMENT_WORD }}>{chapter.headline[1]}</span>
               </h1>
               <div className="mt-5 flex items-center gap-2" aria-hidden="true">
-                <span className="block h-px w-24 sm:w-28" style={{ background: HERO_PIGMENT_RULE, boxShadow: '0 1px 3px rgba(43,34,72,0.55)' }} />
+                <span className="hero-mineral-thread block h-px w-24 sm:w-28" style={{ background: HERO_PIGMENT_RULE, boxShadow: '0 1px 3px rgba(43,34,72,0.55)' }} />
                 <span className="block h-1 w-1 rotate-45" style={{ background: HP.orpiment, boxShadow: '0 0 0 1px rgba(255,237,179,0.63)' }} />
               </div>
               <p
-                className="mt-5 text-base md:text-lg font-medium leading-relaxed max-w-[29rem]"
-                style={{ color: HP.silk, textShadow: HERO_BODY_SHADOW, WebkitTextStroke: '0.24px rgba(43,34,72,0.62)' }}
+                className="hero-body-inscription mt-5 text-[1.075rem] md:text-[1.2rem] font-semibold leading-[1.65] tracking-[0.003em] max-w-[29rem]"
+                style={{ color: HP.cloud }}
               >
                 {chapter.description}
               </p>
@@ -207,7 +207,7 @@ function EditorialStory({
                 </div>
               )}
               {index === 2 && (
-                <p className="mt-5 text-xs leading-relaxed max-w-md" style={{ color: HP.silk, textShadow: HERO_BODY_SHADOW }}>
+                <p className="hero-fine-inscription mt-5 text-sm leading-relaxed max-w-md" style={{ color: HP.cloud }}>
                   Trust levels are provider claims until independently verified. Browser chat uses TLS; it is not end-to-end encrypted.
                 </p>
               )}
