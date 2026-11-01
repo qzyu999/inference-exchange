@@ -54,19 +54,30 @@ export const APP_PIGMENTS = {
   malachite: '#3F7B67',
   silk: '#F2DFC0',
   cloud: '#FBF4E4',
-  // Non-glare, light-enough reading surfaces against the dark mineral field.
-  // Existing dense table/form text is intentionally dark on these panels.
-  parchment: '#C4CAC7',
-  paper: '#C6D1CB',
-  line: '#859B94',
+  // Neutral, low-glare work surfaces. The prior green paper against dark
+  // jade caused painful chromatic contrast and hid default dark labels.
+  parchment: '#BDC5C7',
+  paper: '#D0D4D3',
+  line: '#8D9BA0',
   ink: '#263A63',
-  body: '#46546A',
-  goldInk: '#845918',
-  jadeInk: '#31644E',
+  body: '#394957',
+  goldInk: '#67471E',
+  jadeInk: '#205440',
   sidebarText: '#EADFCB',
   sidebarMuted: '#C4BBD0',
   // Match the final landing product slide's deep mineral backdrop.
   atmosphere: MINERAL_FIELD_BACKGROUND,
+} as const
+
+/** High-contrast text accents for data-heavy pages on neutral paper.
+ * These are NOT the vivid branding/charts/trust semantics colors in C. */
+export const APP_TEXT = {
+  muted: '#42505A',
+  soft: '#4D5860',
+  gold: '#644718',
+  green: '#1A5542',
+  turquoise: '#245769',
+  red: '#843B38',
 } as const
 
 /**
