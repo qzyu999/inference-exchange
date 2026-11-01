@@ -1,66 +1,48 @@
-// Public, unauthenticated CDN smoke test: all eight required hero files.
-// Usage: node scripts/check-hero-media.mjs https://media.inferenceex.com
-// Never pass R2 API tokens to this script or publish credentials in Vite env.
-import { heroMediaUrl } from '../src/lib/hero-media.js'
-
-const origin = process.argv[2] || process.env.VITE_HERO_MEDIA_ORIGIN
-if (!origin) {
-  console.error('Usage: node scripts/check-hero-media.mjs https://<public-media-domain>')
+// Read-only Cloudflare Stream production-media smoke test (#198).
+// Verifies that BOTH HLS manifests and BOTH static poster thumbnails exist.
+// No raw MP4 requests; no credentials or Cloudflare API tokens required.
+// When Allowed Origins are restricted, set HERO_ALLOWED_ORIGIN=https://inferenceex.com
+// to simulate the target browser origin.
+const host = 'https://customer-5w3ijts4etcd5hi9.cloudflarestream.com'
+const sources = [
+  { aspect: '16x9', uid: '6dcc0a01091fa0a720a7482f5c758b79', width: 1280, height: 720 },
+  { aspect: '21x9', uid: '02af62eaa08146a6efe21b8a4d76a569', width: 1280, height: 548 },
+]
+const origin = process.env.HERO_ALLOWED_ORIGIN
+if (origin && (!/^https:\/\/[^/]+$/.test(origin))) {
+  console.error('HERO_ALLOWED_ORIGIN must be an HTTPS origin without a path')
   process.exit(2)
 }
-
-const assets = [
-  'seedance_2_5_mountain_lake_720p.mp4',
-  'seedance_2_5_mountain_lake_1080p.mp4',
-  'seedance_2_5_mountain_lake_4k.mp4',
-  'seedance_2_5_mountain_lake_poster.webp',
-  'seedance_2_5_mountain_lake_21x9_720p.mp4',
-  'seedance_2_5_mountain_lake_21x9_1080p.mp4',
-  'seedance_2_5_mountain_lake_21x9_4k.mp4',
-  'seedance_2_5_mountain_lake_21x9_poster.webp',
-]
-
-let failures = 0
-for (const name of assets) {
-  const expected = name.endsWith('.webp') ? 'image/webp' : 'video/mp4'
-  let url
+const headers = origin ? { Origin: origin } : {}
+let failed = 0
+for (const { aspect, uid, width, height } of sources) {
+  const manifest = `${host}/${uid}/manifest/video.m3u8`
+  const poster = `${host}/${uid}/thumbnails/thumbnail.jpg?time=8s&width=${width}&height=${height}&fit=clip`
   try {
-    url = heroMediaUrl('/media/' + name, origin)
-    const res = await fetch(url, {
-      method: 'HEAD',
-      signal: AbortSignal.timeout(20000),
-    })
-    const mime = res.headers.get('content-type')?.split(';')[0].trim() || '(missing)'
-    const length = Number(res.headers.get('content-length'))
-    const good = res.ok && mime === expected && length > 0
-    if (!good) failures++
-    console.log(`${good ? 'PASS' : 'FAIL'} HEAD ${res.status} ${mime}, ${res.headers.get('content-length') || '?'} B, cache=${res.headers.get('cf-cache-status') || '?'}: ${url}`)
-  } catch (err) {
-    failures++
-    console.error(`FAIL HEAD ${url || name}: ${err.message}`)
+    const response = await fetch(manifest, { headers, signal: AbortSignal.timeout(20000) })
+    const text = await response.text()
+    const ok = response.ok && text.startsWith('#EXTM3U')
+      && text.includes('#EXT-X-STREAM-INF') && text.includes('RESOLUTION=')
+    if (!ok) failed++
+    console.log(`${ok ? 'PASS' : 'FAIL'} ${aspect} HLS manifest HTTP ${response.status}: ${manifest}`)
+  } catch (error) {
+    failed++
+    console.error(`FAIL ${aspect} HLS manifest: ${error.message}`)
+  }
+  try {
+    const response = await fetch(poster, { headers, signal: AbortSignal.timeout(20000) })
+    const contentType = response.headers.get('content-type') || ''
+    const bytes = await response.arrayBuffer()
+    const ok = response.ok && contentType.startsWith('image/jpeg') && bytes.byteLength > 1000
+    if (!ok) failed++
+    console.log(`${ok ? 'PASS' : 'FAIL'} ${aspect} static JPEG HTTP ${response.status}, ${contentType}, ${bytes.byteLength} bytes: ${poster}`)
+  } catch (error) {
+    failed++
+    console.error(`FAIL ${aspect} static JPEG: ${error.message}`)
   }
 }
-
-// A browser uses HTTP byte ranges to progressively read/seek in MP4.
-// Require an actual partial-content response, not an HTML fallback page.
-const videoUrl = heroMediaUrl('/media/seedance_2_5_mountain_lake_21x9_720p.mp4', origin)
-try {
-  const res = await fetch(videoUrl, {
-    headers: { Range: 'bytes=0-1023' },
-    signal: AbortSignal.timeout(20000),
-  })
-  const range = res.headers.get('content-range') || ''
-  const good = res.status === 206 && /^bytes 0-1023\/\d+$/.test(range)
-  await res.body?.cancel()
-  if (!good) failures++
-  console.log(`${good ? 'PASS' : 'FAIL'} GET range: HTTP ${res.status}, Content-Range=${range || '(missing)'}`)
-} catch (err) {
-  failures++
-  console.error(`FAIL GET range: ${err.message}`)
-}
-
-if (failures) {
-  console.error(`CDN hero media verification failed (${failures} checks). Do NOT deploy this version.`)
+if (failed) {
+  console.error(`Stream video/poster verification failed (${failed} checks). Keep VITE_HERO_STREAM_ENABLED=false.`)
   process.exit(1)
 }
-console.log('All eight hero assets and an MP4 byte-range request verified on the public CDN.')
+console.log('Both Cloudflare Stream manifests and both still posters verified.')
