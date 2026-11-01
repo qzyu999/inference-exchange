@@ -53,7 +53,9 @@ assert.doesNotMatch(landing, /hero-pigment-(?:primary|secondary|link)/)
 assert.doesNotMatch(landing, /hero-body-inscription|hero-fine-inscription/)
 assert.match(landing, /CHAPTER_COPY\.map\(\(chapter, index\) =>/)
 assert.match(landing, /transition: 'opacity 420ms ease, visibility 420ms'/)
-assert.match(landing, /className="hero-video-bedtime-tint|<LandscapeVideo/) // footage tint lives in video component
+assert.match(landing, /<LandscapeVideo/)
+const landscapeVideo = readFileSync(new URL('../components/LandscapeVideo.tsx', import.meta.url), 'utf8')
+assert.match(landscapeVideo, /data-hero-video-tint="warm"/)
 
 assert.match(landing, /HERO_PRODUCT_GRADIENT/)
 assert.doesNotMatch(landing, /WebkitTextStroke/)
