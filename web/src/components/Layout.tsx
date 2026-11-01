@@ -156,9 +156,40 @@ const APPEARANCE_KEY = 'ie-app-appearance'
 const APPEARANCE_MODES = [
   { value: 'light', label: 'Light' },
   { value: 'dark', label: 'Dark' },
-  { value: 'blue-light', label: 'Blue light filter' },
+  { value: 'blue-light', label: 'Night Shift' },
 ] as const
 type AppAppearance = (typeof APPEARANCE_MODES)[number]['value']
+
+// Small custom SVGs share one stroke style and fit the compact sidebar.
+// Keep labels visible: icons are decoration, not the sole mode identifier.
+function AppearanceIcon({ mode }: { mode: AppAppearance }) {
+  const common = {
+    width: 18, height: 18, viewBox: '0 0 24 24',
+    fill: 'none', stroke: 'currentColor', strokeWidth: 1.7,
+    strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const,
+    'aria-hidden': true as const,
+  }
+  if (mode === 'light') {
+    return (
+      <svg {...common}>
+        <circle cx="12" cy="12" r="4" />
+        <path d="M12 2v2M12 20v2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M2 12h2m16 0h2M4.93 19.07l1.42-1.42m11.3-11.3 1.42-1.42" />
+      </svg>
+    )
+  }
+  if (mode === 'dark') {
+    return (
+      <svg {...common}>
+        <path d="M20.1 14.9A8.5 8.5 0 0 1 9.1 3.9 8.5 8.5 0 1 0 20.1 14.9Z" />
+      </svg>
+    )
+  }
+  return (
+    <svg {...common}>
+      <path d="M3 18h18M6 21h12M7 14a5 5 0 0 1 10 0M12 3v3M4.8 6.8l2.1 2.1M19.2 6.8l-2.1 2.1M3 12h2m14 0h2" />
+    </svg>
+  )
+}
 
 function readAppearance(): AppAppearance {
   try {
@@ -180,10 +211,11 @@ function AppearanceSelector({ value, onChange }: {
           type="button"
           aria-pressed={value === mode.value}
           onClick={() => onChange(mode.value)}
-          className="ie-app-appearance-option min-h-[42px] min-w-0 rounded-lg px-1 py-1.5 text-[11px] leading-tight font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#F0C54B]"
-          title={mode.value === 'blue-light' ? '2400K-inspired warm overlay; not a calibrated screen whitepoint' : mode.label + ' appearance'}
+          className="ie-app-appearance-option flex min-h-[56px] min-w-0 flex-col items-center justify-center gap-1 rounded-lg px-1 py-1.5 text-[10px] leading-tight font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#F0C54B]"
+          title={mode.value === 'blue-light' ? 'Warm blue-light filtering overlay; not a calibrated screen whitepoint' : mode.label + ' appearance'}
         >
-          {mode.label}
+          <AppearanceIcon mode={mode.value} />
+          <span className="text-center">{mode.label}</span>
         </button>
       ))}
     </div>
