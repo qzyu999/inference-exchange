@@ -20,6 +20,7 @@ import sqlite3
 import tempfile
 import time
 from pathlib import Path
+from contextlib import closing
 from urllib.parse import quote
 
 OPENING_MICRO = 10_000_000
@@ -313,23 +314,29 @@ def consolidate(
 
 
 def backup_source(source: Path, backup_dir: Path) -> Path:
-    """Make a WAL-consistent backup without opening the source for writing."""
+    """Make a WAL-consistent private backup without writing to the source."""
     backup_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
     if backup_dir.stat().st_mode & 0o077:
         raise ConsolidationError("Backup directory must have mode 0700")
-    fd, name = tempfile.mkstemp(
-        prefix="provider-consolidation-", suffix=".sqlite", dir=backup_dir
-    )
-    os.close(fd)
-    destination = Path(name)
+
+    # macOS rehearsal diagnostics confirmed that SQLite can create an absent
+    # destination in a private directory. Do not pre-create an empty SQLite
+    # file with mkstemp: it differs from the working online-backup path.
+    backup_container = Path(tempfile.mkdtemp(
+        prefix="provider-consolidation-", dir=backup_dir
+    ))
+    destination = backup_container / "backup.sqlite"
     try:
-        with readonly(source) as src, sqlite3.connect(destination) as dst:
-            src.backup(dst)
-        with readonly(destination) as db:
+        with closing(readonly(source)) as src:
+            with closing(sqlite3.connect(destination)) as dst:
+                src.backup(dst)
+                dst.commit()
+        os.chmod(destination, 0o600)
+        with closing(readonly(destination)) as db:
             check_integrity(db)
         return destination
     except BaseException:
-        destination.unlink(missing_ok=True)
+        shutil.rmtree(backup_container)
         raise
 
 
