@@ -1,4 +1,4 @@
-import { C } from '../lib/theme'
+import { HERO_PIGMENTS as HP } from '../lib/theme'
 
 export const STORY_CHAPTERS = [
   { label: 'Arrival', cue: 'A NEW FRONTIER', sceneProgress: 0 },
@@ -9,7 +9,7 @@ export const STORY_CHAPTERS = [
 
 // A restrained sequence of pigments, mirroring the red/green crystal pair
 // and the mineral field. A hand-cut chip marks each chapter, not a UI dot.
-const CHAPTER_PIGMENTS = [C.gold, C.red, C.green, C.turquoise] as const
+const CHAPTER_PIGMENTS = [HP.orpiment, HP.cinnabar, HP.jade, HP.lapis] as const
 
 interface ScrollChapterRailProps {
   activeIndex: number
@@ -38,9 +38,9 @@ export function ScrollChapterRail({ activeIndex, onSelect }: ScrollChapterRailPr
               <span
                 className="text-[10px] font-medium tracking-[0.16em] uppercase transition-opacity duration-300"
                 style={{
-                  color: '#FFF3DE',
+                  color: HP.cream,
                   opacity: active ? 1 : 0,
-                  textShadow: '0 1px 2px rgba(8,22,27,0.96), 0 3px 10px rgba(8,22,27,0.65)',
+                  textShadow: '0 1px 2px rgba(43,34,72,0.96), 0 3px 10px rgba(19,49,99,0.72)',
                 }}
               >
                 {chapter.label}
@@ -49,17 +49,17 @@ export function ScrollChapterRail({ activeIndex, onSelect }: ScrollChapterRailPr
                 <span
                   className="h-[5px] w-[5px] rotate-45 transition-opacity duration-300"
                   style={{
-                    background: active ? pigment : '#E7DBC6',
+                    background: active ? pigment : HP.silk,
                     opacity: active ? 1 : 0.6,
-                    boxShadow: '0 0 0 1px rgba(255,241,211,0.66), 0 1px 5px rgba(8,22,27,0.7)',
+                    boxShadow: '0 0 0 1px rgba(240,197,75,0.73), 0 1px 5px rgba(43,34,72,0.8)',
                   }}
                 />
                 <span
                   className="block h-[2px] transition-all duration-300"
                   style={{
                     width: active ? 30 : 12,
-                    background: active ? `linear-gradient(90deg, ${pigment}, ${C.gold})` : 'rgba(255,244,218,0.78)',
-                    boxShadow: '0 1px 5px rgba(8,22,27,0.72)',
+                    background: active ? `linear-gradient(90deg, ${pigment}, ${HP.orpiment})` : 'rgba(242,223,192,0.85)',
+                    boxShadow: '0 1px 5px rgba(43,34,72,0.8)',
                   }}
                 />
               </span>
@@ -69,7 +69,7 @@ export function ScrollChapterRail({ activeIndex, onSelect }: ScrollChapterRailPr
         <span
           aria-live="off"
           className="mr-0.5 mt-2 text-[10px] font-medium tracking-[0.16em] tabular-nums"
-          style={{ color: '#FFF3DE', textShadow: '0 1px 2px rgba(8,22,27,0.96), 0 3px 8px rgba(8,22,27,0.66)' }}
+          style={{ color: HP.cream, textShadow: '0 1px 2px rgba(43,34,72,0.96), 0 3px 8px rgba(19,49,99,0.72)' }}
         >
           {String(activeIndex + 1).padStart(2, '0')} / {String(STORY_CHAPTERS.length).padStart(2, '0')}
         </span>
@@ -77,13 +77,13 @@ export function ScrollChapterRail({ activeIndex, onSelect }: ScrollChapterRailPr
       <div
         className="pointer-events-none fixed bottom-0 left-0 right-0 h-[2px] z-40 md:hidden"
         aria-hidden="true"
-        style={{ background: 'rgba(10,20,28,0.28)' }}
+        style={{ background: 'rgba(16,45,109,0.35)' }}
       >
         <div
           className="h-full transition-[width] duration-300"
           style={{
             width: ((activeIndex + 1) / STORY_CHAPTERS.length * 100) + '%',
-            background: `linear-gradient(90deg, ${C.red}, ${C.gold} 38%, ${C.green} 69%, ${C.turquoise})`,
+            background: `linear-gradient(90deg, ${HP.lapis}, ${HP.orpiment} 33%, ${HP.cinnabar} 64%, ${HP.jade})`,
           }}
         />
       </div>
