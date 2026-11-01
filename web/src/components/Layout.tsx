@@ -150,6 +150,46 @@ function NavItem({ path, label, icon: Icon, active }: {
   )
 }
 
+// A single, explicit non-landing appearance preference. Light is the default
+// even for users who previously saw the optional warm tint enabled by default.
+const APPEARANCE_KEY = 'ie-app-appearance'
+const APPEARANCE_MODES = [
+  { value: 'light', label: 'Light' },
+  { value: 'dark', label: 'Dark' },
+  { value: 'blue-light', label: 'Blue light filter' },
+] as const
+type AppAppearance = (typeof APPEARANCE_MODES)[number]['value']
+
+function readAppearance(): AppAppearance {
+  try {
+    const stored = window.localStorage.getItem(APPEARANCE_KEY)
+    if (stored === 'dark' || stored === 'blue-light') return stored
+  } catch { /* Storage can be disabled in private browsing. */ }
+  return 'light'
+}
+
+function AppearanceSelector({ value, onChange }: {
+  value: AppAppearance
+  onChange: (next: AppAppearance) => void
+}) {
+  return (
+    <div role="group" aria-label="Appearance" className="ie-app-appearance-selector grid grid-cols-3 gap-1 rounded-xl p-1">
+      {APPEARANCE_MODES.map(mode => (
+        <button
+          key={mode.value}
+          type="button"
+          aria-pressed={value === mode.value}
+          onClick={() => onChange(mode.value)}
+          className="ie-app-appearance-option min-h-[42px] min-w-0 rounded-lg px-1 py-1.5 text-[11px] leading-tight font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#F0C54B]"
+          title={mode.value === 'blue-light' ? '2400K-inspired warm overlay; not a calibrated screen whitepoint' : mode.label + ' appearance'}
+        >
+          {mode.label}
+        </button>
+      ))}
+    </div>
+  )
+}
+
 // ─── Layout ──────────────────────────────────────────────────
 
 export function Layout() {
@@ -157,16 +197,11 @@ export function Layout() {
   const coordinatorOnline = useCoordinatorStatus()
   const { user, loading: authLoading, logout } = useAuth()
   const [mobileOpen, setMobileOpen] = useState(false)
-  // On by default for the visual review. Users with f.lux already active can
-  // turn this off to avoid stacking two warm color transforms.
-  const [warmTint, setWarmTint] = useState(() => {
-    try { return window.localStorage.getItem('ie-app-bedtime-tint') !== 'off' }
-    catch { return true }
-  })
+  const [appearance, setAppearance] = useState<AppAppearance>(readAppearance)
   useEffect(() => {
-    try { window.localStorage.setItem('ie-app-bedtime-tint', warmTint ? 'on' : 'off') }
+    try { window.localStorage.setItem(APPEARANCE_KEY, appearance) }
     catch { /* Retain in-session preference if storage is unavailable. */ }
-  }, [warmTint])
+  }, [appearance])
 
   // Subscribe to live exchange events for reactive aurora
   const { events } = useWebSocket('/ws/events')
@@ -183,19 +218,20 @@ export function Layout() {
 
   if (location.pathname === '/login') {
     return (
-      <div className="ie-app-temperature-scope min-h-screen" data-warm-tint={warmTint ? 'on' : 'off'} style={{ background: `linear-gradient(180deg, #F8F8F5 0%, ${C.pageBg} 40%, #F3F2EE 100%)` }}>
+      <div className="ie-app-appearance-scope min-h-screen" data-appearance={appearance} style={{ background: `linear-gradient(180deg, #F8F8F5 0%, ${C.pageBg} 40%, #F3F2EE 100%)` }}>
         <div className="relative z-10 flex items-center justify-between gap-4 px-6 py-4">
           <Link to="/" className="text-sm font-semibold tracking-tight uppercase" style={{ color: C.gold }}>
             Inference Exchange
           </Link>
-          <button type="button" aria-pressed={warmTint} onClick={() => setWarmTint(value => !value)}
-            className="rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#845918]">
-            Bedtime tint: {warmTint ? 'On' : 'Off'}
-          </button>
+          <div className="w-64 max-w-[65vw]">
+            <AppearanceSelector value={appearance} onChange={setAppearance} />
+          </div>
         </div>
-        <ErrorBoundary>
-          <Outlet />
-        </ErrorBoundary>
+        <div className="ie-app-content">
+          <ErrorBoundary>
+            <Outlet />
+          </ErrorBoundary>
+        </div>
       </div>
     )
   }
@@ -251,19 +287,9 @@ export function Layout() {
       {/* Spacer */}
       <div className="flex-1" />
 
-      {/* Color-temperature simulation, not a true display whitepoint change. */}
-      <div className="px-4 pb-3">
-        <button
-          type="button"
-          aria-pressed={warmTint}
-          onClick={() => setWarmTint(value => !value)}
-          className="w-full flex items-center justify-between gap-2 rounded-lg border border-white/20 px-3 py-2 text-xs font-medium transition-colors hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#F0C54B]"
-          style={{ color: AP.sidebarText }}
-          title="2400K-inspired warm color overlay. Switch off if you already use f.lux."
-        >
-          <span>Bedtime tint</span>
-          <span aria-hidden="true">{warmTint ? 'On' : 'Off'}</span>
-        </button>
+      {/* App appearance only: never affects the cinematic landing screen. */}
+      <div className="px-3 pb-3">
+        <AppearanceSelector value={appearance} onChange={setAppearance} />
       </div>
       {/* Network status + user */}
       <div className="px-4 pb-5 space-y-3">
@@ -306,7 +332,7 @@ export function Layout() {
   )
 
   return (
-    <div className="ie-mineral-app ie-app-temperature-scope flex min-h-screen" data-warm-tint={warmTint ? 'on' : 'off'} style={{ background: `linear-gradient(180deg, #F8F8F5 0%, ${C.pageBg} 40%, #F3F2EE 100%)` }}>
+    <div className="ie-mineral-app ie-app-appearance-scope flex min-h-screen" data-appearance={appearance} style={{ background: `linear-gradient(180deg, #F8F8F5 0%, ${C.pageBg} 40%, #F3F2EE 100%)` }}>
       {/* Desktop sidebar */}
       <aside
         className="ie-mineral-sidebar hidden lg:flex flex-col w-52 shrink-0 sticky top-0 h-screen overflow-y-auto"
@@ -357,18 +383,18 @@ export function Layout() {
       )}
 
       {/* Main content */}
-      <div className="flex-1 min-w-0 lg:ml-0 relative">
+      <div className="ie-app-content flex-1 min-w-0 lg:ml-0 relative">
         {/* Continuous mineral light field. Product surfaces stay quiet; the spectrum lives behind them. */}
         <div className="ie-app-spectrum-rule absolute left-0 right-0 top-0 z-20 h-[2px]" style={{ background: GRADIENTS.fullSpectrum }} />
         {/* Living mineral aurora — reactive to network events */}
         <div className="absolute inset-0 z-0 overflow-hidden">
-          <MineralAurora variant="light" opacity={0.06} speed={0.0002} pulses={pulses} className="absolute inset-0" />
+          <MineralAurora variant={appearance === 'dark' ? 'dark' : 'light'} opacity={0.06} speed={0.0002} pulses={pulses} className="absolute inset-0" />
         </div>
 
         {/* Page title area + network status */}
         <div className="relative z-10 px-6 md:px-10 pt-14 lg:pt-8 pb-6 flex items-start justify-between">
           <div>
-            <PageTitle pathname={location.pathname} />
+            <PageTitle pathname={location.pathname} dark={appearance === 'dark'} />
           </div>
           {coordinatorOnline !== null && (
             <div className="hidden lg:flex items-center gap-2 pt-1">
@@ -410,11 +436,12 @@ const PAGE_META: Record<string, { title: string; subtitle: string }> = {
   '/docs': { title: 'Docs', subtitle: 'Principles and requirements. The code implements these.' },
 }
 
-function PageTitle({ pathname }: { pathname: string }) {
+function PageTitle({ pathname, dark }: { pathname: string; dark: boolean }) {
   const meta = PAGE_META[pathname.startsWith('/docs') ? '/docs' : pathname.startsWith('/start/') ? '/start' : pathname]
   if (!meta) return null
 
   const gradient =
+    dark ? 'linear-gradient(110deg, #F2DCA8 0%, #B2D2C3 54%, #B9C9EA 100%)' :
     pathname === '/chat' ? GRADIENTS.demandToExchange :
     pathname === '/exchange' || pathname === '/models' ? GRADIENTS.market :
     pathname === '/providers' || pathname === '/dashboard' ? GRADIENTS.supplyToValue :
@@ -434,7 +461,7 @@ function PageTitle({ pathname }: { pathname: string }) {
       >
         {meta.title}
       </h1>
-      <p className="text-sm mt-1" style={{ color: AP.body }}>
+      <p className="text-sm mt-1" style={{ color: dark ? '#C6D0D5' : AP.body }}>
         {meta.subtitle}
       </p>
     </div>
