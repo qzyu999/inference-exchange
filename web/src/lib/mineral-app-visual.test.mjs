@@ -106,7 +106,7 @@ assert.match(css, /\[style\*="color: rgb\(41, 47, 53\)"\]/)
 assert.match(css, /\.docs-body pre \{/)
 assert.match(shell, /dark \? 'linear-gradient\(110deg, #F2DCA8/)
 assert.match(shell, /dark \? '#C6D0D5' : AP\.body/)
-assert.match(css, /\.ie-app-appearance-option:focus-visible|focus-visible:outline/)
+assert.match(shell, /focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-\[#F0C54B\]/)
 assert.match(css, /\.ie-app-appearance-option \{[\s\S]*?transition: background-color 150ms/)
 assert.match(css, /@media \(prefers-reduced-motion: reduce\) \{\s*\.ie-app-appearance-option \{ transition: none; \}/)
 const tint = (hex, overlay = '#FF995B', strength = 0.48) =>
