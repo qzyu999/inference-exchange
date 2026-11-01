@@ -56,7 +56,9 @@ export const APP_PIGMENTS = {
   jadeInk: '#31644E',
   sidebarText: '#EADFCB',
   sidebarMuted: '#C4BBD0',
-  sidebar: 'linear-gradient(180deg, #292F35 0%, #302A31 34%, #293137 70%, #252A30 100%)',
+  // Soft illustrated-sky wash: sage-gray mist above, a small ochre sun haze
+  // at the horizon, resolving to light silk. The entire page stays readable.
+  atmosphere: 'radial-gradient(ellipse 59% 39% at 84% 27%, rgba(229,171,101,0.23) 0%, transparent 75%), radial-gradient(ellipse 65% 40% at 12% 8%, rgba(107,149,146,0.17) 0%, transparent 76%), linear-gradient(180deg, #C5D1CD 0%, #D6D9CA 19%, #E5D5BA 43%, #ECD8B9 57%, #F5EBD9 80%, #FAF7EE 100%)',
 } as const
 
 // Trust levels are claimed by providers and not yet independently verified (see #1). Say so wherever they are shown.
