@@ -108,7 +108,6 @@ const CHAPTER_COPY = [
 // shading across the photographic scene.
 const HERO_TITLE_SHADOW = '0 1px 2px rgba(43,34,72,0.94), 0 3px 8px rgba(19,49,99,0.76), 0 7px 17px rgba(43,34,72,0.48)'
 const HERO_BODY_SHADOW = '0 1px 2px rgba(43,34,72,0.98), 0 2px 7px rgba(19,49,99,0.79), 0 4px 13px rgba(43,34,72,0.54)'
-const HERO_PIGMENT_WORD = `linear-gradient(95deg, ${HP.cream} 0%, ${HP.orpiment} 29%, ${HP.saffron} 52%, ${HP.cinnabar} 76%, #F1CE91 100%)`
 const HERO_PRODUCT_GRADIENT = `linear-gradient(90deg, ${HP.orpiment} 0%, ${HP.saffron} 28%, ${HP.coralLotus} 64%, #C2E1B7 100%)`
 
 // No landscape tint. All contrast stays within text glyphs and controls.
@@ -139,11 +138,10 @@ function EditorialStory({
           textShadow: HERO_TITLE_SHADOW,
           WebkitTextStroke: '0.65px rgba(43,34,72,0.83)',
         }
+        // Share the exact landing-logo mineral spectrum and slow drift on
+        // each locked-in story headline; retain still ink for supporting copy.
         const shortTitle = (
-          <span
-            className={index === 1 || index === 3 ? 'hero-pigment-ink' : undefined}
-            style={index === 1 || index === 3 ? { backgroundImage: HERO_PIGMENT_WORD } : undefined}
-          >
+          <span className="mineral-spectrum-text hero-mineral-wordmark hero-story-spectrum">
             {chapter.title}
           </span>
         )
