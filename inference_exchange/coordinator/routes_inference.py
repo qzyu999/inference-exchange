@@ -237,7 +237,7 @@ async def chat_completions(request: ChatCompletionRequest, raw_request: Request)
     validation_error = request.validate_inputs()
     if validation_error:
         return JSONResponse(
-            {"error": {"message": validation_error, "type": "invalid_request_error", "code": "invalid_request"}},
+            {"error": {"message": validation_error, "type": "invalid_request", "code": "invalid_request"}},
             status_code=400,
         )
 
