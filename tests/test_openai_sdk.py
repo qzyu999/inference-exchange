@@ -12,7 +12,15 @@ import sys
 from openai import OpenAI
 
 BASE_URL = "http://localhost:8000/v1"
-API_KEY = "sk-ie-test"  # Any key works (falls back to default consumer)
+API_KEY = "sk-ie-test"  # Local development only; use a real key for production.
+
+
+def _online_model(client):
+    """Choose a real provider-advertised model, not the old wildcard alias."""
+    ids = [model.id for model in client.models.list().data]
+    assert ids, "No models online"
+    return ids[0]
+
 
 
 def test_chat_completion_streaming():
@@ -21,10 +29,11 @@ def test_chat_completion_streaming():
 
     print("[1] Streaming chat completion...")
     stream = client.chat.completions.create(
-        model="default",
+        model=_online_model(client),
         messages=[{"role": "user", "content": "Say hello in 5 words."}],
         max_tokens=20,
         stream=True,
+        extra_body={"ocip_min_confidence": "open"},
     )
 
     tokens = []
@@ -43,10 +52,11 @@ def test_chat_completion_non_streaming():
 
     print("[2] Non-streaming chat completion...")
     response = client.chat.completions.create(
-        model="default",
+        model=_online_model(client),
         messages=[{"role": "user", "content": "What is 1+1? One word."}],
         max_tokens=10,
         stream=False,
+        extra_body={"ocip_min_confidence": "open"},
     )
 
     content = response.choices[0].message.content
