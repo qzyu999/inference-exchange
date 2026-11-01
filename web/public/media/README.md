@@ -1,7 +1,15 @@
-# Local cinematic landing page media (#107, #185)
+# Cinematic media — historical local master files
 
-> **Deployment update (Cloudflare R2/CDN):** See [docs/hero-media-cloudflare-r2.md](../../../docs/hero-media-cloudflare-r2.md) for the new upload/verification workflow, public `media.inferenceex.com` proposal, `VITE_HERO_MEDIA_ORIGIN` build-time switch, local Vite vs CDN modes, and release gate. This PR remains draft until R2 assets are live and verified. The rest of this README preserves the earlier local-review history.
-
+> **Production source of truth is now Cloudflare Stream HLS.** See
+> [the current Stream rollout checklist](../../../docs/hero-media-cloudflare-r2.md)
+> and draft [PR #207](https://github.com/qzyu999/inference-exchange/pull/207).
+> Do **not** upload the MP4 files listed below to the production website.
+> The Stream-only landing player uses neither R2 videos nor local MP4 files.
+> `VITE_HERO_STREAM_ENABLED` defaults to **false** (static Stream thumbnail),
+> and public video requires a separately approved production build.
+>
+> The earlier MP4 instructions below are archival context for local visual
+> comparisons, not a deployment checklist.
 
 ## 21:9 Runway Aleph desktop master (October 30, 2026) — CURRENT
 
