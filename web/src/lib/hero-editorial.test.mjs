@@ -61,12 +61,14 @@ assert.match(landing, /className="relative mx-auto w-full max-w-2xl text-center"
 assert.match(landing, /className="mt-8 flex flex-wrap items-center justify-center gap-3"/)
 assert.doesNotMatch(landing, /'Intelligence,'|'without borders\.'|'A network'|'in motion\.'/)
 
-// Exact original main landing typography and warm ink, inside the new pinned
-// chapter crossfades. Remove the animated rainbow and later letterpress look.
-assert.match(landing, /className="text-4xl md:text-6xl font-bold tracking-tight"/)
-assert.match(landing, /color: C\.warmWhite, textShadow: '0 2px 24px rgba\(0,0,0,0\.6\)'/)
-assert.match(landing, /className="text-3xl md:text-5xl font-bold tracking-tight leading-tight"/)
-assert.match(landing, /className="bg-clip-text text-transparent"/)
+// Original main headline sizes and STATIC pigment gradients, now painted
+// with the same mani-stone incised glyph edge as smaller text. No rainbow
+// motion, backdrop scrim or oversized legacy glow.
+assert.match(landing, /className="hero-mani-heading text-4xl md:text-6xl font-bold tracking-tight"/)
+assert.match(landing, /className="hero-mani-heading text-3xl md:text-5xl font-bold tracking-tight leading-tight"/)
+assert.match(landing, /className="hero-mani-heading-pigment bg-clip-text text-transparent"/)
+assert.match(landing, /className="hero-mani-heading text-4xl md:text-5xl font-bold tracking-tight leading-\[1\.1\]"/)
+assert.match(landing, /className="hero-mani-heading text-xl font-bold mb-5"/)
 assert.ok(landing.includes('backgroundImage: index === 1 || index === LAST_CHAPTER'))
 assert.ok(landing.includes('GRADIENTS.heroText'))
 assert.ok(landing.includes('linear-gradient(135deg, ${C.warmWhite}, ${C.sand})'))
@@ -141,6 +143,14 @@ assert.match(styles, /paint-order: stroke fill;/)
 assert.match(styles, /\.hero-mani-nav \{/)
 assert.match(styles, /color: #F7EAD6;/)
 assert.match(styles, /\.hero-mani-meta \{/)
+assert.match(styles, /\.hero-mani-heading \{/)
+assert.match(styles, /color: #F8EAD5;/)
+assert.match(styles, /-webkit-text-stroke: 0\.8px rgba\(16, 24, 29, 0\.96\);/)
+assert.match(styles, /\.hero-mani-heading-pigment \{/)
+assert.match(styles, /-webkit-text-stroke: 0\.95px rgba\(16, 24, 29, 0\.98\);/)
+assert.match(styles, /text-shadow: none;/)
+assert.match(styles, /\.hero-mani-heading,\s*\.hero-mani-heading-pigment \{/)
+assert.doesNotMatch(landing, /0 2px 24px rgba\(0,0,0,0\.6\)/)
 assert.match(nav, /const NAV_PAINT = '#F7EAD6'/)
 assert.match(nav, /hero-mani-nav text-\[13px\]/)
 assert.doesNotMatch(landing, /style=\{\{ color: '#8a8578' \}\}/)
