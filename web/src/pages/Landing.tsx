@@ -124,7 +124,7 @@ function EditorialStory({
         // pinned holds/crossfades are the only deliberate pacing change.
         const shortTitle = index === 0 ? chapter.title : (
           <span
-            className="bg-clip-text text-transparent"
+            className="hero-mani-heading-pigment bg-clip-text text-transparent"
             style={{ backgroundImage: index === 1 || index === LAST_CHAPTER ? GRADIENTS.heroText : `linear-gradient(135deg, ${C.warmWhite}, ${C.sand})` }}
           >
             {chapter.title}
@@ -148,15 +148,14 @@ function EditorialStory({
               {index === 0 ? (
                 <h1
                   id={'landing-chapter-title-' + index}
-                  className="text-4xl md:text-6xl font-bold tracking-tight"
-                  style={{ color: C.warmWhite, textShadow: '0 2px 24px rgba(0,0,0,0.6)' }}
+                  className="hero-mani-heading text-4xl md:text-6xl font-bold tracking-tight"
                 >
                   {shortTitle}
                 </h1>
               ) : (
                 <h2
                   id={'landing-chapter-title-' + index}
-                  className="text-3xl md:text-5xl font-bold tracking-tight leading-tight"
+                  className="hero-mani-heading text-3xl md:text-5xl font-bold tracking-tight leading-tight"
                 >
                   {shortTitle}
                 </h2>
@@ -241,7 +240,7 @@ function LiveExchangeCard() {
       <div className="hero-mani-meta text-xs uppercase tracking-wider mb-1.5" style={{ color: '#F0C978' }}>
         Live Exchange
       </div>
-      <h3 className="text-xl font-bold mb-5" style={{ color: C.warmWhite }}>
+      <h3 className="hero-mani-heading text-xl font-bold mb-5">
         Supply &times; demand
       </h3>
 
@@ -449,11 +448,11 @@ export function Landing() {
                 <div className="flex flex-col lg:flex-row items-center justify-between gap-12 lg:gap-16">
                 {/* Left: headline + CTAs */}
                 <div className="flex-1 max-w-xl">
-                  <h2 className="text-4xl md:text-5xl font-bold tracking-tight leading-[1.1]" style={{ color: HP.cream }}>
+                  <h2 className="hero-mani-heading text-4xl md:text-5xl font-bold tracking-tight leading-[1.1]">
                     Distributed AI inference,
                     <br />
                     <span
-                      className="bg-clip-text text-transparent"
+                      className="hero-mani-heading-pigment bg-clip-text text-transparent"
                       style={{ backgroundImage: HERO_PRODUCT_GRADIENT }}
                     >
                       powered by everyone.
