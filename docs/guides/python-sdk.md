@@ -40,8 +40,13 @@ client = OpenAI(
     base_url=os.environ["IE_BASE_URL"],
 )
 
+model_ids = [model.id for model in client.models.list().data]
+if not model_ids:
+    raise RuntimeError("No model is available right now")
+model_id = model_ids[0]
+
 result = client.chat.completions.create(
-    model="default",
+    model=model_id,
     messages=[{"role": "user", "content": "Say hello."}],
     max_tokens=64,
     extra_body={"ocip_min_confidence": "open"},
@@ -53,7 +58,7 @@ print(result.choices[0].message.content)
 
 ```python
 stream = client.chat.completions.create(
-    model="default",
+    model=model_id,
     messages=[{"role": "user", "content": "Count to five."}],
     stream=True,
     extra_body={"ocip_min_confidence": "open"},
@@ -71,7 +76,7 @@ for model in client.models.list():
     print(model.id)
 ```
 
-Use `model="default"` to accept any model. Use a model ID from the list to require that model.
+You must provide a model ID returned by `client.models.list()`. The old `default` alias is not accepted. The exchange still chooses an eligible provider for the selected model.
 
 ## 4. Exchange options
 
@@ -96,6 +101,7 @@ Each error has the OpenAI format: `{"error": {"message", "type", "code"}}`. The 
 
 | HTTP | `code` | Cause | Action |
 |---|---|---|---|
+| 400 | `invalid_model` | Missing, empty, or `default` model ID. | List models, then send an exact model ID. |
 | 401 | `invalid_api_key` | The key is wrong, revoked, or expired. | Create a new key. |
 | 401 | `authentication_required` | The request has no key. | Set `api_key`. |
 | 403 | `account_suspended` | An operator suspended the account. | Contact the operator. |
@@ -104,7 +110,7 @@ Each error has the OpenAI format: `{"error": {"message", "type", "code"}}`. The 
 | 429 | `concurrency_limit` | Too many requests at the same time from your account. | Wait for a request to finish. |
 | 503 | `no_provider_available` | No provider is online. | Try again later. |
 | 503 | `no_compatible_provider` | No provider meets your trust level or price. | Read the message. Change the constraint, or try again later. |
-| 503 | `model_not_available` | No provider serves the model. | Use `default` or a model from `client.models.list()`. |
+| 503 | `model_not_available` | No provider serves the model. | Use a model from `client.models.list()` or try later. |
 | 503 | `queue_timeout` | All matching providers stayed busy. | Try again later. |
 | 503 | `inference_paused` | The operator paused inference. | Try again later. |
 | 502, 504 | `provider_error`, `provider_timeout` | The provider failed or did not answer. | Try again. |
