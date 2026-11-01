@@ -32,6 +32,13 @@ export const C = {
 } as const
 
 /**
+ * The actual static fallback behind the final landing slide's mineral-flow
+ * shader. Reuse the same dark ink/jade/cinnabar foundation in the app shell;
+ * the app keeps its lightweight 2D aurora rather than a second WebGL pass.
+ */
+export const MINERAL_FIELD_BACKGROUND = 'radial-gradient(ellipse at 80% 30%, rgba(8,127,91,0.18), transparent 45%), radial-gradient(ellipse at 90% 82%, rgba(200,58,50,0.12), transparent 48%), #111A26'
+
+/**
  * Product workbench pilot (#203). These semantic mineral tones reconcile
  * the new Tibetan/Sichuan-inspired landing art with dense data interfaces.
  * Keep C/TRUST_COLORS untouched while piloting the shared shell.
@@ -47,21 +54,19 @@ export const APP_PIGMENTS = {
   malachite: '#3F7B67',
   silk: '#F2DFC0',
   cloud: '#FBF4E4',
-  // Muted workbench surfaces: less glare against the cooler image-derived
-  // atmosphere; dark ink retains high contrast.
-  parchment: '#CEDCD2',
-  paper: '#D9E4DC',
-  line: '#92AA9E',
+  // Non-glare, light-enough reading surfaces against the dark mineral field.
+  // Existing dense table/form text is intentionally dark on these panels.
+  parchment: '#C4CAC7',
+  paper: '#C6D1CB',
+  line: '#859B94',
   ink: '#263A63',
   body: '#46546A',
   goldInk: '#845918',
   jadeInk: '#31644E',
   sidebarText: '#EADFCB',
   sidebarMuted: '#C4BBD0',
-  // Reference-inspired landscape gradient: dusky sky-blue/teal overhead,
-  // softened mineral greens at mid-height and an earthy sage base.
-  // No near-white, high-luminance or saffron hotspot in the page backdrop.
-  atmosphere: 'radial-gradient(ellipse 72% 35% at 14% 6%, rgba(93,145,151,0.14) 0%, transparent 80%), radial-gradient(ellipse 59% 39% at 88% 84%, rgba(104,137,99,0.09) 0%, transparent 82%), linear-gradient(180deg, #426A75 0%, #537A7C 27%, #6A8E87 54%, #829C8B 77%, #91A48B 100%)',
+  // Match the final landing product slide's deep mineral backdrop.
+  atmosphere: MINERAL_FIELD_BACKGROUND,
 } as const
 
 /**
