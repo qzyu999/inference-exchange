@@ -47,21 +47,18 @@ export const APP_PIGMENTS = {
   malachite: '#3F7B67',
   silk: '#F2DFC0',
   cloud: '#FBF4E4',
-  // Bedtime-warm paper inspired by the original tan alpha, not a literal
-  // 2400 K display transform (a website cannot control monitor whitepoint).
-  parchment: '#E8D8C3',
-  paper: '#EEE1CE',
-  line: '#C7B397',
+  parchment: '#F7F2E8',
+  paper: '#FFFDF7',
+  line: '#D9C8AA',
   ink: '#263A63',
   body: '#46546A',
   goldInk: '#845918',
   jadeInk: '#31644E',
   sidebarText: '#EADFCB',
   sidebarMuted: '#C4BBD0',
-  // Restore the pre-experiment warm tan composition. A restrained amber
-  // temperature shift and lower-luminance ivory replace the glare-prone
-  // almost-white endpoint; no blanket CSS filter or chromatic status tint.
-  atmosphere: 'radial-gradient(ellipse 60% 42% at 84% 27%, rgba(207,136,71,0.13) 0%, transparent 75%), linear-gradient(180deg, #D0C3B1 0%, #D7C9B4 23%, #DEC9AC 53%, #E4D3B9 77%, #E5D8C5 100%)',
+  // Matches the established main application shell, not a scenic wash.
+  // Genuine 2400 K color temperature belongs to display-level software.
+  atmosphere: 'linear-gradient(180deg, #F8F8F5 0%, ' + C.pageBg + ' 40%, #F3F2EE 100%)',
 } as const
 
 /**
