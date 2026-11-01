@@ -10,8 +10,8 @@ const styles = readFileSync(new URL('../index.css', import.meta.url), 'utf8')
 // The mountain/lake plate is kept intact, not covered with legibility washes.
 assert.match(landing, /data-hero-shade="off"/)
 assert.doesNotMatch(landing, /SHOW_(?:LEGACY|TEXT)_SHADE|heroShade=legacy|heroShade=soft/)
-assert.match(landing, /HERO_TITLE_SHADOW/)
-assert.match(landing, /HERO_BODY_SHADOW/)
+assert.doesNotMatch(landing, /HERO_TITLE_SHADOW|HERO_BODY_SHADOW/)
+assert.doesNotMatch(landing, /hero-story-spectrum|WebkitTextStroke/)
 
 // Bring back the original live-alpha narrative, centered and concise,
 // while retaining the *new* four scroll holds/scene poses/transition logic.
@@ -33,26 +33,30 @@ assert.match(landing, /const FINAL_SCROLL_UNITS = LAST_CHAPTER \+ 2\.2/)
 assert.match(landing, /const SCENE_POSES = \[\.\.\.STORY_CHAPTERS\.map/)
 assert.match(landing, /key=\{chapter\.title\}/)
 assert.match(landing, /className="absolute inset-0 flex items-center justify-center px-6 sm:px-10 text-center"/)
-assert.match(landing, /className="relative mx-auto w-full max-w-3xl pt-6 text-center"/)
+assert.match(landing, /className="relative mx-auto w-full max-w-2xl text-center"/)
 assert.match(landing, /className="mt-8 flex flex-wrap items-center justify-center gap-3"/)
 assert.doesNotMatch(landing, /'Intelligence,'|'without borders\.'|'A network'|'in motion\.'/)
 
-// The new inscription colors reference actual user-supplied painting motifs.
-// Lapis / indigo replace black shadows; saffron and cinnabar replace white ink.
-assert.match(landing, /HERO_PIGMENTS as HP/)
-// The headline on EVERY locked-in chapter inherits precisely the same
-// drifting mineral spectrum as the landing logo; supporting paragraphs stay
-// legible and do not receive animated text backgrounds.
-assert.match(landing, /className="mineral-spectrum-text hero-mineral-wordmark hero-story-spectrum"/)
+// Exact original main landing typography and warm ink, inside the new pinned
+// chapter crossfades. Remove the animated rainbow and later letterpress look.
+assert.match(landing, /className="text-4xl md:text-6xl font-bold tracking-tight"/)
+assert.match(landing, /color: C\.warmWhite, textShadow: '0 2px 24px rgba\(0,0,0,0\.6\)'/)
+assert.match(landing, /className="text-3xl md:text-5xl font-bold tracking-tight leading-tight"/)
+assert.match(landing, /className="bg-clip-text text-transparent"/)
+assert.match(landing, /backgroundImage: 'linear-gradient\(135deg, ' \+ C\.warmWhite \+ ', ' \+ C\.sand \+ '\)'/)
+assert.match(landing, /color: '#e6e0cf', textShadow: '0 1px 12px rgba\(0,0,0,0\.7\)'/)
+assert.match(landing, /color: '#8a8578'/)
+assert.match(landing, /style=\{\{ background: C\.warmWhite, color: C\.black \}\}/)
+assert.match(landing, /background: 'rgba\(14,16,24,0\.5\)'/)
+assert.doesNotMatch(landing, /mineral-spectrum-text hero-mineral-wordmark hero-story-spectrum/)
+assert.doesNotMatch(landing, /hero-pigment-(?:primary|secondary|link)/)
+assert.doesNotMatch(landing, /hero-body-inscription|hero-fine-inscription/)
 assert.match(landing, /CHAPTER_COPY\.map\(\(chapter, index\) =>/)
-assert.match(landing, /<span className="mineral-spectrum-text hero-mineral-wordmark hero-story-spectrum">[\s\S]*?\{chapter\.title\}/)
-assert.match(styles, /\.hero-mineral-wordmark \{[\s\S]*?animation: mineral-shift 15s ease-in-out infinite/)
-assert.match(styles, /@media \(prefers-reduced-motion: reduce\) \{\s*\.hero-mineral-wordmark,[\s\S]*?animation: none/)
-assert.doesNotMatch(landing, /HERO_PIGMENT_WORD/)
-assert.match(landing, /className="hero-body-inscription mx-auto mt-5 max-w-xl/)
+assert.match(landing, /transition: 'opacity 420ms ease, visibility 420ms'/)
+assert.match(landing, /className="hero-video-bedtime-tint|<LandscapeVideo/) // footage tint lives in video component
 
 assert.match(landing, /HERO_PRODUCT_GRADIENT/)
-assert.match(landing, /WebkitTextStroke: '0\.65px rgba\(43,34,72,0\.83\)'/)
+assert.doesNotMatch(landing, /WebkitTextStroke/)
 for (const [name, color] of Object.entries({
   lapis: '#163E8C', indigoSmoke: '#433763', orpiment: '#F0C54B',
   saffron: '#E29A2D', cinnabar: '#C94C2F', coralLotus: '#E48773',
@@ -88,8 +92,7 @@ assert.match(styles, /\.hero-pigment-primary \{[\s\S]*?background: var\(--hero-a
 assert.match(styles, /\.hero-pigment-secondary \{[\s\S]*?var\(--hero-atmosphere-wash\)/)
 assert.doesNotMatch(styles, /rgba\(30, 94, 86, 0\.93\)/)
 assert.doesNotMatch(landing, /rgba\(16,45,109,0\.76\)/)
-assert.match(landing, /hero-body-inscription/)
-assert.match(landing, /hero-fine-inscription/)
+assert.doesNotMatch(landing, /hero-body-inscription|hero-fine-inscription/)
 assert.match(nav, /mineral-spectrum-text hero-mineral-wordmark/)
 assert.match(styles, /\.hero-body-inscription/)
 assert.match(styles, /\.hero-mineral-wordmark/)
@@ -115,4 +118,4 @@ for (const route of ['/chat', '/provide', '/exchange']) {
 }
 assert.match(rail, /aria-label="Landing story chapters"/)
 assert.match(styles, /@media \(prefers-reduced-motion: reduce\)/)
-console.log('Landing pigment study: no tint, lapis/saffron palette, accessible routes verified')
+console.log('Landing pinned chapters: original main text styling, original CTAs, stable scroll, and video tint preserved')
