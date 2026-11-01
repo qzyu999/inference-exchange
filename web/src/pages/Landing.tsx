@@ -114,12 +114,7 @@ const HERO_BODY_SHADOW = '0 1px 2px rgba(8,20,26,0.95), 0 2px 7px rgba(8,20,26,0
 const HERO_PIGMENT_RULE = `linear-gradient(90deg, ${C.red} 0%, ${C.orange} 20%, ${C.gold} 43%, ${C.green} 69%, ${C.turquoise} 91%, transparent 100%)`
 const HERO_PIGMENT_WORD = 'linear-gradient(112deg, #FFF7E9 0%, #F3DFB8 35%, #F8ECDC 61%, #D6EAE1 88%, #F5F3E9 100%)'
 
-// Text-only contrast is now the default. A faint local tint is available for
-// A/B checking on unusually bright frames; legacy preserves the old treatment.
-// ?heroShade=soft (small feathered tint) | ?heroShade=legacy (original wash).
-const SHADE_MODE = new URLSearchParams(window.location.search).get('heroShade')
-const SHOW_LEGACY_SHADE = SHADE_MODE === 'legacy'
-const SHOW_TEXT_SHADE = SHADE_MODE === 'soft'
+// No landscape tint. All contrast stays within text glyphs and controls.
 // Debug-only visual centerline, at the same 50% stage x used by the video.
 const SHOW_ALIGNMENT_GUIDES = new URLSearchParams(window.location.search).get('heroGuides') === '1'
 
@@ -137,30 +132,9 @@ function EditorialStory({
   return (
     <div
       className="pointer-events-none absolute inset-0 z-20"
-      data-hero-shade={SHOW_LEGACY_SHADE ? 'legacy' : SHOW_TEXT_SHADE ? 'soft' : 'off'}
+      data-hero-shade="off"
       style={{ opacity: 1 - exitProgress }}
     >
-      {SHOW_TEXT_SHADE && (
-        <div
-          className="pointer-events-none absolute inset-y-0 left-0 w-[min(90vw,700px)] sm:w-[min(64vw,700px)] lg:w-[min(41vw,700px)]"
-          aria-hidden="true"
-          style={{
-            // A tiny pool of contrast, shifted right beneath the copy, with
-            // the color gone well before the mountain/reflection centerline.
-            // Default view has NO overlay; this is only ?heroShade=soft.
-            background: 'radial-gradient(ellipse 78% 49% at 37% 50%, rgba(5,11,21,0.16) 0%, rgba(5,11,21,0.06) 48%, rgba(5,11,21,0) 88%)',
-          }}
-        />
-      )}
-      {SHOW_LEGACY_SHADE && (
-        <div
-          className="pointer-events-none absolute inset-y-0 left-0 w-[88%] sm:w-[72%] lg:w-[58%]"
-          aria-hidden="true"
-          style={{
-            background: 'linear-gradient(90deg, rgba(6,14,26,0.82) 0%, rgba(6,14,26,0.62) 42%, rgba(6,14,26,0.24) 76%, transparent 100%)',
-          }}
-        />
-      )}
       {CHAPTER_COPY.map((chapter, index) => {
         const visible = index === activeIndex
         return (
@@ -519,7 +493,7 @@ export function Landing() {
                     <br />
                     <span
                       className="bg-clip-text text-transparent"
-                      style={{ backgroundImage: GRADIENTS.heroText }}
+                      style={{ backgroundImage: GRADIENTS.market }}
                     >
                       powered by everyone.
                     </span>
@@ -538,7 +512,7 @@ export function Landing() {
                       style={{ color: C.blueBlack }}
                     >
                       <span className="absolute inset-0 rounded-xl transition-opacity" style={{ background: C.warmWhite }} />
-                      <span className="absolute inset-0 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity" style={{ background: GRADIENTS.heroText }} />
+                      <span className="absolute inset-0 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity" style={{ background: GRADIENTS.market }} />
                       <span className="relative z-10 group-hover:text-white transition-colors">Start a conversation</span>
                     </Link>
                     <Link
