@@ -67,12 +67,21 @@ export function LandingNav() {
   return (
     <header
       className="fixed top-0 left-0 right-0 z-50"
-      style={{
-        background: GRADIENTS.sidebar,
-        borderBottom: '1px solid rgba(240,197,75,0.34)',
-        boxShadow: '0 2px 12px rgba(31,31,32,0.22)',
-      }}
+      style={{ background: GRADIENTS.sidebar }}
     >
+      {/* The hero is a separate 56px-offset stage. Cover the tiny exposed
+          ultrawide video/blur seam with the navbar itself, without moving
+          the video, changing nav hit targets or altering scroll geometry.
+          #252A30 is the last stop of GRADIENTS.sidebar. */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-x-0 top-full h-4"
+        style={{
+          background: '#252A30',
+          borderBottom: '1px solid rgba(240,197,75,0.34)',
+          boxShadow: '0 2px 12px rgba(31,31,32,0.22)',
+        }}
+      />
       <a
         href="#landing-main"
         className={`sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:px-3 focus:py-2 focus:rounded-lg ${FOCUS}`}
