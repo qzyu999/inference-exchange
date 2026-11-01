@@ -334,7 +334,7 @@ export function Layout() {
         <div className="ie-app-spectrum-rule absolute left-0 right-0 top-0 z-20 h-[2px]" style={{ background: GRADIENTS.fullSpectrum }} />
         {/* Living mineral aurora — reactive to network events */}
         <div className="absolute inset-0 z-0 overflow-hidden">
-          <MineralAurora variant="light" opacity={0.06} speed={0.0002} pulses={pulses} className="absolute inset-0" />
+          <MineralAurora variant="dark" opacity={0.10} speed={0.0002} pulses={pulses} className="absolute inset-0" />
         </div>
 
         {/* Page title area + network status */}
@@ -386,8 +386,8 @@ function PageTitle({ pathname }: { pathname: string }) {
   const meta = PAGE_META[pathname.startsWith('/docs') ? '/docs' : pathname.startsWith('/start/') ? '/start' : pathname]
   if (!meta) return null
 
-  // Page headings sit directly on the darker teal portion of the backdrop.
-  // The previous dark mineral gradients lost contrast on that surface.
+  // Page headings sit on the same dark mineral field as the landing finale.
+  // Light ink remains readable without the bright white page wash.
   const gradient = GRADIENTS.appTitle
 
   return (
