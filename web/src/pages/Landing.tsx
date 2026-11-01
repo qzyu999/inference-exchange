@@ -162,16 +162,13 @@ function EditorialStory({
                 </h2>
               )}
               {'description' in chapter && (
-              <p
-                className={index === 0
-                  ? 'mt-4 max-w-xl mx-auto text-base md:text-lg leading-relaxed'
-                  : 'text-base md:text-lg mt-4 leading-relaxed max-w-lg mx-auto'}
-                style={index === 0
-                  ? { color: '#e6e0cf', textShadow: '0 1px 12px rgba(0,0,0,0.7)' }
-                  : { color: '#8a8578' }}
-              >
-                {chapter.description}
-              </p>
+                <p
+                  className={index === 0
+                    ? 'hero-mani-copy mt-4 max-w-xl mx-auto text-base md:text-lg leading-relaxed'
+                    : 'hero-mani-copy text-base md:text-lg mt-4 leading-relaxed max-w-lg mx-auto'}
+                >
+                  {chapter.description}
+                </p>
               )}
               {index === 0 && (
                 <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
@@ -206,13 +203,12 @@ function EditorialStory({
         <div className="absolute bottom-8 inset-x-6 flex items-center justify-center gap-4"
           style={{ pointerEvents: exitProgress < 0.95 ? 'auto' : 'none' }}>
           <button type="button" onClick={onNext}
-            className="text-xs tracking-wider uppercase px-3 py-2 rounded-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#E8C77A]"
-            style={{ color: '#d8d1be' }}>
+            className="hero-mani-fine text-[13px] tracking-wider uppercase px-3 py-2 rounded-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#E8C77A]">
             Scroll to explore ↓
           </button>
           <button type="button" onClick={onSkip}
-            className="text-xs tracking-wider uppercase px-3 py-2 rounded-lg border focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#E8C77A]"
-            style={{ color: '#d8d1be', borderColor: 'rgba(216,209,190,0.3)' }}>
+            className="hero-mani-fine text-[13px] tracking-wider uppercase px-3 py-2 rounded-lg border focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#E8C77A]"
+            style={{ borderColor: 'rgba(216,209,190,0.45)' }}>
             Skip intro
           </button>
         </div>
@@ -242,7 +238,7 @@ function LiveExchangeCard() {
       className="rounded-2xl p-6 w-full max-w-sm mineral-border"
       style={{ background: 'rgba(255,255,255,0.06)', backdropFilter: 'blur(12px)' }}
     >
-      <div className="text-[10px] uppercase tracking-wider font-medium mb-1.5" style={{ color: C.gold }}>
+      <div className="hero-mani-meta text-xs uppercase tracking-wider mb-1.5" style={{ color: '#F0C978' }}>
         Live Exchange
       </div>
       <h3 className="text-xl font-bold mb-5" style={{ color: C.warmWhite }}>
@@ -266,7 +262,7 @@ function LiveExchangeCard() {
                 </span>
               </div>
               <div className="flex items-center gap-4 shrink-0 text-right">
-                <span className="text-xs" style={{ color: '#8a8578' }}>
+                <span className="hero-mani-meta text-[13px]" style={{ color: '#F4E8D4' }}>
                   {m.provider_count} provider{m.provider_count !== 1 ? 's' : ''}
                 </span>
                 <span className="text-sm font-semibold" style={{ color: C.gold }}>
@@ -288,10 +284,10 @@ function LiveExchangeCard() {
       </div>
 
       <div className="mt-5 pt-4" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
-        <div className="text-[10px] uppercase tracking-wider font-medium" style={{ color: C.gold }}>
+        <div className="hero-mani-meta text-xs uppercase tracking-wider" style={{ color: '#F0C978' }}>
           Trust levels are claims
         </div>
-        <div className="text-xs mt-0.5" style={{ color: '#a9a294' }}>
+        <div className="hero-mani-meta text-[13px] leading-relaxed mt-1" style={{ color: '#F4E8D4' }}>
           Shown as self-reported until verified. Browser chat uses TLS; it is not end-to-end encrypted.
         </div>
       </div>
@@ -464,7 +460,7 @@ export function Landing() {
                     </span>
                   </h2>
     
-                  <p className="text-base mt-6 leading-relaxed max-w-md" style={{ color: HP.silk }}>
+                  <p className="text-base md:text-lg mt-6 leading-relaxed max-w-md" style={{ color: '#F5E9D6', textShadow: '0 1px 2px rgba(11,16,23,0.72)' }}>
                     OpenAI-compatible inference with a live supply side.
                     Your request is routed by price, speed and trust. Providers compete to serve it.
                   </p>
