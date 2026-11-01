@@ -501,32 +501,27 @@ export function Landing() {
                     </span>
                   </h2>
     
-                  <p className="text-base mt-6 leading-relaxed max-w-md" style={{ color: '#E8C9A3' }}>
+                  <p className="text-base mt-6 leading-relaxed max-w-md" style={{ color: HP.silk }}>
                     OpenAI-compatible inference with a live supply side.
                     Your request is routed by price, speed and trust. Providers compete to serve it.
                   </p>
     
-                  <div className="flex gap-3 mt-8">
+                  <div className="flex flex-wrap gap-3 mt-8">
                     <Link
                       to="/chat"
                       tabIndex={productOpacity > 0.95 ? undefined : -1}
-                      className="group relative px-6 py-3 rounded-xl font-medium text-sm transition-all overflow-hidden"
-                      style={{ color: C.blueBlack }}
+                      className="hero-pigment-primary inline-flex items-center gap-2 rounded-md px-6 py-3 font-semibold text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#F0C54B]"
                     >
-                      <span className="absolute inset-0 rounded-xl transition-opacity" style={{ background: C.warmWhite }} />
-                      <span className="absolute inset-0 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity" style={{ background: HERO_PRODUCT_GRADIENT }} />
-                      <span className="relative z-10 group-hover:text-white transition-colors">Start a conversation</span>
+                      <span aria-hidden="true" className="h-[6px] w-[6px] rotate-45" style={{ background: HP.cinnabar }} />
+                      Start a conversation
                     </Link>
                     <Link
                       to="/provide"
                       tabIndex={productOpacity > 0.95 ? undefined : -1}
-                      className="group relative px-6 py-3 rounded-xl font-medium text-sm border transition-all overflow-hidden mineral-border"
-                      style={{
-                        color: C.warmWhite,
-                        background: 'rgba(216,209,190,0.06)',
-                      }}
+                      className="hero-pigment-secondary inline-flex items-center gap-2 rounded-md px-6 py-3 font-semibold text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#F0C54B]"
                     >
-                      <span className="relative z-10">Become a provider</span>
+                      <span aria-hidden="true" className="h-[6px] w-[6px] rotate-45" style={{ background: HP.jade }} />
+                      Become a provider
                     </Link>
                   </div>
                 </div>
