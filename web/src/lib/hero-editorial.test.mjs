@@ -170,9 +170,13 @@ assert.ok(borderRule && interactiveBorder && interactiveFill)
 assert.match(borderRule, /background: var\(--mineral-border-paint\)/)
 assert.match(borderRule, /background-size: 220% 220%/)
 assert.match(borderRule, /-webkit-mask-composite: xor;/)
-assert.match(interactiveBorder, /animation: none;/,
-  'pointer motion must not fight the original 14s autonomous border animation')
-assert.match(interactiveBorder, /background-position: var\(--pigment-x\) var\(--pigment-y\)/)
+assert.doesNotMatch(interactiveBorder, /animation:/,
+  'at rest the CTA must inherit the original main border animation')
+const interactingBorder = styles.match(/\.hero-stone-cta--interactive:is\(:hover, :focus-visible\)::before \{([^}]+)\}/)?.[1]
+assert.ok(interactingBorder, 'the border must respond to pointer/focus')
+assert.match(interactingBorder, /animation: none;/,
+  'on hover the cursor must take over from the 14s border drift')
+assert.match(interactingBorder, /background-position: var\(--pigment-x\) var\(--pigment-y\)/)
 assert.match(interactiveFill, /background: var\(--mineral-border-paint\)/)
 assert.match(interactiveFill, /background-size: 220% 220%/)
 assert.match(interactiveFill, /background-position: var\(--pigment-x\) var\(--pigment-y\)/)
