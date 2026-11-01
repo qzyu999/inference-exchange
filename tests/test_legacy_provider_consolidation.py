@@ -90,6 +90,32 @@ def db_state(path):
     return accounts, transactions, tokens, history
 
 
+def test_backup_creates_nonexistent_sqlite_path_inside_private_directory(tmp_path, monkeypatch):
+    """Catch the pre-created empty destination that failed on macOS."""
+    path, _ = make_fixture(tmp_path)
+    baseline = db_state(path)
+    original_connect = sqlite3.connect
+    created = []
+
+    def inspect_connect(database, *args, **kwargs):
+        if not kwargs.get("uri", False) and str(database).endswith("/backup.sqlite"):
+            assert not Path(database).exists()
+            created.append(database)
+        return original_connect(database, *args, **kwargs)
+
+    # The backup source itself must remain open read-only; destination is new.
+    with monkeypatch.context() as patch:
+        patch.setattr(module.sqlite3, "connect", inspect_connect)
+        backup = module.backup_source(path, tmp_path / "private-backups")
+
+    assert len(created) == 1
+    assert backup.is_file()
+    assert backup.parent.stat().st_mode & 0o077 == 0
+    assert backup.stat().st_mode & 0o077 == 0
+    assert db_state(backup) == baseline
+    assert db_state(path) == baseline
+
+
 def test_rehearsal_backs_up_wal_and_never_mutates_source(tmp_path):
     path, canonical = make_fixture(tmp_path)
     original = db_state(path)
