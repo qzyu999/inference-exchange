@@ -53,4 +53,12 @@ assert.match(css, /\.ie-mineral-app \.ie-mineral-journey/)
 assert.match(css, /\.ie-mineral-app \.ie-mineral-panel/)
 assert.match(css, /@media \(prefers-reduced-motion: reduce\)/)
 assert.match(css, /\.ie-mineral-sidebar \.ie-app-nav-item:focus-visible/)
+// Selected app nav items retain the original live-alpha rainbow indicator
+// and subtle charcoal hover, rather than the newer amber highlight.
+assert.match(shell, /background: active \? C\.sidebarHover : 'transparent'/)
+assert.match(shell, /color: active \? '#fff' : AP\.sidebarText/)
+assert.match(css, /background: linear-gradient\(to bottom, #C83A32, #C49A45, #4D9A91, #315B72\)/)
+assert.doesNotMatch(css, /\.ie-mineral-sidebar \.sidebar-active-bar::after\s*\{/)
+assert.match(css, /\.ie-mineral-sidebar \.ie-app-nav-item\[aria-current="page"\]:hover\s*\{\s*background: rgba\(255,255,255,0\.06\)/)
+
 console.log('#203 mineral workbench: theme, app shell, journey contract, accessibility passed')
