@@ -118,7 +118,7 @@ export function Trace() {
             </div>
           </div>
           <span className="text-[11px] font-medium px-3 py-1 rounded-full"
-            style={{ background: isCompleted ? '#edf7f1' : '#fdf5f4', color: isCompleted ? C.green : C.red }}>
+            style={{ background: isCompleted ? '#edf7f1' : '#fdf5f4', color: isCompleted ? APP_TEXT.green : APP_TEXT.red }}>
             {isCompleted ? 'Completed' : trace.status}
           </span>
         </div>
@@ -144,7 +144,7 @@ export function Trace() {
                   <span>price: <span style={{ color: APP_TEXT.gold }}>${selectedScoring.price?.toFixed(2)}/M</span></span>
                   <span>trust: <span className="font-medium px-1.5 py-0.5 rounded-full text-[9px]" style={{ background: tc.bg, color: tc.text }}>{trustLabel}</span></span>
                   <span>speed: <span style={{ color: APP_TEXT.turquoise }}>{selectedTps.toFixed(0)} tok/s</span></span>
-                  <span>load: <span style={{ color: selectedLoad > 0.8 ? C.red : C.green }}>{(selectedLoad * 100).toFixed(0)}%</span></span>
+                  <span>load: <span style={{ color: selectedLoad > 0.8 ? APP_TEXT.red : APP_TEXT.green }}>{(selectedLoad * 100).toFixed(0)}%</span></span>
                 </div>
               </div>
             )}
@@ -361,7 +361,7 @@ export function Trace() {
                   className="flex items-center gap-3 py-2 px-3 rounded-lg transition-colors"
                   style={{ background: isCurrent ? '#fdf6ec' : 'transparent' }}>
                   <span className="w-2 h-2 rounded-full shrink-0" style={{ background: ok ? C.green : C.red }} />
-                  <span className="text-xs font-mono flex-1 truncate" style={{ color: isCurrent ? C.gold : '#888' }}>
+                  <span className="text-xs font-mono flex-1 truncate" style={{ color: isCurrent ? APP_TEXT.gold : APP_TEXT.soft }}>
                     {t.request_id}
                   </span>
                   <span className="text-[10px]" style={{ color: APP_TEXT.soft }}>{time}</span>
