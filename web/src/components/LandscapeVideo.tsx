@@ -164,7 +164,8 @@ function getVideoFraming(aspect: VideoAspect): {
  * Default playback serves exactly one web-optimized MP4 selected on load;
  * it is not adaptive bitrate streaming. On localhost only, ?heroDelivery=stream
  * enables a Cloudflare Stream HLS adaptive-bitrate pilot for both compositions.
- * The pilot uses the same <video> and preserves MP4 fallback on HLS failure.
+ * The pilot uses the same <video> and falls back to the static poster on
+ * HLS failure. Ordinary (non-preview) MP4 playback is unchanged for now.
  */
 export function LandscapeVideo({ progress, reducedMotion, onAvailabilityChange }: LandscapeVideoProps) {
   const videoRef = useRef<HTMLVideoElement>(null)
@@ -187,11 +188,14 @@ export function LandscapeVideo({ progress, reducedMotion, onAvailabilityChange }
   const saveData = (navigator as Navigator & { connection?: NetworkHints }).connection?.saveData === true
   const shouldAutoplay = !reducedMotion && !saveData
   const selectedCandidate = candidateSources[Math.min(sourceIndex, candidateSources.length - 1)]
-  // Both 16:9 and 21:9 now have Cloudflare Stream uploads. Keep the preview
-  // explicit and the existing MP4 as a safe fallback for playback failures.
+  // In the opt-in Stream preview, never request an MP4. If HLS is unavailable,
+  // reduced motion is requested, or Save-Data is on, render the static poster.
+  // Ordinary non-preview builds still use the legacy MP4 until migration.
   const useStream = STREAM_PREVIEW && shouldAutoplay && !streamFailed && sourceIndex === 0
+  const posterOnly = STREAM_PREVIEW && !useStream
   const selectedManifest = STREAM_MANIFEST_BY_ASPECT[selectedCandidate.aspect]
-  const selectedSource = useStream ? selectedManifest : selectedCandidate.path
+  const selectedSource = useStream ? selectedManifest
+    : posterOnly ? `poster-only-${selectedCandidate.aspect}` : selectedCandidate.path
   const selectedPoster = selectedCandidate.poster
   const framing = getVideoFraming(selectedCandidate.aspect)
   const edges = getHeroEdges()
@@ -206,7 +210,9 @@ export function LandscapeVideo({ progress, reducedMotion, onAvailabilityChange }
     let release: (() => void) | undefined
     const fail = (error: Error) => {
       if (controller.signal.aborted) return
-      console.warn('[hero-stream] Stream preview failed, falling back to MP4:', error)
+      console.warn('[hero-stream] Stream preview failed, showing static poster:', error)
+      setReady(false)
+      setLoopEligible(false)
       setStreamFailed(true)
     }
     try {
@@ -336,18 +342,18 @@ export function LandscapeVideo({ progress, reducedMotion, onAvailabilityChange }
               opacity: ready ? 1 : 0,
               transition: 'opacity 200ms ease-out',
             }}
-            src={useStream ? undefined : selectedCandidate.path}
+            src={STREAM_PREVIEW ? undefined : selectedCandidate.path}
             poster={selectedPoster}
-            data-hero-delivery={useStream ? 'cloudflare-stream-hls' : 'mp4'}
+            data-hero-delivery={useStream ? 'cloudflare-stream-hls' : posterOnly ? 'poster-only' : 'mp4'}
             data-hero-aspect={selectedCandidate.aspect}
             data-hero-quality={useStream ? 'adaptive' : quality}
             data-hero-source={selectedSource}
             data-hero-framing={framing.mode}
-            autoPlay={shouldAutoplay}
-            loop={loopEligible}
+            autoPlay={shouldAutoplay && !posterOnly}
+            loop={loopEligible && !posterOnly}
             muted
             playsInline
-            preload={shouldAutoplay ? 'metadata' : 'none'}
+            preload={shouldAutoplay && !posterOnly ? 'metadata' : 'none'}
             onLoadedMetadata={(event) => {
               setLoopEligible(event.currentTarget.duration >= 20)
             }}
@@ -357,7 +363,8 @@ export function LandscapeVideo({ progress, reducedMotion, onAvailabilityChange }
               setPosterReady(false)
               setPosterFailed(false)
               setLoopEligible(false)
-              if (useStream) {
+              if (STREAM_PREVIEW) {
+                // Never downgrade the Stream trial to a large MP4 download.
                 setStreamFailed(true)
               } else {
                 setSourceIndex(index => Math.min(index + 1, candidateSources.length - 1))
