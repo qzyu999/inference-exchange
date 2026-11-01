@@ -83,7 +83,7 @@ export function LandingNav() {
       <nav aria-label="Main" className="max-w-7xl mx-auto px-4 md:px-8 h-14 flex items-center justify-between gap-4">
         <Link to="/" className={`flex items-center gap-2 shrink-0 ${FOCUS}`}>
           <img src="/logo-icon.svg" alt="" className="w-6 h-6" />
-          <span className="text-sm font-semibold uppercase tracking-wider" style={{ color: HP.cream }}>
+          <span className="mineral-spectrum-text hero-mineral-wordmark text-sm font-bold uppercase tracking-wider">
             Inference Exchange
           </span>
         </Link>
