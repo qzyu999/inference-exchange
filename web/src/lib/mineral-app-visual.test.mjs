@@ -104,6 +104,10 @@ assert.match(css, /\.bg-white, \.bg-gray-50, \.bg-gray-100/)
 assert.match(css, /\[style\*="background: rgb\(255, 255, 255\)"\]/)
 assert.match(css, /\[style\*="color: rgb\(41, 47, 53\)"\]/)
 assert.match(css, /\.docs-body pre \{/)
+// Chat's user bubbles set background and ink in the same inline style;
+// dark mode must adapt both together rather than creating dark-on-dark text.
+assert.match(css, /\[style\*="background: rgb\(229, 229, 227\)"\]\[style\*="color: rgb\(41, 47, 53\)"\]/)
+assert.match(css, /background: #394753 !important;\s*color: #F0EBDD !important;/)
 assert.match(shell, /dark \? 'linear-gradient\(110deg, #F2DCA8/)
 assert.match(shell, /dark \? '#C6D0D5' : AP\.body/)
 assert.match(shell, /focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-\[#F0C54B\]/)
