@@ -127,12 +127,10 @@ body {
   --ie-app-gold: #845918;
 }
 
-/* Optional f.lux-like bedtime warmth on NON-LANDING screens. A fixed,
-   pointer-transparent multiply veil lowers the blue/green contribution of
-   actual rendered pixels, unlike recoloring only a page backdrop. The main
-   light theme below remains untouched. This is NOT a calibrated 2400K
-   display whitepoint adjustment; users can turn it off if f.lux is active. */
-.ie-app-temperature-scope[data-warm-tint="on"]::after {
+/* The optional 2400K-inspired color wash is now one explicit appearance
+   choice. Light (the default) and Dark render with no overlay. This is not a
+   calibrated display whitepoint; f.lux remains a separate system setting. */
+.ie-app-appearance-scope[data-appearance="blue-light"]::after {
   content: '';
   position: fixed;
   inset: 0;
@@ -152,7 +150,7 @@ body {
   mix-blend-mode: multiply;
 }
 @media (forced-colors: active), print {
-  .ie-app-temperature-scope[data-warm-tint="on"]::after {
+  .ie-app-appearance-scope[data-appearance="blue-light"]::after {
     display: none;
   }
 }
@@ -230,6 +228,162 @@ body {
   .ie-mineral-sidebar .ie-app-wordmark,
   .ie-app-spectrum-rule,
   .ie-mineral-app .ie-mineral-journey::before { animation: none; }
+}
+
+/* Three exclusive non-landing appearance choices.
+   The sidebar keeps its established dark charcoal across all appearances.
+   Light preserves existing paper surfaces; blue-light adds the overlay above;
+   Dark substitutes semantic charcoal surfaces and contrasting content ink. */
+.ie-app-appearance-selector {
+  background: rgba(13, 19, 24, 0.42);
+  border: 1px solid rgba(240, 197, 75, 0.22);
+}
+.ie-app-appearance-option {
+  color: #EADFCB;
+  border: 1px solid transparent;
+  transition: background-color 150ms ease, color 150ms ease;
+}
+.ie-app-appearance-option:hover:not([aria-pressed="true"]) {
+  background: rgba(255, 255, 255, 0.09);
+}
+.ie-app-appearance-option[aria-pressed="true"] {
+  background: #E8DDC4;
+  border-color: rgba(240, 197, 75, 0.42);
+  color: #252A30;
+  box-shadow: 0 1px 4px rgba(8, 15, 23, 0.18);
+}
+/* The login header is on a LIGHT canvas, unlike the dark sidebar. */
+.ie-app-appearance-scope:not(.ie-mineral-app) .ie-app-appearance-selector {
+  background: #E7E8E5;
+  border-color: #D1D1CC;
+}
+.ie-app-appearance-scope:not(.ie-mineral-app) .ie-app-appearance-option {
+  color: #33404A;
+}
+.ie-app-appearance-scope:not(.ie-mineral-app) .ie-app-appearance-option[aria-pressed="true"] {
+  background: #FFFFFF;
+  color: #252A30;
+  border-color: #C8C4B7;
+}
+.ie-app-appearance-scope[data-appearance="dark"]:not(.ie-mineral-app) .ie-app-appearance-selector {
+  background: #222A30;
+  border-color: #515E67;
+}
+.ie-app-appearance-scope[data-appearance="dark"]:not(.ie-mineral-app) .ie-app-appearance-option {
+  color: #D9E2E2;
+}
+.ie-app-appearance-scope[data-appearance="dark"]:not(.ie-mineral-app) .ie-app-appearance-option[aria-pressed="true"] {
+  background: #E8DDC4;
+  color: #252A30;
+}
+
+/* Dark mode deliberately changes actual surfaces/text, NOT a tint or
+   whole-page inverse filter (which would distort mineral colors and charts).
+   Selectors stay inside the app content: the landing page, sidebar spectrum,
+   and semantic warning/alert fills are not recolored. */
+.ie-app-appearance-scope[data-appearance="dark"] {
+  --ie-app-surface: #353F47;
+  --ie-app-paper: #313B43;
+  --ie-app-ink: #EDE9DE;
+  --ie-app-line: #52606A;
+  --ie-app-gold: #E9C786;
+  color-scheme: dark;
+  color: #E8E4DA;
+  background: linear-gradient(160deg, #292F35 0%, #252D33 55%, #21282F 100%) !important;
+}
+.ie-app-appearance-scope[data-appearance="dark"] .ie-app-content {
+  color: #E8E4DA;
+}
+.ie-app-appearance-scope[data-appearance="dark"] .ie-app-content :is(
+  .bg-white, .bg-gray-50, .bg-gray-100, .bg-slate-50, .bg-stone-50,
+  .ie-mineral-panel
+) {
+  background: var(--ie-app-surface) !important;
+  border-color: var(--ie-app-line) !important;
+}
+/* A few older data-heavy pages use inline white/off-white card surfaces. */
+.ie-app-appearance-scope[data-appearance="dark"] .ie-app-content :is(
+  [style*="background: rgb(255, 255, 255)"],
+  [style*="background: rgb(255, 253, 247)"],
+  [style*="background: rgb(250, 250, 248)"],
+  [style*="background: rgb(247, 242, 232)"],
+  [style*="background: rgb(245, 245, 243)"],
+  [style*="background: rgb(229, 229, 227)"]
+):not(button):not(a):not(input):not(textarea) {
+  background: var(--ie-app-surface) !important;
+  border-color: var(--ie-app-line) !important;
+}
+.ie-app-appearance-scope[data-appearance="dark"] .ie-app-content :is(
+  .border-gray-50, .border-gray-100, .border-gray-200, .border-gray-300,
+  .divide-gray-100, .divide-gray-200
+) {
+  border-color: var(--ie-app-line) !important;
+}
+.ie-app-appearance-scope[data-appearance="dark"] .ie-app-content :is(
+  .text-gray-400, .text-gray-500, .text-gray-600, .text-gray-700,
+  .text-gray-800, .text-slate-500, .text-slate-600
+) {
+  color: #C1CCD1 !important;
+}
+/* The JSX's old inline neutral ink colors are retained for Light but must be
+   readable on charcoal. Leave colored trust pills and semantic alert surfaces
+   alone: those often set their own light background beside the ink. */
+.ie-app-appearance-scope[data-appearance="dark"] .ie-app-content :is(
+  [style*="color: rgb(41, 47, 53)"],
+  [style*="color: rgb(38, 58, 99)"],
+  [style*="color: rgb(41, 43, 42)"],
+  [style*="color: rgb(70, 84, 106)"]
+):not([style*="background:"]):not([style*="background-color:"]) {
+  color: #E8E4DA !important;
+}
+.ie-app-appearance-scope[data-appearance="dark"] .ie-app-content :is(
+  [style*="color: rgb(119, 119, 119)"],
+  [style*="color: rgb(136, 136, 136)"],
+  [style*="color: rgb(153, 153, 153)"],
+  [style*="color: rgb(170, 170, 170)"],
+  [style*="color: rgb(187, 187, 187)"],
+  [style*="color: rgb(204, 204, 204)"],
+  [style*="color: rgb(83, 97, 113)"]
+):not([style*="background:"]):not([style*="background-color:"]) {
+  color: #BDCACF !important;
+}
+/* Deep-lapis links readable on charcoal; don't touch the colors on their
+   semantic, independently colored trust/availability badges. */
+.ie-app-appearance-scope[data-appearance="dark"] .ie-app-content :is(
+  [style*="color: rgb(22, 62, 140)"],
+  [style*="color: rgb(16, 45, 109)"]
+):not([style*="background:"]):not([style*="background-color:"]) {
+  color: #ABC9FA !important;
+}
+.ie-app-appearance-scope[data-appearance="dark"] .ie-app-content :is(
+  input:not([type="checkbox"]):not([type="radio"]), textarea, select
+) {
+  background: #29343B !important;
+  color: #F1EBDF !important;
+  border-color: #66727A !important;
+}
+.ie-app-appearance-scope[data-appearance="dark"] .ie-app-content :is(
+  input, textarea
+)::placeholder {
+  color: #A3B0B8 !important;
+}
+.ie-app-appearance-scope[data-appearance="dark"] .ie-app-content :is(
+  .docs-body, .docs-body h1, .docs-body h2, .docs-body p,
+  .docs-body li, .docs-body td, .docs-body strong
+) {
+  color: #E8E4DA;
+}
+.ie-app-appearance-scope[data-appearance="dark"] .ie-app-content .docs-body :is(
+  code, th
+) {
+  background: #263139;
+  color: #E8E4DA;
+}
+.ie-app-appearance-scope[data-appearance="dark"] .ie-app-content .docs-body pre {
+  background: #1C252C;
+}
+@media (prefers-reduced-motion: reduce) {
+  .ie-app-appearance-option { transition: none; }
 }
 
 /* Landing / application identity: the same slowly drifting mineral
