@@ -101,10 +101,9 @@ const HERO_PRODUCT_GRADIENT = `linear-gradient(90deg, ${HP.orpiment} 0%, ${HP.sa
 // Debug-only visual centerline, at the same 50% stage x used by the video.
 const SHOW_ALIGNMENT_GUIDES = new URLSearchParams(window.location.search).get('heroGuides') === '1'
 
-// Exactly five landing actions share the same gentle mineral brush response.
-// Text remains an opaque, stationary top layer; only decorative wash/grains
-// move on hover or keyboard focus. Links keep their original destinations.
-function SandCTA({
+// Five landing actions share a quiet mineral-inlay hover. Preserve the
+// approved routes and understated fills without moving the text or scene.
+function StoneCTA({
   to,
   tone,
   children,
@@ -116,10 +115,8 @@ function SandCTA({
   tabIndex?: number
 }) {
   return (
-    <Link to={to} tabIndex={tabIndex} className={`hero-sand-cta hero-sand-cta--${tone}`}>
-      <span className="hero-sand-cta__wash" aria-hidden="true" />
-      <span className="hero-sand-cta__grains" aria-hidden="true" />
-      <span className="hero-sand-cta__label">{children}</span>
+    <Link to={to} tabIndex={tabIndex} className={`hero-stone-cta hero-stone-cta--${tone}`}>
+      {children}
     </Link>
   )
 }
@@ -194,9 +191,9 @@ function EditorialStory({
               )}
               {index === 0 && (
                 <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
-                  <SandCTA to="/chat" tone="light">Start chatting</SandCTA>
-                  <SandCTA to="/provide" tone="outline">Become a provider</SandCTA>
-                  <SandCTA to="/exchange" tone="quiet">Go to Exchange</SandCTA>
+                  <StoneCTA to="/chat" tone="light">Start chatting</StoneCTA>
+                  <StoneCTA to="/provide" tone="outline">Become a provider</StoneCTA>
+                  <StoneCTA to="/exchange" tone="quiet">Go to Exchange</StoneCTA>
                 </div>
               )}
             </div>
@@ -470,14 +467,14 @@ export function Landing() {
                   </p>
     
                   <div className="flex flex-wrap gap-3 mt-8">
-                    <SandCTA to="/chat" tone="light"
+                    <StoneCTA to="/chat" tone="light"
                       tabIndex={productOpacity > 0.95 ? undefined : -1}>
                       Start a conversation
-                    </SandCTA>
-                    <SandCTA to="/provide" tone="outline"
+                    </StoneCTA>
+                    <StoneCTA to="/provide" tone="outline"
                       tabIndex={productOpacity > 0.95 ? undefined : -1}>
                       Become a provider
-                    </SandCTA>
+                    </StoneCTA>
                   </div>
                 </div>
     
