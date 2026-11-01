@@ -128,7 +128,8 @@ assert.equal((finalSlide.match(/<StoneCTA to=/g) || []).length, 2)
 assert.match(finalSlide, /tabIndex=\{productOpacity > 0\.95 \? undefined : -1\}/)
 assert.match(styles, /\.hero-stone-cta \{/)
 assert.match(styles, /\.hero-stone-cta--light \{\s*color: #292B2A;\s*background: #D8D1BE;/)
-assert.match(styles, /\.hero-stone-cta--outline \{\s*color: #F8EAD5;\s*background: rgba\(14, 16, 24, 0\.58\);/)
+assert.match(styles, /\.hero-stone-cta--outline \{[^}]*color: #D8D1BE;\s*background: rgba\(216, 209, 190, 0\.06\);/,
+  'provider CTA must match the live main surface behind its translucent mineral-border paint')
 assert.match(styles, /\.hero-stone-cta--quiet \{\s*color: #F8EAD5;\s*background: rgba\(14, 16, 24, 0\.58\);/)
 const inlay = styles.match(/\.hero-stone-cta::after \{([^}]+)\}/)?.[1]
 assert.ok(inlay, 'static mineral inlay must exist')
