@@ -101,3 +101,19 @@ MUST NOT: The system counts a provider account's initial simulated credit grant 
 - Status: implemented
 - Verified by: tests/test_provider_earnings_private.py::test_multi_node_exact_earnings_and_pagination, tests/test_provider_earnings_private.py::test_balance_grant_not_counted_as_earnings_and_reconciliation
 - Issue: #152
+
+
+### BILL-012: Explicit alpha provider ledger consolidation
+
+MUST: A one-time alpha consolidation requires an operator to select the active SQLite database, attest that all historical provider connection accounts belong to one provider, select the credential-backed canonical principal, and approve the exact expected row counts. The tool makes a private, integrity-checked SQLite backup and rehearses the migration on a copy before it can change the selected database.
+
+MUST: The write uses one atomic transaction. It preserves every transaction ID, consumer, model, token count, price and amount. It stores the old provider-account rows and each original transaction provider ID in immutable migration archive tables. It reassigns only the approved historical provider attribution. It credits the canonical account only with previously earned micro-USD. It never combines repeated provider opening grants.
+
+MUST: Before writing, the tool checks that exactly one active provider credential exists, every legacy account reconciles to its transaction earnings and initial simulated grant, and the source has not changed since the backup. A failed check leaves the database unchanged. A second run cannot credit earnings twice.
+
+MUST NOT: Provider ownership be inferred automatically from a display name, IP address, model, or WebSocket connection. A normal coordinator startup must not run this procedure. The operator must separately authorize any production run after a reviewed rehearsal.
+
+- Principle: P7, P9
+- Status: implemented
+- Verified by: tests/test_legacy_provider_consolidation.py::test_rehearsal_backs_up_wal_and_never_mutates_source, tests/test_legacy_provider_consolidation.py::test_explicit_apply_remaps_exact_history_and_ignores_starting_grants, tests/test_legacy_provider_consolidation.py::test_repeat_does_not_double_credit_and_fails_closed, tests/test_legacy_provider_consolidation.py::test_live_drift_after_backup_aborts_before_any_migration, tests/test_legacy_provider_consolidation.py::test_failed_transaction_rolls_back_all_archive_and_money
+- Issue: #136
