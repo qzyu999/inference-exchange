@@ -97,7 +97,7 @@ const CHAPTER_COPY = [
 // animated rainbow/letterpress experiment). Keep the final product accent.
 const HERO_PRODUCT_GRADIENT = `linear-gradient(90deg, ${HP.orpiment} 0%, ${HP.saffron} 28%, ${HP.coralLotus} 64%, #C2E1B7 100%)`
 
-// No landscape tint. All contrast stays within text glyphs and controls.
+// The approved warm tint is isolated inside LandscapeVideo, not story text.
 // Debug-only visual centerline, at the same 50% stage x used by the video.
 const SHOW_ALIGNMENT_GUIDES = new URLSearchParams(window.location.search).get('heroGuides') === '1'
 
@@ -120,12 +120,12 @@ function EditorialStory({
     >
       {CHAPTER_COPY.map((chapter, index) => {
         const visible = index === activeIndex
-        // Original main typography, text fills, buttons and centered sizing.
-        // Only the four new locked chapter holds and crossfade are retained.
+        // Main's original intro and six static transition styles. The seven
+        // pinned holds/crossfades are the only deliberate pacing change.
         const shortTitle = index === 0 ? chapter.title : (
           <span
             className="bg-clip-text text-transparent"
-            style={{ backgroundImage: 'linear-gradient(135deg, ' + C.warmWhite + ', ' + C.sand + ')' }}
+            style={{ backgroundImage: index === 1 || index === LAST_CHAPTER ? GRADIENTS.heroText : `linear-gradient(135deg, ${C.warmWhite}, ${C.sand})` }}
           >
             {chapter.title}
           </span>
@@ -145,14 +145,6 @@ function EditorialStory({
             }}
           >
             <div className="relative mx-auto w-full max-w-2xl text-center">
-              {'eyebrow' in chapter && (
-                <p
-                  className="mb-4 text-xs font-medium uppercase tracking-wider"
-                  style={{ color: C.gold }}
-                >
-                  {chapter.eyebrow}
-                </p>
-              )}
               {index === 0 ? (
                 <h1
                   id={'landing-chapter-title-' + index}
@@ -169,6 +161,7 @@ function EditorialStory({
                   {shortTitle}
                 </h2>
               )}
+              {'description' in chapter && (
               <p
                 className={index === 0
                   ? 'mt-4 max-w-xl mx-auto text-base md:text-lg leading-relaxed'
@@ -179,6 +172,7 @@ function EditorialStory({
               >
                 {chapter.description}
               </p>
+              )}
               {index === 0 && (
                 <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
                   <Link
@@ -204,51 +198,25 @@ function EditorialStory({
                   </Link>
                 </div>
               )}
-              {index === 2 && 'trustNote' in chapter && (
-                <p
-                  className="mx-auto mt-4 max-w-lg text-xs md:text-sm leading-relaxed"
-                  style={{ color: '#a9a294' }}
-                >
-                  {chapter.trustNote}
-                </p>
-              )}
-              {index === 3 && (
-                <button
-                  type="button"
-                  onClick={onSkip}
-                  className="mt-8 text-sm font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#E8C77A]"
-                  style={{ color: C.warmWhite, textShadow: '0 1px 12px rgba(0,0,0,0.6)' }}
-                >
-                  Enter the exchange →
-                </button>
-              )}
             </div>
           </section>
         )
       })}
-      <div
-        className="absolute bottom-7 inset-x-6 flex items-center justify-center gap-4"
-        style={{ pointerEvents: exitProgress < 0.95 ? 'auto' : 'none' }}
-      >
-        {activeIndex === 0 && (
-          <button
-            type="button"
-            onClick={onNext}
+      {activeIndex === 0 && (
+        <div className="absolute bottom-8 inset-x-6 flex items-center justify-center gap-4"
+          style={{ pointerEvents: exitProgress < 0.95 ? 'auto' : 'none' }}>
+          <button type="button" onClick={onNext}
             className="text-xs tracking-wider uppercase px-3 py-2 rounded-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#E8C77A]"
-            style={{ color: C.warmWhite }}
-          >
+            style={{ color: '#d8d1be' }}>
             Scroll to explore ↓
           </button>
-        )}
-        <button
-          type="button"
-          onClick={onSkip}
-          className="text-xs tracking-wider uppercase px-3 py-2 rounded-lg border focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#E8C77A]"
-          style={{ color: C.warmWhite, borderColor: 'rgba(216,209,190,0.3)' }}
-        >
-          Skip story
-        </button>
-      </div>
+          <button type="button" onClick={onSkip}
+            className="text-xs tracking-wider uppercase px-3 py-2 rounded-lg border focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#E8C77A]"
+            style={{ color: '#d8d1be', borderColor: 'rgba(216,209,190,0.3)' }}>
+            Skip intro
+          </button>
+        </div>
+      )}
     </div>
   )
 }
