@@ -278,7 +278,7 @@ export function Layout() {
   )
 
   return (
-    <div className="ie-mineral-app flex min-h-screen" style={{ background: AP.atmosphere }}>
+    <div className="ie-mineral-app flex min-h-screen" style={{ background: `linear-gradient(180deg, #F8F8F5 0%, ${C.pageBg} 40%, #F3F2EE 100%)` }}>
       {/* Desktop sidebar */}
       <aside
         className="ie-mineral-sidebar hidden lg:flex flex-col w-52 shrink-0 sticky top-0 h-screen overflow-y-auto"
