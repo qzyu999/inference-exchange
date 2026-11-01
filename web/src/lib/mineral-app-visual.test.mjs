@@ -18,9 +18,17 @@ for (const [name, hex] of Object.entries({
 
 assert.match(shell, /className="ie-mineral-app flex min-h-screen"/)
 assert.match(shell, /ie-mineral-sidebar/)
-assert.match(theme, /sidebar: 'linear-gradient\\(180deg, #292F35 0%, #302A31 34%, #293137 70%, #252A30 100%\\)'/)
-assert.match(shell, /background: '#292F35', borderBottom/)
-assert.doesNotMatch(theme, /sidebar: 'linear-gradient\\(175deg, #102D6D/)
+// One shared gradient token drives BOTH the landing navigation and app sidebar.
+assert.ok(theme.includes("sidebar: 'linear-gradient(180deg, ' + C.blueBlack"))
+assert.equal(shell.split('background: GRADIENTS.sidebar').length - 1, 3)
+assert.ok(shell.includes('background: GRADIENTS.sidebar, borderBottom'))
+// Muted atmospheric wash: mineral mist above ochre haze, not a flat tan fill.
+assert.ok(theme.includes("atmosphere: 'radial-gradient("))
+assert.ok(theme.includes('#C5D1CD 0%'))
+assert.ok(theme.includes('#ECD8B9 57%'))
+assert.ok(theme.includes('#FAF7EE 100%'))
+assert.ok(shell.includes('background: AP.atmosphere'))
+assert.ok(!shell.includes("background: '#292F35', borderBottom"))
 assert.match(shell, /ie-app-wordmark/)
 assert.match(shell, /ie-app-spectrum-rule/)
 assert.match(shell, /aria-current=\{active \? 'page' : undefined\}/)
