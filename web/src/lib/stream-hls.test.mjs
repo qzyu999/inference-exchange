@@ -100,7 +100,7 @@ const tintCSS = (await import('node:fs')).readFileSync(
   new URL('../index.css', import.meta.url), 'utf8'
 )
 const videoTintRule = tintCSS.match(/\.hero-video-bedtime-tint \{([^}]+)\}/)?.[1]
-const appTintRule = tintCSS.match(/\.ie-app-temperature-scope\[data-warm-tint="on"\]::after \{([^}]+)\}/)?.[1]
+const appTintRule = tintCSS.match(/\.ie-app-appearance-scope\[data-appearance="blue-light"\]::after \{([^}]+)\}/)?.[1]
 assert.ok(videoTintRule && appTintRule, 'both app and video temperature rules must exist')
 for (const cssValue of ['background: #FF995B;', 'opacity: 0.48;', 'mix-blend-mode: multiply;']) {
   assert.ok(videoTintRule.includes(cssValue), 'video lacks shared amber treatment: ' + cssValue)
