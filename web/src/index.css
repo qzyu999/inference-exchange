@@ -492,10 +492,10 @@ body {
   }
 }
 
-/* Full-surface mineral spectrum preview. Adapted from the established
-   cursor-following radial spotlight pattern (Vercel/koro.dev); the brush
-   palette is IE-specific. One conic gradient + one radial highlight stays
-   inside the button; no particles, canvas, scrolling work or new packages. */
+/* Full-surface mineral spectrum. A pointer-following conic gradient uses the
+   SAME opaque seven pigments as the navbar wordmark. No white radial wash:
+   the previous 52% cream spotlight made the colors look pastel. Cursor angle
+   and center still shift gently, without particles, canvas or dependencies. */
 .hero-stone-cta--spotlight {
   --pigment-x: 50%;
   --pigment-y: 50%;
@@ -511,12 +511,7 @@ body {
   z-index: 0;
   pointer-events: none;
   border-radius: inherit;
-  background:
-    radial-gradient(circle at var(--pigment-x) var(--pigment-y),
-      rgba(255, 250, 225, 0.52) 0%,
-      rgba(255, 250, 225, 0.09) 34%,
-      transparent 69%),
-    conic-gradient(from var(--pigment-angle) at var(--pigment-x) var(--pigment-y),
+  background: conic-gradient(from var(--pigment-angle) at var(--pigment-x) var(--pigment-y),
       var(--hero-spectrum-apricot) 0deg, var(--hero-spectrum-orpiment) 52deg,
       var(--hero-spectrum-coral) 104deg, var(--hero-spectrum-jade) 156deg,
       var(--hero-spectrum-turquoise) 208deg, var(--hero-spectrum-lapis) 260deg,
@@ -546,12 +541,10 @@ body {
   .hero-stone-cta--spotlight::before {
     transition: none;
   }
-  /* Keyboard/touch focus gets a static 50% blend; pointer tracking is also
-     suppressed by the event handler for reduced-motion users. */
+  /* Keyboard/touch focus keeps a static, undiluted pigment spectrum;
+     pointer tracking is suppressed for reduced-motion users. */
   .hero-stone-cta--spotlight::before {
-    background:
-      radial-gradient(circle at 50% 50%, rgba(255, 250, 225, 0.45), transparent 69%),
-      conic-gradient(from 25deg at 50% 50%,
+    background: conic-gradient(from 25deg at 50% 50%,
         var(--hero-spectrum-apricot), var(--hero-spectrum-orpiment),
         var(--hero-spectrum-coral), var(--hero-spectrum-jade),
         var(--hero-spectrum-turquoise), var(--hero-spectrum-lapis),
