@@ -6,6 +6,11 @@ COPY web/package.json web/package-lock.json ./
 RUN npm ci
 COPY docs/ /src/docs/
 COPY web/ ./
+# Public media origin for Vite's build-time URL substitution. This is NOT
+# an R2 API credential. Leave empty for local review or build with
+# --build-arg VITE_HERO_MEDIA_ORIGIN=https://media.inferenceex.com.
+ARG VITE_HERO_MEDIA_ORIGIN=""
+ENV VITE_HERO_MEDIA_ORIGIN=${VITE_HERO_MEDIA_ORIGIN}
 RUN npm run build
 
 FROM caddy:2-alpine

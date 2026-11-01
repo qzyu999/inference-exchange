@@ -9,7 +9,9 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "prebuild": "node src/lib/mineral-app-visual.test.mjs"
+    "prebuild": "node src/lib/hero-media.test.mjs && node src/lib/stream-hls.test.mjs && node src/lib/hero-editorial.test.mjs && node src/lib/mineral-app-visual.test.mjs",
+    "check:hero-media": "node scripts/check-hero-media.mjs",
+    "inspect:stream-hls": "node scripts/inspect-stream-hls.mjs"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.3.3",

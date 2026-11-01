@@ -26,3 +26,10 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# User-supplied cinematic preview footage. Keep binary encodes out of Git;
+# distribute via the local review bundle or a versioned media CDN instead.
+public/media/seedance_2_5_mountain_lake_*.mp4
+public/media/seedance_2_5_mountain_lake_*.webp
+public/media/alpine-lake-hero.mp4
+public/media/alpine-lake-poster.webp
