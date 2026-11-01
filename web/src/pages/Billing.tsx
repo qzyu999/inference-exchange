@@ -207,7 +207,7 @@ export function Billing() {
                      <div className="text-[9px] truncate" style={{ color: APP_TEXT.soft }}>Requested: {requestedModelLabel(t)}</div>
                    </div>
                   <div className="col-span-1 text-right" style={{ color: C.deepBlue }}>{(t.input_tokens || 0).toLocaleString()}</div>
-                  <div className="col-span-1 text-right" style={{ color: (t.cached_tokens || 0) > 0 ? C.turquoise : '#ddd' }}>
+                  <div className="col-span-1 text-right" style={{ color: (t.cached_tokens || 0) > 0 ? APP_TEXT.turquoise : APP_TEXT.soft }}>
                     {(t.cached_tokens || 0) > 0 ? (t.cached_tokens || 0).toLocaleString() : '—'}
                   </div>
                   <div className="col-span-1 text-right" style={{ color: APP_TEXT.gold }}>{(t.output_tokens || 0).toLocaleString()}</div>
