@@ -4,7 +4,7 @@ import useSWR from 'swr'
 import { api } from '../lib/api'
 import { useAuth } from '../lib/auth'
 import { githubLoginHref, safeNextPath } from '../lib/nav.js'
-import { C } from '../lib/theme'
+import { C, APP_TEXT } from '../lib/theme'
 
 const OAUTH_ERRORS: Record<string, string> = {
   state: 'Sign-in expired or was tampered with. Please try again.',
@@ -68,10 +68,10 @@ export function Login() {
       <div className="flex items-center justify-center min-h-[70vh]">
         <div className="w-full max-w-sm bg-white rounded-2xl border border-gray-200/40 p-8 text-center">
           <h2 className="text-xl font-bold mb-2" style={{ color: C.blueBlack }}>Welcome!</h2>
-          <p className="text-sm mb-6" style={{ color: '#888' }}>Your account is ready with $10 in free credits.</p>
+          <p className="text-sm mb-6" style={{ color: APP_TEXT.soft }}>Your account is ready with $10 in free credits.</p>
 
           <div className="rounded-xl p-4 mb-4 text-left" style={{ background: '#edf7f1', border: '1px solid rgba(63,128,85,0.15)' }}>
-            <div className="text-xs font-medium mb-1" style={{ color: C.green }}>Your API Key</div>
+            <div className="text-xs font-medium mb-1" style={{ color: APP_TEXT.green }}>Your API Key</div>
             <code className="text-xs font-mono break-all" style={{ color: C.blueBlack }}>{apiKey}</code>
           </div>
 
@@ -86,7 +86,7 @@ export function Login() {
           <button
             onClick={() => navigate(next)}
             className="w-full py-2.5 rounded-xl text-sm font-medium border transition-colors"
-            style={{ color: '#888', borderColor: '#ddd' }}
+            style={{ color: APP_TEXT.soft, borderColor: '#ddd' }}
           >
             Go to Chat
           </button>
@@ -101,7 +101,7 @@ export function Login() {
         <h1 className="text-2xl font-bold" style={{ color: C.blueBlack }}>
           {mode === 'login' ? 'Welcome back' : 'Create an account'}
         </h1>
-        <p className="text-sm mt-1 mb-6" style={{ color: '#777' }}>
+        <p className="text-sm mt-1 mb-6" style={{ color: APP_TEXT.muted }}>
           {mode === 'login'
             ? 'Sign in to Inference Exchange to chat, create API keys and see billing. A Cloudflare email check is not an Inference Exchange account.'
             : 'Get $10 in simulated alpha credits to start.'}
@@ -126,13 +126,13 @@ export function Login() {
         {githubEnabled && passwordEnabled && (
           <div className="flex items-center gap-3 my-4">
             <div className="flex-1 border-t border-gray-100" />
-            <span className="text-xs" style={{ color: '#ccc' }}>or</span>
+            <span className="text-xs" style={{ color: APP_TEXT.soft }}>or</span>
             <div className="flex-1 border-t border-gray-100" />
           </div>
         )}
 
         {!githubEnabled && !passwordEnabled && (
-          <div className="text-xs px-3 py-2 rounded-xl" style={{ background: '#fdf6ec', color: C.gold }}>
+          <div className="text-xs px-3 py-2 rounded-xl" style={{ background: '#fdf6ec', color: APP_TEXT.gold }}>
             Sign-in is not configured on this server.
           </div>
         )}
@@ -141,7 +141,7 @@ export function Login() {
         <form onSubmit={handleSubmit} className="space-y-3">
           {mode === 'signup' && (
             <div>
-              <label className="text-xs block mb-1" style={{ color: '#888' }}>Name</label>
+              <label className="text-xs block mb-1" style={{ color: APP_TEXT.soft }}>Name</label>
               <input
                 type="text" value={name} onChange={e => setName(e.target.value)}
                 placeholder="Optional"
@@ -150,7 +150,7 @@ export function Login() {
             </div>
           )}
           <div>
-            <label className="text-xs block mb-1" style={{ color: '#888' }}>Email</label>
+            <label className="text-xs block mb-1" style={{ color: APP_TEXT.soft }}>Email</label>
             <input
               type="email" value={email} onChange={e => setEmail(e.target.value)}
               placeholder="you@example.com" required
@@ -158,7 +158,7 @@ export function Login() {
             />
           </div>
           <div>
-            <label className="text-xs block mb-1" style={{ color: '#888' }}>Password</label>
+            <label className="text-xs block mb-1" style={{ color: APP_TEXT.soft }}>Password</label>
             <input
               type="password" value={password} onChange={e => setPassword(e.target.value)}
               placeholder="••••••••••" required minLength={6}
@@ -184,11 +184,11 @@ export function Login() {
         {/* Toggle mode */}
         <div className="text-center mt-4">
           {mode === 'login' ? (
-            <button onClick={() => { setMode('signup'); setError('') }} className="text-sm" style={{ color: C.gold }}>
+            <button onClick={() => { setMode('signup'); setError('') }} className="text-sm" style={{ color: APP_TEXT.gold }}>
               No account? Create one
             </button>
           ) : (
-            <button onClick={() => { setMode('login'); setError('') }} className="text-sm" style={{ color: C.gold }}>
+            <button onClick={() => { setMode('login'); setError('') }} className="text-sm" style={{ color: APP_TEXT.gold }}>
               Already have an account? Sign in
             </button>
           )}
