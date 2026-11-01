@@ -101,9 +101,9 @@ const HERO_PRODUCT_GRADIENT = `linear-gradient(90deg, ${HP.orpiment} 0%, ${HP.sa
 // Debug-only visual centerline, at the same 50% stage x used by the video.
 const SHOW_ALIGNMENT_GUIDES = new URLSearchParams(window.location.search).get('heroGuides') === '1'
 
-// Cursor spotlight based on the established CSS-variable radial-gradient
-// pattern. No canvas, Motion dependency or React state rerenders.
-// Local ?ctaEffect=stone restores the previous restrained inlay for A/B.
+// The interactive CTA shifts the EXACT existing main mineral-border paint,
+// not a new conic palette or radial spotlight. No render-time state, canvas
+// or Motion dependency. Local ?ctaEffect=stone keeps the earlier inlay A/B.
 const STATIC_CTA_PREVIEW = /^(localhost|127[.]0[.]0[.]1)$/.test(window.location.hostname)
   && new URLSearchParams(window.location.search).get('ctaEffect') === 'stone'
 
@@ -116,8 +116,6 @@ function movePigmentSpotlight(event: ReactPointerEvent<HTMLAnchorElement>) {
   const y = Math.min(1, Math.max(0, (event.clientY - rect.top) / rect.height))
   event.currentTarget.style.setProperty('--pigment-x', `${Math.round(x * 100)}%`)
   event.currentTarget.style.setProperty('--pigment-y', `${Math.round(y * 100)}%`)
-  // Small angle shift makes a soft swirl; button and label do not move.
-  event.currentTarget.style.setProperty('--pigment-angle', `${Math.round(25 + (x - .5) * 34 + (y - .5) * 18)}deg`)
 }
 
 function StoneCTA({
@@ -136,7 +134,7 @@ function StoneCTA({
       to={to}
       tabIndex={tabIndex}
       onPointerMove={movePigmentSpotlight}
-      className={`hero-stone-cta hero-stone-cta--${tone}${STATIC_CTA_PREVIEW ? '' : ' hero-stone-cta--spotlight'}`}
+      className={`hero-stone-cta hero-stone-cta--${tone}${STATIC_CTA_PREVIEW ? '' : ' mineral-border hero-stone-cta--interactive'}`}
     >
       <span className="hero-stone-cta__label">{children}</span>
     </Link>
