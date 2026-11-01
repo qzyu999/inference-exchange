@@ -287,7 +287,7 @@ export function Layout() {
 
       {/* Mobile hamburger + overlay */}
       <div className="lg:hidden fixed top-0 left-0 right-0 z-50 px-4 py-3 flex items-center justify-between"
-        style={{ background: AP.deepLapis, borderBottom: '1px solid rgba(240,197,75,0.55)' }}
+        style={{ background: '#292F35', borderBottom: '1px solid rgba(240,197,75,0.45)' }}
       >
         <Link to="/" className="text-sm font-bold uppercase tracking-wider" style={{ color: AP.orpiment }}>
           IE
