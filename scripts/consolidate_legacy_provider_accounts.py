@@ -350,6 +350,8 @@ def run(args: argparse.Namespace) -> dict:
             raise ConsolidationError("All three expected counts are required for --apply")
 
     with readonly(source) as db:
+        # Plan and source fingerprint must come from one consistent read snapshot.
+        db.execute("BEGIN")
         before = plan(db, args.canonical_principal)
         baseline_digest = snapshot_digest(db)
     observed = (
