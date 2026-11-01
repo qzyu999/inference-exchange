@@ -1,6 +1,48 @@
-# Cinematic hero media on Cloudflare R2 and CDN
+# Cinematic hero media — Cloudflare Stream alpha rollout
 
-**Status:** documented and wired for review in draft [PR #197](https://github.com/qzyu999/inference-exchange/pull/197), not yet deployed. **No R2 bucket, DNS record, or production asset availability has been verified by this change.** Do not merge or deploy the new landing page until the checklist below passes.
+**Current source of truth: integrated draft [PR #207](https://github.com/qzyu999/inference-exchange/pull/207), issue [#198](https://github.com/qzyu999/inference-exchange/issues/198).** The old R2/MP4 investigations later in this document are historical, NOT release instructions.
+
+## Current deployment policy (October 31, 2026)
+
+- **Motion:** 16:9 and 21:9 Cloudflare Stream **HLS only**, native Safari playback or lazily bundled **hls.js 1.7.3** on MSE browsers. No standalone MP4 paths are present in the production landing player.
+- **Flag:** `VITE_HERO_STREAM_ENABLED=false` by default. Build with `VITE_HERO_STREAM_ENABLED=true` only after the acceptance checks below; rebuilding with false is the poster-only emergency rollback. The static Vite frontend cannot change this compiled flag without a redeploy.
+- **Poster-only:** when disabled, prefers-reduced-motion, navigator Save-Data, or HLS failure. Both posters use Cloudflare Stream's official `/thumbnails/thumbnail.jpg` endpoint; this avoids video segment billing but is **not independent of Cloudflare Stream uptime**. Confirm both thumbnail URLs are accessible before release; source-independent bundled still posters remain a potential follow-up for a full CDN-outage fallback.
+- **Local review:** `?heroDelivery=stream` or `?heroDelivery=poster` only on localhost/127.0.0.1. Production ignores query flags. `?heroAspect=16x9` / `21x9` and `?heroFit=contain` are also localhost-only debug parameters.
+- **No legacy R2 upload** required for this release. `VITE_HERO_MEDIA_ORIGIN`, legacy `hero-media.js`, and old MP4 scripts remain historical and are **not used for video playback**.
+
+### Commands
+
+```bash
+# Owner's merged design/Stream branch, NOT main:
+cd ~/projects/inference-exchange-mandala-review
+# Use the separate integration worktree instructions from PR #207 to review
+# the combined branch, rather than switching an existing review tree.
+cd web
+npm ci
+npm run build # production flag defaults OFF; always poster-only
+npm run check:hero-media # GET both HLS manifests + both JPEG thumbnails
+
+# For a local Stream preview while Vite is on port 5178:
+# http://localhost:5178/?heroAspect=21x9&heroDelivery=stream
+# http://localhost:5178/?heroAspect=16x9&heroDelivery=stream
+# http://localhost:5178/?heroDelivery=poster
+
+# Explicit opt-in production-style bundle, only after gates:
+VITE_HERO_STREAM_ENABLED=true npm run build
+# Rebuild/deploy with false to disable motion again.
+```
+
+The `check:hero-media` script is read-only, makes two playlist and two still-image requests and checks HTTP status/content type. To check restricted origins, provide `HERO_ALLOWED_ORIGIN=https://inferenceex.com`. Do not put a secret/token in Vite environment variables.
+
+### Final release gates (minimal alpha scope)
+
+- [ ] On the **actual Cloudflare account**, confirm the **16:9** and **21:9** videos' Allowed Origins permit the exact production hostname (`inferenceex.com`, `www.inferenceex.com` if used); restrict unwanted third-party playback. Confirm billing/usage alerts. No hard spend cap is assumed.
+- [ ] On a production-style bundle or deployed preview, confirm both Stream videos play muted, loop, preserve mountain/crystal framing, and the static thumbnails load. Test one desktop and one mobile viewport. Inspect console/Network for **zero .mp4 requests**.
+- [ ] Test reduced motion / Save-Data / `?heroDelivery=poster` (localhost) / deliberate HLS failure: only the still poster, with no manifest or video segments requested.
+- [ ] Check for unexpected MIME/CORS/allowed-origin issues with real restricted Stream assets and actual deployed hostname. Stream-generated thumbnails may be unsupported for videos with non-square pixels.
+- [ ] Reconcile with current `main` and pass all CI; merge only the integrated PR #207 after owner's browser sign-off. A separate controlled deploy/flag-enable is required to begin public playback.
+
+## Historical evaluation (superseded)
 
 ## Delivery direction — Stream-only motion, poster-only failure
 
