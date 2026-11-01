@@ -102,3 +102,18 @@ MUST: The standard `openai` Python package can list models and send streaming an
 - Principle: P8
 - Status: implemented
 - Verified by: tests/test_mock_provider_e2e.py::test_python_sdk_guide_examples
+
+
+### ROUTE-013: Require an explicit model ID for new public chat requests
+
+MUST: A new `POST /v1/chat/completions` request names one concrete model ID in `model`.
+
+MUST NOT: The public API silently routes a missing, null, empty, whitespace-only, or literal `default` model value. It returns HTTP 400 with an OpenAI-compatible error body containing code `invalid_model` and guidance to use `GET /v1/models`. A model ID with surrounding whitespace is also invalid.
+
+MUST: The matching engine continues to choose an eligible provider for an explicitly named model. The routing constraints for trust, price, and capacity still apply.
+
+MUST NOT: This API change rewrite the original requested model or money fields in historical transactions.
+
+- Principle: P1, P2, P6, P8
+- Status: implemented
+- Verified by: tests/test_routes_inference.py::TestExplicitModelContract::test_rejects_missing_and_wildcard_model, tests/test_routes_inference.py::TestExplicitModelContract::test_named_model_reaches_existing_fail_fast, tests/test_mock_provider_e2e.py::test_python_sdk_guide_examples
