@@ -34,10 +34,12 @@ const VIDEO_ASPECT_RATIO: Record<VideoAspect, number> = {
   '21x9': 3840 / 1644,
 }
 const NAV_HEIGHT = 56
-// User-supplied public Stream video. This opt-in trial only runs on localhost;
-// no production visitors or default dev sessions can trigger Stream billing.
-const STREAM_21X9_MANIFEST =
-  'https://customer-5w3ijts4etcd5hi9.cloudflarestream.com/02af62eaa08146a6efe21b8a4d76a569/manifest/video.m3u8'
+// User-supplied public Stream video manifest URLs. The opt-in trial runs only
+// on localhost; regular local and production visitors continue to use MP4.
+const STREAM_MANIFEST_BY_ASPECT: Record<VideoAspect, string> = {
+  '16x9': 'https://customer-5w3ijts4etcd5hi9.cloudflarestream.com/6dcc0a01091fa0a720a7482f5c758b79/manifest/video.m3u8',
+  '21x9': 'https://customer-5w3ijts4etcd5hi9.cloudflarestream.com/02af62eaa08146a6efe21b8a4d76a569/manifest/video.m3u8',
+}
 const LOCAL_PREVIEW = /^(localhost|127[.]0[.]0[.]1)$/.test(window.location.hostname)
 const STREAM_PREVIEW = LOCAL_PREVIEW
   && new URLSearchParams(window.location.search).get('heroDelivery') === 'stream'
@@ -161,7 +163,7 @@ function getVideoFraming(aspect: VideoAspect): {
 /**
  * Default playback serves exactly one web-optimized MP4 selected on load;
  * it is not adaptive bitrate streaming. On localhost only, ?heroDelivery=stream
- * enables a Cloudflare Stream HLS adaptive-bitrate pilot for the 21:9 master.
+ * enables a Cloudflare Stream HLS adaptive-bitrate pilot for both compositions.
  * The pilot uses the same <video> and preserves MP4 fallback on HLS failure.
  */
 export function LandscapeVideo({ progress, reducedMotion, onAvailabilityChange }: LandscapeVideoProps) {
@@ -185,11 +187,11 @@ export function LandscapeVideo({ progress, reducedMotion, onAvailabilityChange }
   const saveData = (navigator as Navigator & { connection?: NetworkHints }).connection?.saveData === true
   const shouldAutoplay = !reducedMotion && !saveData
   const selectedCandidate = candidateSources[Math.min(sourceIndex, candidateSources.length - 1)]
-  // Only the existing ultrawide upload is present in Cloudflare Stream.
-  // For 16:9, use the original local/R2 MP4 until a second Stream asset exists.
-  const useStream = STREAM_PREVIEW && selectedCandidate.aspect === '21x9'
-    && shouldAutoplay && !streamFailed && sourceIndex === 0
-  const selectedSource = useStream ? STREAM_21X9_MANIFEST : selectedCandidate.path
+  // Both 16:9 and 21:9 now have Cloudflare Stream uploads. Keep the preview
+  // explicit and the existing MP4 as a safe fallback for playback failures.
+  const useStream = STREAM_PREVIEW && shouldAutoplay && !streamFailed && sourceIndex === 0
+  const selectedManifest = STREAM_MANIFEST_BY_ASPECT[selectedCandidate.aspect]
+  const selectedSource = useStream ? selectedManifest : selectedCandidate.path
   const selectedPoster = selectedCandidate.poster
   const framing = getVideoFraming(selectedCandidate.aspect)
   const edges = getHeroEdges()
@@ -208,7 +210,7 @@ export function LandscapeVideo({ progress, reducedMotion, onAvailabilityChange }
       setStreamFailed(true)
     }
     try {
-      const attachment = attachStreamHls(video, STREAM_21X9_MANIFEST, fail, controller.signal)
+      const attachment = attachStreamHls(video, selectedManifest, fail, controller.signal)
       // Native HLS must attach and tear down synchronously. In React 18
       // StrictMode, the stale first cleanup otherwise runs *after* the second
       // setup, silently removing its src (networkState=0, readyState=0).
@@ -227,7 +229,7 @@ export function LandscapeVideo({ progress, reducedMotion, onAvailabilityChange }
       controller.abort()
       release?.()
     }
-  }, [useStream])
+  }, [useStream, selectedManifest])
   useEffect(() => {
     setSourceIndex(0)
     setReady(false)
