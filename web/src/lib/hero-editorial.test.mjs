@@ -33,6 +33,14 @@ for (const name of ['ink', 'primary', 'secondary', 'link']) {
   assert.match(styles, new RegExp(`\\.hero-pigment-${name}`))
 }
 assert.match(rail, /CHAPTER_PIGMENTS = \[HP\.orpiment, HP\.cinnabar, HP\.jade, HP\.lapis\]/)
+assert.match(landing, /hero-body-inscription/)
+assert.match(landing, /hero-fine-inscription/)
+assert.match(landing, /hero-mineral-thread/)
+assert.match(nav, /mineral-spectrum-text hero-mineral-wordmark/)
+assert.match(styles, /\.hero-body-inscription/)
+assert.match(styles, /\.hero-mineral-wordmark/)
+assert.match(styles, /\.hero-mineral-thread/)
+assert.match(styles, /\.hero-mineral-wordmark,\s*\.hero-mineral-thread \{ animation: none; \}/)
 assert.match(nav, /HERO_PIGMENTS as HP/)
 assert.match(nav, /background: 'linear-gradient\(95deg, #102D6D/)
 
