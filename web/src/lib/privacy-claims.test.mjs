@@ -11,7 +11,13 @@ assert.match(description, /not end-to-end encrypted/i)
 assert.doesNotMatch(description, /(?:^|\.\s*)E2E encrypted\./i)
 
 const landing = readFileSync(new URL('../pages/Landing.tsx', import.meta.url), 'utf8')
+const chat = readFileSync(new URL('../pages/Chat.tsx', import.meta.url), 'utf8')
 const provide = readFileSync(new URL('../pages/Provide.tsx', import.meta.url), 'utf8')
-assert.match(landing, /not end-to-end encrypted/)
+// Retain a correct, visible privacy notice at the point of use, without
+// repeating transport-layer details throughout the landing-page story.
+assert.doesNotMatch(landing, /Browser chat uses TLS|end-to-end encrypted/i)
+assert.match(chat, /Browser chat uses TLS, not end-to-end encryption/)
+assert.match(chat, /The coordinator can read prompts and responses/)
+assert.match(chat, /responses regardless of the provider trust selection/)
 assert.match(provide, /provider operator can inspect plaintext/)
 console.log('#174 L0/Open public privacy claim checks passed')
