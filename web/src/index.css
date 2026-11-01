@@ -481,6 +481,69 @@ body {
   }
 }
 
+/* Full-surface mineral spectrum preview. Adapted from the established
+   cursor-following radial spotlight pattern (Vercel/koro.dev); the brush
+   palette is IE-specific. One conic gradient + one radial highlight stays
+   inside the button; no particles, canvas, scrolling work or new packages. */
+.hero-stone-cta--spotlight {
+  --pigment-x: 50%;
+  --pigment-y: 50%;
+  --pigment-angle: 25deg;
+  isolation: isolate;
+  transition: color 200ms ease, border-color 200ms ease, box-shadow 200ms ease,
+    background-color 200ms ease;
+}
+.hero-stone-cta--spotlight::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  border-radius: inherit;
+  background:
+    radial-gradient(circle at var(--pigment-x) var(--pigment-y),
+      rgba(255, 250, 225, 0.52) 0%,
+      rgba(255, 250, 225, 0.09) 34%,
+      transparent 69%),
+    conic-gradient(from var(--pigment-angle) at var(--pigment-x) var(--pigment-y),
+      #D89582 0deg, #EFC67C 63deg, #B4C992 117deg,
+      #90C4BF 179deg, #A6B8DF 240deg, #DBA5B6 310deg,
+      #D89582 360deg);
+  opacity: 0;
+  transition: opacity 220ms ease;
+}
+.hero-stone-cta__label {
+  position: relative;
+  z-index: 1;
+  /* Solid ink on a light mineral wash; no moving glyphs or letter strokes. */
+}
+.hero-stone-cta--spotlight:is(:hover, :focus-visible) {
+  color: #182B31;
+  border-color: rgba(246, 225, 172, 0.85);
+  box-shadow: 0 3px 12px rgba(11, 18, 24, 0.28), inset 0 1px 0 rgba(255, 250, 229, 0.37);
+}
+.hero-stone-cta--spotlight:is(:hover, :focus-visible)::before {
+  opacity: 1;
+}
+/* The optional 2px mineral inlay remains subdued under the full fill. */
+.hero-stone-cta--spotlight::after {
+  z-index: 2;
+}
+@media (prefers-reduced-motion: reduce) {
+  .hero-stone-cta--spotlight,
+  .hero-stone-cta--spotlight::before {
+    transition: none;
+  }
+  /* Keyboard/touch focus gets a static 50% blend; pointer tracking is also
+     suppressed by the event handler for reduced-motion users. */
+  .hero-stone-cta--spotlight::before {
+    background:
+      radial-gradient(circle at 50% 50%, rgba(255, 250, 225, 0.45), transparent 69%),
+      conic-gradient(from 25deg at 50% 50%,
+        #D89582, #EFC67C, #B4C992, #90C4BF, #A6B8DF, #DBA5B6, #D89582);
+  }
+}
+
 .sidebar-active-bar {
   position: relative;
 }
