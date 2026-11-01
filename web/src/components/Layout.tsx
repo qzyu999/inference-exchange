@@ -276,18 +276,18 @@ export function Layout() {
   )
 
   return (
-    <div className="ie-mineral-app flex min-h-screen" style={{ background: `linear-gradient(180deg, #FCF9F1 0%, ${AP.parchment} 48%, #F3EBDC 100%)` }}>
+    <div className="ie-mineral-app flex min-h-screen" style={{ background: AP.atmosphere }}>
       {/* Desktop sidebar */}
       <aside
         className="ie-mineral-sidebar hidden lg:flex flex-col w-52 shrink-0 sticky top-0 h-screen overflow-y-auto"
-        style={{ background: AP.sidebar }}
+        style={{ background: GRADIENTS.sidebar }}
       >
         {sidebarContent}
       </aside>
 
       {/* Mobile hamburger + overlay */}
       <div className="lg:hidden fixed top-0 left-0 right-0 z-50 px-4 py-3 flex items-center justify-between"
-        style={{ background: '#292F35', borderBottom: '1px solid rgba(240,197,75,0.45)' }}
+        style={{ background: GRADIENTS.sidebar, borderBottom: '1px solid rgba(240,197,75,0.34)' }}
       >
         <Link to="/" className="text-sm font-bold uppercase tracking-wider" style={{ color: AP.orpiment }}>
           IE
@@ -315,7 +315,7 @@ export function Layout() {
           />
           <aside
             className="ie-mineral-sidebar lg:hidden fixed top-0 left-0 bottom-0 z-50 w-56 flex flex-col overflow-y-auto"
-            style={{ background: AP.sidebar }}
+            style={{ background: GRADIENTS.sidebar }}
             onClick={(e) => {
               // Close on nav link clicks
               if ((e.target as HTMLElement).closest('a')) setMobileOpen(false)
