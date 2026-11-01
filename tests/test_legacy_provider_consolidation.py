@@ -4,6 +4,7 @@ All database files live under pytest's tmp_path. No live DB is opened.
 """
 
 import argparse
+import importlib.util
 import json
 import sqlite3
 from pathlib import Path
@@ -11,14 +12,20 @@ from pathlib import Path
 import pytest
 
 from inference_exchange.coordinator.store import Store
-from scripts.consolidate_legacy_provider_accounts import (
-    CONFIRMATION,
-    ConsolidationError,
-    consolidate,
-    financial_totals,
-    plan,
-    run,
-)
+
+# Scripts are deliberately not installed as an importable package in pyproject.
+# Load this operator-only CLI by its path to test the exact shipped file.
+SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "consolidate_legacy_provider_accounts.py"
+spec = importlib.util.spec_from_file_location("ie_legacy_consolidation", SCRIPT)
+module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(module)
+
+CONFIRMATION = module.CONFIRMATION
+ConsolidationError = module.ConsolidationError
+consolidate = module.consolidate
+financial_totals = module.financial_totals
+plan = module.plan
+run = module.run
 
 
 def make_fixture(tmp_path):
@@ -199,7 +206,6 @@ def test_explicit_attestation_and_exact_counts_required(tmp_path):
 
 
 def test_live_drift_after_backup_aborts_before_any_migration(tmp_path, monkeypatch):
-    from scripts import consolidate_legacy_provider_accounts as module
     path, canonical = make_fixture(tmp_path)
     original_backup = module.backup_source
 
