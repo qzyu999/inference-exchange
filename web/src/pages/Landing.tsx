@@ -105,18 +105,18 @@ const CHAPTER_COPY = [
   },
 ] as const
 
-// Protect legibility at the glyphs, not by dimming half the landscape.
-// These dark, close-in shadows create separation even over white snow/sky
-// without altering a single pixel of the source video.
-const HERO_TITLE_SHADOW = '0 1px 1px rgba(0,0,0,0.98), 0 2px 5px rgba(0,0,0,0.9), 0 4px 16px rgba(0,0,0,0.62)'
-const HERO_BODY_SHADOW = '0 1px 2px rgba(0,0,0,1), 0 2px 7px rgba(0,0,0,0.96), 0 3px 13px rgba(0,0,0,0.7)'
+// Protect legibility at the glyphs, leaving the source landscape untouched.
+// Tight shadows + a hairline stroke keep white text clear over bright snow
+// without a visible dark vignette across the sky or lake.
+const HERO_TITLE_SHADOW = '0 1px 2px rgba(1,8,16,0.88), 0 3px 10px rgba(1,8,16,0.68)'
+const HERO_BODY_SHADOW = '0 1px 2px rgba(1,8,16,0.95), 0 2px 6px rgba(1,8,16,0.78), 0 3px 12px rgba(1,8,16,0.48)'
 
-// The default is a local, feathered text-area shade. It never blurs the
-// pixels or stretches across the mountain. URL options make fair A/B checks:
-// ?heroShade=off (no shade) | ?heroShade=legacy (old broad dark wash).
+// Text-only contrast is now the default. A faint local tint is available for
+// A/B checking on unusually bright frames; legacy preserves the old treatment.
+// ?heroShade=soft (small feathered tint) | ?heroShade=legacy (original wash).
 const SHADE_MODE = new URLSearchParams(window.location.search).get('heroShade')
 const SHOW_LEGACY_SHADE = SHADE_MODE === 'legacy'
-const SHOW_TEXT_SHADE = SHADE_MODE !== 'off' && !SHOW_LEGACY_SHADE
+const SHOW_TEXT_SHADE = SHADE_MODE === 'soft'
 // Debug-only visual centerline, at the same 50% stage x used by the video.
 const SHOW_ALIGNMENT_GUIDES = new URLSearchParams(window.location.search).get('heroGuides') === '1'
 
@@ -134,16 +134,18 @@ function EditorialStory({
   return (
     <div
       className="pointer-events-none absolute inset-0 z-20"
+      data-hero-shade={SHOW_LEGACY_SHADE ? 'legacy' : SHOW_TEXT_SHADE ? 'soft' : 'off'}
       style={{ opacity: 1 - exitProgress }}
     >
       {SHOW_TEXT_SHADE && (
         <div
-          className="pointer-events-none absolute inset-y-0 left-0 w-[min(95vw,850px)] sm:w-[min(72vw,850px)] lg:w-[min(48vw,850px)]"
+          className="pointer-events-none absolute inset-y-0 left-0 w-[min(90vw,700px)] sm:w-[min(64vw,700px)] lg:w-[min(41vw,700px)]"
           aria-hidden="true"
           style={{
-            // Only the left-middle copy region has meaningful density.
-            // The sky, summit and center lake are free of a screen-wide tint.
-            background: 'radial-gradient(ellipse 97% 56% at 23% 50%, rgba(5,11,21,0.58) 0%, rgba(5,11,21,0.36) 44%, rgba(5,11,21,0.10) 76%, rgba(5,11,21,0) 100%)',
+            // A tiny pool of contrast, shifted right beneath the copy, with
+            // the color gone well before the mountain/reflection centerline.
+            // Default view has NO overlay; this is only ?heroShade=soft.
+            background: 'radial-gradient(ellipse 78% 49% at 37% 50%, rgba(5,11,21,0.16) 0%, rgba(5,11,21,0.06) 48%, rgba(5,11,21,0) 88%)',
           }}
         />
       )}
@@ -182,14 +184,14 @@ function EditorialStory({
               <h1
                 id={'landing-chapter-title-' + index}
                 className="text-[clamp(2.65rem,4.6vw,4.9rem)] font-semibold tracking-[-0.045em] leading-[1.06]"
-                style={{ color: '#FFFFFF', textShadow: HERO_TITLE_SHADOW, WebkitTextStroke: '0.35px rgba(0,0,0,0.65)' }}
+                style={{ color: '#FFFFFF', textShadow: HERO_TITLE_SHADOW, WebkitTextStroke: '0.5px rgba(1,8,16,0.7)' }}
               >
                 <span className="block">{chapter.headline[0]}</span>
                 <span className="block">{chapter.headline[1]}</span>
               </h1>
               <p
-                className="mt-7 text-base md:text-lg leading-relaxed max-w-[29rem]"
-                style={{ color: '#FFFFFF', textShadow: HERO_BODY_SHADOW }}
+                className="mt-7 text-base md:text-lg font-medium leading-relaxed max-w-[29rem]"
+                style={{ color: '#FFFFFF', textShadow: HERO_BODY_SHADOW, WebkitTextStroke: '0.2px rgba(1,8,16,0.6)' }}
               >
                 {chapter.description}
               </p>
