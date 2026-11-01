@@ -143,13 +143,22 @@ assert.match(styles, /paint-order: stroke fill;/)
 assert.match(styles, /\.hero-mani-nav \{/)
 assert.match(styles, /color: #F7EAD6;/)
 assert.match(styles, /\.hero-mani-meta \{/)
-assert.match(styles, /\.hero-mani-heading \{/)
-assert.match(styles, /color: #F8EAD5;/)
-assert.match(styles, /-webkit-text-stroke: 0\.8px rgba\(16, 24, 29, 0\.96\);/)
-assert.match(styles, /\.hero-mani-heading-pigment \{/)
-assert.match(styles, /-webkit-text-stroke: 0\.95px rgba\(16, 24, 29, 0\.98\);/)
-assert.match(styles, /text-shadow: none;/)
-assert.match(styles, /\.hero-mani-heading,\s*\.hero-mani-heading-pigment \{/)
+// Large letterforms have delicate enclosed counters (e, a, P). Even a thin
+// dark stroke paints INSIDE those counters, leaving black lines with clipped
+// pigment gradients. Guard against reintroducing that rasterization artifact.
+const largeHeading = styles.match(/\.hero-mani-heading \{([^}]+)\}/)?.[1]
+const pigmentHeading = styles.match(/\.hero-mani-heading-pigment \{([^}]+)\}/)?.[1]
+assert.ok(largeHeading && pigmentHeading, 'both headline styles must exist')
+for (const rule of [largeHeading, pigmentHeading]) {
+  assert.match(rule, /-webkit-text-stroke: 0;/,
+    'large lettering must explicitly disable interior glyph outlines')
+  assert.doesNotMatch(rule, /paint-order: stroke fill|drop-shadow|filter:/,
+    'no stroke or filter effects on large letterforms')
+}
+assert.match(largeHeading, /color: #F8EAD5;/)
+assert.match(largeHeading, /text-shadow: 0 2px 5px rgba\(10, 17, 22, 0\.7\);/)
+assert.match(pigmentHeading, /text-shadow: none;/)
+assert.doesNotMatch(styles, /\.hero-mani-heading,\s*\.hero-mani-heading-pigment\s*\{[^}]*-webkit-text-stroke-width:/)
 assert.doesNotMatch(landing, /0 2px 24px rgba\(0,0,0,0\.6\)/)
 assert.match(nav, /const NAV_PAINT = '#F7EAD6'/)
 assert.match(nav, /hero-mani-nav text-\[13px\]/)
