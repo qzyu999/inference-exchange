@@ -24,6 +24,15 @@
   --hero-cream: #F6E7C7;
   --hero-silk: #F2DFC0;
   --hero-cloud: #FBF4E4;
+  /* Exact seven-stop landing wordmark mineral spectrum. Both the logo
+     lettering and pointer-responsive CTA wash reference these same values. */
+  --hero-spectrum-apricot: #F5A475;
+  --hero-spectrum-orpiment: #F0C54B;
+  --hero-spectrum-coral: #E48773;
+  --hero-spectrum-jade: #A3C899;
+  --hero-spectrum-turquoise: #7FD5D1;
+  --hero-spectrum-lapis: #A5BEF4;
+  --hero-spectrum-lotus: #E4A4CB;
   /* Same dusty-sage → ochre → ivory colors as the app's painted-sky wash.
      These colors affect only small surfaces, never the mountain video. */
   --hero-atmosphere-wash: linear-gradient(138deg,
@@ -226,8 +235,10 @@ body {
    deterministic CSS background-position shift, not a random algorithm. */
 .hero-mineral-wordmark {
   background-image: linear-gradient(95deg,
-    #F5A475 0%, #F0C54B 16%, #E48773 34%, #A3C899 51%,
-    #7FD5D1 67%, #A5BEF4 83%, #E4A4CB 100%);
+    var(--hero-spectrum-apricot) 0%, var(--hero-spectrum-orpiment) 16%,
+    var(--hero-spectrum-coral) 34%, var(--hero-spectrum-jade) 51%,
+    var(--hero-spectrum-turquoise) 67%, var(--hero-spectrum-lapis) 83%,
+    var(--hero-spectrum-lotus) 100%);
   background-size: 200% auto;
   text-shadow: 0 1px 2px rgba(27, 27, 32, 0.65);
   animation: mineral-shift 15s ease-in-out infinite;
@@ -506,9 +517,10 @@ body {
       rgba(255, 250, 225, 0.09) 34%,
       transparent 69%),
     conic-gradient(from var(--pigment-angle) at var(--pigment-x) var(--pigment-y),
-      #D89582 0deg, #EFC67C 63deg, #B4C992 117deg,
-      #90C4BF 179deg, #A6B8DF 240deg, #DBA5B6 310deg,
-      #D89582 360deg);
+      var(--hero-spectrum-apricot) 0deg, var(--hero-spectrum-orpiment) 52deg,
+      var(--hero-spectrum-coral) 104deg, var(--hero-spectrum-jade) 156deg,
+      var(--hero-spectrum-turquoise) 208deg, var(--hero-spectrum-lapis) 260deg,
+      var(--hero-spectrum-lotus) 312deg, var(--hero-spectrum-apricot) 360deg);
   opacity: 0;
   transition: opacity 220ms ease;
 }
@@ -540,7 +552,10 @@ body {
     background:
       radial-gradient(circle at 50% 50%, rgba(255, 250, 225, 0.45), transparent 69%),
       conic-gradient(from 25deg at 50% 50%,
-        #D89582, #EFC67C, #B4C992, #90C4BF, #A6B8DF, #DBA5B6, #D89582);
+        var(--hero-spectrum-apricot), var(--hero-spectrum-orpiment),
+        var(--hero-spectrum-coral), var(--hero-spectrum-jade),
+        var(--hero-spectrum-turquoise), var(--hero-spectrum-lapis),
+        var(--hero-spectrum-lotus), var(--hero-spectrum-apricot));
   }
 }
 
