@@ -271,12 +271,13 @@ function LiveExchangeCard() {
 
   return (
     <div
-      className="hero-exchange-card relative rounded-xl p-6 w-full max-w-sm"
+      className="rounded-2xl p-6 w-full max-w-sm mineral-border"
+      style={{ background: 'rgba(255,255,255,0.06)', backdropFilter: 'blur(12px)' }}
     >
-      <div className="text-[10px] uppercase tracking-wider font-medium mb-1.5" style={{ color: '#514735' }}>
+      <div className="text-[10px] uppercase tracking-wider font-medium mb-1.5" style={{ color: C.gold }}>
         Live Exchange
       </div>
-      <h3 className="text-xl font-bold mb-5" style={{ color: C.blueBlack }}>
+      <h3 className="text-xl font-bold mb-5" style={{ color: C.warmWhite }}>
         Supply &times; demand
       </h3>
 
@@ -292,15 +293,15 @@ function LiveExchangeCard() {
           return (
             <div key={m.model} className="flex items-center justify-between">
               <div className="flex items-center gap-3 min-w-0">
-                <span className="text-sm font-medium truncate" style={{ color: C.blueBlack }}>
+                <span className="text-sm font-medium truncate" style={{ color: C.warmWhite }}>
                   {m.model}
                 </span>
               </div>
               <div className="flex items-center gap-4 shrink-0 text-right">
-                <span className="text-xs" style={{ color: '#4B4E47' }}>
+                <span className="text-xs" style={{ color: '#8a8578' }}>
                   {m.provider_count} provider{m.provider_count !== 1 ? 's' : ''}
                 </span>
-                <span className="text-sm font-semibold" style={{ color: '#654326' }}>
+                <span className="text-sm font-semibold" style={{ color: C.gold }}>
                   {priceRange}
                 </span>
               </div>
@@ -310,19 +311,19 @@ function LiveExchangeCard() {
           <>
             {[1, 2, 3].map(i => (
               <div key={i} className="flex items-center justify-between">
-                <div className="h-3 rounded-full w-28" style={{ background: 'rgba(108,98,85,0.11)' }} />
-                <div className="h-3 rounded-full w-16" style={{ background: 'rgba(108,98,85,0.11)' }} />
+                <div className="h-3 rounded-full w-28" style={{ background: 'rgba(255,255,255,0.06)' }} />
+                <div className="h-3 rounded-full w-16" style={{ background: 'rgba(255,255,255,0.06)' }} />
               </div>
             ))}
           </>
         )}
       </div>
 
-      <div className="mt-5 pt-4" style={{ borderTop: '1px solid rgba(128,111,89,0.22)' }}>
-        <div className="text-[10px] uppercase tracking-wider font-medium" style={{ color: '#514735' }}>
+      <div className="mt-5 pt-4" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+        <div className="text-[10px] uppercase tracking-wider font-medium" style={{ color: C.gold }}>
           Trust levels are claims
         </div>
-        <div className="text-xs mt-0.5" style={{ color: '#4B4E47' }}>
+        <div className="text-xs mt-0.5" style={{ color: '#a9a294' }}>
           Shown as self-reported until verified. Browser chat uses TLS; it is not end-to-end encrypted.
         </div>
       </div>
@@ -504,18 +505,20 @@ export function Landing() {
                     <Link
                       to="/chat"
                       tabIndex={productOpacity > 0.95 ? undefined : -1}
-                      className="hero-pigment-primary inline-flex items-center gap-2 rounded-md px-6 py-3 font-semibold text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#F0C54B]"
+                      className="group relative inline-flex items-center px-6 py-3 rounded-xl font-medium text-sm transition-all overflow-hidden focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#F0C54B]"
+                      style={{ color: C.blueBlack }}
                     >
-                      
-                      Start a conversation
+                      <span className="absolute inset-0 rounded-xl transition-opacity" style={{ background: C.warmWhite }} />
+                      <span className="absolute inset-0 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity" style={{ background: GRADIENTS.heroText }} />
+                      <span className="relative z-10 group-hover:text-white transition-colors">Start a conversation</span>
                     </Link>
                     <Link
                       to="/provide"
                       tabIndex={productOpacity > 0.95 ? undefined : -1}
-                      className="hero-pigment-secondary inline-flex items-center gap-2 rounded-md px-6 py-3 font-semibold text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#F0C54B]"
+                      className="group relative inline-flex items-center px-6 py-3 rounded-xl font-medium text-sm border transition-all overflow-hidden mineral-border focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#F0C54B]"
+                      style={{ color: C.warmWhite, background: 'rgba(216,209,190,0.06)' }}
                     >
-                      
-                      Become a provider
+                      <span className="relative z-10">Become a provider</span>
                     </Link>
                   </div>
                 </div>
