@@ -31,6 +31,34 @@ export const C = {
   pageText: '#292F35',
 } as const
 
+/**
+ * Product workbench pilot (#203). These semantic mineral tones reconcile
+ * the new Tibetan/Sichuan-inspired landing art with dense data interfaces.
+ * Keep C/TRUST_COLORS untouched while piloting the shared shell.
+ */
+export const APP_PIGMENTS = {
+  deepLapis: '#102D6D',
+  lapis: '#163E8C',
+  indigoSmoke: '#433763',
+  orpiment: '#F0C54B',
+  saffron: '#E29A2D',
+  cinnabar: '#C94C2F',
+  jade: '#5F8E61',
+  malachite: '#3F7B67',
+  silk: '#F2DFC0',
+  cloud: '#FBF4E4',
+  parchment: '#F7F2E8',
+  paper: '#FFFDF7',
+  line: '#D9C8AA',
+  ink: '#263A63',
+  body: '#46546A',
+  goldInk: '#845918',
+  jadeInk: '#31644E',
+  sidebarText: '#EADFCB',
+  sidebarMuted: '#C4BBD0',
+  sidebar: 'linear-gradient(175deg, #102D6D 0%, #163E8C 52%, #393565 100%)',
+} as const
+
 // Trust levels are claimed by providers and not yet independently verified (see #1). Say so wherever they are shown.
 export const TRUST_CLAIM_NOTE = 'Self-reported by the provider. Independent verification is not live yet.'
 
