@@ -8,6 +8,8 @@ import { C, GRADIENTS, HERO_PIGMENTS as HP } from '../lib/theme'
 // Plain HTML above the WebGL canvas: it works before, during, and without the scene.
 
 const FOCUS = 'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#F0C54B]'
+// Opaque pale pigment on dark charcoal, inspired by painted mani stones.
+const NAV_PAINT = '#F7EAD6'
 
 function AccountArea({ onNavigate }: { onNavigate?: () => void }) {
   const { user, loading, logout } = useAuth()
@@ -16,14 +18,14 @@ function AccountArea({ onNavigate }: { onNavigate?: () => void }) {
 
   if (state === 'loading') {
     // Reserve the space, and do not claim either state while /v1/auth/me resolves
-    return <span className="text-xs" style={{ color: HP.silk }} aria-live="polite">Checking sign-in…</span>
+    return <span className="hero-mani-nav text-[13px]" style={{ color: NAV_PAINT }} aria-live="polite">Checking sign-in…</span>
   }
   if (state === 'signed-out') {
     return (
       <Link
         to={loginHref(location.pathname + location.search)}
         onClick={onNavigate}
-        className={`px-3 py-1.5 rounded-lg text-[15px] font-medium border ${FOCUS}`}
+        className={`hero-mani-nav px-3 py-1.5 rounded-lg text-[15px] border ${FOCUS}`}
         style={{ color: HP.cream, borderColor: 'rgba(240,197,75,0.55)' }}
       >
         Sign in with GitHub
@@ -32,16 +34,16 @@ function AccountArea({ onNavigate }: { onNavigate?: () => void }) {
   }
   return (
     <div className="flex items-center gap-3 flex-wrap">
-      <span className="text-xs truncate max-w-[12rem]" style={{ color: HP.silk }} title={user!.email}>
+      <span className="hero-mani-nav text-[13px] truncate max-w-[12rem]" style={{ color: NAV_PAINT }} title={user!.email}>
         Signed in as {user!.name || user!.email}
       </span>
-      <Link to="/keys" onClick={onNavigate} className={`text-[15px] ${FOCUS}`} style={{ color: HP.cream }}>API keys</Link>
-      <Link to="/billing" onClick={onNavigate} className={`text-[15px] ${FOCUS}`} style={{ color: HP.cream }}>Account</Link>
+      <Link to="/keys" onClick={onNavigate} className={`hero-mani-nav text-[15px] ${FOCUS}`} style={{ color: NAV_PAINT }}>API keys</Link>
+      <Link to="/billing" onClick={onNavigate} className={`hero-mani-nav text-[15px] ${FOCUS}`} style={{ color: NAV_PAINT }}>Account</Link>
       <button
         type="button"
         onClick={() => { onNavigate?.(); logout() }}
-        className={`text-[15px] ${FOCUS}`}
-        style={{ color: HP.silk }}
+        className={`hero-mani-nav text-[15px] ${FOCUS}`}
+        style={{ color: NAV_PAINT }}
       >
         Sign out
       </button>
@@ -94,7 +96,7 @@ export function LandingNav() {
         <ul className="hidden xl:flex items-center gap-4">
           {LANDING_LINKS.map(l => (
             <li key={l.to}>
-              <Link to={l.to} className={`text-[15px] ${FOCUS}`} style={{ color: HP.silk }}>{l.label}</Link>
+              <Link to={l.to} className={`hero-mani-nav text-[15px] ${FOCUS}`} style={{ color: NAV_PAINT }}>{l.label}</Link>
             </li>
           ))}
         </ul>
@@ -123,8 +125,8 @@ export function LandingNav() {
           {!loading && (
             <Link
               to={user ? '/keys' : loginHref(location.pathname + location.search)}
-              className={`px-2 py-2 rounded-lg text-sm font-medium ${FOCUS}`}
-              style={{ color: HP.cream }}
+              className={`hero-mani-nav px-2 py-2 rounded-lg text-sm ${FOCUS}`}
+              style={{ color: NAV_PAINT }}
             >
               {user ? 'Account' : 'Sign in'}
             </Link>
@@ -156,8 +158,8 @@ export function LandingNav() {
                 <Link
                   to={l.to}
                   onClick={() => setOpen(false)}
-                  className={`block py-3 text-base ${FOCUS}`}
-                  style={{ color: HP.cream, borderBottom: '1px solid rgba(240,197,75,0.23)' }}
+                  className={`hero-mani-nav block py-3 text-base ${FOCUS}`}
+                  style={{ color: NAV_PAINT, borderBottom: '1px solid rgba(240,197,75,0.23)' }}
                 >
                   {l.label}
                 </Link>
