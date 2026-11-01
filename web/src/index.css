@@ -408,137 +408,76 @@ body {
 }
 
 
-/* Landing CTAs — a single pass of ground mineral pigment, like a brush mark
-   on stone dissolving at its edge. The base surface stays calm and the
-   label never transforms. Static, deterministic dot patterns; no JS or
-   continuously animated gradients. Shared by the three intro and two
-   finale actions, scoped off the rest of the application. */
-.hero-sand-cta {
+/* Landing CTA: restrained mineral inlay, not an animated sand effect.
+   The Tibetan painted-stone reference is expressed as a hairline of
+   matte cinnabar / ochre / malachite pigment revealed in a carved edge.
+   Keep the original calm button fills and readable, stationary lettering.
+   No particles, clip paths, shimmer, looping gradients or screen overlay. */
+.hero-stone-cta {
   position: relative;
-  isolation: isolate;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   overflow: hidden;
-  border: 1px solid transparent;
-  border-radius: 0.75rem;
-  padding: 0.75rem 1.5rem;
   min-height: 44px;
+  padding: 0.75rem 1.5rem;
+  border-radius: 0.75rem;
+  border: 1px solid transparent;
   font-size: 0.875rem;
   line-height: 1.25rem;
   font-weight: 600;
   text-decoration: none;
-  transition:
-    transform 200ms ease,
-    box-shadow 250ms ease,
-    border-color 250ms ease;
+  transition: border-color 180ms ease, box-shadow 180ms ease, background-color 180ms ease;
 }
-.hero-sand-cta--light {
+.hero-stone-cta--light {
   color: #292B2A;
   background: #D8D1BE;
   border-color: rgba(247, 235, 210, 0.85);
 }
-.hero-sand-cta--outline {
+.hero-stone-cta--outline {
   color: #F8EAD5;
   background: rgba(14, 16, 24, 0.58);
   border-color: rgba(216, 209, 190, 0.55);
 }
-.hero-sand-cta--quiet {
+.hero-stone-cta--quiet {
   color: #F8EAD5;
   background: rgba(14, 16, 24, 0.58);
   border-color: rgba(216, 209, 190, 0.14);
 }
-.hero-sand-cta__label {
-  position: relative;
-  z-index: 2;
-  white-space: nowrap;
-  /* No text gradient, stroke or animation: keep letter counters intact. */
-}
-.hero-sand-cta__wash,
-.hero-sand-cta__grains {
+/* A fine, static inlaid edge—pigment stays at the edge of the stone,
+   never travels across the lettering. */
+.hero-stone-cta::after {
+  content: '';
   position: absolute;
-  inset: 0;
-  z-index: 1;
   pointer-events: none;
-}
-.hero-sand-cta__wash {
-  inset: 8% -16%;
-  background: linear-gradient(102deg,
-    transparent 0%,
-    rgba(196, 72, 52, 0.50) 19%,
-    rgba(222, 148, 68, 0.63) 39%,
-    rgba(118, 152, 111, 0.45) 58%,
-    rgba(71, 119, 140, 0.39) 74%,
-    transparent 96%);
-  /* Slightly ragged upper/lower brush edges, not a square gradient overlay. */
-  clip-path: polygon(0 32%, 9% 22%, 17% 31%, 25% 19%, 34% 28%, 44% 18%, 52% 26%, 62% 16%, 72% 27%, 83% 17%, 93% 29%, 100% 23%, 100% 76%, 91% 84%, 82% 77%, 73% 90%, 62% 79%, 52% 88%, 41% 76%, 30% 88%, 19% 78%, 10% 85%, 0 73%);
+  left: 15%;
+  right: 15%;
+  bottom: 0;
+  height: 2px;
+  border-radius: 2px 2px 0 0;
+  background: linear-gradient(90deg, #9D5C47 0%, #C49A45 52%, #668B78 100%);
   opacity: 0;
-  transform: translate3d(-110%, 0, 0) skewX(-8deg);
-  transition: transform 620ms cubic-bezier(0.18, 0.72, 0.24, 1),
-    opacity 220ms ease;
+  transition: opacity 180ms ease;
 }
-.hero-sand-cta--light .hero-sand-cta__wash {
-  opacity: 0;
-  filter: saturate(0.8);
+.hero-stone-cta:is(:hover, :focus-visible) {
+  border-color: #C9AE7E;
+  box-shadow: 0 2px 9px rgba(11, 18, 24, 0.24), inset 0 1px 0 rgba(255, 249, 231, 0.16);
 }
-.hero-sand-cta__grains {
-  inset: -20% -14%;
-  opacity: 0;
-  background-image:
-    radial-gradient(circle, rgba(237, 186, 100, 0.85) 0.8px, transparent 1.3px),
-    radial-gradient(circle, rgba(111, 165, 143, 0.75) 0.75px, transparent 1.3px),
-    radial-gradient(circle, rgba(237, 205, 154, 0.85) 0.65px, transparent 1.25px);
-  background-size: 23px 21px, 31px 27px, 41px 33px;
-  background-position: 2px 7px, 11px 15px, 17px 5px;
-  -webkit-mask-image: linear-gradient(90deg, transparent 5%, #000 35%, #000 84%, transparent 100%);
-  mask-image: linear-gradient(90deg, transparent 5%, #000 35%, #000 84%, transparent 100%);
+.hero-stone-cta--light:is(:hover, :focus-visible) {
+  background: #E6DDC9;
+  box-shadow: 0 2px 9px rgba(11, 18, 24, 0.24), inset 0 1px 0 rgba(255, 255, 255, 0.43);
 }
-.hero-sand-cta:focus-visible {
+.hero-stone-cta:is(:hover, :focus-visible)::after {
+  opacity: 1;
+}
+.hero-stone-cta:focus-visible {
   outline: 2px solid #F0C54B;
   outline-offset: 3px;
 }
-.hero-sand-cta:active {
-  transform: translateY(0);
-}
-@media (hover: hover) and (pointer: fine) {
-  .hero-sand-cta:hover {
-    transform: translateY(-1px);
-    border-color: #E8C77A;
-    box-shadow: 0 4px 14px rgba(12, 17, 23, 0.32);
-  }
-}
-.hero-sand-cta:is(:hover, :focus-visible) .hero-sand-cta__wash {
-  opacity: 0.78;
-  transform: translate3d(0, 0, 0) skewX(0);
-}
-.hero-sand-cta--light:is(:hover, :focus-visible) .hero-sand-cta__wash {
-  opacity: 0.52;
-}
-.hero-sand-cta:is(:hover, :focus-visible) .hero-sand-cta__grains {
-  animation: hero-sand-wisp 760ms ease-out both;
-}
-@keyframes hero-sand-wisp {
-  0% { opacity: 0; transform: translate3d(-23%, 4px, 0); }
-  42% { opacity: 0.75; }
-  100% { opacity: 0; transform: translate3d(23%, -7px, 0); }
-}
 @media (prefers-reduced-motion: reduce) {
-  .hero-sand-cta,
-  .hero-sand-cta__wash {
+  .hero-stone-cta,
+  .hero-stone-cta::after {
     transition: none;
-  }
-  .hero-sand-cta:hover,
-  .hero-sand-cta:active {
-    transform: none;
-  }
-  .hero-sand-cta:is(:hover, :focus-visible) .hero-sand-cta__wash {
-    opacity: 0.42;
-    transform: none;
-  }
-  .hero-sand-cta__grains,
-  .hero-sand-cta:is(:hover, :focus-visible) .hero-sand-cta__grains {
-    animation: none;
-    opacity: 0;
   }
 }
 
