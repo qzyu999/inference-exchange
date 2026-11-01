@@ -110,38 +110,43 @@ for (const name of ['ink', 'primary', 'secondary', 'link']) {
   assert.match(styles, new RegExp(`\\.hero-pigment-${name}`))
 }
 assert.doesNotMatch(landing, /<ScrollChapterRail/, 'RHS design must not render')
-// Five CTAs — three opening, two on the in-place finale — share a
-// brush-painted mineral sweep and a one-shot scattering-sand wisp on hover
-// and keyboard focus. Their actual routes and readable labels stay intact.
-assert.match(landing, /function SandCTA\(/)
+// Three opening CTAs plus two finale CTAs retain routes, labels and quiet
+// background hierarchy. On hover/focus reveal only a fine static mineral
+// edge, inspired by pigment inlaid into carved stone. No flying grains,
+// sweeping rainbow, shifting text, animation loops or layout changes.
+assert.match(landing, /function StoneCTA\(/)
 assert.match(landing, /<Link to=\{to\} tabIndex=\{tabIndex\}/)
-assert.equal((landing.match(/<SandCTA to=/g) || []).length, 5)
+assert.equal((landing.match(/<StoneCTA to=/g) || []).length, 5)
 for (const [route, label, tone] of [
   ['/chat', 'Start chatting', 'light'],
   ['/provide', 'Become a provider', 'outline'],
   ['/exchange', 'Go to Exchange', 'quiet'],
 ]) {
-  assert.ok(landing.includes(`<SandCTA to="${route}" tone="${tone}">${label}</SandCTA>`),
+  assert.ok(landing.includes('<StoneCTA to="' + route + '" tone="' + tone + '">' + label + '</StoneCTA>'),
     'missing opening mineral CTA ' + label)
 }
 const finalSlide = landing.slice(landing.indexOf('{/* One actual product screen'))
-assert.match(finalSlide, /<SandCTA to="\/chat" tone="light"[\s\S]*?Start a conversation\s*<\/SandCTA>/)
-assert.match(finalSlide, /<SandCTA to="\/provide" tone="outline"[\s\S]*?Become a provider\s*<\/SandCTA>/)
-assert.equal((finalSlide.match(/<SandCTA to=/g) || []).length, 2)
+assert.match(finalSlide, /<StoneCTA to="\/chat" tone="light"[\s\S]*?Start a conversation\s*<\/StoneCTA>/)
+assert.match(finalSlide, /<StoneCTA to="\/provide" tone="outline"[\s\S]*?Become a provider\s*<\/StoneCTA>/)
+assert.equal((finalSlide.match(/<StoneCTA to=/g) || []).length, 2)
 assert.match(finalSlide, /tabIndex=\{productOpacity > 0\.95 \? undefined : -1\}/)
-assert.match(landing, /className="hero-sand-cta__wash" aria-hidden="true"/)
-assert.match(landing, /className="hero-sand-cta__grains" aria-hidden="true"/)
-assert.match(landing, /className="hero-sand-cta__label"/)
-assert.match(styles, /\.hero-sand-cta__label \{[\s\S]*?z-index: 2;/)
-assert.match(styles, /\.hero-sand-cta__wash \{[\s\S]*?clip-path: polygon\(/)
-assert.match(styles, /@keyframes hero-sand-wisp/)
-assert.match(styles, /\.hero-sand-cta:is\(:hover, :focus-visible\) \.hero-sand-cta__grains \{\s*animation: hero-sand-wisp 760ms ease-out both;/)
-assert.doesNotMatch(styles, /hero-sand-wisp[^;]*infinite/,
-  'the sand wisp must play once, not loop while hovered')
-assert.match(styles, /\.hero-sand-cta:focus-visible \{\s*outline: 2px solid/)
-assert.match(styles, /@media \(prefers-reduced-motion: reduce\) \{[\s\S]*?\.hero-sand-cta__grains,[\s\S]*?animation: none;/)
+assert.match(styles, /\.hero-stone-cta \{/)
+assert.match(styles, /\.hero-stone-cta--light \{\s*color: #292B2A;\s*background: #D8D1BE;/)
+assert.match(styles, /\.hero-stone-cta--outline \{\s*color: #F8EAD5;\s*background: rgba\(14, 16, 24, 0\.58\);/)
+assert.match(styles, /\.hero-stone-cta--quiet \{\s*color: #F8EAD5;\s*background: rgba\(14, 16, 24, 0\.58\);/)
+const inlay = styles.match(/\.hero-stone-cta::after \{([^}]+)\}/)?.[1]
+assert.ok(inlay, 'static mineral inlay must exist')
+assert.match(inlay, /height: 2px;/)
+assert.match(inlay, /background: linear-gradient\(90deg, #9D5C47 0%, #C49A45 52%, #668B78 100%\)/)
+assert.match(inlay, /opacity: 0;/)
+assert.match(styles, /\.hero-stone-cta:is\(:hover, :focus-visible\)::after \{\s*opacity: 1;/)
+assert.match(styles, /\.hero-stone-cta:focus-visible \{\s*outline: 2px solid/)
+assert.match(styles, /@media \(prefers-reduced-motion: reduce\) \{[\s\S]*?\.hero-stone-cta::after \{[\s\S]*?transition: none;/)
+assert.doesNotMatch(landing, /SandCTA|hero-sand-cta__wash|hero-sand-cta__grains/)
+assert.doesNotMatch(styles, /hero-sand-cta|hero-sand-wisp|@keyframes hero-sand-wisp|clip-path: polygon\(/)
+assert.doesNotMatch(styles, /\.hero-stone-cta[^}]*animation:/)
 assert.doesNotMatch(finalSlide, /group-hover:text-white|group-hover:opacity-100/,
-  'the old flat full-surface gradient hover should be removed')
+  'the old full-surface CTA gradient must remain removed')
 assert.doesNotMatch(finalSlide, /hero-pigment-(primary|secondary)/)
 assert.doesNotMatch(landing, /hero-exchange-card/)
 assert.match(landing, /className="rounded-2xl p-6 w-full max-w-sm mineral-border"/)
@@ -242,4 +247,4 @@ for (const route of ['/chat', '/provide', '/exchange']) {
 }
 assert.match(rail, /export const STORY_CHAPTERS = \[/)
 assert.match(styles, /@media \(prefers-reduced-motion: reduce\)/)
-console.log('Landing: seven smooth holds, all five mineral sand-hover CTAs, accessible focus/reduced motion, video tint preserved')
+console.log('Landing: seven pinned holds, five restrained mineral-inlay CTAs, keyboard/reduced-motion support')
