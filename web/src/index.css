@@ -507,8 +507,11 @@ body {
 }
 .hero-stone-cta--interactive::before {
   z-index: 2;
-  /* Override the 14s autonomous mineral-border animation so it does not
-     fight the user's pointer. The original gradient/mask stays unchanged. */
+  /* At rest, inherit the exact original .mineral-border 14s drift. */
+}
+.hero-stone-cta--interactive:is(:hover, :focus-visible)::before {
+  /* While interacting, cursor position takes over from the autonomous
+     animation; the paint, border mask and color stops stay identical. */
   animation: none;
   background-position: var(--pigment-x) var(--pigment-y);
 }
