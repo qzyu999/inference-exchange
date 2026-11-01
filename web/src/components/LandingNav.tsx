@@ -68,7 +68,7 @@ export function LandingNav() {
     <header
       className="fixed top-0 left-0 right-0 z-50"
       style={{
-        background: 'linear-gradient(95deg, #102D6D 0%, #163E8C 58%, #433763 100%)',
+        background: '#0E1018',
         borderBottom: '1px solid rgba(240,197,75,0.66)',
         boxShadow: '0 2px 10px rgba(43,34,72,0.25)',
       }}
@@ -146,7 +146,7 @@ export function LandingNav() {
       </nav>
 
       {open && (
-        <div id="landing-mobile-menu" className="md:hidden px-4 pb-4" style={{ background: 'linear-gradient(115deg, #102D6D, #433763)' }}>
+        <div id="landing-mobile-menu" className="md:hidden px-4 pb-4" style={{ background: '#0E1018' }}>
           <ul className="flex flex-col">
             {LANDING_LINKS.map(l => (
               <li key={l.to}>
