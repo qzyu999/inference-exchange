@@ -137,80 +137,55 @@ assert.match(inlay, /background: linear-gradient\(90deg, #9D5C47 0%, #C49A45 52%
 assert.match(inlay, /opacity: 0;/)
 assert.match(styles, /\.hero-stone-cta:is\(:hover, :focus-visible\)::after \{\s*opacity: 1;/)
 assert.match(styles, /\.hero-stone-cta:focus-visible \{\s*outline: 2px solid/)
-// Existing Vercel-style radial spotlight, adapted to an opaque mineral
-// spectrum filling each CTA. The pointer updates CSS variables directly:
-// no React rerenders, GPU canvas, animation dependency or moving text.
+// First-principles regression: the LIVE main's original gradient belongs
+// to .mineral-border::before (an animated masked border), not a conic fill.
+// Interactive buttons reuse that same recipe and only shift paint position.
 assert.match(landing, /const STATIC_CTA_PREVIEW =/)
 assert.match(landing, /get\('ctaEffect'\) === 'stone'/)
 assert.match(landing, /onPointerMove=\{movePigmentSpotlight\}/)
 assert.match(landing, /getBoundingClientRect\(\)/)
 assert.match(landing, /style\.setProperty\('--pigment-x'/)
 assert.match(landing, /style\.setProperty\('--pigment-y'/)
-assert.match(landing, /style\.setProperty\('--pigment-angle'/)
+assert.doesNotMatch(landing, /--pigment-angle|hero-stone-cta--spotlight/,
+  'a new conic swirl would alter the visual reference')
+assert.match(landing, /' mineral-border hero-stone-cta--interactive'/)
 assert.match(landing, /window\.matchMedia\('\(prefers-reduced-motion: reduce\)'\)\.matches/)
-assert.match(landing, /hero-stone-cta--spotlight/)
 assert.match(landing, /className="hero-stone-cta__label"/)
-assert.match(styles, /\.hero-stone-cta--spotlight::before \{/)
-assert.match(styles, /conic-gradient\(from var\(--pigment-angle\) at var\(--pigment-x\) var\(--pigment-y\)/)
-// The CTA spectrum must be the ACTUAL landing wordmark palette, not the
-// six muted substitutes from the initial spotlight experiment. A shared
-// set of tokens prevents subtle color drift between wordmark and CTA.
-const wordmarkSpectrum = [
-  ['apricot', '#F5A475'],
-  ['orpiment', '#F0C54B'],
-  ['coral', '#E48773'],
-  ['jade', '#A3C899'],
-  ['turquoise', '#7FD5D1'],
-  ['lapis', '#A5BEF4'],
-  ['lotus', '#E4A4CB'],
+const paint = styles.match(/--mineral-border-paint: linear-gradient\(135deg,([^;]+)\);/)?.[1]
+assert.ok(paint, 'original main mineral border paint must be a shared token')
+const mainBorderStops = [
+  '#C83A3240', '#D77A2F55', '#C49A4555', '#087F5B44',
+  '#4D9A9144', '#315B7240', '#4A465F38', '#702F3238',
 ]
-const wordmarkRule = styles.match(/\.hero-mineral-wordmark \{([^}]+)\}/)?.[1]
-const spotlightRule = styles.match(/\.hero-stone-cta--spotlight::before \{([^}]+)\}/)?.[1]
-assert.ok(wordmarkRule && spotlightRule, 'wordmark and button spotlight must exist')
-// Full-pigment fidelity: no cream/white radial layer may wash out the logo's
-// canonical colors on CTA hover. The conic center and angle still track mouse.
-assert.doesNotMatch(spotlightRule, /radial-gradient|rgba\(255, 250, 225/,
-  'CTA gradient must not dilute mineral pigments with a white spotlight')
-let logoOffset = -1
-let ctaOffset = -1
-for (const [name, hex] of wordmarkSpectrum) {
-  assert.ok(styles.includes('--hero-spectrum-' + name + ': ' + hex + ';'),
-    'missing canonical wordmark pigment ' + name)
-  const token = 'var(--hero-spectrum-' + name + ')'
-  const nextLogo = wordmarkRule.indexOf(token)
-  const nextCTA = spotlightRule.indexOf(token)
-  assert.ok(nextLogo > logoOffset, 'wrong/missing wordmark spectrum order for ' + name)
-  assert.ok(nextCTA > ctaOffset, 'CTA spectrum differs from wordmark at ' + name)
-  logoOffset = nextLogo
-  ctaOffset = nextCTA
+let stopAt = -1
+for (const stop of mainBorderStops) {
+  const at = paint.indexOf(stop)
+  assert.ok(at > stopAt, 'original main border stops changed or reordered: ' + stop)
+  stopAt = at
 }
-assert.ok(spotlightRule.indexOf('var(--hero-spectrum-apricot) 360deg') > ctaOffset,
-  'conic CTA fill must close seamlessly back to first pigment')
-assert.match(styles, /conic-gradient\(from 25deg at 50% 50%/,
-  'reduced-motion CTA must retain the same palette')
-const staticSpotlight = styles.slice(styles.indexOf('conic-gradient(from 25deg at 50% 50%'))
-assert.doesNotMatch(staticSpotlight.slice(0, 490), /radial-gradient|rgba\(255, 250, 225/,
-  'reduced-motion gradient must use the same undiluted colors')
-for (const [name] of wordmarkSpectrum) {
-  assert.ok(staticSpotlight.includes('var(--hero-spectrum-' + name + ')'),
-    'reduced-motion CTA is missing wordmark pigment ' + name)
-}
-// Each original wordmark stop passes WCAG AA against the CTA's dark label.
-for (const [, pigment] of wordmarkSpectrum) {
-  assert.ok(contrast(pigment, '#182B31') >= 4.5, pigment + ' CTA label contrast too low')
-}
-assert.doesNotMatch(spotlightRule, /#D89582|#EFC67C|#B4C992|#90C4BF|#A6B8DF|#DBA5B6/,
-  'old muted CTA-only colors must not return')
-assert.match(styles, /\.hero-stone-cta--spotlight:is\(:hover, :focus-visible\)::before \{\s*opacity: 1;/)
-assert.match(styles, /\.hero-stone-cta--spotlight:is\(:hover, :focus-visible\) \{\s*color: #182B31;/)
-assert.match(styles, /@media \(prefers-reduced-motion: reduce\) \{[\s\S]*?\.hero-stone-cta--spotlight::before \{[\s\S]*?conic-gradient\(from 25deg at 50% 50%/)
-assert.doesNotMatch(styles, /@keyframes hero-sand-wisp|\.hero-stone-cta--spotlight[^}]*animation:/)
-assert.match(styles, /@media \(prefers-reduced-motion: reduce\) \{[\s\S]*?\.hero-stone-cta::after \{[\s\S]*?transition: none;/)
+const borderRule = styles.match(/\.mineral-border::before \{([^}]+)\}/)?.[1]
+const interactiveBorder = styles.match(/\.hero-stone-cta--interactive::before \{([^}]+)\}/)?.[1]
+const interactiveFill = styles.match(/\.hero-stone-cta--interactive::after \{([^}]+)\}/)?.[1]
+assert.ok(borderRule && interactiveBorder && interactiveFill)
+assert.match(borderRule, /background: var\(--mineral-border-paint\)/)
+assert.match(borderRule, /background-size: 220% 220%/)
+assert.match(borderRule, /-webkit-mask-composite: xor;/)
+assert.match(interactiveBorder, /animation: none;/,
+  'pointer motion must not fight the original 14s autonomous border animation')
+assert.match(interactiveBorder, /background-position: var\(--pigment-x\) var\(--pigment-y\)/)
+assert.match(interactiveFill, /background: var\(--mineral-border-paint\)/)
+assert.match(interactiveFill, /background-size: 220% 220%/)
+assert.match(interactiveFill, /background-position: var\(--pigment-x\) var\(--pigment-y\)/)
+assert.match(interactiveFill, /opacity: 0;/)
+assert.match(styles, /\.hero-stone-cta--interactive:is\(:hover, :focus-visible\)::after \{\s*opacity: 1;/)
+assert.match(styles, /\.hero-stone-cta--interactive::after \{ transition: none; \}/,
+  'reduced-motion users should get an immediate static gradient')
+assert.doesNotMatch(styles, /hero-stone-cta--spotlight|@keyframes hero-sand-wisp/)
+assert.doesNotMatch(interactiveFill, /conic-gradient|radial-gradient|filter:|animation:/,
+  'interactive fill should only use original main border pigment')
 assert.doesNotMatch(landing, /SandCTA|hero-sand-cta__wash|hero-sand-cta__grains/)
-assert.doesNotMatch(styles, /hero-sand-cta|hero-sand-wisp|@keyframes hero-sand-wisp|clip-path: polygon\(/)
-assert.doesNotMatch(styles, /\.hero-stone-cta[^}]*animation:/)
 assert.doesNotMatch(finalSlide, /group-hover:text-white|group-hover:opacity-100/,
-  'the old full-surface CTA gradient must remain removed')
+  'previous full-surface standalone CTA gradient must remain removed')
 assert.doesNotMatch(finalSlide, /hero-pigment-(primary|secondary)/)
 assert.doesNotMatch(landing, /hero-exchange-card/)
 assert.match(landing, /className="rounded-2xl p-6 w-full max-w-sm mineral-border"/)
@@ -311,4 +286,4 @@ for (const route of ['/chat', '/provide', '/exchange']) {
 }
 assert.match(rail, /export const STORY_CHAPTERS = \[/)
 assert.match(styles, /@media \(prefers-reduced-motion: reduce\)/)
-console.log('Landing: seven pinned holds, five restrained mineral-inlay CTAs, keyboard/reduced-motion support')
+console.log('Landing: seven pinned holds, five CTAs reuse exact main mineral-border pigment with pointer movement')
