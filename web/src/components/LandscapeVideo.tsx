@@ -200,8 +200,14 @@ export function LandscapeVideo({ progress, reducedMotion, onAvailabilityChange }
     window.addEventListener('resize', update)
     return () => window.removeEventListener('resize', update)
   }, [frameRatio])
+  // When ultrawide footage is letterboxed vertically, meet the navbar
+  // without a transparent top seam; keep the ambient poster blur only below.
+  // On side-gapped/16:9 layouts, retain the original symmetric soft edges.
+  const topAnchorUltrawide = requestedAspect === '21x9' && framing.mode === 'contain'
   const frameMask = useAmbientEdges
-    ? `linear-gradient(${edgeDirection}, transparent 0%, black 1.1%, black 98.9%, transparent 100%)`
+    ? topAnchorUltrawide && edgeDirection === 'to bottom'
+      ? 'linear-gradient(to bottom, black 0%, black 98.9%, transparent 100%)'
+      : `linear-gradient(${edgeDirection}, transparent 0%, black 1.1%, black 98.9%, transparent 100%)`
     : undefined
   const fade = Math.min(1, Math.max(0, (progress - 0.82) / 0.18))
 
@@ -224,7 +230,7 @@ export function LandscapeVideo({ progress, reducedMotion, onAvailabilityChange }
           }}
         />
       )}
-      <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+      <div className={`pointer-events-none absolute inset-0 flex justify-center ${topAnchorUltrawide ? 'items-start' : 'items-center'}`}>
         <div
           className={framing.mode === 'contain'
             ? 'relative w-full max-h-full shrink-0 overflow-hidden'
