@@ -151,7 +151,10 @@ assert.match(landing, /window\.matchMedia\('\(prefers-reduced-motion: reduce\)'\
 assert.match(landing, /hero-stone-cta--spotlight/)
 assert.match(landing, /className="hero-stone-cta__label"/)
 assert.match(styles, /\.hero-stone-cta--spotlight::before \{/)
-assert.match(styles, /radial-gradient\(circle at var\(--pigment-x\) var\(--pigment-y\)/)
+// Full-pigment fidelity: no cream/white radial layer may wash out the logo's
+// canonical colors on CTA hover. The conic center and angle still track mouse.
+assert.doesNotMatch(spotlightRule, /radial-gradient|rgba\(255, 250, 225/,
+  'CTA gradient must not dilute mineral pigments with a white spotlight')
 assert.match(styles, /conic-gradient\(from var\(--pigment-angle\) at var\(--pigment-x\) var\(--pigment-y\)/)
 // The CTA spectrum must be the ACTUAL landing wordmark palette, not the
 // six muted substitutes from the initial spotlight experiment. A shared
@@ -186,6 +189,8 @@ assert.ok(spotlightRule.indexOf('var(--hero-spectrum-apricot) 360deg') > ctaOffs
 assert.match(styles, /conic-gradient\(from 25deg at 50% 50%/,
   'reduced-motion CTA must retain the same palette')
 const staticSpotlight = styles.slice(styles.indexOf('conic-gradient(from 25deg at 50% 50%'))
+assert.doesNotMatch(staticSpotlight.slice(0, 490), /radial-gradient|rgba\(255, 250, 225/,
+  'reduced-motion gradient must use the same undiluted colors')
 for (const [name] of wordmarkSpectrum) {
   assert.ok(staticSpotlight.includes('var(--hero-spectrum-' + name + ')'),
     'reduced-motion CTA is missing wordmark pigment ' + name)
