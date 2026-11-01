@@ -130,6 +130,15 @@ body {
   opacity: 0.48;
   mix-blend-mode: multiply;
 }
+
+/* Same visual temperature as the app's optional tint, but inside the
+   landscape renderer only. Poster, ambient blur and HLS video are tinted;
+   editorial words, crystal geometry, nav and final product remain pristine. */
+.hero-video-bedtime-tint {
+  background: #FF995B;
+  opacity: 0.48;
+  mix-blend-mode: multiply;
+}
 @media (forced-colors: active), print {
   .ie-app-temperature-scope[data-warm-tint="on"]::after {
     display: none;
