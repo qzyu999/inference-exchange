@@ -11,6 +11,7 @@ import {
   type ProviderEnrollmentReceipt,
 } from '../lib/provider-enrollment.js'
 import { C } from '../lib/theme'
+import { ProviderMacSetup } from '../components/ProviderMacSetup'
 
 /** One-time secret lives only in this mounted component, not SWR/browser storage. */
 function EnrollmentWizard({ userId }: { userId: string }) {
@@ -303,35 +304,21 @@ export function Provide() {
 
       {!loading && user && <EnrollmentWizard key={user.user_id} userId={user.user_id} />}
 
-      <div className="grid md:grid-cols-2 gap-4">
-        <section className="bg-white rounded-2xl border border-gray-200/60 p-6 space-y-3">
-          <h3 className="font-semibold" style={{ color: C.blueBlack }}>3. Connect your Mac</h3>
-          <p className="text-sm text-gray-600">
-            Use an outbound wss:// connection and an Authorization header.
-            Do not open an inbound inference port on your router.
-            Specific agent and llama-server versions must be verified on independent hardware
-            before we provide a tested public-alpha installation recipe.
-          </p>
-          <p className="text-xs text-gray-500">
-            A credential alone is not a working provider. Unsupported registration, an offline
-            model, or a revoked credential will prevent service. Follow the versioned setup
-            instructions after qualification.
-          </p>
-        </section>
-        <section className="bg-white rounded-2xl border border-gray-200/60 p-6 space-y-3">
-          <h3 className="font-semibold" style={{ color: C.blueBlack }}>Security and earnings</h3>
-          <p className="text-sm text-gray-600">
-            Provider hardware and trust claims are not independently verified at L0.
-            Consumer requests may contain plaintext. Earnings are simulated credits,
-            with no withdrawal or payout capability.
-          </p>
-          <div className="flex gap-3 flex-wrap">
-            <Link to="/dashboard" className="text-sm underline" style={{ color: C.gold }}>Live owner dashboard</Link>
-            <Link to="/settings" className="text-sm underline" style={{ color: C.gold }}>Settings</Link>
-            <Link to="/billing" className="text-sm underline" style={{ color: C.gold }}>Account billing</Link>
-          </div>
-        </section>
-      </div>
+      <ProviderMacSetup />
+
+      <section className="bg-white rounded-2xl border border-gray-200/60 p-6 space-y-3">
+        <h3 className="font-semibold" style={{ color: C.blueBlack }}>Security and earnings</h3>
+        <p className="text-sm text-gray-600">
+          Provider hardware and trust claims are not independently verified at L0.
+          Consumer requests may contain plaintext. Earnings are simulated credits,
+          with no withdrawal or payout capability.
+        </p>
+        <div className="flex gap-3 flex-wrap">
+          <Link to="/dashboard" className="text-sm underline" style={{ color: C.gold }}>Live owner dashboard</Link>
+          <Link to="/settings" className="text-sm underline" style={{ color: C.gold }}>Settings</Link>
+          <Link to="/billing" className="text-sm underline" style={{ color: C.gold }}>Account billing</Link>
+        </div>
+      </section>
       <p className="text-xs text-gray-500">
         <a href="https://github.com/qzyu999/inference-exchange/blob/main/docs/guides/provider-l0-apple-silicon-preview.md"
           target="_blank" rel="noopener noreferrer" className="underline">
