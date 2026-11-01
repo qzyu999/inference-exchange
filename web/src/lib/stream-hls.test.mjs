@@ -64,6 +64,18 @@ const landscape = (await import('node:fs')).readFileSync(
   new URL('../components/LandscapeVideo.tsx', import.meta.url), 'utf8'
 )
 assert.match(landscape, /VITE_HERO_STREAM_ENABLED/)
+assert.match(landscape, /PREVIEW_MODE === 'poster' \? false/)
+assert.match(landscape, /import\.meta\.env\.VITE_HERO_STREAM_ENABLED !== 'false'/,
+  'PR #207 must stream by default while retaining an explicit poster-only build rollback')
+assert.match(landscape, /const showVideo = useStream && ready && playing/,
+  'video must not hide the still until the browser is actually playing')
+assert.match(landscape, /opacity: showVideo \? 1 : 0/,
+  'video remains invisible until playback starts')
+assert.match(landscape, /opacity: showVideo \? 0 : 1/,
+  'poster remains visible until playback, and returns on stalls')
+assert.match(landscape, /onPlaying=\{\(\) => setPlaying\(true\)\}/)
+assert.match(landscape, /onPause=\{\(\) => setPlaying\(false\)\}/)
+assert.match(landscape, /onWaiting=\{\(\) => setPlaying\(false\)\}/)
 assert.match(landscape, /STREAM_ENABLED && !reducedMotion && !saveData && !streamFailed/)
 assert.match(landscape, /thumbnails\/thumbnail\.jpg/)
 assert.match(landscape, /data-hero-delivery=\{useStream \? 'cloudflare-stream-hls' : 'poster-only'\}/)
