@@ -13,8 +13,8 @@ const landingMineral = read('../components/MineralFlowField.tsx')
 assert.match(theme, /export const APP_PIGMENTS = \{/)
 for (const [name, hex] of Object.entries({
   deepLapis: '#102D6D', lapis: '#163E8C', orpiment: '#F0C54B',
-  cinnabar: '#C94C2F', jade: '#5F8E61', parchment: '#C4CAC7',
-  paper: '#C6D1CB', ink: '#263A63',
+  cinnabar: '#C94C2F', jade: '#5F8E61', parchment: '#BDC5C7',
+  paper: '#D0D4D3', ink: '#263A63',
 })) assert.ok(theme.includes(`${name}: '${hex}'`), `missing ${name} token`)
 
 assert.match(shell, /className="ie-mineral-app flex min-h-screen"/)
@@ -62,12 +62,19 @@ assert.match(css, /\.ie-mineral-sidebar \.ie-app-wordmark/)
 assert.match(css, /\.ie-mineral-app \.ie-mineral-journey/)
 assert.match(css, /\.ie-mineral-app \.ie-mineral-panel/)
 assert.match(css, /\.ie-mineral-app \.bg-white \{/)
-assert.ok(css.includes('background-color: #C6D1CB'))
-assert.ok(css.includes('background: linear-gradient(140deg, #C6D1CB 0%, #C4CAC7 100%)'))
-assert.ok(css.includes('--ie-app-surface: #C6D1CB'))
+assert.ok(css.includes('background-color: var(--ie-app-surface)'))
+assert.ok(css.includes('background: linear-gradient(140deg, #D0D4D3 0%, #C5CBCC 100%)'))
+assert.ok(css.includes('--ie-app-surface: #D0D4D3'))
+assert.match(shell, /<main className="ie-app-workspace relative z-10 mx-4 md:mx-8 mb-10 rounded-2xl p-4 md:p-6">/)
+assert.match(css, /\.ie-app-workspace \{/)
+assert.ok(css.includes('background: #BAC3C5'))
+assert.ok(css.includes('color: #263844'))
+assert.match(css, /\.ie-app-workspace input:not\(\[type="checkbox"\]\)/)
+assert.match(css, /\.ie-app-workspace \.text-gray-500/)
+assert.ok(!css.includes('background-color: #C6D1CB'))
 
-// Objective guards: the backdrop is genuinely dark, cards are muted rather
-// than pure white, and dark ink is legible on those reading surfaces.
+// Objective guards for ALL routes: dark finale field around a neutral work
+// canvas and cards. Metadata/status text must contrast on the darker canvas.
 const luminance = (hex) => {
   const rgb = hex.match(/[a-f0-9]{2}/gi).map(channel => parseInt(channel, 16) / 255)
   const [red, green, blue] = rgb.map(x => x <= 0.04045 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4)
@@ -78,15 +85,41 @@ const contrast = (a, b) => {
   return (lighter + 0.05) / (darker + 0.05)
 }
 assert.ok(luminance('#111A26') < 0.025, 'landing-finale/app backdrop should remain dark')
-for (const color of ['#C6D1CB', '#C4CAC7']) {
-  assert.ok(luminance(color) < 0.65, 'panel surface too bright: ' + color)
-  assert.ok(contrast('#46546A', color) >= 4.5, 'small panel copy needs 4.5:1 contrast: ' + color)
+assert.ok(luminance('#BAC3C5') < 0.57, 'workspace should not be glaringly bright')
+for (const color of ['#BAC3C5', '#D0D4D3', '#C5CBCC']) {
+  assert.ok(luminance(color) < 0.67, 'panel too bright: ' + color)
+  assert.ok(contrast('#263A63', color) >= 6, 'page/card headings must be readable on ' + color)
 }
-assert.ok(contrast('#E2EBE2', '#111A26') >= 7, 'page subtitle should contrast with dark field')
-assert.ok(contrast('#263A63', '#C6D1CB') >= 7, 'card ink needs strong contrast on muted paper')
+assert.ok(contrast('#E2EBE2', '#111A26') >= 7, 'page subtitles should contrast with dark field')
+assert.ok(contrast('#263844', '#BAC3C5') >= 6, 'default workspace text needs strong contrast')
+for (const [name, color] of Object.entries({
+  muted: '#42505A', soft: '#42505A', gold: '#644718', green: '#1A5542',
+  turquoise: '#205566', red: '#7B3834',
+})) {
+  assert.ok(theme.includes(`${name}: '${color}'`), 'missing app text ink token: ' + name)
+  assert.ok(contrast(color, '#BAC3C5') >= 4.5, 'status/metadata contrast too weak: ' + name)
+}
 
 assert.match(css, /@media \(prefers-reduced-motion: reduce\)/)
 assert.match(css, /\.ie-mineral-sidebar \.ie-app-nav-item:focus-visible/)
+// Scan every routed app surface, not only the homepage. The shared layout is
+// the single source of truth for dark-field/readable-paper separation.
+const pageNames = [
+  'Overview','Chat','Exchange','Models','Providers','Provide','Billing','Keys',
+  'Settings','Admin','Trace','ProviderDashboard','Docs','GettingStarted',
+  'Login','NotFound',
+]
+for (const name of pageNames) {
+  const page = read('../pages/' + name + '.tsx')
+  assert.ok(page.length > 200, 'missing app route implementation: ' + name)
+  assert.doesNotMatch(page, /MINERAL_FIELD_BACKGROUND/, 'dark backdrop leaked directly into ' + name)
+}
+const exchange = read('../pages/Exchange.tsx')
+assert.ok(exchange.includes("background: '#D0D4D3'"), 'exchange data tables need neutral paper')
+const chat = read('../pages/Chat.tsx')
+assert.match(chat, /prose prose-sm prose-invert/, 'dark assistant message bubbles keep inverse text')
+assert.match(css, /\.ie-app-workspace input::placeholder/)
+
 // Selected app nav items retain the original live-alpha rainbow indicator
 // and subtle charcoal hover, rather than the newer amber highlight.
 assert.match(shell, /background: active \? C\.sidebarHover : 'transparent'/)
