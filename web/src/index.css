@@ -108,17 +108,11 @@ body {
 /* Issue #203: mineral workbench pilot. The app stays calm and
    task-oriented; cinematic colors live primarily in its navigation. */
 .ie-mineral-app {
-  --ie-app-surface: #EEE1CE;
-  --ie-app-paper: #E8D8C3;
+  --ie-app-surface: #FFFDF7;
+  --ie-app-paper: #F7F2E8;
   --ie-app-ink: #263A63;
-  --ie-app-line: #C7B397;
+  --ie-app-line: #D9C8AA;
   --ie-app-gold: #845918;
-}
-
-/* Gentle 2400 K-inspired warmth on application cards only. This is a
-   low-glare paper color, NOT a CSS filter over text, icons or status hues. */
-.ie-mineral-app .bg-white {
-  background-color: var(--ie-app-surface);
 }
 
 .ie-mineral-sidebar .ie-app-wordmark {
@@ -151,7 +145,7 @@ body {
 }
 
 .ie-mineral-app .ie-mineral-panel {
-  background: linear-gradient(140deg, #EEE1CE 0%, #E8D8C3 100%);
+  background: linear-gradient(140deg, #FFFDF7 0%, #FAF5E9 100%);
   border-color: var(--ie-app-line);
   box-shadow: 0 3px 18px rgba(34, 49, 101, 0.045);
 }
