@@ -59,4 +59,14 @@ stopStale()
 assert.equal(destroys, 0, 'aborted setup must not tear down active playback')
 stopCurrent()
 assert.equal(destroys, 1, 'active HLS should clean up on unmount')
+// The experimental Stream route must never silently request a large MP4
+// if Stream fails or the viewer prefers a static poster.
+const landscape = (await import('node:fs')).readFileSync(
+  new URL('../components/LandscapeVideo.tsx', import.meta.url), 'utf8'
+)
+assert.match(landscape, /src=\{STREAM_PREVIEW \? undefined : selectedCandidate\.path\}/)
+assert.match(landscape, /STREAM_PREVIEW && !useStream/)
+assert.match(landscape, /posterOnly \? 'poster-only' : 'mp4'/)
+assert.doesNotMatch(landscape, /falling back to MP4/)
+
 console.log('#198 native and hls.js StrictMode playback lifecycle tests passed')
