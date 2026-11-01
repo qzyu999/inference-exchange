@@ -3,7 +3,7 @@ import useSWR from 'swr'
 import { Link } from 'react-router-dom'
 import { api } from '../lib/api'
 import { formatUsd } from '../lib/money.js'
-import { C, TRUST_COLORS, APP_TEXT } from '../lib/theme'
+import { C, TRUST_COLORS } from '../lib/theme'
 
 export function Overview() {
   const { data: stats } = useSWR('stats', api.stats, { refreshInterval: 5000 })
@@ -52,11 +52,11 @@ export function Overview() {
           { label: 'Providers online', value: stats?.providers_online ?? providers.length, color: C.blueBlack },
           { label: 'Models advertised', value: stats?.models_available ?? health?.models?.length ?? 0, color: C.blueBlack },
           { label: 'Recent routed traces', value: traces.length > 0 ? String(routedTraces.length) : '—', color: C.blueBlack },
-          { label: 'Volume (simulated)', value: stats?.total_volume_usd != null ? `$${stats.total_volume_usd >= 1 ? stats.total_volume_usd.toFixed(2) : stats.total_volume_usd.toFixed(4)}` : '—', color: APP_TEXT.gold },
+          { label: 'Volume (simulated)', value: stats?.total_volume_usd != null ? `$${stats.total_volume_usd >= 1 ? stats.total_volume_usd.toFixed(2) : stats.total_volume_usd.toFixed(4)}` : '—', color: C.gold },
         ].map(s => (
           <div key={s.label} className="bg-white rounded-2xl border border-gray-200/40 px-5 py-4">
             <div className="text-2xl font-bold tracking-tight" style={{ color: s.color }}>{s.value}</div>
-            <div className="text-[11px] mt-0.5" style={{ color: APP_TEXT.soft }}>{s.label}</div>
+            <div className="text-[11px] mt-0.5" style={{ color: '#999' }}>{s.label}</div>
           </div>
         ))}
       </div>
@@ -65,7 +65,7 @@ export function Overview() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         {/* Network health */}
         <div className="bg-white rounded-2xl border border-gray-200/40 p-6">
-          <div className="text-[10px] uppercase tracking-wider font-medium mb-1" style={{ color: APP_TEXT.gold }}>
+          <div className="text-[10px] uppercase tracking-wider font-medium mb-1" style={{ color: C.gold }}>
             Network Health
           </div>
           <h2 className="text-lg font-bold mb-4" style={{ color: C.blueBlack }}>Request outcomes</h2>
@@ -73,12 +73,12 @@ export function Overview() {
           <div className="flex items-center gap-6 mb-4">
             <div className="flex items-center gap-2">
               <span className="w-2.5 h-2.5 rounded-full" style={{ background: C.green }} />
-              <span className="text-sm" style={{ color: APP_TEXT.green }}>Matched or completed</span>
+              <span className="text-sm" style={{ color: C.green }}>Matched or completed</span>
               <span className="text-sm font-semibold" style={{ color: C.blueBlack }}>{routedTraces.length}</span>
             </div>
             <div className="flex items-center gap-2">
               <span className="w-2.5 h-2.5 rounded-full" style={{ background: '#999' }} />
-              <span className="text-sm" style={{ color: APP_TEXT.muted }}>Other statuses</span>
+              <span className="text-sm" style={{ color: '#777' }}>Other statuses</span>
               <span className="text-sm font-semibold" style={{ color: C.blueBlack }}>{traces.length - routedTraces.length}</span>
             </div>
           </div>
@@ -91,28 +91,28 @@ export function Overview() {
                   <Link to={`/trace?id=${encodeURIComponent(t.request_id || '')}`}
                     className="flex items-center justify-between gap-3 rounded-lg border border-gray-100 px-3 py-2 text-xs hover:bg-gray-50">
                     <span className="truncate" style={{ color: C.blueBlack }}>{t.model || 'Unspecified model'}</span>
-                    <span className="shrink-0" style={{ color: APP_TEXT.muted }}>{t.status || 'unknown'}</span>
+                    <span className="shrink-0" style={{ color: '#777' }}>{t.status || 'unknown'}</span>
                   </Link>
                 </li>
               ))}
             </ul>
           ) : (
-            <div className="text-xs text-center py-8" style={{ color: APP_TEXT.soft }}>
+            <div className="text-xs text-center py-8" style={{ color: '#aaa' }}>
               No request traces yet.
             </div>
           )}
 
           {/* Fleet capacity */}
-          <div className="mt-4 pt-4 flex items-center gap-4 text-xs" style={{ borderTop: '1px solid #eaeae8', color: APP_TEXT.soft }}>
+          <div className="mt-4 pt-4 flex items-center gap-4 text-xs" style={{ borderTop: '1px solid #eaeae8', color: '#888' }}>
             <span>Capacity: <span className="font-semibold" style={{ color: C.blueBlack }}>{usedSlots}/{totalSlots}</span> slots</span>
             {encryptedCount > 0 && <span><span className="font-semibold" style={{ color: C.deepBlue }}>{encryptedCount}</span> provider keys</span>}
-            {hardenedCount > 0 && <span><span className="font-semibold" style={{ color: APP_TEXT.gold }}>{hardenedCount}</span> Hardened+</span>}
+            {hardenedCount > 0 && <span><span className="font-semibold" style={{ color: C.gold }}>{hardenedCount}</span> Hardened+</span>}
           </div>
         </div>
 
         {/* Only observed network status, not guessed software versions. */}
         <div className="bg-white rounded-2xl border border-gray-200/40 p-6">
-          <div className="text-[10px] uppercase tracking-wider font-medium mb-1" style={{ color: APP_TEXT.gold }}>
+          <div className="text-[10px] uppercase tracking-wider font-medium mb-1" style={{ color: C.gold }}>
             Network status
           </div>
           <h2 className="text-lg font-bold mb-4" style={{ color: C.blueBlack }}>What is connected</h2>
@@ -126,9 +126,9 @@ export function Overview() {
               <div key={c.component} className="flex items-center justify-between py-2 border-b border-gray-50 last:border-0">
                 <span className="text-sm" style={{ color: C.blueBlack }}>{c.component}</span>
                 <div className="flex items-center gap-3">
-                  <span className="text-xs font-mono" style={{ color: APP_TEXT.soft }}>{c.status}</span>
+                  <span className="text-xs font-mono" style={{ color: '#999' }}>{c.status}</span>
                   <span className="text-[10px] font-medium px-2 py-0.5 rounded-full"
-                    style={{ background: c.ok ? '#edf7f1' : '#f3f3f3', color: c.ok ? APP_TEXT.green : APP_TEXT.soft }}>
+                    style={{ background: c.ok ? '#edf7f1' : '#f3f3f3', color: c.ok ? C.green : '#999' }}>
                     {c.ok ? 'observed' : 'unknown'}
                   </span>
                 </div>
@@ -139,7 +139,7 @@ export function Overview() {
           {/* Trust level distribution */}
           {providers.length > 0 && (
             <div className="mt-4 pt-4" style={{ borderTop: '1px solid #eaeae8' }}>
-              <div className="text-[10px] uppercase tracking-wider font-medium mb-2" style={{ color: APP_TEXT.soft }}>
+              <div className="text-[10px] uppercase tracking-wider font-medium mb-2" style={{ color: '#aaa' }}>
                 Provider-reported trust levels
               </div>
               <div className="flex items-center gap-2 flex-wrap">
@@ -166,8 +166,8 @@ export function Overview() {
         <div className="bg-white rounded-2xl border border-gray-200/40 p-6">
           <div className="flex items-center justify-between mb-3">
             <div>
-              <div className="text-[10px] uppercase tracking-wider font-medium" style={{ color: APP_TEXT.gold }}>Live Feed</div>
-              <div className="text-xs mt-0.5" style={{ color: APP_TEXT.soft }}>Real-time exchange events</div>
+              <div className="text-[10px] uppercase tracking-wider font-medium" style={{ color: C.gold }}>Live Feed</div>
+              <div className="text-xs mt-0.5" style={{ color: '#999' }}>Real-time exchange events</div>
             </div>
             <span className="relative flex h-2 w-2">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full opacity-75" style={{ background: C.green }} />
@@ -176,14 +176,14 @@ export function Overview() {
           </div>
           <div ref={feedRef} className="h-48 overflow-y-auto text-[11px] space-y-0.5 font-mono">
             {events.length > 0 ? events.map((ev, i) => (
-              <div key={i} className="flex gap-2 py-0.5" style={{ color: APP_TEXT.soft }}>
-                <span className="shrink-0" style={{ color: APP_TEXT.soft }}>{new Date(ev.timestamp * 1000).toLocaleTimeString()}</span>
+              <div key={i} className="flex gap-2 py-0.5" style={{ color: '#888' }}>
+                <span className="shrink-0" style={{ color: '#ccc' }}>{new Date(ev.timestamp * 1000).toLocaleTimeString()}</span>
                 <span style={{ color: eventColors[ev.type] || '#aaa' }}>{ev.type}</span>
                 {ev.provider && <span className="truncate">{ev.provider}</span>}
-                {ev.cost_usd != null && <span style={{ color: APP_TEXT.gold }}>{formatUsd(ev.cost_usd)}</span>}
+                {ev.cost_usd != null && <span style={{ color: C.gold }}>{formatUsd(ev.cost_usd)}</span>}
               </div>
             )) : (
-              <div className="text-xs text-center py-12 font-sans" style={{ color: APP_TEXT.soft }}>
+              <div className="text-xs text-center py-12 font-sans" style={{ color: '#ccc' }}>
                 Waiting for activity...
               </div>
             )}
@@ -192,10 +192,10 @@ export function Overview() {
 
         {/* Provider reputation */}
         <div className="bg-white rounded-2xl border border-gray-200/40 p-6">
-          <div className="text-[10px] uppercase tracking-wider font-medium mb-1" style={{ color: APP_TEXT.gold }}>
+          <div className="text-[10px] uppercase tracking-wider font-medium mb-1" style={{ color: C.gold }}>
             Provider Reputation
           </div>
-          <div className="text-xs mb-4" style={{ color: APP_TEXT.soft }}>EMA-based scoring from observed request outcomes</div>
+          <div className="text-xs mb-4" style={{ color: '#999' }}>EMA-based scoring from observed request outcomes</div>
 
           {reputation.length > 0 ? (
             <div className="space-y-3">
@@ -214,10 +214,10 @@ export function Overview() {
                         background: r.score > 0.8 ? C.green : r.score > 0.5 ? C.gold : C.red,
                       }} />
                     </div>
-                    <span className="text-[10px] font-mono w-8 text-right" style={{ color: APP_TEXT.soft }}>
+                    <span className="text-[10px] font-mono w-8 text-right" style={{ color: '#888' }}>
                       {(r.score * 100).toFixed(0)}%
                     </span>
-                    <span className="text-[10px]" style={{ color: APP_TEXT.soft }}>
+                    <span className="text-[10px]" style={{ color: '#bbb' }}>
                       {r.total_requests} req
                     </span>
                   </div>
@@ -225,7 +225,7 @@ export function Overview() {
               })}
             </div>
           ) : (
-            <div className="text-xs text-center py-8" style={{ color: APP_TEXT.soft }}>
+            <div className="text-xs text-center py-8" style={{ color: '#ccc' }}>
               No reputation data yet. Reputation builds from request outcomes.
             </div>
           )}
@@ -237,9 +237,9 @@ export function Overview() {
         <div className="bg-white rounded-2xl border border-gray-200/40 p-6">
           <div className="flex items-center justify-between mb-3">
             <div>
-              <div className="text-[10px] uppercase tracking-wider font-medium" style={{ color: APP_TEXT.gold }}>Connected Providers</div>
+              <div className="text-[10px] uppercase tracking-wider font-medium" style={{ color: C.gold }}>Connected Providers</div>
             </div>
-            <Link to="/providers" className="text-[10px] font-medium" style={{ color: APP_TEXT.gold }}>View all</Link>
+            <Link to="/providers" className="text-[10px] font-medium" style={{ color: C.gold }}>View all</Link>
           </div>
           <div className="space-y-2">
             {providers.slice(0, 5).map((p: any) => {
@@ -249,16 +249,16 @@ export function Overview() {
                   <div className="flex items-center gap-3">
                     <span className="w-2 h-2 rounded-full" style={{ background: C.green }} />
                     <span className="text-sm font-medium" style={{ color: C.blueBlack }}>{p.name || p.id.slice(0, 12)}</span>
-                    <span className="text-xs" style={{ color: APP_TEXT.soft }}>{p.hardware}</span>
+                    <span className="text-xs" style={{ color: '#999' }}>{p.hardware}</span>
                     <span className="text-[9px] font-medium px-1.5 py-0.5 rounded-full" style={{ background: tc.bg, color: tc.text }}>
                       {tc.label}
                     </span>
                     {p.encrypted && <span className="text-[8px] px-1 rounded" style={{ background: '#eef3f7', color: C.deepBlue }}>Key</span>}
                   </div>
                   <div className="flex items-center gap-4 text-xs">
-                    <span style={{ color: APP_TEXT.turquoise }}>{p.measured_tps > 0 ? `${p.measured_tps.toFixed(0)} tok/s` : '—'}</span>
-                    <span style={{ color: APP_TEXT.gold }}>${p.price_output.toFixed(2)}/M</span>
-                    <span style={{ color: APP_TEXT.soft }}>{p.active_requests}/{p.max_concurrent}</span>
+                    <span style={{ color: C.turquoise }}>{p.measured_tps > 0 ? `${p.measured_tps.toFixed(0)} tok/s` : '—'}</span>
+                    <span style={{ color: C.gold }}>${p.price_output.toFixed(2)}/M</span>
+                    <span style={{ color: '#999' }}>{p.active_requests}/{p.max_concurrent}</span>
                   </div>
                 </div>
               )
