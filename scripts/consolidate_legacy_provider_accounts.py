@@ -50,8 +50,29 @@ class ConsolidationError(Exception):
 
 
 def readonly(path: Path) -> sqlite3.Connection:
+    """The production source must only be opened in SQLite's read-only mode."""
     conn = sqlite3.connect(
         "file:" + quote(str(path)) + "?mode=ro", uri=True, timeout=30
+    )
+    conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA query_only=ON")
+    return conn
+
+
+def private_backup_reader(path: Path) -> sqlite3.Connection:
+    """Read a PRIVATE backup with SQLite's WAL support available on macOS.
+
+    mode=ro can open a SQLite WAL database but fail on its first PRAGMA when
+    SQLite needs to create/open journal sidecars. mode=rw is deliberately
+    restricted to a pre-existing operator-owned backup; query_only blocks
+    SQL writes. Never use this helper for the production source database.
+    """
+    if not path.is_file() or path.name != "backup.sqlite":
+        raise ConsolidationError("Expected a previously created private backup")
+    if not path.parent.name.startswith("provider-consolidation-"):
+        raise ConsolidationError("Private backup directory name is unexpected")
+    conn = sqlite3.connect(
+        "file:" + quote(str(path)) + "?mode=rw", uri=True, timeout=30
     )
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA query_only=ON")
@@ -331,8 +352,13 @@ def backup_source(source: Path, backup_dir: Path) -> Path:
             with closing(sqlite3.connect(destination)) as dst:
                 src.backup(dst)
                 dst.commit()
+                # Verify on the same destination handle that the independent
+                # macOS diagnostic successfully used.
+                check_integrity(dst)
         os.chmod(destination, 0o600)
-        with closing(readonly(destination)) as db:
+        # Also verify after a real close/reopen; a WAL-mode snapshot might
+        # require writable access to its private journal sidecar files.
+        with closing(private_backup_reader(destination)) as db:
             check_integrity(db)
         return destination
     except BaseException:
@@ -375,7 +401,7 @@ def run(args: argparse.Namespace) -> dict:
         raise ConsolidationError("Source counts changed from operator-approved values")
 
     backup = backup_source(source, backup_dir)
-    with readonly(backup) as snap:
+    with closing(private_backup_reader(backup)) as snap:
         if snapshot_digest(snap) != baseline_digest:
             raise ConsolidationError("Source changed during backup; stop and retry")
     with tempfile.TemporaryDirectory(prefix="provider-rehearsal-", dir=backup_dir) as work:
