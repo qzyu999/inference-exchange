@@ -1,15 +1,21 @@
 import { HERO_PIGMENTS as HP } from '../lib/theme'
 
+// Seven original main reading states: the intro plus all six original
+// transition messages. Extra holds interpolate through the same 0 -> .82
+// crystal timeline; the final extended gust still runs from .82 to 1.
 export const STORY_CHAPTERS = [
-  { label: 'Arrival', cue: 'A NEW FRONTIER', sceneProgress: 0 },
-  { label: 'Convergence', cue: 'TWO FORCES', sceneProgress: 0.35 },
-  { label: 'The exchange', cue: 'ONE MARKET', sceneProgress: 0.60 },
-  { label: 'Transformation', cue: 'ALWAYS EVOLVING', sceneProgress: 0.82 },
+  { label: 'Inference Exchange', sceneProgress: 0 },
+  { label: 'Supply meets demand', sceneProgress: 0.12 },
+  { label: 'Two forces converge', sceneProgress: 0.35 },
+  { label: 'The intersection is the product', sceneProgress: 0.53 },
+  { label: 'Trust is labelled, not assumed', sceneProgress: 0.60 },
+  { label: 'Providers compete. You benefit.', sceneProgress: 0.72 },
+  { label: 'Distributed AI inference, powered by everyone.', sceneProgress: 0.82 },
 ] as const
 
 // A restrained sequence of pigments, mirroring the red/green crystal pair
 // and the mineral field. A hand-cut chip marks each chapter, not a UI dot.
-const CHAPTER_PIGMENTS = [HP.orpiment, HP.cinnabar, HP.jade, HP.lapis] as const
+const CHAPTER_PIGMENTS = [HP.orpiment, HP.cinnabar, HP.orpiment, HP.jade, HP.lapis, HP.cinnabar, HP.orpiment] as const
 
 interface ScrollChapterRailProps {
   activeIndex: number
