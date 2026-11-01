@@ -268,11 +268,37 @@ body {
   font-weight: 600;
   text-shadow: 0 1px 2px rgba(11, 16, 23, 0.85);
 }
+
+/* The SAME painted mani-stone treatment, scaled for large headlines.
+   Pale solid mineral ink sits inside a crisp, dark incised letter edge.
+   The shadow hugs the glyphs, not the landscape; no rectangular scrim,
+   rainbow animation or heavy glow over the scenic plate. */
+.hero-mani-heading {
+  color: #F8EAD5;
+  paint-order: stroke fill;
+  -webkit-text-stroke: 0.8px rgba(16, 24, 29, 0.96);
+  text-shadow:
+    0 1px 1px rgba(10, 17, 22, 0.97),
+    0 2px 3px rgba(10, 17, 22, 0.86),
+    0 4px 8px rgba(10, 17, 22, 0.55);
+}
+/* Preserve the original main's STATIC pigment gradients in the first
+   and last transitions. The narrow incised edge keeps these letters
+   legible as footage changes, without a gradient-sized shadow artifact. */
+.hero-mani-heading-pigment {
+  paint-order: stroke fill;
+  -webkit-text-stroke: 0.95px rgba(16, 24, 29, 0.98);
+  text-shadow: none;
+}
 @media (prefers-contrast: more) {
   .hero-mani-copy,
   .hero-mani-fine {
     -webkit-text-stroke-width: 0.55px;
     text-shadow: 0 1px 2px #0B1119, 0 3px 6px #0B1119;
+  }
+  .hero-mani-heading,
+  .hero-mani-heading-pigment {
+    -webkit-text-stroke-width: 1.2px;
   }
 }
 
