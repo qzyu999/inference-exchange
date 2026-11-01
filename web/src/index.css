@@ -115,6 +115,27 @@ body {
   --ie-app-gold: #845918;
 }
 
+/* Optional f.lux-like bedtime warmth on NON-LANDING screens. A fixed,
+   pointer-transparent multiply veil lowers the blue/green contribution of
+   actual rendered pixels, unlike recoloring only a page backdrop. The main
+   light theme below remains untouched. This is NOT a calibrated 2400K
+   display whitepoint adjustment; users can turn it off if f.lux is active. */
+.ie-app-temperature-scope[data-warm-tint="on"]::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  pointer-events: none;
+  background: #FF995B;
+  opacity: 0.48;
+  mix-blend-mode: multiply;
+}
+@media (forced-colors: active), print {
+  .ie-app-temperature-scope[data-warm-tint="on"]::after {
+    display: none;
+  }
+}
+
 .ie-mineral-sidebar .ie-app-wordmark {
   /* Preserve the living mineral spectrum on the restored charcoal shell. */
   background: linear-gradient(95deg,
