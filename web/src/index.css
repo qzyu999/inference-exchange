@@ -449,8 +449,10 @@ body {
   border-color: rgba(247, 235, 210, 0.85);
 }
 .hero-stone-cta--outline {
-  color: #F8EAD5;
-  background: rgba(14, 16, 24, 0.58);
+  /* Same translucent warm-stone surface as main's provider CTA. This
+     matters because the original mineral-border paint uses alpha stops. */
+  color: #D8D1BE;
+  background: rgba(216, 209, 190, 0.06);
   border-color: rgba(216, 209, 190, 0.55);
 }
 .hero-stone-cta--quiet {
