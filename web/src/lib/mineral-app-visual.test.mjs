@@ -25,7 +25,22 @@ assert.equal((shell.match(/<AppearanceSelector value=\{appearance\} onChange=\{s
 assert.match(shell, /role="group" aria-label="Appearance"/)
 assert.match(shell, /aria-pressed=\{value === mode\.value\}/)
 assert.match(shell, /mode\.value === 'blue-light'/)
-for (const mode of ['Light', 'Dark', 'Blue light filter']) {
+// Label change is presentation-only: the persisted 'blue-light' value and
+// exact warm filter behavior must stay compatible with existing saved choices.
+assert.match(shell, /\{ value: 'blue-light', label: 'Night Shift' \}/)
+assert.doesNotMatch(shell, /label: 'Blue light filter'/)
+assert.match(shell, /function AppearanceIcon\(\{ mode \}: \{ mode: AppAppearance \}\)/)
+assert.match(shell, /if \(mode === 'light'\)/)
+assert.match(shell, /if \(mode === 'dark'\)/)
+assert.match(shell, /<circle cx="12" cy="12" r="4"/) // sun
+assert.match(shell, /A8\.5 8\.5/) // crescent moon
+assert.match(shell, /M3 18h18M6 21h12/) // setting sun + horizon
+assert.match(shell, /'aria-hidden': true as const/)
+assert.match(shell, /<AppearanceIcon mode=\{mode\.value\} \/>/)
+assert.match(shell, /<span className="text-center">\{mode\.label\}<\/span>/)
+assert.match(shell, /min-h-\[56px\]/)
+
+for (const mode of ['Light', 'Dark', 'Night Shift']) {
   assert.ok(shell.includes("label: '" + mode + "'"), 'missing appearance option: ' + mode)
 }
 assert.match(shell, /const APPEARANCE_KEY = 'ie-app-appearance'/)
