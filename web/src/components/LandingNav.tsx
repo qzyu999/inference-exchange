@@ -23,7 +23,7 @@ function AccountArea({ onNavigate }: { onNavigate?: () => void }) {
       <Link
         to={loginHref(location.pathname + location.search)}
         onClick={onNavigate}
-        className={`px-3 py-1.5 rounded-lg text-sm font-medium border ${FOCUS}`}
+        className={`px-3 py-1.5 rounded-lg text-[15px] font-medium border ${FOCUS}`}
         style={{ color: HP.cream, borderColor: 'rgba(240,197,75,0.55)' }}
       >
         Sign in with GitHub
@@ -35,12 +35,12 @@ function AccountArea({ onNavigate }: { onNavigate?: () => void }) {
       <span className="text-xs truncate max-w-[12rem]" style={{ color: HP.silk }} title={user!.email}>
         Signed in as {user!.name || user!.email}
       </span>
-      <Link to="/keys" onClick={onNavigate} className={`text-sm ${FOCUS}`} style={{ color: HP.cream }}>API keys</Link>
-      <Link to="/billing" onClick={onNavigate} className={`text-sm ${FOCUS}`} style={{ color: HP.cream }}>Account</Link>
+      <Link to="/keys" onClick={onNavigate} className={`text-[15px] ${FOCUS}`} style={{ color: HP.cream }}>API keys</Link>
+      <Link to="/billing" onClick={onNavigate} className={`text-[15px] ${FOCUS}`} style={{ color: HP.cream }}>Account</Link>
       <button
         type="button"
         onClick={() => { onNavigate?.(); logout() }}
-        className={`text-sm ${FOCUS}`}
+        className={`text-[15px] ${FOCUS}`}
         style={{ color: HP.silk }}
       >
         Sign out
@@ -67,21 +67,15 @@ export function LandingNav() {
   return (
     <header
       className="fixed top-0 left-0 right-0 z-50"
-      style={{ background: GRADIENTS.sidebar }}
+      style={{
+        background: GRADIENTS.sidebar,
+        borderBottom: '1px solid rgba(240,197,75,0.34)',
+        boxShadow: '0 2px 12px rgba(31,31,32,0.22)',
+      }}
     >
-      {/* The hero is a separate 56px-offset stage. Cover the tiny exposed
-          ultrawide video/blur seam with the navbar itself, without moving
-          the video, changing nav hit targets or altering scroll geometry.
-          #252A30 is the last stop of GRADIENTS.sidebar. */}
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-x-0 top-full h-4"
-        style={{
-          background: '#252A30',
-          borderBottom: '1px solid rgba(240,197,75,0.34)',
-          boxShadow: '0 2px 12px rgba(31,31,32,0.22)',
-        }}
-      />
+      {/* Use one centered 72px navigation row instead of a 56px row plus
+          a 16px decorative spacer. The row still covers the same video
+          seam, with no change to the 56px-offset story geometry. */}
       <a
         href="#landing-main"
         className={`sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:px-3 focus:py-2 focus:rounded-lg ${FOCUS}`}
@@ -89,18 +83,18 @@ export function LandingNav() {
       >
         Skip to content
       </a>
-      <nav aria-label="Main" className="max-w-7xl mx-auto px-4 md:px-8 h-14 flex items-center justify-between gap-4">
+      <nav aria-label="Main" className="max-w-7xl mx-auto px-4 md:px-8 h-[72px] flex items-center justify-between gap-4">
         <Link to="/" className={`flex items-center gap-2 shrink-0 ${FOCUS}`}>
-          <img src="/logo-icon.svg" alt="" className="w-6 h-6" />
-          <span className="mineral-spectrum-text hero-mineral-wordmark text-sm font-bold uppercase tracking-wider">
+          <img src="/logo-icon.svg" alt="" className="w-7 h-7" />
+          <span className="mineral-spectrum-text hero-mineral-wordmark text-base font-bold uppercase tracking-wider">
             Inference Exchange
           </span>
         </Link>
 
-        <ul className="hidden xl:flex items-center gap-5">
+        <ul className="hidden xl:flex items-center gap-4">
           {LANDING_LINKS.map(l => (
             <li key={l.to}>
-              <Link to={l.to} className={`text-sm ${FOCUS}`} style={{ color: HP.silk }}>{l.label}</Link>
+              <Link to={l.to} className={`text-[15px] ${FOCUS}`} style={{ color: HP.silk }}>{l.label}</Link>
             </li>
           ))}
         </ul>
@@ -109,7 +103,7 @@ export function LandingNav() {
           <AccountArea />
           <Link
             to="/chat"
-            className={`px-4 py-2 rounded-lg text-sm font-semibold ${FOCUS}`}
+            className={`px-4 py-2 rounded-lg text-[15px] font-semibold ${FOCUS}`}
             style={{ background: '#F2E6D0', color: C.blueBlack }}
           >
             Try inference
