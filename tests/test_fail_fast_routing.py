@@ -67,11 +67,11 @@ def client(monkeypatch):
     return TestClient(create_app())
 
 
-CHAT = {"messages": [{"role": "user", "content": "hi"}], "stream": False}
+CHAT = {"model": "qwen", "messages": [{"role": "user", "content": "hi"}], "stream": False}
 
 
 class TestEndpoint:
-    def test_hardened_default_with_open_provider_fails_fast(self, client):
+    def test_hardened_named_model_with_open_provider_fails_fast(self, client):
         hub = dependencies.get_hub()
         hub.QUEUE_TIMEOUT_SECONDS = 5.0  # a queued request would take this long
         _add_provider(hub)
@@ -113,5 +113,5 @@ class TestOpenAIErrorShape:
         sdk = openai.OpenAI(api_key="sk-ie-x", base_url="http://test/v1", max_retries=0,
                             http_client=httpx.Client(transport=transport))
         with pytest.raises(openai.APIStatusError) as exc:
-            sdk.chat.completions.create(model="default", messages=[{"role": "user", "content": "hi"}])
+            sdk.chat.completions.create(model="qwen", messages=[{"role": "user", "content": "hi"}])
         assert "No provider is online" in str(exc.value)
