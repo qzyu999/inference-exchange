@@ -259,7 +259,7 @@ function ModelDetail({ m }: { m: MarketModel }) {
                 </div>
                 <div className="col-span-1 text-[10px] font-mono" style={{ color: APP_TEXT.gold }}>{p.quantization || '—'}</div>
                 <div className="col-span-1 text-right text-xs" style={{ color: C.deepBlue }}>${p.price_input.toFixed(2)}</div>
-                <div className="col-span-1 text-right text-xs" style={{ color: p.price_cache > 0 ? C.turquoise : '#ddd' }}>
+                <div className="col-span-1 text-right text-xs" style={{ color: p.price_cache > 0 ? APP_TEXT.turquoise : APP_TEXT.soft }}>
                   {p.price_cache > 0 ? `$${p.price_cache.toFixed(2)}` : '—'}
                 </div>
                 <div className="col-span-1 text-right text-xs font-semibold" style={{ color: APP_TEXT.gold }}>${p.price_output.toFixed(2)}</div>
@@ -331,7 +331,7 @@ function ModelDetail({ m }: { m: MarketModel }) {
                         <span style={{ color: APP_TEXT.turquoise }}>{p.tps > 0 ? `${p.tps.toFixed(1)} tok/s` : '—'}</span>
                       </div>
                       <div className="mt-0.5">
-                        Load: <span style={{ color: p.load > 0.8 ? C.red : p.load > 0.5 ? C.orange : C.green }}>
+                        Load: <span style={{ color: p.load > 0.8 ? APP_TEXT.red : p.load > 0.5 ? APP_TEXT.gold : APP_TEXT.green }}>
                           {(p.load * 100).toFixed(0)}%
                         </span>
                       </div>
