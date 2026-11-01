@@ -6,6 +6,25 @@ const guide = readFileSync(new URL('../../../docs/guides/provider-l0-apple-silic
 const page = readFileSync(new URL('../pages/Provide.tsx', import.meta.url), 'utf8')
 const agent = readFileSync(new URL('../../../ocip_agent/agent.py', import.meta.url), 'utf8')
 const transport = readFileSync(new URL('../../../inference_exchange/shared/provider_auth.py', import.meta.url), 'utf8')
+const setup = readFileSync(new URL('../components/ProviderMacSetup.tsx', import.meta.url), 'utf8')
+const config = readFileSync(new URL('../../../inference_exchange/config.py', import.meta.url), 'utf8')
+const sha = setup.match(/const MODEL_SHA256 = '([a-f0-9]{64})'/)?.[1]
+const repo = config.match(/DEFAULT_MODEL_REPO = "([^"]+)"/)?.[1]
+const file = config.match(/DEFAULT_MODEL_FILE = "([^"]+)"/)?.[1]
+assert.ok(sha, 'setup must specify the model file SHA-256')
+assert.ok(repo && file, 'setup must match the repository default model')
+assert.match(setup, new RegExp(repo.replace(/\./g, '\\.').replace(/\//g, '\\/')))
+assert.ok(setup.includes(file))
+assert.ok(guide.includes(sha), 'guide and UI must verify the same model hash')
+assert.ok(guide.includes(repo) && guide.includes(file))
+assert.match(setup, /brew install llama\.cpp/)
+assert.match(guide, /brew install llama\.cpp/)
+assert.match(setup, /shasum -a 256 -c -/)
+assert.match(guide, /shasum -a 256 -c -/)
+assert.match(setup, /getpass/)
+assert.match(page, /<ProviderMacSetup \/>/)
+assert.doesNotMatch(setup, /\?token=/)
+
 
 assert.match(page, /provider-l0-apple-silicon-preview\.md/)
 assert.match(guide, /Not yet independently qualified/)
