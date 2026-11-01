@@ -4,7 +4,7 @@ import useSWR from 'swr'
 import { api } from '../lib/api'
 import { formatUsdPrecise, microToUsd } from '../lib/money.js'
 import { requestedModelLabel, servedModelLabel } from '../lib/model-attribution.js'
-import { C, TRUST_COLORS, APP_TEXT } from '../lib/theme'
+import { C, TRUST_COLORS } from '../lib/theme'
 
 const DOT_COLORS: Record<string, string> = {
   green: C.green, gold: C.gold, blue: C.deepBlue, red: C.red, gray: '#ccc',
@@ -24,13 +24,13 @@ function TraceStep({ number, label, value, detail, dot, expanded, children, onTo
         onClick={onToggle}
       >
         <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0"
-          style={{ border: '1.5px solid #ddd', color: APP_TEXT.soft }}>{number}</div>
+          style={{ border: '1.5px solid #ddd', color: '#999' }}>{number}</div>
         <div className="w-24 shrink-0">
-          <div className="text-[10px] uppercase tracking-wider font-medium" style={{ color: APP_TEXT.soft }}>{label}</div>
+          <div className="text-[10px] uppercase tracking-wider font-medium" style={{ color: '#999' }}>{label}</div>
         </div>
         <div className="flex-1 min-w-0">
           <div className="text-sm font-semibold" style={{ color: C.blueBlack }}>{value}</div>
-          <div className="text-xs" style={{ color: APP_TEXT.soft }}>{detail}</div>
+          <div className="text-xs" style={{ color: '#999' }}>{detail}</div>
         </div>
         <div className="w-3 h-3 rounded-full shrink-0" style={{ background: DOT_COLORS[dot] || DOT_COLORS.gray }} />
         {onToggle && (
@@ -42,7 +42,7 @@ function TraceStep({ number, label, value, detail, dot, expanded, children, onTo
       </div>
       {expanded && children && (
         <div className="px-6 pb-4 ml-14" style={{ borderTop: '1px solid #eaeae8' }}>
-          <div className="pt-3 text-xs" style={{ color: APP_TEXT.soft }}>
+          <div className="pt-3 text-xs" style={{ color: '#888' }}>
             {children}
           </div>
         </div>
@@ -68,13 +68,13 @@ export function Trace() {
   if (!trace) {
     return (
       <div className="max-w-2xl mx-auto text-center py-16">
-        <div className="text-sm" style={{ color: APP_TEXT.soft }}>
+        <div className="text-sm" style={{ color: '#999' }}>
           {requestId ? `Trace ${requestId} not found` : 'No completed requests to inspect yet.'}
         </div>
-        <div className="text-xs mt-2" style={{ color: APP_TEXT.soft }}>
+        <div className="text-xs mt-2" style={{ color: '#bbb' }}>
           Send a chat request, then come back here to inspect the evidence.
         </div>
-        <Link to="/chat" className="inline-block mt-4 text-sm font-medium" style={{ color: APP_TEXT.gold }}>Go to Chat</Link>
+        <Link to="/chat" className="inline-block mt-4 text-sm font-medium" style={{ color: C.gold }}>Go to Chat</Link>
       </div>
     )
   }
@@ -111,14 +111,14 @@ export function Trace() {
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-lg font-bold font-mono" style={{ color: C.blueBlack }}>{trace.request_id}</h2>
-            <div className="text-xs mt-0.5" style={{ color: APP_TEXT.soft }}>
+            <div className="text-xs mt-0.5" style={{ color: '#999' }}>
               {requestedModelLabel(billingTx || trace)}
               {' · '}{trace.providers_evaluated || scoring.length} provider{(trace.providers_evaluated || scoring.length) !== 1 ? 's' : ''} evaluated
               {preference && ` · ${preference} routing`}
             </div>
           </div>
           <span className="text-[11px] font-medium px-3 py-1 rounded-full"
-            style={{ background: isCompleted ? '#edf7f1' : '#fdf5f4', color: isCompleted ? APP_TEXT.green : APP_TEXT.red }}>
+            style={{ background: isCompleted ? '#edf7f1' : '#fdf5f4', color: isCompleted ? C.green : C.red }}>
             {isCompleted ? 'Completed' : trace.status}
           </span>
         </div>
@@ -137,14 +137,14 @@ export function Trace() {
             {/* Selected provider scoring */}
             {selectedScoring && (
               <div>
-                <div className="text-[10px] uppercase tracking-wider mb-1.5" style={{ color: APP_TEXT.gold }}>Selected</div>
+                <div className="text-[10px] uppercase tracking-wider mb-1.5" style={{ color: C.gold }}>Selected</div>
                 <div className="flex items-center gap-4 flex-wrap">
                   <span><span className="font-semibold" style={{ color: C.blueBlack }}>{selectedScoring.name}</span></span>
-                  <span>score: <span className="font-semibold" style={{ color: APP_TEXT.gold }}>{selectedScore.toFixed(3)}</span></span>
-                  <span>price: <span style={{ color: APP_TEXT.gold }}>${selectedScoring.price?.toFixed(2)}/M</span></span>
+                  <span>score: <span className="font-semibold" style={{ color: C.gold }}>{selectedScore.toFixed(3)}</span></span>
+                  <span>price: <span style={{ color: C.gold }}>${selectedScoring.price?.toFixed(2)}/M</span></span>
                   <span>trust: <span className="font-medium px-1.5 py-0.5 rounded-full text-[9px]" style={{ background: tc.bg, color: tc.text }}>{trustLabel}</span></span>
-                  <span>speed: <span style={{ color: APP_TEXT.turquoise }}>{selectedTps.toFixed(0)} tok/s</span></span>
-                  <span>load: <span style={{ color: selectedLoad > 0.8 ? APP_TEXT.red : APP_TEXT.green }}>{(selectedLoad * 100).toFixed(0)}%</span></span>
+                  <span>speed: <span style={{ color: C.turquoise }}>{selectedTps.toFixed(0)} tok/s</span></span>
+                  <span>load: <span style={{ color: selectedLoad > 0.8 ? C.red : C.green }}>{(selectedLoad * 100).toFixed(0)}%</span></span>
                 </div>
               </div>
             )}
@@ -152,7 +152,7 @@ export function Trace() {
             {/* Alternative candidates */}
             {alternatives.length > 0 && (
               <div>
-                <div className="text-[10px] uppercase tracking-wider mb-1.5" style={{ color: APP_TEXT.soft }}>
+                <div className="text-[10px] uppercase tracking-wider mb-1.5" style={{ color: '#aaa' }}>
                   {alternatives.length} alternative{alternatives.length !== 1 ? 's' : ''} evaluated
                 </div>
                 <div className="space-y-1">
@@ -162,8 +162,8 @@ export function Trace() {
                       <div key={i} className="flex items-center gap-3 py-1 border-b border-gray-50 last:border-0">
                         <span className="w-24 truncate" style={{ color: C.blueBlack }}>{s.name}</span>
                         <span>score: <span className="font-medium">{s.score?.toFixed(3)}</span></span>
-                        <span style={{ color: APP_TEXT.gold }}>${s.price?.toFixed(2)}</span>
-                        <span style={{ color: APP_TEXT.turquoise }}>{s.tps?.toFixed(0)} t/s</span>
+                        <span style={{ color: C.gold }}>${s.price?.toFixed(2)}</span>
+                        <span style={{ color: C.turquoise }}>{s.tps?.toFixed(0)} t/s</span>
                         <span className="text-[9px] px-1.5 py-0.5 rounded-full" style={{ background: stc.bg, color: stc.text }}>
                           {TRUST_COLORS[s.trust]?.label || s.trust}
                         </span>
@@ -174,7 +174,7 @@ export function Trace() {
               </div>
             )}
 
-            <div className="text-[10px]" style={{ color: APP_TEXT.soft }}>
+            <div className="text-[10px]" style={{ color: '#bbb' }}>
               Routing preference: {preference}. Provider scored highest among eligible candidates.
             </div>
           </div>
@@ -241,7 +241,7 @@ export function Trace() {
             <div>Requested: {requestedModelLabel(billingTx || trace)} · Served: {servedModelLabel(billingTx || trace)}</div>
             <div>Provider TPS (observed): {selectedTps > 0 ? `${selectedTps.toFixed(1)} tok/s` : 'not yet measured'}</div>
             {selectedScoring?.load != null && <div>Provider load at match time: {(selectedScoring.load * 100).toFixed(0)}%</div>}
-            <div className="text-[10px] mt-1" style={{ color: APP_TEXT.soft }}>
+            <div className="text-[10px] mt-1" style={{ color: '#bbb' }}>
               TPS is the selected provider's observed rate, not an estimate or average across candidates.
             </div>
           </div>
@@ -262,23 +262,23 @@ export function Trace() {
                   <div className="bg-white rounded-lg border border-gray-100 p-2 text-center">
                     <div className="text-[9px] uppercase" style={{ color: C.deepBlue }}>Input</div>
                     <div className="text-sm font-bold" style={{ color: C.blueBlack }}>{((billingTx as any).input_tokens || 0).toLocaleString()}</div>
-                    <div className="text-[10px]" style={{ color: APP_TEXT.soft }}>tokens</div>
+                    <div className="text-[10px]" style={{ color: '#bbb' }}>tokens</div>
                   </div>
                   <div className="bg-white rounded-lg border border-gray-100 p-2 text-center">
-                    <div className="text-[9px] uppercase" style={{ color: APP_TEXT.turquoise }}>Cached</div>
+                    <div className="text-[9px] uppercase" style={{ color: C.turquoise }}>Cached</div>
                     <div className="text-sm font-bold" style={{ color: (billingTx as any).cached_tokens > 0 ? C.blueBlack : '#ddd' }}>
                       {(billingTx as any).cached_tokens > 0 ? ((billingTx as any).cached_tokens).toLocaleString() : '—'}
                     </div>
-                    <div className="text-[10px]" style={{ color: APP_TEXT.soft }}>tokens</div>
+                    <div className="text-[10px]" style={{ color: '#bbb' }}>tokens</div>
                   </div>
                   <div className="bg-white rounded-lg border border-gray-100 p-2 text-center">
-                    <div className="text-[9px] uppercase" style={{ color: APP_TEXT.gold }}>Output</div>
+                    <div className="text-[9px] uppercase" style={{ color: C.gold }}>Output</div>
                     <div className="text-sm font-bold" style={{ color: C.blueBlack }}>{((billingTx as any).output_tokens || 0).toLocaleString()}</div>
-                    <div className="text-[10px]" style={{ color: APP_TEXT.soft }}>tokens</div>
+                    <div className="text-[10px]" style={{ color: '#bbb' }}>tokens</div>
                   </div>
                 </div>
                 <div>Total cost: <span className="font-semibold" style={{ color: C.red }}>{formatUsdPrecise(billingTx.cost_usd)}</span>
-                  {billingTx.minimum_applied && <span style={{ color: APP_TEXT.soft }}> (per-request minimum applied; token cost was lower)</span>}
+                  {billingTx.minimum_applied && <span style={{ color: '#888' }}> (per-request minimum applied; token cost was lower)</span>}
                 </div>
                 {/* Stored integer split (BILL-001/002), not a recomputed float */}
                 <div>Provider revenue: {billingTx.provider_earning_micro != null ? formatUsdPrecise(microToUsd(billingTx.provider_earning_micro)) : formatUsdPrecise(billingTx.cost_usd * 0.9)} (90%)</div>
@@ -290,12 +290,12 @@ export function Trace() {
                 {trace.cost_usd != null && <div>Total cost: {formatUsdPrecise(trace.cost_usd)}</div>}
                 <div>Provider revenue: {trace.cost_usd != null ? `≈${formatUsdPrecise(trace.cost_usd * 0.9)}` : '—'} (90%)</div>
                 <div>Platform fee: {trace.cost_usd != null ? `≈${formatUsdPrecise(trace.cost_usd * 0.1)}` : '—'} (10%)</div>
-                <div className="text-[10px] mt-1" style={{ color: APP_TEXT.soft }}>
+                <div className="text-[10px] mt-1" style={{ color: '#bbb' }}>
                   Per-tier token breakdown not available for this request. Check Billing page for full transaction detail.
                 </div>
               </>
             )}
-            <div className="text-[10px] mt-1" style={{ color: APP_TEXT.soft }}>
+            <div className="text-[10px] mt-1" style={{ color: '#bbb' }}>
               Billing is per-token: input tokens + cached tokens (discounted) + output tokens.
             </div>
           </div>
@@ -348,7 +348,7 @@ export function Trace() {
       {/* Recent traces */}
       {traces.length > 1 && (
         <div className="bg-white rounded-2xl border border-gray-200/40 p-5">
-          <div className="text-[10px] uppercase tracking-wider font-medium mb-3" style={{ color: APP_TEXT.gold }}>
+          <div className="text-[10px] uppercase tracking-wider font-medium mb-3" style={{ color: C.gold }}>
             Recent Traces
           </div>
           <div className="space-y-1">
@@ -361,11 +361,11 @@ export function Trace() {
                   className="flex items-center gap-3 py-2 px-3 rounded-lg transition-colors"
                   style={{ background: isCurrent ? '#fdf6ec' : 'transparent' }}>
                   <span className="w-2 h-2 rounded-full shrink-0" style={{ background: ok ? C.green : C.red }} />
-                  <span className="text-xs font-mono flex-1 truncate" style={{ color: isCurrent ? APP_TEXT.gold : APP_TEXT.soft }}>
+                  <span className="text-xs font-mono flex-1 truncate" style={{ color: isCurrent ? C.gold : '#888' }}>
                     {t.request_id}
                   </span>
-                  <span className="text-[10px]" style={{ color: APP_TEXT.soft }}>{time}</span>
-                  <span className="text-xs" style={{ color: APP_TEXT.soft }}>{t.model === 'default' ? 'any' : t.model}</span>
+                  <span className="text-[10px]" style={{ color: '#bbb' }}>{time}</span>
+                  <span className="text-xs" style={{ color: '#bbb' }}>{t.model === 'default' ? 'any' : t.model}</span>
                   {t.selected_trust && (
                     <span className="text-[8px] px-1.5 py-0.5 rounded-full"
                       style={{ background: (TRUST_COLORS[t.selected_trust] || TRUST_COLORS.open).bg, color: (TRUST_COLORS[t.selected_trust] || TRUST_COLORS.open).text }}>
@@ -373,7 +373,7 @@ export function Trace() {
                     </span>
                   )}
                   {t.selected_price != null && (
-                    <span className="text-xs font-semibold" style={{ color: APP_TEXT.gold }}>${t.selected_price.toFixed(2)}</span>
+                    <span className="text-xs font-semibold" style={{ color: C.gold }}>${t.selected_price.toFixed(2)}</span>
                   )}
                 </Link>
               )
