@@ -34,3 +34,23 @@ cd web && npm ci && npm run build && node src/lib/docs.test.mjs && node src/lib/
 ```
 
 Use the mock provider when you do not have a model: `python -m inference_exchange.provider --mock --trust hardened`.
+
+## Test-first engineering and compositional verification
+
+Use [the testing strategy](docs/testing-strategy.md) for test levels, fixtures, and evidence.
+These rules support the approved requirements. They do not replace them.
+
+- Identify the approved requirement IDs and current tests before a behavior change.
+- For new behavior or a reproduced defect, write a failing test first when practical.
+- Confirm the intended failure. Make the smallest fix, then refactor and rerun the tests.
+- Before a risky legacy refactor, characterize intended behavior in tests. Do not preserve a known defect as a requirement.
+- Use unit, component, contract, integration, property, and E2E tests as needed for the risk.
+- Check affected callers, interfaces, persistent data, and downstream journeys. A unit-only pass is not system evidence.
+- Preserve exact integer billing, stable provider identity, owner isolation, routing constraints, and safe failure behavior.
+- Use isolated SQLite, deterministic fixtures, and mock providers in CI. Never test against production data or secrets.
+- Reuse pytest, existing web tests, and current CI. Do not add duplicate frameworks without a clear need.
+- Update a requirement's `Verified by` test as needed. Run affected tests and `python scripts/check_requirements.py`.
+- In each PR and issue, record the red/green evidence, commands, CI results, regression coverage, and unverified paths.
+- Report source, merge, deployment, hardware, and independent acceptance as separate states. Never claim unrun checks passed.
+- Explain exceptions, such as exploratory prototypes, in the PR. Add suitable tests before production qualification.
+- Do not change production services, credentials, data, or configuration, or run a canary, without explicit operator approval.
