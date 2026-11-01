@@ -88,7 +88,7 @@ const CHAPTER_COPY = [
   { title: 'Supply meets demand' },
   { title: 'Two forces converge', description: 'Consumers bid. Providers offer. The exchange matches.' },
   { title: 'The intersection is the product' },
-  { title: 'Trust is labelled, not assumed', description: 'Providers report a trust level. The exchange shows it as claimed until evidence verifies it. Browser chat uses TLS; it is not end-to-end encrypted.' },
+  { title: 'Trust is labelled, not assumed', description: 'Providers report a trust level. The exchange shows it as claimed until evidence verifies it.' },
   { title: 'Providers compete. You benefit.', description: 'Price, speed, privacy — the matching engine optimizes for what you care about.' },
   { title: 'Distributed AI inference, powered by everyone.' },
 ] as const
@@ -287,7 +287,7 @@ function LiveExchangeCard() {
           Trust levels are claims
         </div>
         <div className="hero-mani-meta text-[13px] leading-relaxed mt-1" style={{ color: '#F4E8D4' }}>
-          Shown as self-reported until verified. Browser chat uses TLS; it is not end-to-end encrypted.
+          Shown as self-reported until verified.
         </div>
       </div>
     </div>
