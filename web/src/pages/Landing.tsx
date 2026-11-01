@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
 import useSWR from 'swr'
 import { Link } from 'react-router-dom'
 import { api } from '../lib/api'
@@ -101,8 +101,25 @@ const HERO_PRODUCT_GRADIENT = `linear-gradient(90deg, ${HP.orpiment} 0%, ${HP.sa
 // Debug-only visual centerline, at the same 50% stage x used by the video.
 const SHOW_ALIGNMENT_GUIDES = new URLSearchParams(window.location.search).get('heroGuides') === '1'
 
-// Five landing actions share a quiet mineral-inlay hover. Preserve the
-// approved routes and understated fills without moving the text or scene.
+// Cursor spotlight based on the established CSS-variable radial-gradient
+// pattern. No canvas, Motion dependency or React state rerenders.
+// Local ?ctaEffect=stone restores the previous restrained inlay for A/B.
+const STATIC_CTA_PREVIEW = /^(localhost|127[.]0[.]0[.]1)$/.test(window.location.hostname)
+  && new URLSearchParams(window.location.search).get('ctaEffect') === 'stone'
+
+function movePigmentSpotlight(event: ReactPointerEvent<HTMLAnchorElement>) {
+  if (STATIC_CTA_PREVIEW || (event.pointerType !== 'mouse' && event.pointerType !== 'pen')
+    || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+  const rect = event.currentTarget.getBoundingClientRect()
+  if (!rect.width || !rect.height) return
+  const x = Math.min(1, Math.max(0, (event.clientX - rect.left) / rect.width))
+  const y = Math.min(1, Math.max(0, (event.clientY - rect.top) / rect.height))
+  event.currentTarget.style.setProperty('--pigment-x', `${Math.round(x * 100)}%`)
+  event.currentTarget.style.setProperty('--pigment-y', `${Math.round(y * 100)}%`)
+  // Small angle shift makes a soft swirl; button and label do not move.
+  event.currentTarget.style.setProperty('--pigment-angle', `${Math.round(25 + (x - .5) * 34 + (y - .5) * 18)}deg`)
+}
+
 function StoneCTA({
   to,
   tone,
@@ -115,8 +132,13 @@ function StoneCTA({
   tabIndex?: number
 }) {
   return (
-    <Link to={to} tabIndex={tabIndex} className={`hero-stone-cta hero-stone-cta--${tone}`}>
-      {children}
+    <Link
+      to={to}
+      tabIndex={tabIndex}
+      onPointerMove={movePigmentSpotlight}
+      className={`hero-stone-cta hero-stone-cta--${tone}${STATIC_CTA_PREVIEW ? '' : ' hero-stone-cta--spotlight'}`}
+    >
+      <span className="hero-stone-cta__label">{children}</span>
     </Link>
   )
 }
