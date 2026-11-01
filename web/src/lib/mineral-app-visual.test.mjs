@@ -18,6 +18,9 @@ for (const [name, hex] of Object.entries({
 
 assert.match(shell, /className="ie-mineral-app flex min-h-screen"/)
 assert.match(shell, /ie-mineral-sidebar/)
+assert.match(theme, /sidebar: 'linear-gradient\\(180deg, #292F35 0%, #302A31 34%, #293137 70%, #252A30 100%\\)'/)
+assert.match(shell, /background: '#292F35', borderBottom/)
+assert.doesNotMatch(theme, /sidebar: 'linear-gradient\\(175deg, #102D6D/)
 assert.match(shell, /ie-app-wordmark/)
 assert.match(shell, /ie-app-spectrum-rule/)
 assert.match(shell, /aria-current=\{active \? 'page' : undefined\}/)
