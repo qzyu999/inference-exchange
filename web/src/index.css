@@ -238,6 +238,44 @@ body {
   animation: mineral-shift 17s ease-in-out infinite;
 }
 
+/* Tibetan mani-stone reference: opaque pale mineral paint over irregular
+   dark rock, with a narrow recessed edge around each glyph. These classes
+   improve SMALL lettering on moving landscape footage, not the scene itself.
+   No backdrop panel, bloom, animated rainbow text or whole-screen scrim. */
+.hero-mani-copy,
+.hero-mani-fine {
+  color: #F8EAD5;
+  font-weight: 600;
+  paint-order: stroke fill;
+  -webkit-text-stroke: 0.35px rgba(19, 28, 33, 0.98);
+  text-shadow:
+    0 1px 1px rgba(12, 20, 25, 0.98),
+    0 2px 4px rgba(12, 20, 25, 0.87),
+    0 4px 9px rgba(12, 20, 25, 0.62);
+}
+.hero-mani-fine {
+  -webkit-text-stroke-width: 0.25px;
+  letter-spacing: 0.015em;
+}
+/* Charcoal navbar and product finale have steady dark backgrounds. They
+   need higher-value pigment ink and stronger weight, not heavy outlines. */
+.hero-mani-nav {
+  color: #F7EAD6;
+  font-weight: 600;
+  text-shadow: 0 1px 1px rgba(11, 16, 23, 0.8);
+}
+.hero-mani-meta {
+  font-weight: 600;
+  text-shadow: 0 1px 2px rgba(11, 16, 23, 0.85);
+}
+@media (prefers-contrast: more) {
+  .hero-mani-copy,
+  .hero-mani-fine {
+    -webkit-text-stroke-width: 0.55px;
+    text-shadow: 0 1px 2px #0B1119, 0 3px 6px #0B1119;
+  }
+}
+
 /* Dark blue letterpress edges follow the GLYPHS, not the landscape.
    The text retains a stable, bright silk fill; animations live only on
    small accents, since moving rainbow paragraphs reduce readability. */
