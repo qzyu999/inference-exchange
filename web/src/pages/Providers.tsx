@@ -123,7 +123,7 @@ function ProviderEvidence({ p, reputation, tps }: { p: Provider; reputation?: Re
             )}
             <div>
               Load:{' '}
-              <span style={{ color: p.load > 0.8 ? C.red : p.load > 0.5 ? C.orange : C.green }}>
+              <span style={{ color: p.load > 0.8 ? APP_TEXT.red : p.load > 0.5 ? APP_TEXT.gold : APP_TEXT.green }}>
                 {(p.load * 100).toFixed(0)}%
               </span>
               <span style={{ color: APP_TEXT.soft }}> ({p.active_requests}/{p.max_concurrent} slots)</span>
@@ -133,7 +133,7 @@ function ProviderEvidence({ p, reputation, tps }: { p: Provider; reputation?: Re
                 <div className="flex items-center justify-between">
                   <span>Reputation</span>
                   <span className="font-semibold" style={{
-                    color: reputation.score > 0.8 ? C.green : reputation.score > 0.5 ? C.gold : C.red
+                    color: reputation.score > 0.8 ? APP_TEXT.green : reputation.score > 0.5 ? APP_TEXT.gold : APP_TEXT.red
                   }}>
                     {(reputation.score * 100).toFixed(0)}%
                   </span>
@@ -267,7 +267,7 @@ export function Providers() {
 
                 {/* Three-tier pricing */}
                 <div className="col-span-1 text-right text-xs" style={{ color: C.deepBlue }}>${p.price_input.toFixed(2)}</div>
-                <div className="col-span-1 text-right text-xs" style={{ color: (p.price_cache || 0) > 0 ? C.turquoise : '#ddd' }}>
+                <div className="col-span-1 text-right text-xs" style={{ color: (p.price_cache || 0) > 0 ? APP_TEXT.turquoise : APP_TEXT.soft }}>
                   {(p.price_cache || 0) > 0 ? `$${(p.price_cache || 0).toFixed(2)}` : '—'}
                 </div>
                 <div className="col-span-1 text-right text-sm font-semibold" style={{ color: APP_TEXT.gold }}>${p.price_output.toFixed(2)}</div>
