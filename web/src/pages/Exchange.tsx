@@ -480,7 +480,7 @@ export function Exchange() {
       priceLabel: m.price > 0 ? (m.price < 1 ? '$' + m.price.toFixed(2) : '$' + m.price.toFixed(0)) : undefined,
       badges: [
         { label: m.source === 'ref' ? 'Reference only' : m.source === 'both' ? 'IE + reference' : 'On IE',
-          color: m.source === 'ref' ? C.indigo : C.green, background: m.source === 'ref' ? '#f3eef7' : '#edf7f1' },
+          color: m.source === 'ref' ? C.indigo : APP_TEXT.green, background: m.source === 'ref' ? '#f3eef7' : '#edf7f1' },
         ...(m.cache ? [{ label: 'Cache', color: APP_TEXT.turquoise, background: '#e8f5f3' }] : []),
         ...(m.quality != null ? [{ label: '★ ' + m.quality, color: C.deepBlue, background: '#f0f4f8' }] : []),
       ],
@@ -976,7 +976,7 @@ function DOMColumn({ label, unit, color, levels, emptyMsg, offerRows }: {
               }} />
             </div>
             <span title={fullNames} style={{
-              fontSize: 8, color: hasIE ? C.gold : '#888', width: 80, flexShrink: 0,
+              fontSize: 8, color: hasIE ? APP_TEXT.gold : APP_TEXT.soft, width: 80, flexShrink: 0,
               overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
             }}>
               {level.providers.length} {names}
