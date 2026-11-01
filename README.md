@@ -86,8 +86,13 @@ client = OpenAI(
     api_key="sk-ie-..."  # create in /keys; keep the key private
 )
 
+model_ids = [model.id for model in client.models.list().data]
+if not model_ids:
+    raise RuntimeError("No model is available right now")
+model_id = model_ids[0]
+
 response = client.chat.completions.create(
-    model="default",
+    model=model_id,
     messages=[{"role": "user", "content": "Hello!"}],
     extra_body={
         "ocip_preference": "cheapest",        # cheapest | fastest | most_secure | balanced

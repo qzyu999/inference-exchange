@@ -56,7 +56,7 @@ class ChatMessage(BaseModel):
 
 
 class ChatCompletionRequest(BaseModel):
-    model: str = "default"
+    model: str | None = None
     messages: list[ChatMessage]
     max_tokens: int = 1024
     temperature: float = 0.7
@@ -68,6 +68,16 @@ class ChatCompletionRequest(BaseModel):
     ocip_max_price: float | None = None
     ocip_session_id: str | None = None
     ocip_consumer_public_key: str | None = None
+
+    def validate_model(self) -> str | None:
+        """Reject routing aliases before matching or billing."""
+        if self.model is None or not self.model.strip():
+            return "A concrete model ID is required. List available IDs with GET /v1/models."
+        if self.model == "default":
+            return "The 'default' model alias is not supported. Choose an ID from GET /v1/models."
+        if self.model != self.model.strip():
+            return "The model ID must match an ID from GET /v1/models exactly."
+        return None
 
     def validate_inputs(self) -> str | None:
         """Return error message if invalid, None if OK."""
@@ -208,18 +218,30 @@ def _make_billing_callback(
 @router.post("/v1/chat/completions")
 async def chat_completions(request: ChatCompletionRequest, raw_request: Request):
     """OpenAI-compatible chat completions endpoint."""
-    # Input validation
+    # Preserve existing input validation order (e.g. invalid trust -> HTTP 400).
+    from fastapi.responses import JSONResponse
     validation_error = request.validate_inputs()
     if validation_error:
-        from fastapi.responses import JSONResponse
-        return JSONResponse({"error": {"message": validation_error, "type": "invalid_request"}}, status_code=400)
+        return JSONResponse(
+            {"error": {"message": validation_error, "type": "invalid_request", "code": "invalid_request"}},
+            status_code=400,
+        )
 
-    # Resolve consumer identity (raises InvalidCredentials -> 401 for a bad key)
+    # Resolve caller before applying the new model requirement. Invalid or suspended
+    # callers must retain the established authentication and authorization responses.
     from .routes_auth import anonymous_inference_blocked, resolve_caller, sign_in_required_response
     consumer_id = resolve_caller(raw_request)
 
     if anonymous_inference_blocked(consumer_id):
         return sign_in_required_response()
+
+    # ROUTE-013: deny missing or wildcard model names before matching or billing.
+    model_error = request.validate_model()
+    if model_error:
+        return JSONResponse(
+            {"error": {"message": model_error, "type": "invalid_request_error", "code": "invalid_model"}},
+            status_code=400,
+        )
 
     if get_controls().inference_paused:
         raise InferencePaused()

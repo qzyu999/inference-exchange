@@ -35,7 +35,7 @@ class TestInferenceEndpointExists:
     def test_chat_completions_mounted(self, client):
         """Verify the endpoint exists (returns 503 not 404 when no providers)."""
         resp = client.post("/v1/chat/completions", json={
-            "model": "default",
+            "model": "example-model",
             "messages": [{"role": "user", "content": "hello"}],
             "stream": False,
         })
@@ -45,7 +45,7 @@ class TestInferenceEndpointExists:
 
     def test_returns_structured_error(self, client):
         resp = client.post("/v1/chat/completions", json={
-            "model": "default",
+            "model": "example-model",
             "messages": [{"role": "user", "content": "hello"}],
             "stream": False,
         })
@@ -57,7 +57,7 @@ class TestInferenceEndpointExists:
 class TestInputValidation:
     def test_rejects_empty_messages(self, client):
         resp = client.post("/v1/chat/completions", json={
-            "model": "default",
+            "model": "example-model",
             "messages": [],
             "stream": False,
         })
@@ -67,7 +67,7 @@ class TestInputValidation:
     def test_rejects_too_many_messages(self, client):
         messages = [{"role": "user", "content": "hi"}] * 101
         resp = client.post("/v1/chat/completions", json={
-            "model": "default",
+            "model": "example-model",
             "messages": messages,
             "stream": False,
         })
@@ -76,7 +76,7 @@ class TestInputValidation:
 
     def test_rejects_invalid_temperature(self, client):
         resp = client.post("/v1/chat/completions", json={
-            "model": "default",
+            "model": "example-model",
             "messages": [{"role": "user", "content": "hi"}],
             "temperature": 5.0,
             "stream": False,
@@ -85,12 +85,44 @@ class TestInputValidation:
 
     def test_rejects_invalid_max_tokens(self, client):
         resp = client.post("/v1/chat/completions", json={
-            "model": "default",
+            "model": "example-model",
             "messages": [{"role": "user", "content": "hi"}],
             "max_tokens": -1,
             "stream": False,
         })
         assert resp.status_code == 400
+
+
+class TestExplicitModelContract:
+    @pytest.mark.parametrize("value,include_field", [
+        (None, False),
+        (None, True),
+        ("", True),
+        ("   ", True),
+        ("default", True),
+        (" default ", True),
+        (" example-model ", True),
+    ])
+    def test_rejects_missing_and_wildcard_model(self, client, value, include_field):
+        payload = {"messages": [{"role": "user", "content": "hello"}], "stream": False}
+        if include_field:
+            payload["model"] = value
+        response = client.post("/v1/chat/completions", json=payload)
+        assert response.status_code == 400
+        body = response.json()
+        assert "detail" not in body
+        assert set(body["error"]) >= {"message", "type", "code"}
+        assert body["error"]["code"] == "invalid_model"
+        assert "/v1/models" in body["error"]["message"]
+
+    def test_named_model_reaches_existing_fail_fast(self, client):
+        response = client.post("/v1/chat/completions", json={
+            "model": "example-model",
+            "messages": [{"role": "user", "content": "hello"}],
+            "stream": False,
+        })
+        assert response.status_code == 503
+        assert response.json()["error"]["code"] == "no_provider_available"
 
 
 class TestAuthAndBilling:

@@ -7,7 +7,7 @@ from fastapi.testclient import TestClient
 
 from inference_exchange.coordinator.main import create_app
 
-CHAT = {"messages": [{"role": "user", "content": "hi"}], "stream": False}
+CHAT = {"model": "test-model", "messages": [{"role": "user", "content": "hi"}], "stream": False}
 ADMIN = "admin@example.com"
 
 

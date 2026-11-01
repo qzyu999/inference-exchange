@@ -106,23 +106,23 @@ def test_python_sdk_guide_examples(stack):
     assert "mock-model" in [m.id for m in client.models.list()]
 
     result = client.chat.completions.create(
-        model="default", messages=[{"role": "user", "content": "Say hello."}],
+        model="mock-model", messages=[{"role": "user", "content": "Say hello."}],
         max_tokens=64, extra_body={"ocip_min_confidence": "open"},
     )
     assert result.choices[0].message.content
 
     stream = client.chat.completions.create(
-        model="default", messages=[{"role": "user", "content": "Count to five."}],
+        model="mock-model", messages=[{"role": "user", "content": "Count to five."}],
         stream=True, extra_body={"ocip_min_confidence": "open"},
     )
     assert "".join(c.choices[0].delta.content or "" for c in stream if c.choices)
 
     # The default (hardened) against an open-only pool fails fast with a readable message
     with pytest.raises(openai.APIStatusError) as exc:
-        client.chat.completions.create(model="default", messages=[{"role": "user", "content": "hi"}])
+        client.chat.completions.create(model="mock-model", messages=[{"role": "user", "content": "hi"}])
     assert exc.value.status_code == 503 and "ocip_min_confidence" in str(exc.value)
 
     bad = openai.OpenAI(api_key="sk-ie-revoked", base_url=f"{stack.base}/v1", max_retries=0)
     with pytest.raises(openai.AuthenticationError):
-        bad.chat.completions.create(model="default", messages=[{"role": "user", "content": "hi"}],
+        bad.chat.completions.create(model="mock-model", messages=[{"role": "user", "content": "hi"}],
                                     extra_body={"ocip_min_confidence": "open"})
