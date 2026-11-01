@@ -4,7 +4,7 @@ import { useAuth } from '../lib/auth'
 import { api } from '../lib/api'
 import { loginHref } from '../lib/nav.js'
 import { formatUsdPrecise, microToUsd } from '../lib/money.js'
-import { C, APP_TEXT } from '../lib/theme'
+import { C } from '../lib/theme'
 
 // This page is for every IE user, not Cloudflare Access operators.
 // All provider requests use the server-derived owner from the IE session.
@@ -25,7 +25,7 @@ export function Settings() {
     <section className="max-w-xl rounded-2xl bg-white p-6 space-y-3">
       <h2 className="text-lg font-semibold" style={{ color: C.blueBlack }}>Sign in to manage Settings</h2>
       <p className="text-sm text-gray-600">Use your GitHub account to view your account and provider information.</p>
-      <Link to={loginHref('/settings')} className="underline text-sm" style={{ color: APP_TEXT.gold }}>Sign in with GitHub</Link>
+      <Link to={loginHref('/settings')} className="underline text-sm" style={{ color: C.gold }}>Sign in with GitHub</Link>
     </section>
   )
 
@@ -48,9 +48,9 @@ export function Settings() {
         <h2 className="text-lg font-semibold" style={{ color: C.blueBlack }}>Account and security</h2>
         <p className="text-sm text-gray-600">Use your IE session to manage your simulated credits and API keys.</p>
         <div className="flex flex-wrap gap-4 text-sm">
-          <Link to="/keys" className="underline" style={{ color: APP_TEXT.gold }}>Manage API keys</Link>
-          <Link to="/billing" className="underline" style={{ color: APP_TEXT.gold }}>Balance and billing</Link>
-          <button type="button" className="underline" style={{ color: APP_TEXT.gold }}
+          <Link to="/keys" className="underline" style={{ color: C.gold }}>Manage API keys</Link>
+          <Link to="/billing" className="underline" style={{ color: C.gold }}>Balance and billing</Link>
+          <button type="button" className="underline" style={{ color: C.gold }}
             onClick={() => { void logout() }}>Sign out</button>
         </div>
       </section>
@@ -62,7 +62,7 @@ export function Settings() {
         ) : !nodes || !earnings ? (
           <p role="status" className="text-sm text-gray-500">Loading your provider information…</p>
         ) : owned.length === 0 ? (
-          <p className="text-sm text-gray-600">No provider nodes belong to this account. <Link to="/provide" className="underline" style={{ color: APP_TEXT.gold }}>Learn about providing compute</Link>.</p>
+          <p className="text-sm text-gray-600">No provider nodes belong to this account. <Link to="/provide" className="underline" style={{ color: C.gold }}>Learn about providing compute</Link>.</p>
         ) : (
           <>
             <p className="text-xs text-gray-500">
