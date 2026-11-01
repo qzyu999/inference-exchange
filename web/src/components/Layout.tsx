@@ -352,12 +352,14 @@ export function Layout() {
           )}
         </div>
 
-        {/* Page content */}
-        <div className="relative z-10 px-6 md:px-10 pb-10 mineral-glow">
+        {/* Every app route was authored for dark ink on a light reading
+            surface. Keep the charcoal landing-finale field around it, but
+            provide one neutral, low-glare workspace inside for contrast. */}
+        <main className="ie-app-workspace relative z-10 mx-4 md:mx-8 mb-10 rounded-2xl p-4 md:p-6">
           <ErrorBoundary>
             <Outlet />
           </ErrorBoundary>
-        </div>
+        </main>
       </div>
     </div>
   )
