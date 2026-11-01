@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import useSWR from 'swr'
 import { Link } from 'react-router-dom'
 import { api } from '../lib/api'
-import { C, GRADIENTS } from '../lib/theme'
+import { C, HERO_PIGMENTS as HP } from '../lib/theme'
 import { HeroScene } from '../components/HeroScene'
 import { LandingNav } from '../components/LandingNav'
 import { MineralFlowField } from '../components/MineralFlowField'
@@ -105,14 +105,14 @@ const CHAPTER_COPY = [
   },
 ] as const
 
-// The landscape stays optically untouched. Layered ink-like shadows and a
-// narrow counter-stroke define the glyphs over snow without a dark screen wash.
-const HERO_TITLE_SHADOW = '0 1px 2px rgba(8,22,27,0.96), 0 3px 8px rgba(8,22,27,0.72), 0 7px 18px rgba(8,22,27,0.28)'
-const HERO_BODY_SHADOW = '0 1px 2px rgba(8,20,26,0.95), 0 2px 7px rgba(8,20,26,0.76), 0 4px 12px rgba(8,20,26,0.42)'
-// Existing Inference Exchange pigments: cinnabar, copper, gold, jade, turquoise.
-// Keep saturated paint on tiny inscription marks; large copy stays calcite-white.
-const HERO_PIGMENT_RULE = `linear-gradient(90deg, ${C.red} 0%, ${C.orange} 20%, ${C.gold} 43%, ${C.green} 69%, ${C.turquoise} 91%, transparent 100%)`
-const HERO_PIGMENT_WORD = 'linear-gradient(112deg, #FFF7E9 0%, #F3DFB8 35%, #F8ECDC 61%, #D6EAE1 88%, #F5F3E9 100%)'
+// Warm painted silk and gold pigment over the untouched mountain landscape.
+// Legibility comes from lapis / indigo ink hugging the letterforms, never black
+// shading across the photographic scene.
+const HERO_TITLE_SHADOW = '0 1px 2px rgba(43,34,72,0.94), 0 3px 8px rgba(19,49,99,0.76), 0 7px 17px rgba(43,34,72,0.48)'
+const HERO_BODY_SHADOW = '0 1px 2px rgba(43,34,72,0.98), 0 2px 7px rgba(19,49,99,0.79), 0 4px 13px rgba(43,34,72,0.54)'
+const HERO_PIGMENT_RULE = `linear-gradient(90deg, ${HP.lapis} 0%, ${HP.saffron} 24%, ${HP.orpiment} 44%, ${HP.cinnabar} 67%, ${HP.jade} 87%, transparent 100%)`
+const HERO_PIGMENT_WORD = `linear-gradient(95deg, ${HP.cream} 0%, ${HP.orpiment} 29%, ${HP.saffron} 52%, ${HP.cinnabar} 76%, #F1CE91 100%)`
+const HERO_PRODUCT_GRADIENT = `linear-gradient(90deg, ${HP.orpiment} 0%, ${HP.saffron} 28%, ${HP.coralLotus} 64%, #C2E1B7 100%)`
 
 // No landscape tint. All contrast stays within text glyphs and controls.
 // Debug-only visual centerline, at the same 50% stage x used by the video.
@@ -156,28 +156,28 @@ function EditorialStory({
                   decorative religious motif. The scene itself remains clear. */}
               <div className="flex items-center gap-3 mb-6">
                 <span className="flex h-2 w-11 shrink-0 items-center" aria-hidden="true">
-                  <span className="block h-px w-9" style={{ background: HERO_PIGMENT_RULE, boxShadow: '0 1px 3px rgba(5,18,23,0.46)' }} />
-                  <span className="block h-[5px] w-[5px] rotate-45" style={{ background: index % 2 === 0 ? C.red : C.green, boxShadow: '0 0 0 1px rgba(255,235,197,0.62), 0 1px 4px rgba(8,22,27,0.62)' }} />
+                  <span className="block h-px w-9" style={{ background: HERO_PIGMENT_RULE, boxShadow: '0 1px 3px rgba(43,34,72,0.55)' }} />
+                  <span className="block h-[5px] w-[5px] rotate-45" style={{ background: index % 2 === 0 ? HP.cinnabar : HP.jade, boxShadow: '0 0 0 1px rgba(240,197,75,0.75), 0 1px 4px rgba(43,34,72,0.6)' }} />
                 </span>
-                <p className="text-[11px] font-semibold tracking-[0.24em] uppercase" style={{ color: '#F8DEA9', textShadow: HERO_BODY_SHADOW }}>
+                <p className="text-[11px] font-semibold tracking-[0.24em] uppercase" style={{ color: HP.label, textShadow: HERO_BODY_SHADOW }}>
                   {chapter.eyebrow}
                 </p>
               </div>
               <h1
                 id={'landing-chapter-title-' + index}
                 className="text-[clamp(2.65rem,4.6vw,4.9rem)] font-semibold tracking-[-0.045em] leading-[1.06]"
-                style={{ color: '#FFF8EA', textShadow: HERO_TITLE_SHADOW, WebkitTextStroke: '0.55px rgba(8,22,27,0.8)' }}
+                style={{ color: HP.cream, textShadow: HERO_TITLE_SHADOW, WebkitTextStroke: '0.65px rgba(43,34,72,0.83)' }}
               >
                 <span className="block">{chapter.headline[0]}</span>
                 <span className="block hero-pigment-ink" style={{ backgroundImage: HERO_PIGMENT_WORD }}>{chapter.headline[1]}</span>
               </h1>
               <div className="mt-5 flex items-center gap-2" aria-hidden="true">
-                <span className="block h-px w-24 sm:w-28" style={{ background: HERO_PIGMENT_RULE, boxShadow: '0 1px 3px rgba(8,22,27,0.55)' }} />
-                <span className="block h-1 w-1 rotate-45" style={{ background: C.gold, boxShadow: '0 0 0 1px rgba(255,248,222,0.55)' }} />
+                <span className="block h-px w-24 sm:w-28" style={{ background: HERO_PIGMENT_RULE, boxShadow: '0 1px 3px rgba(43,34,72,0.55)' }} />
+                <span className="block h-1 w-1 rotate-45" style={{ background: HP.orpiment, boxShadow: '0 0 0 1px rgba(255,237,179,0.63)' }} />
               </div>
               <p
                 className="mt-5 text-base md:text-lg font-medium leading-relaxed max-w-[29rem]"
-                style={{ color: '#FFF5E6', textShadow: HERO_BODY_SHADOW, WebkitTextStroke: '0.16px rgba(8,22,27,0.68)' }}
+                style={{ color: HP.silk, textShadow: HERO_BODY_SHADOW, WebkitTextStroke: '0.24px rgba(43,34,72,0.62)' }}
               >
                 {chapter.description}
               </p>
@@ -187,14 +187,14 @@ function EditorialStory({
                     to="/chat"
                     className="hero-pigment-primary inline-flex items-center gap-2 rounded-md px-5 py-3 text-sm font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#F2D59C]"
                   >
-                    <span aria-hidden="true" className="h-[6px] w-[6px] shrink-0 rotate-45" style={{ background: C.red, boxShadow: '0 0 0 1px rgba(255,255,255,0.58)' }} />
+                    <span aria-hidden="true" className="h-[6px] w-[6px] shrink-0 rotate-45" style={{ background: HP.cinnabar, boxShadow: '0 0 0 1px rgba(255,230,174,0.72)' }} />
                     Start chatting
                   </Link>
                   <Link
                     to="/provide"
                     className="hero-pigment-secondary inline-flex items-center gap-2 rounded-md px-5 py-3 text-sm font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#F2D59C]"
                   >
-                    <span aria-hidden="true" className="h-[6px] w-[6px] shrink-0 rotate-45" style={{ background: C.green, boxShadow: '0 0 0 1px rgba(236,255,243,0.65)' }} />
+                    <span aria-hidden="true" className="h-[6px] w-[6px] shrink-0 rotate-45" style={{ background: HP.jade, boxShadow: '0 0 0 1px rgba(240,197,75,0.72)' }} />
                     Become a provider
                   </Link>
                   <Link
@@ -207,7 +207,7 @@ function EditorialStory({
                 </div>
               )}
               {index === 2 && (
-                <p className="mt-5 text-xs leading-relaxed max-w-md" style={{ color: '#FFF1D6', textShadow: HERO_BODY_SHADOW }}>
+                <p className="mt-5 text-xs leading-relaxed max-w-md" style={{ color: HP.silk, textShadow: HERO_BODY_SHADOW }}>
                   Trust levels are provider claims until independently verified. Browser chat uses TLS; it is not end-to-end encrypted.
                 </p>
               )}
@@ -235,7 +235,7 @@ function EditorialStory({
             type="button"
             onClick={onNext}
             className="text-xs font-semibold tracking-[0.13em] uppercase focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#F0C77D]"
-            style={{ color: '#FFF3DE', textShadow: HERO_BODY_SHADOW }}
+            style={{ color: HP.cream, textShadow: HERO_BODY_SHADOW }}
           >
             Scroll to explore ↓
           </button>
@@ -244,7 +244,7 @@ function EditorialStory({
           type="button"
           onClick={onSkip}
           className="text-xs font-medium tracking-[0.13em] uppercase focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#F0C77D]"
-          style={{ color: '#FFF3DE', textShadow: HERO_BODY_SHADOW }}
+          style={{ color: HP.cream, textShadow: HERO_BODY_SHADOW }}
         >
           Skip story
         </button>
@@ -273,14 +273,16 @@ function LiveExchangeCard() {
     <div
       className="rounded-2xl p-6 w-full max-w-sm mineral-border"
       style={{
-        background: 'rgba(255,255,255,0.06)',
+        background: 'rgba(16,45,109,0.76)',
+        border: '1px solid rgba(240,197,75,0.42)',
+        boxShadow: '0 12px 40px rgba(30,28,74,0.26), inset 0 1px 0 rgba(251,244,228,0.12)',
         backdropFilter: 'blur(12px)',
       }}
     >
-      <div className="text-[10px] uppercase tracking-wider font-medium mb-1.5" style={{ color: C.gold }}>
+      <div className="text-[10px] uppercase tracking-wider font-medium mb-1.5" style={{ color: HP.orpiment }}>
         Live Exchange
       </div>
-      <h3 className="text-xl font-bold mb-5" style={{ color: C.warmWhite }}>
+      <h3 className="text-xl font-bold mb-5" style={{ color: HP.cream }}>
         Supply &times; demand
       </h3>
 
@@ -296,15 +298,15 @@ function LiveExchangeCard() {
           return (
             <div key={m.model} className="flex items-center justify-between">
               <div className="flex items-center gap-3 min-w-0">
-                <span className="text-sm font-medium truncate" style={{ color: C.warmWhite }}>
+                <span className="text-sm font-medium truncate" style={{ color: HP.cream }}>
                   {m.model}
                 </span>
               </div>
               <div className="flex items-center gap-4 shrink-0 text-right">
-                <span className="text-xs" style={{ color: '#8a8578' }}>
+                <span className="text-xs" style={{ color: '#E8C9A3' }}>
                   {m.provider_count} provider{m.provider_count !== 1 ? 's' : ''}
                 </span>
-                <span className="text-sm font-semibold" style={{ color: C.gold }}>
+                <span className="text-sm font-semibold" style={{ color: HP.orpiment }}>
                   {priceRange}
                 </span>
               </div>
@@ -314,19 +316,19 @@ function LiveExchangeCard() {
           <>
             {[1, 2, 3].map(i => (
               <div key={i} className="flex items-center justify-between">
-                <div className="h-3 rounded-full w-28" style={{ background: 'rgba(255,255,255,0.06)' }} />
-                <div className="h-3 rounded-full w-16" style={{ background: 'rgba(255,255,255,0.06)' }} />
+                <div className="h-3 rounded-full w-28" style={{ background: 'rgba(240,197,75,0.12)' }} />
+                <div className="h-3 rounded-full w-16" style={{ background: 'rgba(240,197,75,0.12)' }} />
               </div>
             ))}
           </>
         )}
       </div>
 
-      <div className="mt-5 pt-4" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
-        <div className="text-[10px] uppercase tracking-wider font-medium" style={{ color: C.gold }}>
+      <div className="mt-5 pt-4" style={{ borderTop: '1px solid rgba(240,197,75,0.25)' }}>
+        <div className="text-[10px] uppercase tracking-wider font-medium" style={{ color: HP.orpiment }}>
           Trust levels are claims
         </div>
-        <div className="text-xs mt-0.5" style={{ color: '#a9a294' }}>
+        <div className="text-xs mt-0.5" style={{ color: HP.silk }}>
           Shown as self-reported until verified. Browser chat uses TLS; it is not end-to-end encrypted.
         </div>
       </div>
@@ -488,18 +490,18 @@ export function Landing() {
                 <div className="flex flex-col lg:flex-row items-center justify-between gap-12 lg:gap-16">
                 {/* Left: headline + CTAs */}
                 <div className="flex-1 max-w-xl">
-                  <h2 className="text-4xl md:text-5xl font-bold tracking-tight leading-[1.1]" style={{ color: C.warmWhite }}>
+                  <h2 className="text-4xl md:text-5xl font-bold tracking-tight leading-[1.1]" style={{ color: HP.cream }}>
                     Distributed AI inference,
                     <br />
                     <span
                       className="bg-clip-text text-transparent"
-                      style={{ backgroundImage: GRADIENTS.market }}
+                      style={{ backgroundImage: HERO_PRODUCT_GRADIENT }}
                     >
                       powered by everyone.
                     </span>
                   </h2>
     
-                  <p className="text-base mt-6 leading-relaxed max-w-md" style={{ color: '#8a8578' }}>
+                  <p className="text-base mt-6 leading-relaxed max-w-md" style={{ color: '#E8C9A3' }}>
                     OpenAI-compatible inference with a live supply side.
                     Your request is routed by price, speed and trust. Providers compete to serve it.
                   </p>
@@ -512,7 +514,7 @@ export function Landing() {
                       style={{ color: C.blueBlack }}
                     >
                       <span className="absolute inset-0 rounded-xl transition-opacity" style={{ background: C.warmWhite }} />
-                      <span className="absolute inset-0 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity" style={{ background: GRADIENTS.market }} />
+                      <span className="absolute inset-0 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity" style={{ background: HERO_PRODUCT_GRADIENT }} />
                       <span className="relative z-10 group-hover:text-white transition-colors">Start a conversation</span>
                     </Link>
                     <Link
