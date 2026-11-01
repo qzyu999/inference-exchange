@@ -58,7 +58,7 @@ export const APP_PIGMENTS = {
   sidebarMuted: '#C4BBD0',
   // Soft illustrated-sky wash: sage-gray mist above, a small ochre sun haze
   // at the horizon, resolving to light silk. The entire page stays readable.
-  atmosphere: 'radial-gradient(ellipse 59% 39% at 84% 27%, rgba(229,171,101,0.23) 0%, transparent 75%), radial-gradient(ellipse 65% 40% at 12% 8%, rgba(107,149,146,0.17) 0%, transparent 76%), linear-gradient(180deg, #C5D1CD 0%, #D6D9CA 19%, #E5D5BA 43%, #ECD8B9 57%, #F5EBD9 80%, #FAF7EE 100%)',
+  atmosphere: 'radial-gradient(ellipse 59% 39% at 84% 27%, rgba(229,171,101,0.23) 0%, transparent 75%), radial-gradient(ellipse 65% 40% at 12% 8%, rgba(107,149,146,0.17) 0%, transparent 76%), linear-gradient(180deg, #B2C0BB 0%, #D2D6C9 19%, #E2D2B8 43%, #E6CEAA 57%, #F2E5D0 80%, #FAF7EE 100%)',
 } as const
 
 // Trust levels are claimed by providers and not yet independently verified (see #1). Say so wherever they are shown.
