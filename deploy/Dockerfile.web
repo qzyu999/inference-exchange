@@ -11,6 +11,10 @@ COPY web/ ./
 # --build-arg VITE_HERO_MEDIA_ORIGIN=https://media.inferenceex.com.
 ARG VITE_HERO_MEDIA_ORIGIN=""
 ENV VITE_HERO_MEDIA_ORIGIN=${VITE_HERO_MEDIA_ORIGIN}
+# Opt-in alpha rollout. False is the emergency poster-only build.
+# When false, absolutely no HLS manifest or video segment is requested.
+ARG VITE_HERO_STREAM_ENABLED=false
+ENV VITE_HERO_STREAM_ENABLED=${VITE_HERO_STREAM_ENABLED}
 RUN npm run build
 
 FROM caddy:2-alpine

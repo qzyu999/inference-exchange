@@ -1,10 +1,12 @@
-/** Development-only Cloudflare Stream HLS player attachment; lazy-loads hls.js.
- * Native HLS returns a synchronous cleanup to survive React 18 StrictMode replay.
- * The asynchronous hls.js branch receives a signal to prevent stale attachment.
+/** Production Cloudflare Stream HLS player. Loads lockfile-managed hls.js
+ * lazily on browsers without native HLS. Native cleanup remains synchronous
+ * for React 18 StrictMode; async MSE attachment respects AbortSignal.
  */
+import type Hls from 'hls.js'
 export declare function attachStreamHls(
   video: HTMLVideoElement,
   manifestUrl: string,
   onFatal: (reason: Error) => void,
   signal?: AbortSignal,
+  loadHls?: () => Promise<typeof Hls>,
 ): (() => void) | Promise<() => void>

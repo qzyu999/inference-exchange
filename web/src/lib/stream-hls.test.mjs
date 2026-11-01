@@ -43,15 +43,15 @@ class FakeHls {
   attachMedia() { attachments++ }
   destroy() { destroys++ }
 }
-globalThis.window = { Hls: FakeHls }
+const fakeLoader = () => Promise.resolve(FakeHls)
 globalThis.document = { hidden: false }
 const mseVideo = videoMock(false)
 const firstLifetime = new AbortController()
-const firstAsync = attachStreamHls(mseVideo, manifest, () => {}, firstLifetime.signal)
+const firstAsync = attachStreamHls(mseVideo, manifest, () => {}, firstLifetime.signal, fakeLoader)
 assert.equal(typeof firstAsync.then, 'function')
 firstLifetime.abort()
 const secondLifetime = new AbortController()
-const secondAsync = attachStreamHls(mseVideo, manifest, () => {}, secondLifetime.signal)
+const secondAsync = attachStreamHls(mseVideo, manifest, () => {}, secondLifetime.signal, fakeLoader)
 const stopStale = await firstAsync
 const stopCurrent = await secondAsync
 assert.equal(attachments, 1, 'aborted StrictMode setup must not attach HLS')
@@ -59,14 +59,15 @@ stopStale()
 assert.equal(destroys, 0, 'aborted setup must not tear down active playback')
 stopCurrent()
 assert.equal(destroys, 1, 'active HLS should clean up on unmount')
-// The experimental Stream route must never silently request a large MP4
-// if Stream fails or the viewer prefers a static poster.
+// Production rendering must never expose a traditional MP4 request.
 const landscape = (await import('node:fs')).readFileSync(
   new URL('../components/LandscapeVideo.tsx', import.meta.url), 'utf8'
 )
-assert.match(landscape, /src=\{STREAM_PREVIEW \? undefined : selectedCandidate\.path\}/)
-assert.match(landscape, /STREAM_PREVIEW && !useStream/)
-assert.match(landscape, /posterOnly \? 'poster-only' : 'mp4'/)
-assert.doesNotMatch(landscape, /falling back to MP4/)
-
-console.log('#198 native and hls.js StrictMode playback lifecycle tests passed')
+assert.match(landscape, /VITE_HERO_STREAM_ENABLED/)
+assert.match(landscape, /STREAM_ENABLED && !reducedMotion && !saveData && !streamFailed/)
+assert.match(landscape, /thumbnails\\/thumbnail\\.jpg/)
+assert.match(landscape, /data-hero-delivery=\\{useStream \\? 'cloudflare-stream-hls' : 'poster-only'\\}/)
+assert.match(landscape, /autoPlay=\\{useStream\\}/)
+assert.doesNotMatch(landscape, /\\.mp4['"`]/)
+assert.doesNotMatch(landscape, /VIDEO_BY_ASPECT|selectedCandidate|MEDIA_ORIGIN|cdn\\.jsdelivr/)
+console.log('#198 production Stream-only policy, native and lazy-MSE StrictMode lifecycle passed')

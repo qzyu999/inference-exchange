@@ -25,7 +25,8 @@
     "remark-gfm": "^4.0.1",
     "swr": "^2.5.1",
     "tailwindcss": "^4.3.3",
-    "three": "^0.185.1"
+    "three": "^0.185.1",
+    "hls.js": "1.7.3"
   },
   "devDependencies": {
     "@eslint/js": "^9.13.0",

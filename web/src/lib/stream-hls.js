@@ -1,32 +1,19 @@
-// Development-only Cloudflare Stream HLS proof of concept for #198.
-// Uses native HLS in Safari, a pinned hls.js UMD bundle for other browsers.
-// The script is loaded only when the explicit localhost Stream flag is active.
-// Before public release: install hls.js as a first-party pinned npm dependency.
-// Never cache/proxy a Cloudflare Stream manifest (it is a dynamic resource).
-const HLS_JS_URL = 'https://cdn.jsdelivr.net/npm/hls.js@1.7.4/dist/hls.min.js'
-
-let scriptPromise
+// Production Cloudflare Stream HLS player adapter (#198).
+// Safari/iOS use native HLS. Other browsers import the app-bundled,
+// lockfile-pinned hls.js lazily. No CDN script injection or raw MP4 fallback.
+// Do not proxy/cache Cloudflare Stream's dynamic manifests.
+let libraryPromise
 
 function getHls() {
-  if (window.Hls) return Promise.resolve(window.Hls)
-  if (!scriptPromise) {
-    scriptPromise = new Promise((resolve, reject) => {
-      const script = document.createElement('script')
-      script.src = HLS_JS_URL
-      script.async = true
-      script.crossOrigin = 'anonymous'
-      script.onload = () => {
-        if (!window.Hls) reject(new Error('hls.js script loaded but global Hls is missing'))
-        else resolve(window.Hls)
-      }
-      script.onerror = () => reject(new Error('Could not load hls.js for Stream preview'))
-      document.head.appendChild(script)
-    }).catch(err => {
-      scriptPromise = undefined
-      throw err
-    })
+  if (!libraryPromise) {
+    libraryPromise = import('hls.js')
+      .then(mod => mod.default || mod.Hls)
+      .catch(error => {
+        libraryPromise = undefined
+        throw error
+      })
   }
-  return scriptPromise
+  return libraryPromise
 }
 
 /**
@@ -35,10 +22,11 @@ function getHls() {
  * @param {string} manifestUrl
  * @param {(reason: Error) => void} onFatal
  * @param {AbortSignal} [signal] React effect lifetime; prevents stale async attachments
+ * @param {() => Promise<any>} [loadHls] Injected only by lifecycle tests.
  * @returns {(() => void) | Promise<() => void>} Sync teardown for native HLS,
  * or async teardown for hls.js (after an optional library load).
  */
-export function attachStreamHls(video, manifestUrl, onFatal, signal) {
+export function attachStreamHls(video, manifestUrl, onFatal, signal, loadHls = getHls) {
   if (!manifestUrl.startsWith('https://') || !manifestUrl.endsWith('/manifest/video.m3u8')) {
     throw new Error('Invalid Stream manifest URL')
   }
@@ -75,7 +63,7 @@ export function attachStreamHls(video, manifestUrl, onFatal, signal) {
   }
 
   console.info('[hero-stream] Loading hls.js for adaptive playback')
-  return getHls().then(Hls => {
+  return loadHls().then(Hls => {
   // hls.js is loaded asynchronously. React may have unmounted the first
   // StrictMode effect before this resolves, so do NOT attach stale media.
   if (signal?.aborted) return () => {}
