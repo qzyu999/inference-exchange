@@ -138,8 +138,10 @@ function NavItem({ path, label, icon: Icon, active }: {
       aria-current={active ? 'page' : undefined}
       className={`ie-app-nav-item flex items-center gap-3 px-3 py-2 rounded-lg text-[13px] font-medium transition-colors ${active ? 'sidebar-active-bar' : ''}`}
       style={{
-        background: active ? 'rgba(240,197,75,0.14)' : 'transparent',
-        color: active ? AP.cloud : AP.sidebarText,
+        // Preserve the live alpha active item: neutral charcoal and a
+        // four-color mineral indicator (the gradient lives in CSS).
+        background: active ? C.sidebarHover : 'transparent',
+        color: active ? '#fff' : AP.sidebarText,
       }}
     >
       <Icon className="shrink-0" />
