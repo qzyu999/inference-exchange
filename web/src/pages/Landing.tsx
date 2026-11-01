@@ -105,11 +105,14 @@ const CHAPTER_COPY = [
   },
 ] as const
 
-// Protect legibility at the glyphs, leaving the source landscape untouched.
-// Tight shadows + a hairline stroke keep white text clear over bright snow
-// without a visible dark vignette across the sky or lake.
-const HERO_TITLE_SHADOW = '0 1px 2px rgba(1,8,16,0.88), 0 3px 10px rgba(1,8,16,0.68)'
-const HERO_BODY_SHADOW = '0 1px 2px rgba(1,8,16,0.95), 0 2px 6px rgba(1,8,16,0.78), 0 3px 12px rgba(1,8,16,0.48)'
+// The landscape stays optically untouched. Layered ink-like shadows and a
+// narrow counter-stroke define the glyphs over snow without a dark screen wash.
+const HERO_TITLE_SHADOW = '0 1px 2px rgba(8,22,27,0.96), 0 3px 8px rgba(8,22,27,0.72), 0 7px 18px rgba(8,22,27,0.28)'
+const HERO_BODY_SHADOW = '0 1px 2px rgba(8,20,26,0.95), 0 2px 7px rgba(8,20,26,0.76), 0 4px 12px rgba(8,20,26,0.42)'
+// Existing Inference Exchange pigments: cinnabar, copper, gold, jade, turquoise.
+// Keep saturated paint on tiny inscription marks; large copy stays calcite-white.
+const HERO_PIGMENT_RULE = `linear-gradient(90deg, ${C.red} 0%, ${C.orange} 20%, ${C.gold} 43%, ${C.green} 69%, ${C.turquoise} 91%, transparent 100%)`
+const HERO_PIGMENT_WORD = 'linear-gradient(112deg, #FFF7E9 0%, #F3DFB8 35%, #F8ECDC 61%, #D6EAE1 88%, #F5F3E9 100%)'
 
 // Text-only contrast is now the default. A faint local tint is available for
 // A/B checking on unusually bright frames; legacy preserves the old treatment.
@@ -175,46 +178,55 @@ function EditorialStory({
             }}
           >
             <div className="relative w-full max-w-lg text-left pt-8">
-              <div className="flex items-center gap-3 mb-7">
-                <span className="h-[2px] w-8 shrink-0" style={{ background: '#F0C77D' }} aria-hidden="true" />
-                <p className="text-[11px] font-semibold tracking-[0.23em] uppercase" style={{ color: '#FFF1D6', textShadow: HERO_BODY_SHADOW }}>
+              {/* Pigment striation and a tiny faceted mineral chip, not a
+                  decorative religious motif. The scene itself remains clear. */}
+              <div className="flex items-center gap-3 mb-6">
+                <span className="flex h-2 w-11 shrink-0 items-center" aria-hidden="true">
+                  <span className="block h-px w-9" style={{ background: HERO_PIGMENT_RULE, boxShadow: '0 1px 3px rgba(5,18,23,0.46)' }} />
+                  <span className="block h-[5px] w-[5px] rotate-45" style={{ background: index % 2 === 0 ? C.red : C.green, boxShadow: '0 0 0 1px rgba(255,235,197,0.62), 0 1px 4px rgba(8,22,27,0.62)' }} />
+                </span>
+                <p className="text-[11px] font-semibold tracking-[0.24em] uppercase" style={{ color: '#F8DEA9', textShadow: HERO_BODY_SHADOW }}>
                   {chapter.eyebrow}
                 </p>
               </div>
               <h1
                 id={'landing-chapter-title-' + index}
                 className="text-[clamp(2.65rem,4.6vw,4.9rem)] font-semibold tracking-[-0.045em] leading-[1.06]"
-                style={{ color: '#FFFFFF', textShadow: HERO_TITLE_SHADOW, WebkitTextStroke: '0.5px rgba(1,8,16,0.7)' }}
+                style={{ color: '#FFF8EA', textShadow: HERO_TITLE_SHADOW, WebkitTextStroke: '0.55px rgba(8,22,27,0.8)' }}
               >
                 <span className="block">{chapter.headline[0]}</span>
-                <span className="block">{chapter.headline[1]}</span>
+                <span className="block hero-pigment-ink" style={{ backgroundImage: HERO_PIGMENT_WORD }}>{chapter.headline[1]}</span>
               </h1>
+              <div className="mt-5 flex items-center gap-2" aria-hidden="true">
+                <span className="block h-px w-24 sm:w-28" style={{ background: HERO_PIGMENT_RULE, boxShadow: '0 1px 3px rgba(8,22,27,0.55)' }} />
+                <span className="block h-1 w-1 rotate-45" style={{ background: C.gold, boxShadow: '0 0 0 1px rgba(255,248,222,0.55)' }} />
+              </div>
               <p
-                className="mt-7 text-base md:text-lg font-medium leading-relaxed max-w-[29rem]"
-                style={{ color: '#FFFFFF', textShadow: HERO_BODY_SHADOW, WebkitTextStroke: '0.2px rgba(1,8,16,0.6)' }}
+                className="mt-5 text-base md:text-lg font-medium leading-relaxed max-w-[29rem]"
+                style={{ color: '#FFF5E6', textShadow: HERO_BODY_SHADOW, WebkitTextStroke: '0.16px rgba(8,22,27,0.68)' }}
               >
                 {chapter.description}
               </p>
               {index === 0 && (
-                <div className="mt-9 flex flex-wrap gap-3">
+                <div className="mt-9 flex flex-wrap items-center gap-3">
                   <Link
                     to="/chat"
-                    className="rounded-lg px-5 py-3 text-sm font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#F0C77D]"
-                    style={{ background: '#F2E9D4', color: '#101722' }}
+                    className="hero-pigment-primary inline-flex items-center gap-2 rounded-md px-5 py-3 text-sm font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#F2D59C]"
                   >
+                    <span aria-hidden="true" className="h-[6px] w-[6px] shrink-0 rotate-45" style={{ background: C.red, boxShadow: '0 0 0 1px rgba(255,255,255,0.58)' }} />
                     Start chatting
                   </Link>
                   <Link
                     to="/provide"
-                    className="rounded-lg px-5 py-3 text-sm font-semibold border focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#F0C77D]"
-                    style={{ borderColor: 'rgba(255,255,255,0.9)', color: '#FFFFFF', background: 'rgba(6,14,26,0.7)' }}
+                    className="hero-pigment-secondary inline-flex items-center gap-2 rounded-md px-5 py-3 text-sm font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#F2D59C]"
                   >
+                    <span aria-hidden="true" className="h-[6px] w-[6px] shrink-0 rotate-45" style={{ background: C.green, boxShadow: '0 0 0 1px rgba(236,255,243,0.65)' }} />
                     Become a provider
                   </Link>
                   <Link
                     to="/exchange"
-                    className="rounded-lg px-5 py-3 text-sm font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#F0C77D]"
-                    style={{ color: '#FFFFFF', textDecoration: 'underline', textUnderlineOffset: '5px', textShadow: HERO_BODY_SHADOW }}
+                    className="hero-pigment-link px-1 py-3 text-sm font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#F2D59C]"
+                    style={{ textShadow: HERO_BODY_SHADOW }}
                   >
                     Explore exchange
                   </Link>
@@ -229,8 +241,8 @@ function EditorialStory({
                 <button
                   type="button"
                   onClick={onSkip}
-                  className="mt-8 text-sm font-semibold underline underline-offset-8 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#F0C77D]"
-                  style={{ color: '#F5D49B', textShadow: HERO_BODY_SHADOW }}
+                  className="hero-pigment-link mt-8 text-sm font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#F2D59C]"
+                  style={{ textShadow: HERO_BODY_SHADOW }}
                 >
                   Enter the exchange →
                 </button>
@@ -249,7 +261,7 @@ function EditorialStory({
             type="button"
             onClick={onNext}
             className="text-xs font-semibold tracking-[0.13em] uppercase focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#F0C77D]"
-            style={{ color: '#FFFFFF', textShadow: HERO_BODY_SHADOW }}
+            style={{ color: '#FFF3DE', textShadow: HERO_BODY_SHADOW }}
           >
             Scroll to explore ↓
           </button>
@@ -258,7 +270,7 @@ function EditorialStory({
           type="button"
           onClick={onSkip}
           className="text-xs font-medium tracking-[0.13em] uppercase focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#F0C77D]"
-          style={{ color: '#FFFFFF', textShadow: HERO_BODY_SHADOW }}
+          style={{ color: '#FFF3DE', textShadow: HERO_BODY_SHADOW }}
         >
           Skip story
         </button>
