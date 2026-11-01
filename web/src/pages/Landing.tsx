@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import useSWR from 'swr'
 import { Link } from 'react-router-dom'
 import { api } from '../lib/api'
@@ -101,6 +101,29 @@ const HERO_PRODUCT_GRADIENT = `linear-gradient(90deg, ${HP.orpiment} 0%, ${HP.sa
 // Debug-only visual centerline, at the same 50% stage x used by the video.
 const SHOW_ALIGNMENT_GUIDES = new URLSearchParams(window.location.search).get('heroGuides') === '1'
 
+// Exactly five landing actions share the same gentle mineral brush response.
+// Text remains an opaque, stationary top layer; only decorative wash/grains
+// move on hover or keyboard focus. Links keep their original destinations.
+function SandCTA({
+  to,
+  tone,
+  children,
+  tabIndex,
+}: {
+  to: string
+  tone: 'light' | 'outline' | 'quiet'
+  children: ReactNode
+  tabIndex?: number
+}) {
+  return (
+    <Link to={to} tabIndex={tabIndex} className={`hero-sand-cta hero-sand-cta--${tone}`}>
+      <span className="hero-sand-cta__wash" aria-hidden="true" />
+      <span className="hero-sand-cta__grains" aria-hidden="true" />
+      <span className="hero-sand-cta__label">{children}</span>
+    </Link>
+  )
+}
+
 function EditorialStory({
   activeIndex,
   exitProgress,
@@ -171,27 +194,9 @@ function EditorialStory({
               )}
               {index === 0 && (
                 <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
-                  <Link
-                    to="/chat"
-                    className="px-6 py-3 rounded-xl text-sm font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#E8C77A]"
-                    style={{ background: C.warmWhite, color: C.black }}
-                  >
-                    Start chatting
-                  </Link>
-                  <Link
-                    to="/provide"
-                    className="px-6 py-3 rounded-xl text-sm font-medium border focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#E8C77A]"
-                    style={{ color: C.warmWhite, borderColor: 'rgba(216,209,190,0.4)', background: 'rgba(14,16,24,0.5)' }}
-                  >
-                    Become a provider
-                  </Link>
-                  <Link
-                    to="/exchange"
-                    className="px-6 py-3 rounded-xl text-sm font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#E8C77A]"
-                    style={{ color: '#e6e0cf', background: 'rgba(14,16,24,0.5)' }}
-                  >
-                    Go to Exchange
-                  </Link>
+                  <SandCTA to="/chat" tone="light">Start chatting</SandCTA>
+                  <SandCTA to="/provide" tone="outline">Become a provider</SandCTA>
+                  <SandCTA to="/exchange" tone="quiet">Go to Exchange</SandCTA>
                 </div>
               )}
             </div>
@@ -465,24 +470,14 @@ export function Landing() {
                   </p>
     
                   <div className="flex flex-wrap gap-3 mt-8">
-                    <Link
-                      to="/chat"
-                      tabIndex={productOpacity > 0.95 ? undefined : -1}
-                      className="group relative inline-flex items-center px-6 py-3 rounded-xl font-medium text-sm transition-all overflow-hidden focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#F0C54B]"
-                      style={{ color: C.blueBlack }}
-                    >
-                      <span className="absolute inset-0 rounded-xl transition-opacity" style={{ background: C.warmWhite }} />
-                      <span className="absolute inset-0 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity" style={{ background: GRADIENTS.heroText }} />
-                      <span className="relative z-10 group-hover:text-white transition-colors">Start a conversation</span>
-                    </Link>
-                    <Link
-                      to="/provide"
-                      tabIndex={productOpacity > 0.95 ? undefined : -1}
-                      className="group relative inline-flex items-center px-6 py-3 rounded-xl font-medium text-sm border transition-all overflow-hidden mineral-border focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#F0C54B]"
-                      style={{ color: C.warmWhite, background: 'rgba(216,209,190,0.06)' }}
-                    >
-                      <span className="relative z-10">Become a provider</span>
-                    </Link>
+                    <SandCTA to="/chat" tone="light"
+                      tabIndex={productOpacity > 0.95 ? undefined : -1}>
+                      Start a conversation
+                    </SandCTA>
+                    <SandCTA to="/provide" tone="outline"
+                      tabIndex={productOpacity > 0.95 ? undefined : -1}>
+                      Become a provider
+                    </SandCTA>
                   </div>
                 </div>
     
