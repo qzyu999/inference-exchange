@@ -111,7 +111,7 @@ assert.doesNotMatch(landing, /<ScrollChapterRail/, 'RHS design must not render')
 // edge, inspired by pigment inlaid into carved stone. No flying grains,
 // sweeping rainbow, shifting text, animation loops or layout changes.
 assert.match(landing, /function StoneCTA\(/)
-assert.match(landing, /<Link to=\{to\} tabIndex=\{tabIndex\}/)
+assert.match(landing, /<Link\s+to=\{to\}\s+tabIndex=\{tabIndex\}/)
 assert.equal((landing.match(/<StoneCTA to=/g) || []).length, 5)
 for (const [route, label, tone] of [
   ['/chat', 'Start chatting', 'light'],
