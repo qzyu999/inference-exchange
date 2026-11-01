@@ -84,24 +84,22 @@ function useScrollUnits(ref: React.RefObject<HTMLDivElement | null>) {
 
 const CHAPTER_COPY = [
   {
-    eyebrow: '01 / INFERENCE EXCHANGE',
-    headline: ['Intelligence,', 'without borders.'],
-    description: 'An open market for AI inference. People who need AI meet providers making their computing capacity available.',
+    title: 'Inference Exchange',
+    description: 'An open market for AI inference. Send OpenAI-compatible requests; providers with spare hardware compete to serve them.',
   },
   {
-    eyebrow: '02 / CONVERGENCE',
-    headline: ['Two forces.', 'One intersection.'],
-    description: 'Consumers request inference. Independent providers offer the hardware to serve it.',
+    eyebrow: 'SUPPLY MEETS DEMAND',
+    title: 'Two forces converge',
+    description: 'Consumers bid. Providers offer. The exchange matches.',
   },
   {
-    eyebrow: '03 / THE EXCHANGE',
-    headline: ['Access meets', 'opportunity.'],
-    description: 'Discover models and available providers. Compare price, availability and self-reported trust levels.',
+    title: 'The intersection is the product',
+    description: 'Trust is labelled, not assumed.',
+    trustNote: 'Provider trust levels are claims until independently verified. Browser chat uses TLS, not end-to-end encryption.',
   },
   {
-    eyebrow: '04 / TRANSFORMATION',
-    headline: ['A network', 'in motion.'],
-    description: 'Computing capacity changes constantly. An open exchange connects the supply with the people who need it.',
+    title: 'Providers compete. You benefit.',
+    description: 'Price, speed and self-reported trust shape how each request is routed.',
   },
 ] as const
 
@@ -110,7 +108,6 @@ const CHAPTER_COPY = [
 // shading across the photographic scene.
 const HERO_TITLE_SHADOW = '0 1px 2px rgba(43,34,72,0.94), 0 3px 8px rgba(19,49,99,0.76), 0 7px 17px rgba(43,34,72,0.48)'
 const HERO_BODY_SHADOW = '0 1px 2px rgba(43,34,72,0.98), 0 2px 7px rgba(19,49,99,0.79), 0 4px 13px rgba(43,34,72,0.54)'
-const HERO_PIGMENT_RULE = `linear-gradient(90deg, ${HP.lapis} 0%, ${HP.saffron} 24%, ${HP.orpiment} 44%, ${HP.cinnabar} 67%, ${HP.jade} 87%, transparent 100%)`
 const HERO_PIGMENT_WORD = `linear-gradient(95deg, ${HP.cream} 0%, ${HP.orpiment} 29%, ${HP.saffron} 52%, ${HP.cinnabar} 76%, #F1CE91 100%)`
 const HERO_PRODUCT_GRADIENT = `linear-gradient(90deg, ${HP.orpiment} 0%, ${HP.saffron} 28%, ${HP.coralLotus} 64%, #C2E1B7 100%)`
 
@@ -137,13 +134,26 @@ function EditorialStory({
     >
       {CHAPTER_COPY.map((chapter, index) => {
         const visible = index === activeIndex
+        const titleStyle = {
+          color: HP.cream,
+          textShadow: HERO_TITLE_SHADOW,
+          WebkitTextStroke: '0.65px rgba(43,34,72,0.83)',
+        }
+        const shortTitle = (
+          <span
+            className={index === 1 || index === 3 ? 'hero-pigment-ink' : undefined}
+            style={index === 1 || index === 3 ? { backgroundImage: HERO_PIGMENT_WORD } : undefined}
+          >
+            {chapter.title}
+          </span>
+        )
         return (
           <section
-            key={chapter.eyebrow}
+            key={chapter.title}
             id={index === 0 ? 'landing-main' : undefined}
             aria-labelledby={'landing-chapter-title-' + index}
             aria-hidden={!visible}
-            className="absolute inset-0 flex items-center px-6 sm:px-10 lg:px-[8vw]"
+            className="absolute inset-0 flex items-center justify-center px-6 sm:px-10 text-center"
             style={{
               opacity: visible ? 1 : 0,
               visibility: visible ? 'visible' : 'hidden',
@@ -151,50 +161,50 @@ function EditorialStory({
               pointerEvents: visible && exitProgress < 0.95 ? 'auto' : 'none',
             }}
           >
-            <div className="relative w-full max-w-lg text-left pt-8">
-              {/* Pigment striation and a tiny faceted mineral chip, not a
-                  decorative religious motif. The scene itself remains clear. */}
-              <div className="flex items-center gap-3 mb-6">
-                <span className="flex h-2 w-11 shrink-0 items-center" aria-hidden="true">
-                  <span className="hero-mineral-thread block h-px w-9" style={{ background: HERO_PIGMENT_RULE, boxShadow: '0 1px 3px rgba(43,34,72,0.55)' }} />
-                  <span className="block h-[5px] w-[5px] rotate-45" style={{ background: index % 2 === 0 ? HP.cinnabar : HP.jade, boxShadow: '0 0 0 1px rgba(240,197,75,0.75), 0 1px 4px rgba(43,34,72,0.6)' }} />
-                </span>
-                <p className="text-[11px] font-semibold tracking-[0.24em] uppercase" style={{ color: HP.label, textShadow: HERO_BODY_SHADOW }}>
+            <div className="relative mx-auto w-full max-w-3xl pt-6 text-center">
+              {'eyebrow' in chapter && (
+                <p
+                  className="mb-4 text-xs font-semibold uppercase tracking-[0.20em]"
+                  style={{ color: HP.label, textShadow: HERO_BODY_SHADOW }}
+                >
                   {chapter.eyebrow}
                 </p>
-              </div>
-              <h1
-                id={'landing-chapter-title-' + index}
-                className="text-[clamp(2.65rem,4.6vw,4.9rem)] font-semibold tracking-[-0.045em] leading-[1.06]"
-                style={{ color: HP.cream, textShadow: HERO_TITLE_SHADOW, WebkitTextStroke: '0.65px rgba(43,34,72,0.83)' }}
-              >
-                <span className="block">{chapter.headline[0]}</span>
-                <span className="block hero-pigment-ink" style={{ backgroundImage: HERO_PIGMENT_WORD }}>{chapter.headline[1]}</span>
-              </h1>
-              <div className="mt-5 flex items-center gap-2" aria-hidden="true">
-                <span className="hero-mineral-thread block h-px w-24 sm:w-28" style={{ background: HERO_PIGMENT_RULE, boxShadow: '0 1px 3px rgba(43,34,72,0.55)' }} />
-                <span className="block h-1 w-1 rotate-45" style={{ background: HP.orpiment, boxShadow: '0 0 0 1px rgba(255,237,179,0.63)' }} />
-              </div>
+              )}
+              {index === 0 ? (
+                <h1
+                  id={'landing-chapter-title-' + index}
+                  className="text-[clamp(2.5rem,5vw,4.7rem)] font-semibold tracking-tight leading-[1.12]"
+                  style={titleStyle}
+                >
+                  {shortTitle}
+                </h1>
+              ) : (
+                <h2
+                  id={'landing-chapter-title-' + index}
+                  className="text-[clamp(2.3rem,4.7vw,4.45rem)] font-semibold tracking-tight leading-[1.12]"
+                  style={titleStyle}
+                >
+                  {shortTitle}
+                </h2>
+              )}
               <p
-                className="hero-body-inscription mt-5 text-[1.075rem] md:text-[1.2rem] font-semibold leading-[1.65] tracking-[0.003em] max-w-[29rem]"
-                style={{ color: HP.cloud }}
+                className="hero-body-inscription mx-auto mt-5 max-w-xl text-base md:text-lg font-medium leading-relaxed"
+                style={{ color: HP.cloud, textShadow: HERO_BODY_SHADOW }}
               >
                 {chapter.description}
               </p>
               {index === 0 && (
-                <div className="mt-9 flex flex-wrap items-center gap-3">
+                <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
                   <Link
                     to="/chat"
-                    className="hero-pigment-primary inline-flex items-center gap-2 rounded-md px-5 py-3 text-sm font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#F2D59C]"
+                    className="hero-pigment-primary inline-flex items-center rounded-md px-5 py-3 text-sm font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#F2D59C]"
                   >
-                    
                     Start chatting
                   </Link>
                   <Link
                     to="/provide"
-                    className="hero-pigment-secondary inline-flex items-center gap-2 rounded-md px-5 py-3 text-sm font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#F2D59C]"
+                    className="hero-pigment-secondary inline-flex items-center rounded-md px-5 py-3 text-sm font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#F2D59C]"
                   >
-                    
                     Become a provider
                   </Link>
                   <Link
@@ -202,13 +212,16 @@ function EditorialStory({
                     className="hero-pigment-link px-1 py-3 text-sm font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#F2D59C]"
                     style={{ textShadow: HERO_BODY_SHADOW }}
                   >
-                    Explore exchange
+                    Go to Exchange
                   </Link>
                 </div>
               )}
-              {index === 2 && (
-                <p className="hero-fine-inscription mt-5 text-sm leading-relaxed max-w-md" style={{ color: HP.cloud }}>
-                  Trust levels are provider claims until independently verified. Browser chat uses TLS; it is not end-to-end encrypted.
+              {index === 2 && 'trustNote' in chapter && (
+                <p
+                  className="hero-fine-inscription mx-auto mt-4 max-w-lg text-xs md:text-sm leading-relaxed"
+                  style={{ color: HP.silk, textShadow: HERO_BODY_SHADOW }}
+                >
+                  {chapter.trustNote}
                 </p>
               )}
               {index === 3 && (
@@ -227,7 +240,7 @@ function EditorialStory({
       })}
 
       <div
-        className="absolute bottom-7 left-6 sm:left-10 lg:left-[8vw] flex items-center gap-4"
+        className="absolute bottom-7 inset-x-6 flex items-center justify-center gap-4"
         style={{ pointerEvents: exitProgress < 0.95 ? 'auto' : 'none' }}
       >
         {activeIndex === 0 && (
