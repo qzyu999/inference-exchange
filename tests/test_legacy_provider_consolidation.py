@@ -116,6 +116,40 @@ def test_backup_creates_nonexistent_sqlite_path_inside_private_directory(tmp_pat
     assert db_state(path) == baseline
 
 
+def test_rehearsal_handles_macos_wal_readonly_backup_reopen_failure(tmp_path, monkeypatch):
+    """Simulate macOS reopening a WAL backup in mode=ro but failing at PRAGMA."""
+    path, canonical = make_fixture(tmp_path)
+    original_connect = sqlite3.connect
+    observed_source_ro = 0
+    observed_backup_rw = 0
+
+    def macos_connect(database, *args, **kwargs):
+        nonlocal observed_source_ro, observed_backup_rw
+        uri = str(database)
+        if kwargs.get("uri", False):
+            if "mode=ro" in uri and "provider-consolidation-" in uri:
+                # This reflects the read-only backup verification that failed
+                # on the operator's Mac; no production source access is changed.
+                raise sqlite3.OperationalError("unable to open database file")
+            if "mode=ro" in uri and str(path) in uri:
+                observed_source_ro += 1
+            if "mode=rw" in uri and "provider-consolidation-" in uri:
+                observed_backup_rw += 1
+        return original_connect(database, *args, **kwargs)
+
+    before = db_state(path)
+    with monkeypatch.context() as patch:
+        patch.setattr(module.sqlite3, "connect", macos_connect)
+        result = run(arguments(path, canonical, tmp_path))
+
+    assert result["mode"] == "REHEARSAL_ONLY"
+    assert result["accounts_retired"] == 36
+    assert result["transactions_remapped"] == 19
+    assert observed_source_ro >= 2
+    assert observed_backup_rw >= 2
+    assert db_state(path) == before
+
+
 def test_rehearsal_backs_up_wal_and_never_mutates_source(tmp_path):
     path, canonical = make_fixture(tmp_path)
     original = db_state(path)
