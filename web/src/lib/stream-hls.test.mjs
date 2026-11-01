@@ -86,6 +86,28 @@ assert.match(landscape, /onPlaying=\{\(\) => setPlaying\(true\)\}/)
 assert.match(landscape, /onPause=\{\(\) => setPlaying\(false\)\}/)
 assert.match(landscape, /onWaiting=\{\(\) => setPlaying\(false\)\}/)
 
+// The 2400K-inspired filter is restricted to the landscape component's
+// finished video/poster composite, with isolation from overlaid editorial,
+// navbar, crystal and final product elements on the landing page.
+assert.match(landscape, /const WARM_VIDEO_TINT = !LOCAL_PREVIEW/)
+assert.match(landscape, /get\('heroTint'\) !== 'off'/)
+assert.match(landscape, /isolation: 'isolate'/)
+assert.match(landscape, /data-hero-video-tint="warm"/)
+assert.match(landscape, /className="hero-video-bedtime-tint pointer-events-none absolute inset-0"/)
+assert.ok(landscape.indexOf('data-hero-video-tint="warm"') >
+  landscape.indexOf('onError={() => setPosterFailed(true)}'), 'video tint must cover both video and poster')
+const tintCSS = (await import('node:fs')).readFileSync(
+  new URL('../index.css', import.meta.url), 'utf8'
+)
+const videoTintRule = tintCSS.match(/\.hero-video-bedtime-tint \{([^}]+)\}/)?.[1]
+const appTintRule = tintCSS.match(/\.ie-app-temperature-scope\[data-warm-tint="on"\]::after \{([^}]+)\}/)?.[1]
+assert.ok(videoTintRule && appTintRule, 'both app and video temperature rules must exist')
+for (const cssValue of ['background: #FF995B;', 'opacity: 0.48;', 'mix-blend-mode: multiply;']) {
+  assert.ok(videoTintRule.includes(cssValue), 'video lacks shared amber treatment: ' + cssValue)
+  assert.ok(appTintRule.includes(cssValue), 'video/app tints have diverged: ' + cssValue)
+}
+
+
 // In the contained ultrawide layout, video touches the navbar and any
 // letterboxing/ambient poster blur is relegated to the bottom of the stage.
 assert.match(landscape, /requestedAspect === '21x9' && framing\.mode === 'contain'/)
