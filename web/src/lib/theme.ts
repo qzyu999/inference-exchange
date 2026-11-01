@@ -56,7 +56,7 @@ export const APP_PIGMENTS = {
   jadeInk: '#31644E',
   sidebarText: '#EADFCB',
   sidebarMuted: '#C4BBD0',
-  sidebar: 'linear-gradient(175deg, #102D6D 0%, #163E8C 52%, #393565 100%)',
+  sidebar: 'linear-gradient(180deg, #292F35 0%, #302A31 34%, #293137 70%, #252A30 100%)',
 } as const
 
 // Trust levels are claimed by providers and not yet independently verified (see #1). Say so wherever they are shown.
