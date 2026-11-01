@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react'
 import * as THREE from 'three'
+import { MINERAL_FIELD_BACKGROUND } from '../lib/theme'
 
 /**
  * MineralFlowField
@@ -238,7 +239,7 @@ export function MineralFlowField({ className = '', opacity = 1, progress = 1 }: 
       style={{
         pointerEvents: 'none',
         opacity,
-        background: 'radial-gradient(ellipse at 80% 30%, rgba(8,127,91,0.18), transparent 45%), radial-gradient(ellipse at 90% 82%, rgba(200,58,50,0.12), transparent 48%), #111A26',
+        background: MINERAL_FIELD_BACKGROUND,
       }}
     />
   )
