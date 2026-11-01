@@ -102,14 +102,14 @@ body {
 
 /* Landing / application identity: the same slowly drifting mineral
    spectrum as the existing sidebar wordmark, with lighter lapis-safe
-   pigment values on the cinematic dark-blue navbar. Animation is a
+   pigment values on the shared charcoal navbar. Animation is a
    deterministic CSS background-position shift, not a random algorithm. */
 .hero-mineral-wordmark {
   background-image: linear-gradient(95deg,
     #F5A475 0%, #F0C54B 16%, #E48773 34%, #A3C899 51%,
     #7FD5D1 67%, #A5BEF4 83%, #E4A4CB 100%);
   background-size: 200% auto;
-  text-shadow: 0 1px 2px rgba(16, 45, 109, 0.6);
+  text-shadow: 0 1px 2px rgba(27, 27, 32, 0.65);
   animation: mineral-shift 15s ease-in-out infinite;
 }
 
@@ -167,28 +167,50 @@ body {
   transition: transform 180ms ease, box-shadow 180ms ease, background-color 180ms ease;
 }
 
+/* The painting's gold belongs in hairline details, not saturated
+   action fills. Buttons read like two pieces of pale carved stone. */
 .hero-pigment-primary {
-  color: var(--hero-deep-lapis);
-  background: linear-gradient(125deg,
-    #F8E3A6 0%, var(--hero-orpiment) 39%,
-    var(--hero-saffron) 74%, #EBC17C 100%);
-  border: 1px solid #FCE6AC;
+  color: #292F35;
+  background: linear-gradient(145deg, #FBF5E9 0%, #E9D9BD 80%, #F3E9D6 100%);
+  border: 1px solid rgba(255, 245, 220, 0.9);
   box-shadow:
-    inset 0 1px 0 rgba(255, 242, 193, 0.72),
-    inset 0 -1px 0 rgba(125, 60, 39, 0.26),
-    0 3px 12px rgba(43, 34, 72, 0.34);
+    inset 0 1px 0 rgba(255, 255, 255, 0.85),
+    inset 0 -1px 0 rgba(125, 99, 74, 0.16),
+    0 3px 12px rgba(33, 33, 35, 0.25);
+}
+.hero-pigment-secondary {
+  color: #292F35;
+  background: rgba(250, 246, 237, 0.88);
+  border: 1px solid rgba(93, 79, 66, 0.63);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.66),
+    0 3px 12px rgba(33, 33, 35, 0.19);
+  backdrop-filter: blur(3px);
 }
 
-.hero-pigment-secondary {
-  color: var(--hero-cloud);
-  /* Only this small control has a jade/malachite glaze, not the landscape. */
-  background: linear-gradient(115deg,
-    rgba(30, 94, 86, 0.93) 0%, rgba(63, 123, 103, 0.94) 60%,
-    rgba(29, 78, 107, 0.91) 100%);
-  border: 1px solid var(--hero-orpiment);
-  box-shadow:
-    inset 0 1px 0 rgba(240, 197, 75, 0.35),
-    0 3px 12px rgba(43, 34, 72, 0.32);
+/* Pale mineral-paper instrument panel: strong ink contrast for live values,
+   one subdued pigment rule, no blue rectangle floating over the landscape. */
+.hero-exchange-card {
+  isolation: isolate;
+  background: linear-gradient(143deg,
+    rgba(253, 250, 243, 0.96), rgba(245, 239, 228, 0.94));
+  border: 1px solid rgba(118, 100, 79, 0.38);
+  box-shadow: 0 10px 32px rgba(36, 37, 40, 0.19),
+    inset 0 1px 0 rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(12px);
+}
+.hero-exchange-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 22px;
+  right: 22px;
+  height: 2px;
+  background: linear-gradient(90deg,
+    #C94C2F 0%, #D5B16B 31%, #789A77 65%, #759A9B 100%);
+  opacity: 0.65;
+  border-radius: 0 0 3px 3px;
+  pointer-events: none;
 }
 
 .hero-pigment-link {
@@ -204,8 +226,8 @@ body {
   .hero-pigment-primary:hover,
   .hero-pigment-secondary:hover {
     transform: translateY(-1px);
-    box-shadow: inset 0 1px 0 rgba(250, 227, 159, 0.4),
-      0 5px 17px rgba(43, 34, 72, 0.45);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.68),
+      0 5px 16px rgba(31, 32, 35, 0.28);
   }
   .hero-pigment-link:hover {
     color: var(--hero-cloud);
