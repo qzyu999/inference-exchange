@@ -46,10 +46,6 @@ const PREVIEW_MODE = LOCAL_PREVIEW
 const STREAM_ENABLED = PREVIEW_MODE === 'poster' ? false
   : PREVIEW_MODE === 'stream' ? true
     : import.meta.env.VITE_HERO_STREAM_ENABLED !== 'false'
-// The same warm multiply tint used by non-landing pages, scoped to the
-// *video layer only*. Local ?heroTint=off is a visual A/B preview escape hatch.
-const WARM_VIDEO_TINT = !LOCAL_PREVIEW
-  || new URLSearchParams(window.location.search).get('heroTint') !== 'off'
 
 interface NetworkHints {
   saveData?: boolean
@@ -299,15 +295,6 @@ export function LandscapeVideo({ progress, reducedMotion, onAvailabilityChange }
           )}
         </div>
       </div>
-      {/* Warm only the footage and the ambient poster blur, never the title,
-          crystal, nav or final product screen which live in sibling layers. */}
-      {WARM_VIDEO_TINT && (
-        <div
-          aria-hidden="true"
-          data-hero-video-tint="warm"
-          className="hero-video-bedtime-tint pointer-events-none absolute inset-0"
-        />
-      )}
     </div>
   )
 }

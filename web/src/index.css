@@ -141,14 +141,6 @@ body {
   mix-blend-mode: multiply;
 }
 
-/* Same visual temperature as the app's optional tint, but inside the
-   landscape renderer only. Poster, ambient blur and HLS video are tinted;
-   editorial words, crystal geometry, nav and final product remain pristine. */
-.hero-video-bedtime-tint {
-  background: #FF995B;
-  opacity: 0.48;
-  mix-blend-mode: multiply;
-}
 @media (forced-colors: active), print {
   .ie-app-appearance-scope[data-appearance="blue-light"]::after {
     display: none;
@@ -611,10 +603,10 @@ body {
   border-color: rgba(247, 235, 210, 0.85);
 }
 .hero-stone-cta--outline {
-  /* Same translucent warm-stone surface as main's provider CTA. This
-     matters because the original mineral-border paint uses alpha stops. */
-  color: #D8D1BE;
-  background: rgba(216, 209, 190, 0.06);
+  /* The same charcoal fill as Go to Exchange ensures readable text
+     over bright moving scenery; the finer outline distinguishes this action. */
+  color: #F8EAD5;
+  background: rgba(14, 16, 24, 0.58);
   border-color: rgba(216, 209, 190, 0.55);
 }
 .hero-stone-cta--quiet {

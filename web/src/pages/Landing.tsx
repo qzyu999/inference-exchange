@@ -97,7 +97,7 @@ const CHAPTER_COPY = [
 // animated rainbow/letterpress experiment). Keep the final product accent.
 const HERO_PRODUCT_GRADIENT = `linear-gradient(90deg, ${HP.orpiment} 0%, ${HP.saffron} 28%, ${HP.coralLotus} 64%, #C2E1B7 100%)`
 
-// The approved warm tint is isolated inside LandscapeVideo, not story text.
+// The landing landscape retains its original colors without a tint overlay.
 // Debug-only visual centerline, at the same 50% stage x used by the video.
 const SHOW_ALIGNMENT_GUIDES = new URLSearchParams(window.location.search).get('heroGuides') === '1'
 
@@ -480,12 +480,12 @@ export function Landing() {
                       powered by everyone.
                     </span>
                   </h2>
-    
+
                   <p className="text-base md:text-lg mt-6 leading-relaxed max-w-md" style={{ color: '#F5E9D6', textShadow: '0 1px 2px rgba(11,16,23,0.72)' }}>
                     OpenAI-compatible inference with a live supply side.
                     Your request is routed by price, speed and trust. Providers compete to serve it.
                   </p>
-    
+
                   <div className="flex flex-wrap gap-3 mt-8">
                     <StoneCTA to="/chat" tone="light"
                       tabIndex={productOpacity > 0.95 ? undefined : -1}>
@@ -497,7 +497,7 @@ export function Landing() {
                     </StoneCTA>
                   </div>
                 </div>
-    
+
                 {/* Right: live exchange card */}
                 <div className="w-full lg:w-auto flex justify-center lg:justify-end">
                   <LiveExchangeCard />
