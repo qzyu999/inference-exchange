@@ -1,6 +1,8 @@
 # Experimental Apple Silicon L0 OCIP provider setup
 
-**Status: Code-matched candidate. Not independently qualified on a new Mac.**
+**Status: Code-matched candidate. Not yet independently qualified on a new Mac.**
+
+This is not a tested public-alpha installation procedure.
 
 Use this guide with [Provide compute](https://alpha.inferenceex.com/provide).
 It covers a new Apple Silicon/macOS host with one local GGUF model and
@@ -279,8 +281,9 @@ operator-issued credential.
 Before the operator enables provider enrollment broadly or calls this
 a **tested** installation recipe, record:
 
-- [ ] A separate GitHub user enrolls on an independently operated Apple
-      Silicon Mac without an admin API call or founder shell access.
+- [ ] A GitHub user different from the coordinator owner enrolls on an
+      independently operated Apple Silicon Mac without admin API calls
+      or founder shell access.
 - [ ] Exact macOS/chip/RAM, Python, Homebrew `llama-server` version/build,
       IE commit, GGUF filename/quantization and SHA-256.
 - [ ] Homebrew install, model download/checksum, Python install, first
