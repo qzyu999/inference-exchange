@@ -33,3 +33,13 @@ export const releaseProvider = providerId => request(
   `/v1/admin/providers/${encodeURIComponent(providerId)}/release`,
   { method: 'POST' },
 )
+
+export const listAdminAccounts = () => request('/v1/admin/accounts')
+export const suspendAdminAccount = (userId, reason, durationSeconds) => request(
+  `/v1/admin/accounts/${encodeURIComponent(userId)}/suspend`,
+  { method: 'POST', body: { reason, duration_seconds: durationSeconds } },
+)
+export const restoreAdminAccount = (userId, reason) => request(
+  `/v1/admin/accounts/${encodeURIComponent(userId)}/unsuspend`,
+  { method: 'POST', body: { reason } },
+)
