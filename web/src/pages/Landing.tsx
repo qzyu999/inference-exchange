@@ -276,13 +276,11 @@ function LiveExchangeCard() {
             : `$${minPrice.toFixed(2)}–$${maxPrice.toFixed(2)}`
 
           return (
-            <div key={m.model} className="flex items-center justify-between">
-              <div className="flex items-center gap-3 min-w-0">
-                <span className="text-sm font-medium truncate" style={{ color: C.warmWhite }}>
-                  {m.model}
-                </span>
-              </div>
-              <div className="flex items-center gap-4 shrink-0 text-right">
+            <div key={m.model} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4">
+              <span className="min-w-0 truncate text-sm font-medium" title={m.model} style={{ color: C.warmWhite }}>
+                {m.model}
+              </span>
+              <div className="flex shrink-0 items-center gap-3 whitespace-nowrap text-right">
                 <span className="hero-mani-meta text-[13px]" style={{ color: '#F4E8D4' }}>
                   {m.provider_count} provider{m.provider_count !== 1 ? 's' : ''}
                 </span>
