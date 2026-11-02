@@ -293,4 +293,15 @@ for (const route of ['/chat', '/provide', '/exchange']) {
 }
 assert.match(rail, /export const STORY_CHAPTERS = \[/)
 assert.match(styles, /@media \(prefers-reduced-motion: reduce\)/)
+// Live Exchange cards must retain a real gap between the model name and
+// the provider/price column even when the horizontal row has no free space.
+assert.match(landing, /grid grid-cols-\[minmax\(0,1fr\)_auto\] items-center gap-x-4/,
+  'model and metadata must be separated by at least 1rem')
+assert.match(landing, /flex shrink-0 items-center gap-3 whitespace-nowrap text-right/,
+  'provider count and price must have a separate gap')
+assert.match(landing, /className="min-w-0 truncate text-sm font-medium" title=\{m\.model\}/,
+  'long model names truncate rather than crowd provider metrics')
+assert.doesNotMatch(landing, /<div key=\{m\.model\} className="flex items-center justify-between">/,
+  'do not reintroduce unconstrained space-between Live Exchange rows')
+
 console.log('Landing: seven pinned holds, five CTAs reuse exact main mineral-border pigment with pointer movement')
