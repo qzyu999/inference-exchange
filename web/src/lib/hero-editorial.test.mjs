@@ -270,10 +270,10 @@ assert.match(nav, /HERO_PIGMENTS as HP/)
 assert.match(nav, /background: GRADIENTS\.sidebar/)
 // Navbar covers the same 16px video seam as before, but now with a truly
 // centered 72px content row. No dead strip underneath a 56px row.
-assert.match(nav, /className="max-w-7xl mx-auto px-4 md:px-8 h-\[72px\] flex items-center/)
-assert.match(nav, /hero-mineral-wordmark text-base font-bold uppercase/)
-assert.match(nav, /src="\/logo-icon\.svg" alt="" className="w-7 h-7"/)
-assert.match(nav, /to=\{l\.to\} className=\{\x60hero-mani-nav text-\[15px\] \$\{FOCUS\}\x60\}/)
+assert.match(nav, /className="max-w-7xl mx-auto px-3 sm:px-4 xl:px-6 h-\[72px\] flex items-center/)
+assert.match(nav, /hero-mineral-wordmark truncate text-sm sm:text-base font-bold uppercase/)
+assert.match(nav, /src="\/logo-icon\.svg" alt="" className="w-7 h-7 shrink-0"/)
+assert.match(nav, /to=\{l\.to\} className=\{\x60hero-mani-nav text-\[15px\] whitespace-nowrap \$\{FOCUS\}\x60\}/)
 assert.match(nav, /borderBottom: '1px solid rgba\(240,197,75,0\.34\)'/)
 assert.match(nav, /boxShadow: '0 2px 12px rgba\(31,31,32,0\.22\)'/)
 assert.doesNotMatch(nav, /absolute inset-x-0 top-full h-4/,

@@ -39,5 +39,24 @@ assert.equal(LANDING_LINKS.find(l => l.to === '/providers')?.label, 'Providers')
 assert.equal(LANDING_LINKS.find(l => l.to === '/provide')?.label, 'Offer Compute')
 assert.equal(LANDING_LINKS.filter(l => l.to === '/provide').length, 1)
 
+// Signed-in landing nav must remain one 72px row rather than pushing account
+// identity/actions into the horizontal link area (#215, follow-up to #207).
+// Browser viewport acceptance with a mocked /v1/auth/me is the release gate.
+const landingNav = readFileSync(new URL('../components/LandingNav.tsx', import.meta.url), 'utf8')
+assert.doesNotMatch(landingNav, /flex-wrap/, 'no flex-wrapping in landing navigation')
+assert.match(landingNav, /aria-expanded=\{menuOpen\}/, 'account disclosure reports expanded state')
+assert.match(landingNav, /aria-controls="landing-account-menu"/)
+assert.match(landingNav, /hidden=\{!menuOpen\}/, 'account options hidden until opened')
+assert.match(landingNav, /document\.addEventListener\('pointerdown', onOutsidePointer\)/)
+assert.match(landingNav, /event\.key === 'Escape'/, 'account dropdown closes on Escape')
+assert.match(landingNav, /<AccountArea mobile onNavigate=/, 'mobile actions stay vertical')
+assert.match(landingNav, /whitespace-nowrap/, 'desktop labels cannot stack')
+assert.match(landingNav, /truncate text-sm sm:text-base/, 'mobile wordmark may shrink')
+assert.equal((landingNav.match(/to="\/keys"/g) || []).length, 2)
+assert.equal((landingNav.match(/to="\/billing"/g) || []).length, 2)
+assert.ok(landingNav.includes('Signed in as {user!.name || user!.email}'))
+assert.match(landingNav, /<ul className="hidden xl:flex items-center gap-3 shrink-0">/)
+assert.match(landingNav, /className="flex xl:hidden items-center gap-1.5 shrink-0"/)
+
 // The python and JS validators must agree: the same cases are in tests/test_oauth_return_path.py
 console.log(`nav helpers: ${unsafe.length + safe.length} return-path cases ok`)
