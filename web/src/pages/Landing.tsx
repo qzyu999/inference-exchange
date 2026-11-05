@@ -86,8 +86,8 @@ function useScrollUnits(ref: React.RefObject<HTMLDivElement | null>) {
 const CHAPTER_COPY = [
   { title: 'Inference Exchange', description: 'Empowering and enabling everybody everywhere with affordable AI.' },
   { title: 'Supply meets demand', description: "The freedom to create, tinker and invent the future with AI, whether you're in San Francisco or the Global South." },
-  { title: 'Community-driven action', description: 'Consume from an OpenAI-compatible API, or provide your idle compute and earn passive income.' },
-  { title: 'Security constraints built on the Open Confidential Inference Protocol (OCIP)', description: 'Know exactly the assumptions and limitations when working with consumer hardware' },
+  { title: 'Community-driven action', description: 'You can consume from an OpenAI-compatible API and also provide your idle compute to earn passive income.' },
+  { title: 'Built on the Open Confidential Inference Protocol (OCIP)', description: 'Know the security levels of each hardware configuration.' },
   { title: 'Distributed AI inference, powered by everyone, for everyone.' },
 ] as const
 
@@ -474,11 +474,15 @@ export function Landing() {
                   <div className="flex flex-wrap gap-3 mt-8">
                     <StoneCTA to="/chat" tone="light"
                       tabIndex={productOpacity > 0.95 ? undefined : -1}>
-                      Start a conversation
+                      Start chatting
                     </StoneCTA>
                     <StoneCTA to="/provide" tone="outline"
                       tabIndex={productOpacity > 0.95 ? undefined : -1}>
                       Become a provider
+                    </StoneCTA>
+                    <StoneCTA to="/exchange" tone="quiet"
+                      tabIndex={productOpacity > 0.95 ? undefined : -1}>
+                      Go to Exchange
                     </StoneCTA>
                   </div>
                 </div>
