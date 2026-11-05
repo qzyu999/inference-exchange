@@ -85,7 +85,7 @@ function useScrollUnits(ref: React.RefObject<HTMLDivElement | null>) {
 // Intro + all six verbatim original main transition messages.
 const CHAPTER_COPY = [
   { title: 'Inference Exchange', description: 'Empowering and enabling everybody everywhere with affordable AI.' },
-  { title: 'Supply meets demand', description: "The freedom to create, tinker and invent the future with AI, whether you're in San Francisco or the Global South." },
+  { title: 'Supply meets demand', description: "The freedom to tinker, invent, and shape the future with AI at prices people around the world can afford." },
   { title: 'Community-driven action', description: 'You can consume from an OpenAI-compatible API and also provide your idle compute to earn passive income.' },
   { title: 'Built on the Open Confidential Inference Protocol (OCIP)', description: 'Know the security levels of each hardware configuration.' },
   { title: 'Distributed AI inference, powered by everyone, for everyone.' },

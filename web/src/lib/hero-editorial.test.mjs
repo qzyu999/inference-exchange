@@ -31,7 +31,7 @@ for (const title of titles) {
 }
 for (const description of [
   "Empowering and enabling everybody everywhere with affordable AI.",
-  "The freedom to create, tinker and invent the future with AI, whether you're in San Francisco or the Global South.",
+  "The freedom to tinker, invent, and shape the future with AI at prices people around the world can afford.",
   "You can consume from an OpenAI-compatible API and also provide your idle compute to earn passive income.",
   "Know the security levels of each hardware configuration."
 ]) {
