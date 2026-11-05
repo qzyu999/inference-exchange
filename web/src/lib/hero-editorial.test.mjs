@@ -13,42 +13,39 @@ assert.doesNotMatch(landing, /SHOW_(?:LEGACY|TEXT)_SHADE|heroShade=legacy|heroSh
 assert.doesNotMatch(landing, /HERO_TITLE_SHADOW|HERO_BODY_SHADOW/)
 assert.doesNotMatch(landing, /hero-story-spectrum|WebkitTextStroke/)
 
-// Original main had one intro plus six transition messages (not four new
-// chapter slogans). Verify exact wording/order inside CHAPTER_COPY, without
-// imposing the original free-flowing fade timeline on the pinned experience.
-const originalCopy = [
-  'Inference Exchange',
-  'Supply meets demand',
-  'Two forces converge',
-  'The intersection is the product',
-  'Trust is labelled, not assumed',
-  'Providers compete. You benefit.',
-  'Distributed AI inference, powered by everyone.',
+// Preserve the founder's wording and order across the five reading states.
+const titles = [
+  "Inference Exchange",
+  "Supply meets demand",
+  "Community-driven action",
+  "Security constraints built on the Open Confidential Inference Protocol (OCIP)",
+  "Distributed AI inference, powered by everyone, for everyone."
 ]
 const copy = landing.slice(landing.indexOf('const CHAPTER_COPY = ['),
   landing.indexOf('] as const', landing.indexOf('const CHAPTER_COPY = [')))
 let previous = -1
-for (const phrase of originalCopy) {
-  const at = copy.indexOf(`title: '${phrase}'`)
-  assert.ok(at > previous, 'missing/out-of-order original main title: ' + phrase)
+for (const title of titles) {
+  const at = copy.indexOf(`title: '${title}'`)
+  assert.ok(at > previous, 'missing or out-of-order title: ' + title)
   previous = at
 }
-for (const exactSub of [
-  'An open market for AI inference. Send OpenAI-compatible requests; providers with spare hardware compete to serve them.',
-  'Consumers bid. Providers offer. The exchange matches.',
-  'Providers report a trust level. The exchange shows it as claimed until evidence verifies it.',
-  'Price, speed, privacy — the matching engine optimizes for what you care about.',
-]) assert.ok(copy.includes(exactSub), 'missing original main support copy: ' + exactSub)
-assert.ok(!copy.includes('SUPPLY MEETS DEMAND'), 'newer eyebrow should be gone')
+for (const description of [
+  "Empowering and enabling everybody everywhere with affordable AI.",
+  "The freedom to create, tinker and invent the future with AI, whether you're in San Francisco or the Global South.",
+  "Consume from an OpenAI-compatible API, or provide your idle compute and earn passive income.",
+  "Know exactly the assumptions and limitations when working with consumer hardware"
+]) {
+  assert.ok(copy.includes(description), 'missing chapter description: ' + description)
+}
+assert.ok(landing.includes("OpenAI-compatible API, where requests are routed by price, quantization, and trust."))
+assert.doesNotMatch(landing, /Trust levels are claims|Shown as self-reported until verified/)
 assert.doesNotMatch(landing, /Browser chat uses TLS|end-to-end encrypt/i,
   'security transport detail belongs in Chat, not the landing story or exchange card')
-assert.equal((rail.match(/sceneProgress: /g) || []).length, 7,
-  'exactly seven pinned states must map to continuous crystal poses')
+assert.equal((rail.match(/sceneProgress: /g) || []).length, 5,
+  'exactly five pinned states must map to continuous crystal poses')
 assert.ok(rail.includes('sceneProgress: 0.82'),
   'final pre-gust crystal pose must remain at 0.82')
-assert.doesNotMatch(landing, /<ScrollChapterRail/,
-  'original main had NO right-hand progress rail')
-assert.doesNotMatch(landing, /ScrollChapterRail activeIndex/)
+assert.match(landing, /storyEnabled && <ScrollChapterRail activeIndex={activeIndex} onSelect={navigateToChapter}/)
 assert.match(landing, /\{activeIndex === 0 && \(/)
 assert.match(landing, /Skip intro/)
 assert.doesNotMatch(landing, /Skip story|Enter the exchange →/)
@@ -107,7 +104,6 @@ assert.match(styles, /--hero-orpiment: #F0C54B/)
 for (const name of ['ink', 'primary', 'secondary', 'link']) {
   assert.match(styles, new RegExp(`\\.hero-pigment-${name}`))
 }
-assert.doesNotMatch(landing, /<ScrollChapterRail/, 'RHS design must not render')
 // Three opening CTAs plus two finale CTAs retain routes, labels and quiet
 // background hierarchy. On hover/focus reveal only a fine static mineral
 // edge, inspired by pigment inlaid into carved stone. No flying grains,
@@ -304,4 +300,4 @@ assert.match(landing, /className="min-w-0 truncate text-sm font-medium" title=\{
 assert.doesNotMatch(landing, /<div key=\{m\.model\} className="flex items-center justify-between">/,
   'do not reintroduce unconstrained space-between Live Exchange rows')
 
-console.log('Landing: seven pinned holds, five CTAs reuse exact main mineral-border pigment with pointer movement')
+console.log('Landing: five pinned holds, five CTAs reuse exact main mineral-border pigment with pointer movement')
