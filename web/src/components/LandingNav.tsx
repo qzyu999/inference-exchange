@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { useAuth } from '../lib/auth'
 import { getLandingGroups, getLandingAccountLinks, authState, loginHref, nextBrandCompact, type LandingGroup } from '../lib/nav.js'
@@ -11,7 +11,7 @@ function Chevron() {
   return <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="m6 9 6 6 6-6" /></svg>
 }
 
-export function LandingNav() {
+export function LandingNav({ brandAxisOffset = 0 }: { brandAxisOffset?: number }) {
   const { user, loading, logout } = useAuth()
   const location = useLocation()
   const [brandCompact, setBrandCompact] = useState(false)
@@ -162,7 +162,7 @@ export function LandingNav() {
         </div>
 
   return (
-    <header ref={headerRef} className="ie-public-nav" data-brand-compact={brandCompact} style={{ background: GRADIENTS.sidebar, color: HP.cream }}
+    <header ref={headerRef} className="ie-public-nav" data-brand-compact={brandCompact} style={{ background: GRADIENTS.sidebar, color: HP.cream, '--brand-axis-offset': `${brandAxisOffset}px` } as CSSProperties}
       onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) closeMenus() }}>
       <a href={location.pathname === '/' ? '#landing-main' : '#public-main'} className={`ie-public-nav-skip sr-only focus:not-sr-only ${FOCUS}`} style={{ background: HP.cream, color: C.blueBlack }}>Skip to content</a>
       <nav aria-label="Main" className="ie-public-nav-row">

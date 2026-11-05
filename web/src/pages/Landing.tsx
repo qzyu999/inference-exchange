@@ -315,6 +315,8 @@ export function Landing() {
   const sceneProgress = getSceneProgress(chapterPosition)
   const [webglFailed, setWebglFailed] = useState(false)
   const [videoReady, setVideoReady] = useState(false)
+  const [brandAxisOffset, setBrandAxisOffset] = useState(0)
+  const [bridgePaused, setBridgePaused] = useState(false)
   const [reducedMotion, setReducedMotion] = useState(false)
   const rawVideoOnly = new URLSearchParams(window.location.search).get('heroRaw') === '1'
   const storyEnabled = !webglFailed && !reducedMotion && !rawVideoOnly
@@ -384,7 +386,7 @@ export function Landing() {
 
   return (
     <>
-      <LandingNav />
+      <LandingNav brandAxisOffset={brandAxisOffset} />
 
       <div ref={storyRef} className="relative" style={{ paddingTop: NAV_HEIGHT, background: C.blueBlack }}>
         {/* One pinned stage: the world stays in place as browser scrolling
@@ -394,7 +396,17 @@ export function Landing() {
             progress={rawVideoOnly ? 0 : storyEnabled ? sceneProgress : 1}
             reducedMotion={reducedMotion}
             onAvailabilityChange={setVideoReady}
+            onVisualAxisChange={setBrandAxisOffset}
+            showBridge={!rawVideoOnly && (reducedMotion || activeIndex === 1 || activeIndex === 2)}
+            bridgePaused={bridgePaused}
           />
+          {storyEnabled && videoReady && !reducedMotion && (activeIndex === 1 || activeIndex === 2) && (
+            <button type="button" aria-pressed={bridgePaused} onClick={() => setBridgePaused(paused => !paused)}
+              className="absolute bottom-5 left-5 z-40 rounded-full border px-3 py-2 text-[11px] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#F0C54B]"
+              style={{ background: 'rgba(41,47,53,0.78)', borderColor: 'rgba(247,234,214,0.3)', color: '#F7EAD6' }}>
+              {bridgePaused ? 'Play connection' : 'Pause connection'}
+            </button>
+          )}
           {/* Dissolution completes on this same pinned canvas: mineral ribbons
               emerge as the video dims, beneath the original crystal geometry. */}
           {!rawVideoOnly && (

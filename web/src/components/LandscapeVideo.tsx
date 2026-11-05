@@ -1,8 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
+import { LandscapeBridge } from './LandscapeBridge'
+import { landscapeGeometry } from '../lib/landscape-geometry.js'
 import { attachStreamHls } from '../lib/stream-hls.js'
 
 interface LandscapeVideoProps {
   progress: number
+  showBridge?: boolean
+  bridgePaused?: boolean
+  onVisualAxisChange?: (offset: number) => void
   reducedMotion: boolean
   onAvailabilityChange: (available: boolean) => void
 }
@@ -93,7 +98,9 @@ function getVideoFraming(aspect: VideoAspect): {
  * - Save-Data, reduced motion, fatal HLS error or rollout-off: poster only.
  * Native Safari HLS returns synchronous cleanup for React StrictMode replay.
  */
-export function LandscapeVideo({ progress, reducedMotion, onAvailabilityChange }: LandscapeVideoProps) {
+export function LandscapeVideo({ progress, reducedMotion, onAvailabilityChange, showBridge = false, bridgePaused = false, onVisualAxisChange }: LandscapeVideoProps) {
+  const frameRef = useRef<HTMLDivElement>(null)
+  const [frameSize, setFrameSize] = useState({ width: 0, height: 0 })
   const videoRef = useRef<HTMLVideoElement>(null)
   const [requestedAspect, setRequestedAspect] = useState<VideoAspect>(selectAspect)
   const [ready, setReady] = useState(false)
@@ -209,6 +216,23 @@ export function LandscapeVideo({ progress, reducedMotion, onAvailabilityChange }
       ? 'linear-gradient(to bottom, black 0%, black 98.9%, transparent 100%)'
       : `linear-gradient(${edgeDirection}, transparent 0%, black 1.1%, black 98.9%, transparent 100%)`
     : undefined
+  useEffect(() => {
+    const frame = frameRef.current
+    if (!frame) return
+    const measure = () => {
+      const { width, height } = frame.getBoundingClientRect()
+      setFrameSize(current => current.width === width && current.height === height ? current : { width, height })
+    }
+    const observer = new ResizeObserver(measure)
+    observer.observe(frame)
+    measure()
+    return () => observer.disconnect()
+  }, [])
+  const geometry = landscapeGeometry(frameSize.width, frameSize.height, frameRatio)
+  useEffect(() => {
+    onVisualAxisChange?.(ready || posterReady ? geometry.axisOffset : 0)
+  }, [ready, posterReady, geometry.axisOffset, onVisualAxisChange])
+
   const fade = Math.min(1, Math.max(0, (progress - 0.82) / 0.18))
 
   return (
@@ -232,6 +256,7 @@ export function LandscapeVideo({ progress, reducedMotion, onAvailabilityChange }
       )}
       <div className={`pointer-events-none absolute inset-0 flex justify-center ${topAnchorUltrawide ? 'items-start' : 'items-center'}`}>
         <div
+          ref={frameRef}
           className={framing.mode === 'contain'
             ? 'relative w-full max-h-full shrink-0 overflow-hidden'
             : 'absolute inset-0 overflow-hidden'}
@@ -242,7 +267,9 @@ export function LandscapeVideo({ progress, reducedMotion, onAvailabilityChange }
             maskImage: frameMask,
           } : undefined}
           data-hero-edges={edges}
+          data-landscape-frame="true"
         >
+          <LandscapeBridge geometry={geometry} visible={showBridge && (ready || posterReady)} paused={bridgePaused || reducedMotion} />
           <video
             ref={videoRef}
             key={manifest}
