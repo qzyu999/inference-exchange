@@ -47,3 +47,4 @@ MUST: One rule. Write it so that a test can show if it is true or false.
 | ROUTE | [routing.md](routing.md) | Provider selection, trust filter, queue |
 | PROV | [providers.md](providers.md) | Provider admission, connection, trust |
 | OPS | [ops.md](ops.md) | Deployment, configuration, backups, metrics |
+| NAV | [navigation.md](navigation.md) | Public page groups and navigation |

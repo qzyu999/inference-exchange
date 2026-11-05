@@ -1,233 +1,136 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { useAuth } from '../lib/auth'
-import { LANDING_LINKS, authState, loginHref } from '../lib/nav.js'
+import { getLandingGroups, getLandingAccountLinks, authState, loginHref, type LandingGroup } from '../lib/nav.js'
 import { C, GRADIENTS, HERO_PIGMENTS as HP } from '../lib/theme'
-
-// Persistent first-viewport navigation for "/" (#107 P0).
-// Plain HTML above the WebGL canvas: it works before, during, and without the scene.
+import './landing-nav.css'
 
 const FOCUS = 'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#F0C54B]'
-// Opaque pale pigment on dark charcoal, inspired by painted mani stones.
-const NAV_PAINT = '#F7EAD6'
 
-function AccountArea({ onNavigate, mobile = false }: { onNavigate?: () => void; mobile?: boolean }) {
-  const { user, loading, logout } = useAuth()
-  const location = useLocation()
-  const [menuOpen, setMenuOpen] = useState(false)
-  const menuRef = useRef<HTMLDivElement>(null)
-  const menuButton = useRef<HTMLButtonElement>(null)
-
-  useEffect(() => {
-    if (!menuOpen) return
-    const onOutsidePointer = (event: PointerEvent) => {
-      if (!menuRef.current?.contains(event.target as Node)) setMenuOpen(false)
-    }
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        setMenuOpen(false)
-        menuButton.current?.focus()
-      }
-    }
-    document.addEventListener('pointerdown', onOutsidePointer)
-    window.addEventListener('keydown', onKey)
-    return () => {
-      document.removeEventListener('pointerdown', onOutsidePointer)
-      window.removeEventListener('keydown', onKey)
-    }
-  }, [menuOpen])
-
-  const state = authState(loading, user)
-  if (state === 'loading') {
-    return <span className="hero-mani-nav text-[13px] whitespace-nowrap" style={{ color: NAV_PAINT }} aria-live="polite">Checking sign-in…</span>
-  }
-  if (state === 'signed-out') {
-    return (
-      <Link
-        to={loginHref(location.pathname + location.search)}
-        onClick={onNavigate}
-        className={'hero-mani-nav px-3 py-1.5 rounded-lg text-[15px] border whitespace-nowrap ' + FOCUS}
-        style={{ color: HP.cream, borderColor: 'rgba(240,197,75,0.55)' }}
-      >
-        Sign in with GitHub
-      </Link>
-    )
-  }
-
-  if (mobile) {
-    // Keep all account actions in one vertical list in the narrow navigation.
-    return (
-      <div className="flex flex-col items-stretch gap-1">
-        <span className="hero-mani-nav text-[13px] break-words px-3 py-2" style={{ color: NAV_PAINT }} title={user!.email}>
-          Signed in as {user!.name || user!.email}
-        </span>
-        <Link to="/keys" onClick={onNavigate} className={'hero-mani-nav block rounded-lg px-3 py-2.5 text-[15px] ' + FOCUS} style={{ color: NAV_PAINT }}>API keys</Link>
-        <Link to="/billing" onClick={onNavigate} className={'hero-mani-nav block rounded-lg px-3 py-2.5 text-[15px] ' + FOCUS} style={{ color: NAV_PAINT }}>Account & billing</Link>
-        <button type="button" onClick={() => { onNavigate?.(); void logout() }}
-          className={'hero-mani-nav rounded-lg px-3 py-2.5 text-left text-[15px] ' + FOCUS}
-          style={{ color: NAV_PAINT }}>Sign out</button>
-      </div>
-    )
-  }
-
-  // Avoid putting the account identity and three actions into the fixed 72px row.
-  return (
-    <div className="relative shrink-0" ref={menuRef}>
-      <button
-        ref={menuButton}
-        type="button"
-        aria-expanded={menuOpen}
-        aria-controls="landing-account-menu"
-        aria-label="Account options"
-        onClick={() => setMenuOpen(value => !value)}
-        className={'hero-mani-nav inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg border px-3 py-2 text-[15px] ' + FOCUS}
-        style={{ color: NAV_PAINT, borderColor: 'rgba(240,197,75,0.35)' }}
-      >
-        Account
-        <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="m6 9 6 6 6-6" />
-        </svg>
-      </button>
-      <div
-        id="landing-account-menu"
-        hidden={!menuOpen}
-        className="absolute right-0 top-full mt-2 w-64 rounded-xl border p-2 shadow-xl"
-        style={{ background: '#292F35', borderColor: 'rgba(240,197,75,0.35)' }}
-      >
-        <div className="border-b px-3 py-2 mb-1" style={{ borderColor: 'rgba(240,197,75,0.18)' }}>
-          <p className="hero-mani-nav truncate text-sm" title={user!.name || user!.email} style={{ color: NAV_PAINT }}>{user!.name || user!.email}</p>
-          <p className="truncate text-xs" title={user!.email} style={{ color: '#C2B9A9' }}>{user!.email}</p>
-        </div>
-        <Link to="/keys" onClick={() => setMenuOpen(false)} className={'hero-mani-nav block rounded-lg px-3 py-2.5 text-[15px] ' + FOCUS} style={{ color: NAV_PAINT }}>API keys</Link>
-        <Link to="/billing" onClick={() => setMenuOpen(false)} className={'hero-mani-nav block rounded-lg px-3 py-2.5 text-[15px] ' + FOCUS} style={{ color: NAV_PAINT }}>Account & billing</Link>
-        <button type="button" onClick={() => { setMenuOpen(false); void logout() }}
-          className={'hero-mani-nav block w-full rounded-lg px-3 py-2.5 text-left text-[15px] ' + FOCUS}
-          style={{ color: NAV_PAINT }}>Sign out</button>
-      </div>
-    </div>
-  )
+function Chevron() {
+  return <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="m6 9 6 6 6-6" /></svg>
 }
 
 export function LandingNav() {
-  const [open, setOpen] = useState(false)
-  const { user, loading } = useAuth()
+  const { user, loading, logout } = useAuth()
   const location = useLocation()
-  const menuButton = useRef<HTMLButtonElement>(null)
+  const [mobileOpen, setMobileOpen] = useState(false)
+  const [activeMenu, setActiveMenu] = useState<string | null>(null)
+  const headerRef = useRef<HTMLElement>(null)
+  const mobileButtonRef = useRef<HTMLButtonElement>(null)
+  const triggerRefs = useRef<Record<string, HTMLButtonElement | null>>({})
+  const groups = getLandingGroups(user)
+  const accountLinks = getLandingAccountLinks(user)
+  const state = authState(loading, user)
+
+  function closeMenus() {
+    setActiveMenu(null)
+    setMobileOpen(false)
+  }
+
+  useEffect(() => { closeMenus() }, [location.pathname, location.search])
 
   useEffect(() => {
-    if (!open) return
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') { setOpen(false); menuButton.current?.focus() }
+    if (!activeMenu && !mobileOpen) return
+    const onOutsidePointer = (event: PointerEvent) => {
+      if (!headerRef.current?.contains(event.target as Node)) closeMenus()
     }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [open])
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return
+      if (activeMenu) {
+        triggerRefs.current[activeMenu]?.focus()
+        setActiveMenu(null)
+      } else {
+        setMobileOpen(false)
+        mobileButtonRef.current?.focus()
+      }
+    }
+    document.addEventListener('pointerdown', onOutsidePointer)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('pointerdown', onOutsidePointer)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [activeMenu, mobileOpen])
 
-  return (
-    <header
-      className="fixed top-0 left-0 right-0 z-50"
-      style={{
-        background: GRADIENTS.sidebar,
-        borderBottom: '1px solid rgba(240,197,75,0.34)',
-        boxShadow: '0 2px 12px rgba(31,31,32,0.22)',
-      }}
-    >
-      {/* Use one centered 72px navigation row instead of a 56px row plus
-          a 16px decorative spacer. The row still covers the same video
-          seam, with no change to the 56px-offset story geometry. */}
-      <a
-        href="#landing-main"
-        className={`sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:px-3 focus:py-2 focus:rounded-lg ${FOCUS}`}
-        style={{ background: '#F2E6D0', color: C.blueBlack }}
-      >
-        Skip to content
-      </a>
-      <nav aria-label="Main" className="max-w-7xl mx-auto px-3 sm:px-4 xl:px-6 h-[72px] flex items-center justify-between gap-2 xl:gap-3">
-        <Link to="/" className={`flex items-center gap-2 min-w-0 xl:shrink-0 ${FOCUS}`}>
-          <img src="/logo-icon.svg" alt="" className="w-7 h-7 shrink-0" />
-          <span className="mineral-spectrum-text hero-mineral-wordmark truncate text-sm sm:text-base font-bold uppercase tracking-wider">
-            Inference Exchange
-          </span>
-        </Link>
+  // A breakpoint change closes disclosures that are no longer visible.
+  useEffect(() => {
+    const query = window.matchMedia('(min-width: 1280px)')
+    query.addEventListener('change', closeMenus)
+    return () => query.removeEventListener('change', closeMenus)
+  }, [])
 
-        <ul className="hidden xl:flex items-center gap-3 shrink-0">
-          {LANDING_LINKS.map(l => (
-            <li key={l.to}>
-              <Link to={l.to} className={`hero-mani-nav text-[15px] whitespace-nowrap ${FOCUS}`} style={{ color: NAV_PAINT }}>{l.label}</Link>
+  const toggle = (id: string) => setActiveMenu(current => current === id ? null : id)
+  const linkClass = `ie-public-nav-link hero-mani-nav ${FOCUS}`
+
+  function groupMenu(group: LandingGroup, mobile = false) {
+    const id = `${mobile ? 'mobile' : 'desktop'}-${group.id}`
+    const expanded = activeMenu === id
+    return (
+      <li className="ie-public-nav-group" key={id}>
+        <button type="button" ref={node => { triggerRefs.current[id] = node }}
+          className={`ie-public-nav-trigger hero-mani-nav ${FOCUS}`}
+          aria-expanded={expanded} aria-controls={`${id}-links`} onClick={() => toggle(id)}>
+          {group.label}<Chevron />
+        </button>
+        <ul id={`${id}-links`} hidden={!expanded} className={mobile ? 'ie-public-nav-sublist' : 'ie-public-nav-dropdown'}>
+          {group.items.map(item => (
+            <li key={item.to} className={item.dividerBefore ? 'ie-public-nav-divider' : undefined}>
+              <Link to={item.to} className={linkClass} onClick={closeMenus}>{item.label}</Link>
             </li>
           ))}
         </ul>
+      </li>
+    )
+  }
 
-        <div className="hidden xl:flex items-center gap-3 shrink-0">
-          <AccountArea />
-          <Link
-            to="/chat"
-            className={`px-4 py-2 rounded-lg text-[15px] font-semibold whitespace-nowrap shrink-0 ${FOCUS}`}
-            style={{ background: '#F2E6D0', color: C.blueBlack }}
-          >
-            Try inference
-          </Link>
-        </div>
-
-        {/* Mobile: chat AND sign-in/account stay visible without opening the menu. */}
-        <div className="flex xl:hidden items-center gap-1.5 shrink-0">
-          <Link
-            to="/chat"
-            className={`px-2.5 py-2 rounded-lg text-sm font-semibold ${FOCUS}`}
-            style={{ background: '#F2E6D0', color: C.blueBlack }}
-            aria-label="Try inference"
-          >
-            Try
-          </Link>
-          {!loading && (
-            <Link
-              to={user ? '/keys' : loginHref(location.pathname + location.search)}
-              className={`hero-mani-nav px-2 py-2 rounded-lg text-sm ${FOCUS}`}
-              style={{ color: NAV_PAINT }}
-            >
-              {user ? 'Account' : 'Sign in'}
-            </Link>
-          )}
-          <button
-            ref={menuButton}
-            type="button"
-            aria-expanded={open}
-            aria-controls="landing-mobile-menu"
-            aria-label={open ? 'Close menu' : 'Open menu'}
-            onClick={() => setOpen(o => !o)}
-            className={`p-2 rounded-lg min-w-[44px] min-h-[44px] flex items-center justify-center ${FOCUS}`}
-            style={{ color: HP.cream }}
-          >
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
-              {open
-                ? <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                : <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />}
-            </svg>
+  const account = state === 'loading'
+    ? <span className="ie-public-nav-loading hero-mani-nav" aria-live="polite">Checking sign-in…</span>
+    : state === 'signed-out'
+      ? <Link to={loginHref(location.pathname + location.search)} onClick={closeMenus} className={`ie-public-nav-account hero-mani-nav ${FOCUS}`}>Sign in</Link>
+      : <div className="ie-public-nav-group ie-public-nav-account-group">
+          <button type="button" ref={node => { triggerRefs.current.account = node }}
+            aria-expanded={activeMenu === 'account'} aria-controls="landing-account-menu"
+            className={`ie-public-nav-account hero-mani-nav ${FOCUS}`} onClick={() => { setMobileOpen(false); toggle('account') }}>
+            Account<Chevron />
           </button>
-        </div>
-      </nav>
-
-      {open && (
-        <div id="landing-mobile-menu" className="xl:hidden px-4 pb-4 max-h-[calc(100svh-72px)] overflow-y-auto" style={{ background: GRADIENTS.sidebar }}>
-          <ul className="flex flex-col">
-            {LANDING_LINKS.map(l => (
-              <li key={l.to}>
-                <Link
-                  to={l.to}
-                  onClick={() => setOpen(false)}
-                  className={`hero-mani-nav block py-3 text-base ${FOCUS}`}
-                  style={{ color: NAV_PAINT, borderBottom: '1px solid rgba(240,197,75,0.23)' }}
-                >
-                  {l.label}
-                </Link>
-              </li>
-            ))}
-          </ul>
-          <div className="pt-3">
-            <AccountArea mobile onNavigate={() => setOpen(false)} />
+          <div id="landing-account-menu" hidden={activeMenu !== 'account'} className="ie-public-nav-dropdown ie-public-nav-account-dropdown">
+            <div className="ie-public-nav-identity">
+              <p title={user!.name || user!.email}>Signed in as {user!.name || user!.email}</p>
+              {user!.name && <p title={user!.email}>{user!.email}</p>}
+            </div>
+            <ul>{accountLinks.map(item => <li key={item.to}><Link to={item.to} reloadDocument={item.to === '/admin'} onClick={closeMenus} className={linkClass}>{item.label}</Link></li>)}</ul>
+            <button type="button" className={`${linkClass} ie-public-nav-signout`} onClick={() => { closeMenus(); void logout() }}>Sign out</button>
           </div>
         </div>
-      )}
+
+  return (
+    <header ref={headerRef} className="ie-public-nav" style={{ background: GRADIENTS.sidebar, color: HP.cream }}
+      onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) closeMenus() }}>
+      <a href={location.pathname === '/' ? '#landing-main' : '#public-main'} className={`ie-public-nav-skip sr-only focus:not-sr-only ${FOCUS}`} style={{ background: HP.cream, color: C.blueBlack }}>Skip to content</a>
+      <nav aria-label="Main" className="ie-public-nav-row">
+        <div className="ie-public-nav-left">
+          <button ref={mobileButtonRef} type="button" aria-expanded={mobileOpen} aria-controls="landing-mobile-menu"
+            aria-label={mobileOpen ? 'Close menu' : 'Open menu'} className={`ie-public-nav-mobile-trigger ${FOCUS}`}
+            onClick={() => { setActiveMenu(null); setMobileOpen(open => !open) }}>
+            <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path strokeWidth="1.5" strokeLinecap="round" d={mobileOpen ? 'M6 6l12 12M6 18L18 6' : 'M4 6h16M4 12h16M4 18h16'} /></svg>
+          </button>
+          <ul className="ie-public-nav-desktop">{groups.filter(group => group.side === 'left').map(group => groupMenu(group))}</ul>
+        </div>
+        <Link to="/" aria-label="Inference Exchange home" onClick={closeMenus} className={`ie-public-nav-brand ${FOCUS}`}>
+          <img src="/logo-icon.svg" alt="" width="28" height="28" />
+          <span className="mineral-spectrum-text hero-mineral-wordmark">Inference Exchange</span>
+        </Link>
+        <div className="ie-public-nav-right">
+          <ul className="ie-public-nav-desktop">{groups.filter(group => group.side === 'right').map(group => groupMenu(group))}</ul>
+          {account}
+          <Link to="/chat" onClick={closeMenus} className={`ie-public-nav-try ${FOCUS}`} style={{ background: '#F2E6D0', color: C.blueBlack }}>Try inference</Link>
+        </div>
+      </nav>
+      <div id="landing-mobile-menu" hidden={!mobileOpen} className="ie-public-nav-mobile-menu">
+        <ul>{groups.map(group => groupMenu(group, true))}</ul>
+        <Link to="/chat" onClick={closeMenus} className={`${linkClass} ie-public-nav-mobile-try`}>Try inference →</Link>
+      </div>
     </header>
   )
 }

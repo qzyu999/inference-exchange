@@ -5,6 +5,7 @@ const paletteSource = readFileSync(new URL('./theme.ts', import.meta.url), 'utf8
 const landing = readFileSync(new URL('../pages/Landing.tsx', import.meta.url), 'utf8')
 const rail = readFileSync(new URL('../components/ScrollChapterRail.tsx', import.meta.url), 'utf8')
 const nav = readFileSync(new URL('../components/LandingNav.tsx', import.meta.url), 'utf8')
+const navStyles = readFileSync(new URL('../components/landing-nav.css', import.meta.url), 'utf8')
 const styles = readFileSync(new URL('../index.css', import.meta.url), 'utf8')
 
 // The mountain/lake plate is kept intact, not covered with legibility washes.
@@ -244,8 +245,8 @@ assert.match(pigmentHeading, /filter:\s*drop-shadow\(0 1px 1px rgba\(11, 18, 24,
   'only soft offset shadows on the final gradient glyph, no hard black border')
 assert.doesNotMatch(styles, /\.hero-mani-heading,\s*\.hero-mani-heading-pigment\s*\{[^}]*-webkit-text-stroke-width:/)
 assert.doesNotMatch(landing, /0 2px 24px rgba\(0,0,0,0\.6\)/)
-assert.match(nav, /const NAV_PAINT = '#F7EAD6'/)
-assert.match(nav, /hero-mani-nav text-\[13px\]/)
+assert.match(navStyles, /--nav-text:#f7ead6/i)
+assert.match(nav, /hero-mani-nav/)
 assert.doesNotMatch(landing, /style=\{\{ color: '#8a8578' \}\}/)
 assert.doesNotMatch(landing, /background: 'rgba\(16,45,109,0\.76\)'/)
 // For stable dark surfaces we can test actual WCAG contrast numerically.
@@ -267,12 +268,12 @@ assert.match(nav, /HERO_PIGMENTS as HP/)
 assert.match(nav, /background: GRADIENTS\.sidebar/)
 // Navbar covers the same 16px video seam as before, but now with a truly
 // centered 72px content row. No dead strip underneath a 56px row.
-assert.match(nav, /className="max-w-7xl mx-auto px-3 sm:px-4 xl:px-6 h-\[72px\] flex items-center/)
-assert.match(nav, /hero-mineral-wordmark truncate text-sm sm:text-base font-bold uppercase/)
-assert.match(nav, /src="\/logo-icon\.svg" alt="" className="w-7 h-7 shrink-0"/)
-assert.match(nav, /to=\{l\.to\} className=\{\x60hero-mani-nav text-\[15px\] whitespace-nowrap \$\{FOCUS\}\x60\}/)
-assert.match(nav, /borderBottom: '1px solid rgba\(240,197,75,0\.34\)'/)
-assert.match(nav, /boxShadow: '0 2px 12px rgba\(31,31,32,0\.22\)'/)
+assert.match(navStyles, /height:72px/)
+assert.match(navStyles, /grid-template-columns:minmax\(0,1fr\) auto minmax\(0,1fr\)/)
+assert.match(nav, /mineral-spectrum-text hero-mineral-wordmark/)
+assert.match(nav, /src="\/logo-icon\.svg"/)
+assert.match(navStyles, /border-bottom:1px solid rgba\(240,197,75,\.34\)/)
+assert.match(navStyles, /box-shadow:0 2px 12px rgba\(31,31,32,\.22\)/)
 assert.doesNotMatch(nav, /absolute inset-x-0 top-full h-4/,
   'no separate extension with an empty visual strip')
 assert.doesNotMatch(nav, /background: '#252A30'/,
