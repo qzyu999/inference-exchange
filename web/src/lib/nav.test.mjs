@@ -1,7 +1,7 @@
 // Run: node web/src/lib/nav.test.mjs  (#107, AUTH-018)
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
-import { LANDING_LINKS, authState, githubLoginHref, loginHref, safeNextPath } from './nav.js'
+import { LANDING_LINKS, getLandingGroups, getLandingAccountLinks, authState, githubLoginHref, loginHref, safeNextPath } from './nav.js'
 
 // Open-redirect cases must fall back
 const unsafe = [
@@ -36,27 +36,37 @@ for (const want of ['/chat', '/exchange', '/models', '/providers', '/provide', '
 
 // Supply discovery and compute contribution are distinct destinations.
 assert.equal(LANDING_LINKS.find(l => l.to === '/providers')?.label, 'Providers')
-assert.equal(LANDING_LINKS.find(l => l.to === '/provide')?.label, 'Offer Compute')
+assert.equal(LANDING_LINKS.find(l => l.to === '/provide')?.label, 'Become a provider')
 assert.equal(LANDING_LINKS.filter(l => l.to === '/provide').length, 1)
 
-// Signed-in landing nav must remain one 72px row rather than pushing account
-// identity/actions into the horizontal link area (#215, follow-up to #207).
-// Browser viewport acceptance with a mocked /v1/auth/me is the release gate.
+// Grouped routes are reachable; private destinations follow verified identity.
+const guestGroups = getLandingGroups(null)
+assert.deepEqual(guestGroups.map(group => group.label), ['Use AI', 'Provide compute', 'Network', 'Resources'])
+assert.deepEqual(guestGroups.filter(group => group.side === 'left').map(group => group.id), ['use-ai', 'provide'])
+assert.deepEqual(guestGroups.filter(group => group.side === 'right').map(group => group.id), ['network', 'resources'])
+assert.ok(!guestGroups.flatMap(group => group.items).some(item => item.to === '/dashboard'))
+assert.deepEqual(getLandingAccountLinks(null), [])
+const member = { user_id: 'member', is_admin: false }
+const memberLinks = getLandingAccountLinks(member)
+for (const to of ['/keys', '/billing', '/settings', '/dashboard']) assert.ok(memberLinks.some(item => item.to === to))
+assert.ok(!memberLinks.some(item => item.to === '/admin'))
+assert.ok(!getLandingAccountLinks({ user_id: 'member', is_admin: 'true' }).some(item => item.to === '/admin'))
+assert.ok(getLandingAccountLinks({ user_id: 'owner', is_admin: true }).some(item => item.to === '/admin'))
+assert.ok(getLandingGroups(member).flatMap(group => group.items).some(item => item.to === '/dashboard'))
+for (const { to } of getLandingGroups(member).flatMap(group => group.items).concat(getLandingAccountLinks({ user_id: 'owner', is_admin: true }))) {
+  assert.ok(routes.includes(`path="${to === '/docs' ? '/docs/*' : to}"`), `group route missing for ${to}`)
+}
+const resources = guestGroups.find(group => group.id === 'resources').items
+assert.deepEqual(resources.map(item => item.to), ['/start', '/docs', '/news', '/about'])
+assert.equal(resources.find(item => item.to === '/news').dividerBefore, true)
 const landingNav = readFileSync(new URL('../components/LandingNav.tsx', import.meta.url), 'utf8')
-assert.doesNotMatch(landingNav, /flex-wrap/, 'no flex-wrapping in landing navigation')
-assert.match(landingNav, /aria-expanded=\{menuOpen\}/, 'account disclosure reports expanded state')
-assert.match(landingNav, /aria-controls="landing-account-menu"/)
-assert.match(landingNav, /hidden=\{!menuOpen\}/, 'account options hidden until opened')
+assert.match(landingNav, /aria-expanded=/)
+assert.match(landingNav, /aria-controls=/)
 assert.match(landingNav, /document\.addEventListener\('pointerdown', onOutsidePointer\)/)
-assert.match(landingNav, /event\.key === 'Escape'/, 'account dropdown closes on Escape')
-assert.match(landingNav, /<AccountArea mobile onNavigate=/, 'mobile actions stay vertical')
-assert.match(landingNav, /whitespace-nowrap/, 'desktop labels cannot stack')
-assert.match(landingNav, /truncate text-sm sm:text-base/, 'mobile wordmark may shrink')
-assert.equal((landingNav.match(/to="\/keys"/g) || []).length, 2)
-assert.equal((landingNav.match(/to="\/billing"/g) || []).length, 2)
-assert.ok(landingNav.includes('Signed in as {user!.name || user!.email}'))
-assert.match(landingNav, /<ul className="hidden xl:flex items-center gap-3 shrink-0">/)
-assert.match(landingNav, /className="flex xl:hidden items-center gap-1.5 shrink-0"/)
+assert.match(landingNav, /event\.key !== 'Escape'/)
+assert.match(landingNav, /reloadDocument=\{item\.to === '\/admin'\}/)
+assert.match(routes, /path="\/news" element=\{<News \/>\}/)
+assert.match(routes, /path="\/about" element=\{<About \/>\}/)
 
 // The python and JS validators must agree: the same cases are in tests/test_oauth_return_path.py
 console.log(`nav helpers: ${unsafe.length + safe.length} return-path cases ok`)

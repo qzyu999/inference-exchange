@@ -1,15 +1,48 @@
 // Landing navigation and safe sign-in return paths (#107, AUTH-018).
 // Plain JS (with nav.d.ts) so `node src/lib/nav.test.mjs` can test it.
 
-export const LANDING_LINKS = [
-  { to: '/start', label: 'Getting Started' },
-  { to: '/chat', label: 'Chat' },
-  { to: '/exchange', label: 'Exchange' },
-  { to: '/models', label: 'Models' },
-  { to: '/providers', label: 'Providers' },
-  { to: '/provide', label: 'Offer Compute' },
-  { to: '/docs', label: 'Docs' },
+import { canShowAdminConsole, canShowProviderDashboard } from './role-nav.js'
+
+const LANDING_GROUPS = [
+  { id: 'use-ai', label: 'Use AI', side: 'left', items: [
+    { to: '/chat', label: 'Chat' },
+    { to: '/models', label: 'Models' },
+    { to: '/exchange', label: 'Exchange' },
+  ] },
+  { id: 'provide', label: 'Provide compute', side: 'left', items: [
+    { to: '/provide', label: 'Become a provider' },
+    { to: '/dashboard', label: 'Provider dashboard', signedInOnly: true },
+  ] },
+  { id: 'network', label: 'Network', side: 'right', items: [
+    { to: '/overview', label: 'Overview' },
+    { to: '/providers', label: 'Providers' },
+  ] },
+  { id: 'resources', label: 'Resources', side: 'right', items: [
+    { to: '/start', label: 'Getting Started' },
+    { to: '/docs', label: 'Documentation' },
+    { to: '/news', label: 'News', dividerBefore: true },
+    { to: '/about', label: 'About Us' },
+  ] },
 ]
+
+export function getLandingGroups(user) {
+  return LANDING_GROUPS.map(group => ({ ...group,
+    items: group.items.filter(item => !item.signedInOnly || canShowProviderDashboard(user)),
+  }))
+}
+
+export const LANDING_LINKS = getLandingGroups(null).flatMap(group => group.items)
+
+export function getLandingAccountLinks(user) {
+  if (!user?.user_id) return []
+  return [
+    { to: '/keys', label: 'API keys' },
+    { to: '/billing', label: 'Account & billing' },
+    { to: '/settings', label: 'Settings' },
+    ...(canShowProviderDashboard(user) ? [{ to: '/dashboard', label: 'Provider dashboard' }] : []),
+    ...(canShowAdminConsole(user) ? [{ to: '/admin', label: 'Admin Console' }] : []),
+  ]
+}
 
 /** Same rules as oauth_github.safe_next_path: a same-origin app path or the fallback. */
 export function safeNextPath(value, fallback = '/chat') {
