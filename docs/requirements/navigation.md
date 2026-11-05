@@ -10,7 +10,9 @@ MUST: A signed-out visitor can reach sign-in from the first viewport. The existi
 
 MUST: Each dropdown supports click, keyboard focus, and Escape. Escape restores focus to its trigger. Navigation, outside clicks, and focus leaving the header close the dropdowns. On narrow screens, categories expand inside a scrollable menu.
 
-MUST: At the top, uppercase brand lettering has the same visible height as its icon. Narrow screens may stack the two words. Scrolling down collapses the wordmark to the centered icon. Returning near the top restores the wordmark. The transition does not move adjacent controls. Reduced-motion users receive the same states without animation.
+MUST: At the top, the brand uses restrained uppercase lettering and a larger icon. The compact icon is anchored to the viewport center, independent of the wordmark and account width. Narrow screens may stack the two words. Scrolling down collapses the wordmark to the centered icon. Returning near the top restores the wordmark. The transition does not move adjacent controls. Reduced-motion users receive the same states without animation.
+
+MUST: Desktop categories use rounded pill triggers. A mouse can open a dropdown by hovering over its category. The pointer can cross the gap into the dropdown without closing it. A short exit delay permits pointer travel. Touch and keyboard controls remain available.
 
 - Principle: P2, P6, P8
 - Status: implemented

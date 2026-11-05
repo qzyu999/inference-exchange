@@ -81,7 +81,12 @@ for (const y of [24, 40, 80, NaN, Infinity]) {
   assert.equal(nextBrandCompact(y, true), true)
 }
 const navStyles = readFileSync(new URL('../components/landing-nav.css', import.meta.url), 'utf8')
-assert.match(navStyles, /--brand-icon-size:1cap/)
+assert.match(navStyles, /--brand-icon-size:44px/)
+assert.match(navStyles, /left:50%;top:50%;transform:translate\(-50%,-50%\)/)
+assert.match(navStyles, /border-radius:999px/)
+assert.match(landingNav, /onPointerEnter=/)
+assert.match(landingNav, /onPointerLeave=/)
+assert.match(landingNav, /event\.pointerType !== 'mouse'/)
 assert.match(navStyles, /prefers-reduced-motion:reduce/)
 assert.match(landingNav, /aria-label="Inference Exchange home"/)
 assert.match(landingNav, /passive: true/)
