@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
-import { landscapeGeometry } from './landscape-geometry.js'
+import { landscapeGeometry, bridgeMotionPath } from './landscape-geometry.js'
 
 // Optical offset scales with the actual source image, including cover crops.
 for (const width of [320, 960, 1440]) {
@@ -24,6 +24,12 @@ assert.match(bridge, /Use AI/)
 assert.match(bridge, /Provide compute/)
 assert.match(styles, /pointer-events:none/)
 assert.match(styles, /prefers-reduced-motion:reduce/)
-assert.match(styles, /animation-play-state:paused/)
-assert.match(landing, /aria-pressed=\{bridgePaused\}/)
-console.log('Landscape: source-space alignment, cover geometry and decorative motion controls passed')
+assert.match(styles, /width:7px;height:7px;border-radius:50%/)
+assert.doesNotMatch(bridge, /<circle/)
+assert.match(landing, /showBridge=\{!rawVideoOnly\}/)
+assert.doesNotMatch(landing, /Pause connection|Play connection|bridgePaused/)
+assert.equal(bridgeMotionPath(1000, 1000), 'M220 740 C390 850 590 610 780 700')
+assert.equal(bridgeMotionPath(2000, 500), 'M440 370 C780 425 1180 305 1560 350')
+assert.match(bridge, /offsetPath: `path/)
+assert.match(bridge, /!reducedMotion/)
+console.log('Landscape: source-space alignment, cover geometry and round marker paths and all-chapter visibility passed')
