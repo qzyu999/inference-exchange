@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { useAuth } from '../lib/auth'
-import { getLandingGroups, getLandingAccountLinks, authState, loginHref, type LandingGroup } from '../lib/nav.js'
+import { getLandingGroups, getLandingAccountLinks, authState, loginHref, nextBrandCompact, type LandingGroup } from '../lib/nav.js'
 import { C, GRADIENTS, HERO_PIGMENTS as HP } from '../lib/theme'
 import './landing-nav.css'
 
@@ -14,6 +14,7 @@ function Chevron() {
 export function LandingNav() {
   const { user, loading, logout } = useAuth()
   const location = useLocation()
+  const [brandCompact, setBrandCompact] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
   const [activeMenu, setActiveMenu] = useState<string | null>(null)
   const headerRef = useRef<HTMLElement>(null)
@@ -52,6 +53,24 @@ export function LandingNav() {
       document.removeEventListener('keydown', onKey)
     }
   }, [activeMenu, mobileOpen])
+
+  // Read scroll at most once per frame. React updates only at the thresholds.
+  useEffect(() => {
+    let frame: number | null = null
+    const update = () => {
+      frame = null
+      setBrandCompact(current => nextBrandCompact(window.scrollY, current))
+    }
+    const onScroll = () => {
+      if (frame === null) frame = window.requestAnimationFrame(update)
+    }
+    update() // Includes restored scroll positions on a direct page load.
+    window.addEventListener('scroll', onScroll, { passive: true })
+    return () => {
+      window.removeEventListener('scroll', onScroll)
+      if (frame !== null) window.cancelAnimationFrame(frame)
+    }
+  }, [])
 
   // A breakpoint change closes disclosures that are no longer visible.
   useEffect(() => {
@@ -105,7 +124,7 @@ export function LandingNav() {
         </div>
 
   return (
-    <header ref={headerRef} className="ie-public-nav" style={{ background: GRADIENTS.sidebar, color: HP.cream }}
+    <header ref={headerRef} className="ie-public-nav" data-brand-compact={brandCompact} style={{ background: GRADIENTS.sidebar, color: HP.cream }}
       onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) closeMenus() }}>
       <a href={location.pathname === '/' ? '#landing-main' : '#public-main'} className={`ie-public-nav-skip sr-only focus:not-sr-only ${FOCUS}`} style={{ background: HP.cream, color: C.blueBlack }}>Skip to content</a>
       <nav aria-label="Main" className="ie-public-nav-row">
@@ -119,7 +138,7 @@ export function LandingNav() {
         </div>
         <Link to="/" aria-label="Inference Exchange home" onClick={closeMenus} className={`ie-public-nav-brand ${FOCUS}`}>
           <img src="/logo-icon.svg" alt="" width="28" height="28" />
-          <span className="mineral-spectrum-text hero-mineral-wordmark">Inference Exchange</span>
+          <span aria-hidden="true" className="ie-public-nav-wordmark mineral-spectrum-text hero-mineral-wordmark"><span className="ie-public-nav-word">Inference</span>{' '}<span className="ie-public-nav-word">Exchange</span></span>
         </Link>
         <div className="ie-public-nav-right">
           <ul className="ie-public-nav-desktop">{groups.filter(group => group.side === 'right').map(group => groupMenu(group))}</ul>

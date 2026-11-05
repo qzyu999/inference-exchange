@@ -1,7 +1,7 @@
 // Run: node web/src/lib/nav.test.mjs  (#107, AUTH-018)
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
-import { LANDING_LINKS, getLandingGroups, getLandingAccountLinks, authState, githubLoginHref, loginHref, safeNextPath } from './nav.js'
+import { LANDING_LINKS, getLandingGroups, getLandingAccountLinks, nextBrandCompact, authState, githubLoginHref, loginHref, safeNextPath } from './nav.js'
 
 // Open-redirect cases must fall back
 const unsafe = [
@@ -67,6 +67,24 @@ assert.match(landingNav, /event\.key !== 'Escape'/)
 assert.match(landingNav, /reloadDocument=\{item\.to === '\/admin'\}/)
 assert.match(routes, /path="\/news" element=\{<News \/>\}/)
 assert.match(routes, /path="\/about" element=\{<About \/>\}/)
+
+// A scroll deadband prevents repeated toggles while the page rests near a threshold.
+assert.equal(nextBrandCompact(0, true), false)
+assert.equal(nextBrandCompact(-10, true), false)
+assert.equal(nextBrandCompact(23, true), false)
+assert.equal(nextBrandCompact(24, true), true)
+assert.equal(nextBrandCompact(80, false), false)
+assert.equal(nextBrandCompact(81, false), true)
+assert.equal(nextBrandCompact(1000, false), true)
+for (const y of [24, 40, 80, NaN, Infinity]) {
+  assert.equal(nextBrandCompact(y, false), false)
+  assert.equal(nextBrandCompact(y, true), true)
+}
+const navStyles = readFileSync(new URL('../components/landing-nav.css', import.meta.url), 'utf8')
+assert.match(navStyles, /--brand-icon-size:1cap/)
+assert.match(navStyles, /prefers-reduced-motion:reduce/)
+assert.match(landingNav, /aria-label="Inference Exchange home"/)
+assert.match(landingNav, /passive: true/)
 
 // The python and JS validators must agree: the same cases are in tests/test_oauth_return_path.py
 console.log(`nav helpers: ${unsafe.length + safe.length} return-path cases ok`)

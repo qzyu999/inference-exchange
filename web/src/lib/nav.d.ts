@@ -7,3 +7,5 @@ export function safeNextPath(value: unknown, fallback?: string): string
 export function loginHref(from: string): string
 export function githubLoginHref(next: string | null | undefined): string
 export function authState(loading: boolean, user: unknown): 'loading' | 'signed-in' | 'signed-out'
+
+export function nextBrandCompact(scrollY: number, compact: boolean): boolean
