@@ -7,7 +7,7 @@ import { HeroScene } from '../components/HeroScene'
 import { LandingNav } from '../components/LandingNav'
 import { MineralFlowField } from '../components/MineralFlowField'
 import { LandscapeVideo } from '../components/LandscapeVideo'
-import { STORY_CHAPTERS } from '../components/ScrollChapterRail'
+import { ScrollChapterRail, STORY_CHAPTERS } from '../components/ScrollChapterRail'
 
 const NAV_HEIGHT = 56
 const LAST_CHAPTER = STORY_CHAPTERS.length - 1
@@ -84,13 +84,11 @@ function useScrollUnits(ref: React.RefObject<HTMLDivElement | null>) {
 
 // Intro + all six verbatim original main transition messages.
 const CHAPTER_COPY = [
-  { title: 'Inference Exchange', description: 'An open market for AI inference. Send OpenAI-compatible requests; providers with spare hardware compete to serve them.' },
-  { title: 'Supply meets demand' },
-  { title: 'Two forces converge', description: 'Consumers bid. Providers offer. The exchange matches.' },
-  { title: 'The intersection is the product' },
-  { title: 'Trust is labelled, not assumed', description: 'Providers report a trust level. The exchange shows it as claimed until evidence verifies it.' },
-  { title: 'Providers compete. You benefit.', description: 'Price, speed, privacy — the matching engine optimizes for what you care about.' },
-  { title: 'Distributed AI inference, powered by everyone.' },
+  { title: 'Inference Exchange', description: 'Empowering and enabling everybody everywhere with affordable AI.' },
+  { title: 'Supply meets demand', description: "The freedom to create, tinker and invent the future with AI, whether you're in San Francisco or the Global South." },
+  { title: 'Community-driven action', description: 'Consume from an OpenAI-compatible API, or provide your idle compute and earn passive income.' },
+  { title: 'Security constraints built on the Open Confidential Inference Protocol (OCIP)', description: 'Know exactly the assumptions and limitations when working with consumer hardware' },
+  { title: 'Distributed AI inference, powered by everyone, for everyone.' },
 ] as const
 
 // The pinned story uses the original main text styling (not the later
@@ -160,8 +158,6 @@ function EditorialStory({
     >
       {CHAPTER_COPY.map((chapter, index) => {
         const visible = index === activeIndex
-        // Main's original intro and six static transition styles. The seven
-        // pinned holds/crossfades are the only deliberate pacing change.
         const shortTitle = index === 0 ? chapter.title : (
           <span
             className="hero-mani-heading-pigment bg-clip-text text-transparent"
@@ -302,14 +298,6 @@ function LiveExchangeCard() {
         )}
       </div>
 
-      <div className="mt-5 pt-4" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
-        <div className="hero-mani-meta text-xs uppercase tracking-wider" style={{ color: '#F0C978' }}>
-          Trust levels are claims
-        </div>
-        <div className="hero-mani-meta text-[13px] leading-relaxed mt-1" style={{ color: '#F4E8D4' }}>
-          Shown as self-reported until verified.
-        </div>
-      </div>
     </div>
   )
 }
@@ -354,8 +342,7 @@ export function Landing() {
   }, [])
 
   // Keep the browser's native, continuous scroll momentum. This page must
-  // never trap trackpad/wheel input with mandatory snapping. The original
-  // landing had no RHS chapter rail; the intro Explore action remains.
+  // never trap trackpad/wheel input with mandatory snapping.
   useEffect(() => {
     const root = document.documentElement
     const previousType = root.style.scrollSnapType
@@ -434,6 +421,7 @@ export function Landing() {
               onNext={() => navigateToChapter(1)}
             />
           )}
+          {storyEnabled && <ScrollChapterRail activeIndex={activeIndex} onSelect={navigateToChapter} />}
           {SHOW_ALIGNMENT_GUIDES && (
             <div className="pointer-events-none absolute inset-0 z-50" aria-hidden="true">
               <div className="absolute inset-y-0 left-1/2 border-l border-dashed border-amber-300/90" />
@@ -475,13 +463,12 @@ export function Landing() {
                       className="hero-mani-heading-pigment bg-clip-text text-transparent"
                       style={{ backgroundImage: HERO_PRODUCT_GRADIENT }}
                     >
-                      powered by everyone.
+                      powered by everyone, for everyone.
                     </span>
                   </h2>
 
                   <p className="text-base md:text-lg mt-6 leading-relaxed max-w-md" style={{ color: '#F5E9D6', textShadow: '0 1px 2px rgba(11,16,23,0.72)' }}>
-                    OpenAI-compatible inference with a live supply side.
-                    Your request is routed by price, speed and trust. Providers compete to serve it.
+                    OpenAI-compatible API, where requests are routed by price, quantization, and trust.
                   </p>
 
                   <div className="flex flex-wrap gap-3 mt-8">
@@ -506,7 +493,7 @@ export function Landing() {
             </section>
           )}
         </div>
-        {/* Six original message transitions with smooth holds plus extended 2.2-viewport
+        {/* Chapter transitions with smooth holds plus extended 2.2-viewport
             GPU-sand transition. A final reading hold keeps the in-place product
             visible without introducing nested desktop scrolling or a new page. */}
         {storyEnabled && STORY_CHAPTERS.slice(0, -1).map(chapter => (
