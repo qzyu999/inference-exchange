@@ -20,14 +20,25 @@ export function LandingNav() {
   const headerRef = useRef<HTMLElement>(null)
   const mobileButtonRef = useRef<HTMLButtonElement>(null)
   const triggerRefs = useRef<Record<string, HTMLButtonElement | null>>({})
+  const hoverCloseTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const hoverOpened = useRef<string | null>(null)
   const groups = getLandingGroups(user)
   const accountLinks = getLandingAccountLinks(user)
   const state = authState(loading, user)
 
+  function cancelHoverClose() {
+    if (hoverCloseTimer.current !== null) clearTimeout(hoverCloseTimer.current)
+    hoverCloseTimer.current = null
+  }
+
   function closeMenus() {
+    cancelHoverClose()
+    hoverOpened.current = null
     setActiveMenu(null)
     setMobileOpen(false)
   }
+
+  useEffect(() => () => cancelHoverClose(), [])
 
   useEffect(() => { closeMenus() }, [location.pathname, location.search])
 
@@ -38,6 +49,8 @@ export function LandingNav() {
     }
     const onKey = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return
+      cancelHoverClose()
+      hoverOpened.current = null
       if (activeMenu) {
         triggerRefs.current[activeMenu]?.focus()
         setActiveMenu(null)
@@ -86,10 +99,35 @@ export function LandingNav() {
     const id = `${mobile ? 'mobile' : 'desktop'}-${group.id}`
     const expanded = activeMenu === id
     return (
-      <li className="ie-public-nav-group" key={id}>
+      <li className="ie-public-nav-group" key={id}
+        onPointerEnter={event => {
+          if (mobile || event.pointerType !== 'mouse' || !window.matchMedia('(hover: hover) and (pointer: fine)').matches) return
+          cancelHoverClose()
+          if (activeMenu !== id) {
+            hoverOpened.current = id
+            setActiveMenu(id)
+          }
+        }}
+        onPointerLeave={event => {
+          if (mobile || event.pointerType !== 'mouse') return
+          cancelHoverClose()
+          if (event.currentTarget.contains(document.activeElement)) return
+          hoverCloseTimer.current = setTimeout(() => {
+            hoverCloseTimer.current = null
+            hoverOpened.current = null
+            setActiveMenu(current => current === id ? null : current)
+          }, 180)
+        }}>
         <button type="button" ref={node => { triggerRefs.current[id] = node }}
           className={`ie-public-nav-trigger hero-mani-nav ${FOCUS}`}
-          aria-expanded={expanded} aria-controls={`${id}-links`} onClick={() => toggle(id)}>
+          aria-expanded={expanded} aria-controls={`${id}-links`} onClick={() => {
+            cancelHoverClose()
+            // The first click pins a hover-opened menu instead of closing it.
+            if (hoverOpened.current === id) {
+              hoverOpened.current = null
+              setActiveMenu(id)
+            } else toggle(id)
+          }}>
           {group.label}<Chevron />
         </button>
         <ul id={`${id}-links`} hidden={!expanded} className={mobile ? 'ie-public-nav-sublist' : 'ie-public-nav-dropdown'}>
