@@ -74,3 +74,11 @@ export function authState(loading, user) {
   if (user) return 'signed-in'
   return loading ? 'loading' : 'signed-out'
 }
+
+/** Separate thresholds prevent flicker near the top of the page. */
+export function nextBrandCompact(scrollY, compact) {
+  if (!Number.isFinite(scrollY)) return compact
+  if (scrollY > 80) return true
+  if (scrollY < 24) return false
+  return compact
+}
