@@ -165,6 +165,9 @@ export interface Trace {
     selected: boolean
   }>
   providers_evaluated?: number
+  reason?: string
+  min_confidence?: string
+  max_price?: number | null
 }
 
 export interface ReputationEntry {

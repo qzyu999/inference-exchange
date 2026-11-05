@@ -2,9 +2,17 @@ import { useState } from 'react'
 import { useSearchParams, Link } from 'react-router-dom'
 import useSWR from 'swr'
 import { api } from '../lib/api'
+import { requestOutcome } from '../lib/request-outcomes.js'
 import { formatUsdPrecise, microToUsd } from '../lib/money.js'
 import { requestedModelLabel, servedModelLabel } from '../lib/model-attribution.js'
 import { UI, APP_TRUST_COLORS as TRUST_COLORS } from '../lib/theme'
+
+const OUTCOME_SURFACES = {
+  success: UI.successSurface,
+  warning: UI.warningSurface,
+  danger: UI.dangerSurface,
+  muted: UI.surfaceMuted,
+}
 
 const DOT_COLORS: Record<string, string> = {
   green: UI.success, gold: UI.accent, blue: UI.info, red: UI.danger, gray: UI.muted,
@@ -63,13 +71,13 @@ export function Trace() {
   const traces = traceData?.traces || []
   const trace = requestId
     ? traces.find((t: any) => t.request_id === requestId)
-    : traces.length > 0 ? traces[traces.length - 1] : null
+    : traces[0] || null
 
   if (!trace) {
     return (
       <div className="max-w-2xl mx-auto text-center py-16">
         <div className="text-sm" style={{ color: UI.muted }}>
-          {requestId ? `Trace ${requestId} not found` : 'No completed requests to inspect yet.'}
+          {requestId ? `Trace ${requestId} not found` : 'No recent requests to inspect yet.'}
         </div>
         <div className="text-xs mt-2" style={{ color: UI.muted }}>
           Send a chat request, then come back here to inspect the evidence.
@@ -79,7 +87,13 @@ export function Trace() {
     )
   }
 
-  const isCompleted = ['completed', 'matched', 'matched_from_queue'].includes(trace.status)
+  const isCompleted = trace.status === 'completed'
+  const outcome = requestOutcome(trace.status)
+  const requestedTrust = trace.min_confidence
+    ? TRUST_COLORS[trace.min_confidence]?.label || trace.min_confidence
+    : 'Not recorded'
+  const priceCeiling = trace.max_price === null ? 'No ceiling'
+    : trace.max_price == null ? 'Not recorded' : `$${trace.max_price}/M tokens`
   const provider = trace.selected_provider || 'unknown'
   const trust = trace.selected_trust || 'unknown'
   const price = trace.selected_price
@@ -108,29 +122,52 @@ export function Trace() {
     <div className="max-w-3xl space-y-6">
       {/* Request header */}
       <div className="bg-ui-surface rounded-2xl border border-ui-border px-6 py-4">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h2 className="text-lg font-bold font-mono" style={{ color: UI.text }}>{trace.request_id}</h2>
             <div className="text-xs mt-0.5" style={{ color: UI.muted }}>
               {requestedModelLabel(billingTx || trace)}
               {' · '}{trace.providers_evaluated || scoring.length} provider{(trace.providers_evaluated || scoring.length) !== 1 ? 's' : ''} evaluated
-              {preference && ` · ${preference} routing`}
+              {trace.preference && ` · ${trace.preference} routing`}
             </div>
           </div>
           <span className="text-[11px] font-medium px-3 py-1 rounded-full"
-            style={{ background: isCompleted ? UI.successSurface : UI.dangerSurface, color: isCompleted ? UI.success : UI.danger }}>
-            {isCompleted ? 'Completed' : trace.status}
+            style={{ background: OUTCOME_SURFACES[outcome.tone], color: UI[outcome.tone] }}>
+            {outcome.label}
           </span>
         </div>
       </div>
 
-      {/* Step timeline */}
-      <div className="bg-ui-surface rounded-2xl border border-ui-border overflow-hidden">
+      <section className="rounded-2xl border border-ui-border bg-ui-surface p-5 space-y-3" aria-label="Request outcome details">
+        {trace.reason && <p className="text-sm text-ui-body">{trace.reason}</p>}
+        <dl className="flex flex-wrap gap-x-6 gap-y-3 text-xs">
+          <div>
+            <dt className="text-ui-muted">Status code</dt>
+            <dd className="font-mono text-ui-text">{trace.status}</dd>
+          </div>
+          <div>
+            <dt className="text-ui-muted">Requested trust</dt>
+            <dd className="text-ui-text">{requestedTrust}</dd>
+          </div>
+          <div>
+            <dt className="text-ui-muted">Output price ceiling</dt>
+            <dd className="text-ui-text">{priceCeiling}</dd>
+          </div>
+          <div>
+            <dt className="text-ui-muted">Time</dt>
+            <dd className="text-ui-text">{new Date(trace.timestamp * 1000).toLocaleString()}</dd>
+          </div>
+        </dl>
+        {!trace.selected_provider && <p className="text-sm text-ui-muted">No provider selection was recorded for this request.</p>}
+      </section>
+
+      {/* Execution evidence requires a recorded provider selection. */}
+      {trace.selected_provider && <div className="bg-ui-surface rounded-2xl border border-ui-border overflow-hidden">
         {/* 01 MATCH */}
         <TraceStep
           number="01" label="MATCH" value={provider}
           detail={`Chosen for ${trustLabel}${price != null ? ` · $${price.toFixed(2)}/M` : ''}${selectedTps > 0 ? ` · ${selectedTps.toFixed(0)} tok/s` : ''}`}
-          dot={isCompleted ? 'green' : 'red'}
+          dot="green"
           expanded={expandedStep === '01'} onToggle={() => toggle('01')}
         >
           <div className="space-y-3">
@@ -232,7 +269,7 @@ export function Trace() {
         {/* 04 INFERENCE */}
         <TraceStep
           number="04" label="INFERENCE"
-          value={selectedTps > 0 ? `${selectedTps.toFixed(0)} tok/s` : '—'}
+          value={isCompleted ? selectedTps > 0 ? `${selectedTps.toFixed(0)} tok/s` : 'Completed' : 'Completion unconfirmed'}
           detail={`Observed throughput for this request · ${servedModelLabel(billingTx || trace)}`}
           dot="blue"
           expanded={expandedStep === '04'} onToggle={() => toggle('04')}
@@ -250,7 +287,7 @@ export function Trace() {
         {/* 05 BILLING */}
         <TraceStep
           number="05" label="BILLING"
-          value={billingTx ? formatUsdPrecise(billingTx.cost_usd) : trace.cost_usd != null ? formatUsdPrecise(trace.cost_usd) : price != null ? `$${price.toFixed(2)}/M` : '—'}
+          value={billingTx ? formatUsdPrecise(billingTx.cost_usd) : trace.cost_usd != null ? formatUsdPrecise(trace.cost_usd) : 'Charge not recorded'}
           detail="90% provider · 10% exchange"
           dot="gold"
           expanded={expandedStep === '05'} onToggle={() => toggle('05')}
@@ -301,36 +338,9 @@ export function Trace() {
           </div>
         </TraceStep>
 
-        {/* 06 FALLBACK */}
-        <TraceStep
-          number="06" label="FALLBACK"
-          value={isCompleted ? 'Not used' : trace.status === 'no_provider' ? 'No providers available' : trace.status}
-          detail={isCompleted
-            ? 'Exchange served the request directly'
-            : trace.status === 'no_provider'
-              ? 'No eligible providers were connected at request time'
-              : `Request ended with status: ${trace.status}`}
-          dot={isCompleted ? 'green' : 'red'}
-          expanded={expandedStep === '06'} onToggle={() => toggle('06')}
-        >
-          <div className="space-y-1.5">
-            {isCompleted ? (
-              <>
-                <div>Fallback was not triggered — the exchange matched and served the request.</div>
-                <div>If fallback were configured (e.g. OpenRouter), it would activate only when no eligible exchange provider exists.</div>
-              </>
-            ) : (
-              <>
-                <div>Request status: {trace.status}</div>
-                <div>This could indicate: no providers online, all providers exceeded price ceiling, trust minimum not met, or provider failed during inference.</div>
-                {trace.status !== 'no_provider' && (
-                  <div>Note: a non-completed status does not necessarily mean fallback was used. Verify with coordinator logs.</div>
-                )}
-              </>
-            )}
-          </div>
-        </TraceStep>
-      </div>
+        <TraceStep number="06" label="FALLBACK" value="Not recorded"
+          detail="Fallback evidence is unavailable in this trace." dot="gray" />
+      </div>}
 
       {/* Evidence footer */}
       <div className="flex items-center justify-between">
@@ -352,20 +362,21 @@ export function Trace() {
             Recent Traces
           </div>
           <div className="space-y-1">
-            {[...traces].reverse().slice(0, 10).map((t: any) => {
+            {traces.slice(0, 10).map(t => {
               const isCurrent = t.request_id === trace.request_id
-              const ok = ['completed', 'matched', 'matched_from_queue'].includes(t.status)
+              const rowOutcome = requestOutcome(t.status)
               const time = new Date(t.timestamp * 1000).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit' })
               return (
                 <Link key={t.request_id} to={`/trace?id=${t.request_id}`}
                   className="flex items-center gap-3 py-2 px-3 rounded-lg transition-colors"
                   style={{ background: isCurrent ? UI.warningSurface : 'transparent' }}>
-                  <span className="w-2 h-2 rounded-full shrink-0" style={{ background: ok ? UI.success : UI.danger }} />
+                  <span className="w-2 h-2 rounded-full shrink-0" style={{ background: UI[rowOutcome.tone] }} />
                   <span className="text-xs font-mono flex-1 truncate" style={{ color: isCurrent ? UI.accent : UI.muted }}>
                     {t.request_id}
                   </span>
                   <span className="text-[10px]" style={{ color: UI.muted }}>{time}</span>
                   <span className="text-xs" style={{ color: UI.muted }}>{t.model === 'default' ? 'any' : t.model}</span>
+                  <span className="text-[10px]" style={{ color: UI[rowOutcome.tone] }}>{rowOutcome.label}</span>
                   {t.selected_trust && (
                     <span className="text-[8px] px-1.5 py-0.5 rounded-full"
                       style={{ background: (TRUST_COLORS[t.selected_trust] || TRUST_COLORS.open).bg, color: (TRUST_COLORS[t.selected_trust] || TRUST_COLORS.open).text }}>
