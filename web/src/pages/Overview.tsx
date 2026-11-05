@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import useSWR from 'swr'
 import { Link } from 'react-router-dom'
 import { api } from '../lib/api'
+import { requestOutcome } from '../lib/request-outcomes.js'
 import { formatUsd } from '../lib/money.js'
 import { UI, APP_TRUST_COLORS as TRUST_COLORS } from '../lib/theme'
 
@@ -26,7 +27,15 @@ export function Overview() {
   const routedTraces = traces.filter((t: any) => ['completed', 'matched', 'matched_from_queue'].includes(t.status))
 
   // Recent activity (last 10 traces)
-  const recentTraces = [...traces].reverse().slice(0, 10)
+  // The API returns newest first. Preserve that order when taking the window.
+  const recentTraces = traces.slice(0, 10)
+  const outcomes = traces.map(t => requestOutcome(t.status))
+  const outcomeCounts = [
+    { label: 'Completed', group: 'completed', color: UI.success },
+    { label: 'Routed · completion unconfirmed', group: 'routed', color: UI.warning },
+    { label: 'Rejected', group: 'rejected', color: UI.danger },
+    { label: 'Other', group: 'other', color: UI.muted },
+  ].map(item => ({ ...item, count: outcomes.filter(outcome => outcome.group === item.group).length }))
 
   // Live event feed
   const [events, setEvents] = useState<Array<any>>([])
@@ -70,36 +79,45 @@ export function Overview() {
           </div>
           <h2 className="text-lg font-bold mb-4" style={{ color: UI.text }}>Request outcomes</h2>
 
-          <div className="flex items-center gap-6 mb-4">
-            <div className="flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full" style={{ background: UI.success }} />
-              <span className="text-sm" style={{ color: UI.success }}>Matched or completed</span>
-              <span className="text-sm font-semibold" style={{ color: UI.text }}>{routedTraces.length}</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full" style={{ background: UI.track }} />
-              <span className="text-sm" style={{ color: UI.body }}>Other statuses</span>
-              <span className="text-sm font-semibold" style={{ color: UI.text }}>{traces.length - routedTraces.length}</span>
-            </div>
+          <p className="text-xs text-ui-muted mb-3">
+            Showing {recentTraces.length} of {traces.length} recent requests, newest first.
+            Counts cover all {traces.length}. Updates automatically; earlier attempts remain in history.
+          </p>
+          <div className="flex flex-wrap gap-x-5 gap-y-2 mb-4">
+            {outcomeCounts.filter(item => item.count > 0).map(item => (
+              <div key={item.group} className="flex items-center gap-2 text-sm">
+                <span style={{ color: item.color }}>{item.label}</span>
+                <span className="font-semibold text-ui-text">{item.count}</span>
+              </div>
+            ))}
           </div>
 
-          {/* Do not use random bar heights for unmeasured request statistics. */}
           {recentTraces.length > 0 ? (
-            <ul className="space-y-1.5">
-              {recentTraces.map((t: any, i: number) => (
-                <li key={t.request_id || i}>
-                  <Link to={`/trace?id=${encodeURIComponent(t.request_id || '')}`}
-                    className="flex items-center justify-between gap-3 rounded-lg border border-ui-border px-3 py-2 text-xs hover:bg-ui-hover">
-                    <span className="truncate" style={{ color: UI.text }}>{t.model || 'Unspecified model'}</span>
-                    <span className="shrink-0" style={{ color: UI.body }}>{t.status || 'unknown'}</span>
-                  </Link>
-                </li>
-              ))}
-            </ul>
+            <ol className="space-y-2" aria-label="Recent requests, newest first">
+              {recentTraces.map(t => {
+                const outcome = requestOutcome(t.status)
+                return (
+                  <li key={t.request_id}>
+                    <Link to={`/trace?id=${encodeURIComponent(t.request_id)}`}
+                      className="block rounded-lg border border-ui-border px-3 py-3 text-xs hover:bg-ui-hover">
+                      <div className="flex flex-wrap items-start justify-between gap-2">
+                        <span className="min-w-0 break-words font-medium text-ui-text">{t.model || 'Unspecified model'}</span>
+                        <span style={{ color: UI[outcome.tone] }}>{outcome.label}</span>
+                      </div>
+                      <div className="flex flex-wrap gap-x-3 gap-y-1 mt-1 text-ui-muted">
+                        <span className="font-mono">{t.request_id}</span>
+                        <time dateTime={new Date(t.timestamp * 1000).toISOString()}>
+                          {new Date(t.timestamp * 1000).toLocaleString()}
+                        </time>
+                      </div>
+                      {t.reason && <p className="mt-2 text-ui-body line-clamp-2" title={t.reason}>{t.reason}</p>}
+                    </Link>
+                  </li>
+                )
+              })}
+            </ol>
           ) : (
-            <div className="text-xs text-center py-8" style={{ color: UI.muted }}>
-              No request traces yet.
-            </div>
+            <div className="text-xs text-center py-8 text-ui-muted">No request traces yet.</div>
           )}
 
           {/* Fleet capacity */}
