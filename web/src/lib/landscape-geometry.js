@@ -16,3 +16,8 @@ export function landscapeGeometry(width, height, aspect) {
     axisOffset: (SUMMIT_X - 0.5) * imageWidth,
   }
 }
+
+// Use the same normalized curve for the SVG line and the unscaled HTML marker.
+export function bridgeMotionPath(width, height) {
+  return `M${0.22 * width} ${0.74 * height} C${0.39 * width} ${0.85 * height} ${0.59 * width} ${0.61 * height} ${0.78 * width} ${0.7 * height}`
+}

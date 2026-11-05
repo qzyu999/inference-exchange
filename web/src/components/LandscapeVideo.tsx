@@ -6,7 +6,6 @@ import { attachStreamHls } from '../lib/stream-hls.js'
 interface LandscapeVideoProps {
   progress: number
   showBridge?: boolean
-  bridgePaused?: boolean
   onVisualAxisChange?: (offset: number) => void
   reducedMotion: boolean
   onAvailabilityChange: (available: boolean) => void
@@ -98,7 +97,7 @@ function getVideoFraming(aspect: VideoAspect): {
  * - Save-Data, reduced motion, fatal HLS error or rollout-off: poster only.
  * Native Safari HLS returns synchronous cleanup for React StrictMode replay.
  */
-export function LandscapeVideo({ progress, reducedMotion, onAvailabilityChange, showBridge = false, bridgePaused = false, onVisualAxisChange }: LandscapeVideoProps) {
+export function LandscapeVideo({ progress, reducedMotion, onAvailabilityChange, showBridge = false, onVisualAxisChange }: LandscapeVideoProps) {
   const frameRef = useRef<HTMLDivElement>(null)
   const [frameSize, setFrameSize] = useState({ width: 0, height: 0 })
   const videoRef = useRef<HTMLVideoElement>(null)
@@ -269,7 +268,7 @@ export function LandscapeVideo({ progress, reducedMotion, onAvailabilityChange, 
           data-hero-edges={edges}
           data-landscape-frame="true"
         >
-          <LandscapeBridge geometry={geometry} visible={showBridge && (ready || posterReady)} paused={bridgePaused || reducedMotion} />
+          <LandscapeBridge geometry={geometry} visible={showBridge && (ready || posterReady)} reducedMotion={reducedMotion} />
           <video
             ref={videoRef}
             key={manifest}

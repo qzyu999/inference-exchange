@@ -20,9 +20,9 @@ MUST: Desktop categories use rounded pill triggers. A mouse can open a dropdown 
 
 ### NAV-002: Show an illustrative connection across the landscape
 
-MUST: The Supply meets demand and Community-driven action chapters show Use AI and Provide compute on opposite banks. A quiet animated line connects them. The layer follows the landscape framing behind the chapter text and tetrahedrons. It does not intercept pointer input or indicate actual request activity. Narrow screens hide the bank labels to keep the chapter text clear.
+MUST: All five landing chapters show Use AI and Provide compute on opposite banks. A quiet animated line connects them. The layer follows the landscape framing behind the chapter text and tetrahedrons. It does not intercept pointer input or indicate actual request activity. Narrow screens hide the bank labels to keep the chapter text clear.
 
-MUST: The user can pause the connection. Reduced-motion users see a static connection. The existing chapter copy, video colors, and security claims remain unchanged.
+MUST: The connection has no play or pause button. The moving marker stays circular at all landscape aspect ratios. Reduced-motion settings stop the animation. The connection fades with the landscape during the final exit. The existing chapter copy, video colors, and security claims remain unchanged.
 
 - Principle: P2, P8
 - Status: implemented
