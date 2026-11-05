@@ -152,6 +152,17 @@ assert.ok(contrast('#263A63', '#FFFDF7') >= 7, 'original untinted paper retains 
 for (const ink of ['#263A63', '#46546A', '#845918', '#31644E']) {
   assert.ok(contrast(ink, '#FFFDF7') >= 4.5, 'readable ink on original app paper: ' + ink)
 }
+const darkStart = css.match(/\.ie-app-appearance-scope\[data-appearance="dark"\] \.ie-app-content \.ie-start \{([^}]+)\}/)?.[1]
+assert.ok(darkStart, 'Getting Started colors must be scoped to Dark mode')
+assert.equal((start.match(/className="ie-start max-w-5xl/g) || []).length, 2)
+for (const token of ['ink', 'gold', 'link', 'jade']) {
+  const color = darkStart.match(new RegExp('--ie-start-' + token + ': (#[a-f0-9]{6});', 'i'))?.[1]
+  assert.ok(color, 'missing Getting Started color: ' + token)
+  assert.match(start, new RegExp('var\\(--ie-start-' + token + ','))
+  for (const surface of ['#353F47', '#313B43', '#44413B']) {
+    assert.ok(contrast(color, surface) >= 4.5, token + ' must be readable on ' + surface)
+  }
+}
 assert.ok(luminance('#F8F8F5') > 0.8, 'original main background should remain a light neutral')
 for (const name of [
   'Overview', 'Chat', 'Exchange', 'Models', 'Providers', 'Provide', 'Billing',

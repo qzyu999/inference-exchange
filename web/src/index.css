@@ -382,6 +382,23 @@ body {
 .ie-app-appearance-scope[data-appearance="dark"] .ie-app-content .docs-body pre {
   background: #1C252C;
 }
+
+.ie-app-appearance-scope[data-appearance="dark"] .ie-app-content .ie-start {
+  --ie-start-ink: #E8E4DA;
+  --ie-start-gold: #CEB78F;
+  --ie-start-link: #A9BDD4;
+  --ie-start-jade: #A6C1AE;
+  --ie-start-line: var(--ie-app-line);
+  --ie-start-surface: var(--ie-app-paper);
+  --ie-start-selected: #44413B;
+  --ie-start-next: #44413B;
+}
+.ie-app-appearance-scope[data-appearance="dark"] .ie-app-content .ie-start :is(.text-gray-600, .text-gray-700) {
+  color: #CBD2D4 !important;
+}
+.ie-app-appearance-scope[data-appearance="dark"] .ie-app-content .ie-start :is(.text-gray-400, .text-gray-500) {
+  color: #B7C2C7 !important;
+}
 @media (prefers-reduced-motion: reduce) {
   .ie-app-appearance-option { transition: none; }
 }
