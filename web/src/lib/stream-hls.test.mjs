@@ -100,17 +100,9 @@ const tintCSS = (await import('node:fs')).readFileSync(
 )
 assert.doesNotMatch(tintCSS, /\.hero-video-bedtime-tint\s*\{/)
 
-const appTintRule = tintCSS.match(
-  /\.ie-app-appearance-scope\[data-appearance="blue-light"\]::after \{([^}]+)\}/
-)?.[1]
-assert.ok(appTintRule, 'Night Shift appearance must remain available')
-for (const cssValue of [
-  'background: #FF995B;',
-  'opacity: 0.48;',
-  'mix-blend-mode: multiply;',
-]) {
-  assert.ok(appTintRule.includes(cssValue), 'Night Shift changed: ' + cssValue)
-}
+const appTheme = (await import('node:fs')).readFileSync(new URL('../app-theme.css', import.meta.url), 'utf8')
+assert.match(appTheme, /\.ie-app-appearance-scope\[data-appearance="blue-light"\] \{/,
+  'Night Shift retains its own app palette')
 
 // In the contained ultrawide layout, video touches the navbar and any
 // letterboxing/ambient poster blur is relegated to the bottom of the stage.

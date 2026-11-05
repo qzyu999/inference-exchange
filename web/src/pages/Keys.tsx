@@ -5,7 +5,7 @@ import { api, post } from '../lib/api'
 import { useAuth } from '../lib/auth'
 import { loginHref } from '../lib/nav.js'
 import { createUserKey } from '../lib/key-creation.js'
-import { C } from '../lib/theme'
+import { UI } from '../lib/theme'
 
 // Public alpha quick start. The key is supplied locally, never embedded in the page.
 const SDK_NONSTREAM = "import os\nfrom openai import OpenAI\n\nclient = OpenAI(\n    api_key=os.environ[\"IE_API_KEY\"],\n    base_url=\"https://alpha.inferenceex.com/v1\",\n)\nmodels = client.models.list().data\nif not models:\n    raise RuntimeError(\"No IE models are online\")\nmodel = models[0].id\n\nresult = client.chat.completions.create(\n    model=model,\n    messages=[{\"role\": \"user\", \"content\": \"Say hello.\"}],\n    extra_body={\"ocip_min_confidence\": \"open\"},\n)\nprint(result.choices[0].message.content)\n"
@@ -74,8 +74,8 @@ export function Keys() {
   if (!user) {
     return (
       <div className="max-w-md mx-auto text-center py-16">
-        <div className="text-sm mb-3" style={{ color: '#888' }}>Sign in to manage API keys</div>
-        <Link to={loginHref('/keys')} className="text-sm font-medium" style={{ color: C.gold }}>Sign in or create an account</Link>
+        <div className="text-sm mb-3" style={{ color: UI.muted }}>Sign in to manage API keys</div>
+        <Link to={loginHref('/keys')} className="text-sm font-medium" style={{ color: UI.accent }}>Sign in or create an account</Link>
       </div>
     )
   }
@@ -85,28 +85,28 @@ export function Keys() {
       {/* Two-column: Create + Your keys */}
       <div className="flex gap-5 flex-col lg:flex-row">
         {/* Create new key */}
-        <div className="flex-1 bg-white rounded-2xl border border-gray-200/40 p-5">
-          <div className="text-[10px] uppercase tracking-wider font-medium mb-3" style={{ color: C.gold }}>
+        <div className="flex-1 bg-ui-surface rounded-2xl border border-ui-border p-5">
+          <div className="text-[10px] uppercase tracking-wider font-medium mb-3" style={{ color: UI.accent }}>
             Create New Key
           </div>
 
           <div className="space-y-3">
             <div>
-              <div className="text-xs mb-1.5" style={{ color: '#888' }}>Name</div>
+              <div className="text-xs mb-1.5" style={{ color: UI.muted }}>Name</div>
               <input
                 type="text" value={newKeyName}
                 onChange={e => setNewKeyName(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && createKey()}
                 placeholder="e.g. production-agent"
-                className="w-full px-4 py-2.5 bg-transparent border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/20 placeholder:text-gray-300"
+                className="w-full px-4 py-2.5 bg-transparent border border-ui-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-ui-warning placeholder:text-ui-muted"
               />
             </div>
 
             <div>
-              <div className="text-xs mb-1.5" style={{ color: '#888' }}>Scope</div>
+              <div className="text-xs mb-1.5" style={{ color: UI.muted }}>Scope</div>
               <span
                 className="text-[11px] font-medium px-3 py-1 rounded-full"
-                style={{ background: '#fdf6ec', color: C.gold, border: '1px solid rgba(196,154,69,0.2)' }}
+                style={{ background: UI.warningSurface, color: UI.accent, border: "1px solid var(--ui-border)" }}
               >
                 Chat + Exchange
               </span>
@@ -116,25 +116,25 @@ export function Keys() {
               onClick={createKey}
               disabled={creating}
               className="px-5 py-2.5 rounded-xl text-sm font-medium transition-colors mt-2"
-              style={{ background: C.blueBlack, color: '#fff' }}
+              style={{ background: UI.action, color: UI.onAction }}
             >
               {creating ? 'Creating…' : 'Create key'}
             </button>
-            {createError && <p role="alert" className="text-xs text-red-700 mt-2">Could not create key: {createError}</p>}
+            {createError && <p role="alert" className="text-xs text-ui-danger mt-2">Could not create key: {createError}</p>}
           </div>
 
           {createdKey && (
-            <div className="mt-4 rounded-xl p-4" style={{ background: '#edf7f1', border: '1px solid rgba(63,128,85,0.15)' }}>
-              <div className="text-sm font-semibold" style={{ color: C.green }}>Key created</div>
-              <div className="text-xs mb-2" style={{ color: '#888' }}>Copy now — you won't see it again.</div>
+            <div className="mt-4 rounded-xl p-4" style={{ background: UI.successSurface, border: "1px solid var(--ui-border)" }}>
+              <div className="text-sm font-semibold" style={{ color: UI.success }}>Key created</div>
+              <div className="text-xs mb-2" style={{ color: UI.muted }}>Copy now — you won't see it again.</div>
               <div className="flex items-center gap-2">
-                <code className="flex-1 text-xs font-mono break-all p-2 rounded-lg bg-white border border-gray-100">
+                <code className="flex-1 text-xs font-mono break-all p-2 rounded-lg bg-ui-surface border border-ui-border">
                   {createdKey}
                 </code>
                 <button
                   onClick={() => copyKey(createdKey)}
                   className="px-3 py-1.5 rounded-lg text-xs font-medium shrink-0"
-                  style={{ background: C.green, color: '#fff' }}
+                  style={{ background: UI.successAction, color: UI.onAction }}
                 >
                   {copied ? 'Done' : 'Copy'}
                 </button>
@@ -144,23 +144,23 @@ export function Keys() {
         </div>
 
         {/* Your keys list */}
-        <div className="w-full lg:w-72 shrink-0 bg-white rounded-2xl border border-gray-200/40 p-5">
-          <div className="text-[10px] uppercase tracking-wider font-medium mb-3" style={{ color: C.gold }}>
+        <div className="w-full lg:w-72 shrink-0 bg-ui-surface rounded-2xl border border-ui-border p-5">
+          <div className="text-[10px] uppercase tracking-wider font-medium mb-3" style={{ color: UI.accent }}>
             Your Keys
           </div>
 
           {userKeys.length > 0 ? (
             <div className="space-y-3">
               {userKeys.map(k => (
-                <div key={k.key_id} className="flex items-center justify-between py-2 border-b border-gray-50 last:border-0">
+                <div key={k.key_id} className="flex items-center justify-between py-2 border-b border-ui-border last:border-0">
                   <div>
-                    <div className="text-sm font-medium" style={{ color: C.blueBlack }}>{k.name}</div>
-                    <div className="text-xs" style={{ color: '#999' }}>
+                    <div className="text-sm font-medium" style={{ color: UI.text }}>{k.name}</div>
+                    <div className="text-xs" style={{ color: UI.muted }}>
                       {k.requests_made.toLocaleString()} req
                     </div>
                   </div>
                   <div className="flex items-center gap-3">
-                    <div className="text-xs" style={{ color: '#bbb' }}>
+                    <div className="text-xs" style={{ color: UI.muted }}>
                       {k.last_used_at
                         ? new Date(k.last_used_at * 1000).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
                         : 'never'
@@ -169,7 +169,7 @@ export function Keys() {
                     <button
                       onClick={() => revokeKey(k.key_id, k.name)}
                       className="text-xs font-medium"
-                      style={{ color: C.red }}
+                      style={{ color: UI.danger }}
                       aria-label={`Revoke key ${k.name}`}
                     >
                       Revoke
@@ -179,20 +179,20 @@ export function Keys() {
               ))}
             </div>
           ) : (
-            <div className="text-xs py-6 text-center" style={{ color: '#ccc' }}>No keys yet</div>
+            <div className="text-xs py-6 text-center" style={{ color: UI.muted }}>No keys yet</div>
           )}
         </div>
       </div>
 
       {/* Public SDK example works without cloning the repository or reading docs. */}
-      <section className="bg-white rounded-2xl border border-gray-200/40 p-5 space-y-3">
-        <h2 className="text-sm font-semibold" style={{ color: C.blueBlack }}>Run your first API request</h2>
-        <p className="text-xs" style={{ color: '#777' }}>
+      <section className="bg-ui-surface rounded-2xl border border-ui-border p-5 space-y-3">
+        <h2 className="text-sm font-semibold" style={{ color: UI.text }}>Run your first API request</h2>
+        <p className="text-xs" style={{ color: UI.body }}>
           No repository checkout is needed. Credits are simulated, not real money.
           At L0/Open, the coordinator and provider can read prompts and responses.
           Use only nonsensitive test prompts.
         </p>
-        <div className="space-y-1 text-xs" style={{ color: C.blueBlack }}>
+        <div className="space-y-1 text-xs" style={{ color: UI.text }}>
           <div>1. Install the SDK: <code className="font-mono">pip install openai</code></div>
           <div>2. In your own terminal: <code className="font-mono">export IE_API_KEY="sk-ie-..."</code></div>
           <div>3. Save the example as <code>hello_ie.py</code>. Run <code>python hello_ie.py</code>.</div>
@@ -207,15 +207,15 @@ export function Keys() {
               className="rounded-lg border px-3 py-1.5 text-xs">Streaming</button>
           </div>
           <button type="button" onClick={() => void copyQuickstart()}
-            className="rounded-lg px-3 py-1.5 text-xs text-white"
-            style={{ background: C.blueBlack }}>Copy Python code</button>
+            className="rounded-lg px-3 py-1.5 text-xs text-ui-on-action"
+            style={{ background: UI.action }}>Copy Python code</button>
         </div>
-        {quickstartCopyStatus && <p role="status" className="text-xs text-gray-600">{quickstartCopyStatus}</p>}
+        {quickstartCopyStatus && <p role="status" className="text-xs text-ui-body">{quickstartCopyStatus}</p>}
         <pre className="rounded-xl p-4 font-mono text-xs overflow-x-auto whitespace-pre"
-          style={{ background: C.blueBlack, color: '#d4d4cd' }}>
+          style={{ background: UI.action, color: UI.codeText }}>
           <code>{quickstartCode}</code>
         </pre>
-        <p className="text-xs" style={{ color: '#888' }}>
+        <p className="text-xs" style={{ color: UI.muted }}>
           The example selects the first model advertised by the exchange.
           If no models are online, it stops with a clear error. Your API key is only shown once.
         </p>

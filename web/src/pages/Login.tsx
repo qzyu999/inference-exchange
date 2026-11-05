@@ -4,7 +4,7 @@ import useSWR from 'swr'
 import { api } from '../lib/api'
 import { useAuth } from '../lib/auth'
 import { githubLoginHref, safeNextPath } from '../lib/nav.js'
-import { C } from '../lib/theme'
+import { UI } from '../lib/theme'
 
 const OAUTH_ERRORS: Record<string, string> = {
   state: 'Sign-in expired or was tampered with. Please try again.',
@@ -66,19 +66,19 @@ export function Login() {
   if (apiKey) {
     return (
       <div className="flex items-center justify-center min-h-[70vh]">
-        <div className="w-full max-w-sm bg-white rounded-2xl border border-gray-200/40 p-8 text-center">
-          <h2 className="text-xl font-bold mb-2" style={{ color: C.blueBlack }}>Welcome!</h2>
-          <p className="text-sm mb-6" style={{ color: '#888' }}>Your account is ready with $10 in free credits.</p>
+        <div className="w-full max-w-sm bg-ui-surface rounded-2xl border border-ui-border p-8 text-center">
+          <h2 className="text-xl font-bold mb-2" style={{ color: UI.text }}>Welcome!</h2>
+          <p className="text-sm mb-6" style={{ color: UI.muted }}>Your account is ready with $10 in free credits.</p>
 
-          <div className="rounded-xl p-4 mb-4 text-left" style={{ background: '#edf7f1', border: '1px solid rgba(63,128,85,0.15)' }}>
-            <div className="text-xs font-medium mb-1" style={{ color: C.green }}>Your API Key</div>
-            <code className="text-xs font-mono break-all" style={{ color: C.blueBlack }}>{apiKey}</code>
+          <div className="rounded-xl p-4 mb-4 text-left" style={{ background: UI.successSurface, border: "1px solid var(--ui-border)" }}>
+            <div className="text-xs font-medium mb-1" style={{ color: UI.success }}>Your API Key</div>
+            <code className="text-xs font-mono break-all" style={{ color: UI.text }}>{apiKey}</code>
           </div>
 
           <button
             onClick={() => { navigator.clipboard.writeText(apiKey); setCopied(true) }}
             className="w-full py-2.5 rounded-xl text-sm font-medium transition-colors mb-3"
-            style={{ background: C.blueBlack, color: '#fff' }}
+            style={{ background: UI.action, color: UI.onAction }}
           >
             {copied ? 'Copied!' : 'Copy API Key'}
           </button>
@@ -86,7 +86,7 @@ export function Login() {
           <button
             onClick={() => navigate(next)}
             className="w-full py-2.5 rounded-xl text-sm font-medium border transition-colors"
-            style={{ color: '#888', borderColor: '#ddd' }}
+            style={{ color: UI.muted, borderColor: UI.border }}
           >
             Go to Chat
           </button>
@@ -97,18 +97,18 @@ export function Login() {
 
   return (
     <div className="flex items-center justify-center min-h-[70vh]">
-      <div className="w-full max-w-sm bg-white rounded-2xl border border-gray-200/40 p-8">
-        <h1 className="text-2xl font-bold" style={{ color: C.blueBlack }}>
+      <div className="w-full max-w-sm bg-ui-surface rounded-2xl border border-ui-border p-8">
+        <h1 className="text-2xl font-bold" style={{ color: UI.text }}>
           {mode === 'login' ? 'Welcome back' : 'Create an account'}
         </h1>
-        <p className="text-sm mt-1 mb-6" style={{ color: '#777' }}>
+        <p className="text-sm mt-1 mb-6" style={{ color: UI.body }}>
           {mode === 'login'
             ? 'Sign in to Inference Exchange to chat, create API keys and see billing. A Cloudflare email check is not an Inference Exchange account.'
             : 'Get $10 in simulated alpha credits to start.'}
         </p>
 
         {oauthError && (
-          <div role="alert" className="text-xs px-3 py-2 rounded-xl mb-3" style={{ background: '#fdf5f4', color: '#B7443B' }}>
+          <div role="alert" className="text-xs px-3 py-2 rounded-xl mb-3" style={{ background: UI.dangerSurface, color: UI.danger }}>
             {oauthError}
           </div>
         )}
@@ -117,7 +117,7 @@ export function Login() {
           <a
             href={githubLoginHref(next)}
             className="block w-full py-2.5 rounded-xl text-sm font-medium text-center transition-colors"
-            style={{ background: C.blueBlack, color: '#fff' }}
+            style={{ background: UI.action, color: UI.onAction }}
           >
             Continue with GitHub
           </a>
@@ -125,14 +125,14 @@ export function Login() {
 
         {githubEnabled && passwordEnabled && (
           <div className="flex items-center gap-3 my-4">
-            <div className="flex-1 border-t border-gray-100" />
-            <span className="text-xs" style={{ color: '#ccc' }}>or</span>
-            <div className="flex-1 border-t border-gray-100" />
+            <div className="flex-1 border-t border-ui-border" />
+            <span className="text-xs" style={{ color: UI.muted }}>or</span>
+            <div className="flex-1 border-t border-ui-border" />
           </div>
         )}
 
         {!githubEnabled && !passwordEnabled && (
-          <div className="text-xs px-3 py-2 rounded-xl" style={{ background: '#fdf6ec', color: C.gold }}>
+          <div className="text-xs px-3 py-2 rounded-xl" style={{ background: UI.warningSurface, color: UI.accent }}>
             Sign-in is not configured on this server.
           </div>
         )}
@@ -141,33 +141,33 @@ export function Login() {
         <form onSubmit={handleSubmit} className="space-y-3">
           {mode === 'signup' && (
             <div>
-              <label className="text-xs block mb-1" style={{ color: '#888' }}>Name</label>
+              <label className="text-xs block mb-1" style={{ color: UI.muted }}>Name</label>
               <input
                 type="text" value={name} onChange={e => setName(e.target.value)}
                 placeholder="Optional"
-                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/20 placeholder:text-gray-300"
+                className="w-full px-4 py-2.5 border border-ui-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-ui-warning placeholder:text-ui-muted"
               />
             </div>
           )}
           <div>
-            <label className="text-xs block mb-1" style={{ color: '#888' }}>Email</label>
+            <label className="text-xs block mb-1" style={{ color: UI.muted }}>Email</label>
             <input
               type="email" value={email} onChange={e => setEmail(e.target.value)}
               placeholder="you@example.com" required
-              className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/20 placeholder:text-gray-300"
+              className="w-full px-4 py-2.5 border border-ui-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-ui-warning placeholder:text-ui-muted"
             />
           </div>
           <div>
-            <label className="text-xs block mb-1" style={{ color: '#888' }}>Password</label>
+            <label className="text-xs block mb-1" style={{ color: UI.muted }}>Password</label>
             <input
               type="password" value={password} onChange={e => setPassword(e.target.value)}
               placeholder="••••••••••" required minLength={6}
-              className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/20 placeholder:text-gray-300"
+              className="w-full px-4 py-2.5 border border-ui-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-ui-warning placeholder:text-ui-muted"
             />
           </div>
 
           {error && (
-            <div className="text-xs px-3 py-2 rounded-xl" style={{ background: '#fdf5f4', color: '#B7443B' }}>
+            <div className="text-xs px-3 py-2 rounded-xl" style={{ background: UI.dangerSurface, color: UI.danger }}>
               {error}
             </div>
           )}
@@ -175,7 +175,7 @@ export function Login() {
           <button
             type="submit" disabled={loading}
             className="w-full py-2.5 rounded-xl text-sm font-medium transition-colors disabled:opacity-50 mt-1"
-            style={{ background: C.blueBlack, color: '#fff' }}
+            style={{ background: UI.action, color: UI.onAction }}
           >
             {loading ? '...' : mode === 'login' ? 'Sign in' : 'Create account'}
           </button>
@@ -184,11 +184,11 @@ export function Login() {
         {/* Toggle mode */}
         <div className="text-center mt-4">
           {mode === 'login' ? (
-            <button onClick={() => { setMode('signup'); setError('') }} className="text-sm" style={{ color: C.gold }}>
+            <button onClick={() => { setMode('signup'); setError('') }} className="text-sm" style={{ color: UI.accent }}>
               No account? Create one
             </button>
           ) : (
-            <button onClick={() => { setMode('login'); setError('') }} className="text-sm" style={{ color: C.gold }}>
+            <button onClick={() => { setMode('login'); setError('') }} className="text-sm" style={{ color: UI.accent }}>
               Already have an account? Sign in
             </button>
           )}

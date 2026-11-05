@@ -6,6 +6,7 @@ const theme = read('./theme.ts')
 const shell = read('../components/Layout.tsx')
 const start = read('../pages/GettingStarted.tsx')
 const css = read('../index.css')
+const palette = read('../app-theme.css')
 
 // Pilot uses semantic app tokens, never a blanket replacement of C or trust
 // status semantics. Landing preserves its separate cinematic presentation.
@@ -26,7 +27,7 @@ assert.match(shell, /role="group" aria-label="Appearance"/)
 assert.match(shell, /aria-pressed=\{value === mode\.value\}/)
 assert.match(shell, /mode\.value === 'blue-light'/)
 // Label change is presentation-only: the persisted 'blue-light' value and
-// exact warm filter behavior must stay compatible with existing saved choices.
+// warm appearance stays compatible with existing saved choices.
 assert.match(shell, /\{ value: 'blue-light', label: 'Night Shift' \}/)
 assert.doesNotMatch(shell, /label: 'Blue light filter'/)
 assert.match(shell, /function AppearanceIcon\(\{ mode \}: \{ mode: AppAppearance \}\)/)
@@ -96,74 +97,51 @@ assert.match(start, /Copy setup commands/)
 assert.match(css, /\.ie-mineral-sidebar \.ie-app-wordmark/)
 assert.match(css, /\.ie-mineral-app \.ie-mineral-journey/)
 assert.match(css, /\.ie-mineral-app \.ie-mineral-panel/)
-assert.ok(css.includes('--ie-app-surface: #FFFDF7'))
-assert.ok(!css.includes('.ie-mineral-app .bg-white {'))
-assert.ok(css.includes('background: linear-gradient(140deg, #FFFDF7 0%, #FAF5E9 100%)'))
-// The old 2400K-inspired multiply veil remains pixel-identical, but ONLY
-// in Blue light filter; Light and Dark have no veiling pseudo element.
-const blueFilter = css.match(/\.ie-app-appearance-scope\[data-appearance="blue-light"\]::after \{([^}]+)\}/)?.[1]
-assert.ok(blueFilter, 'blue light filter must use the existing warm overlay')
-for (const rule of ['background: #FF995B;', 'opacity: 0.48;', 'mix-blend-mode: multiply;', 'pointer-events: none;']) {
-  assert.ok(blueFilter.includes(rule), 'blue light filter changed: ' + rule)
-}
-assert.match(css, /@media \(forced-colors: active\), print/)
-assert.doesNotMatch(css, /ie-app-temperature-scope|data-warm-tint/)
-assert.doesNotMatch(css, /\.ie-app-appearance-scope\[data-appearance="light"\]::after/)
-assert.doesNotMatch(css, /\.ie-app-appearance-scope\[data-appearance="dark"\]::after/)
-assert.doesNotMatch(css, /\.ie-mineral-app\s*\{[^}]*filter:/)
-// Dark mode must recolor real surfaces, text, links, inputs and docs instead
-// of darkening through a screen-level multiply/inversion filter.
-assert.match(css, /\.ie-app-appearance-scope\[data-appearance="dark"\] \{/)
-assert.match(css, /background: linear-gradient\(160deg, #292F35 0%, #252D33 55%, #21282F 100%\) !important;/)
-assert.match(css, /--ie-app-surface: #353F47;/)
-assert.match(css, /--ie-app-ink: #EDE9DE;/)
-assert.match(css, /color-scheme: dark;/)
-assert.match(css, /\.ie-app-appearance-scope\[data-appearance="dark"\] \.ie-app-content :is\(/)
-assert.match(css, /\.bg-white, \.bg-gray-50, \.bg-gray-100/)
-assert.match(css, /\[style\*="background: rgb\(255, 255, 255\)"\]/)
-assert.match(css, /\[style\*="color: rgb\(41, 47, 53\)"\]/)
-assert.match(css, /\.docs-body pre \{/)
-// Chat's user bubbles set background and ink in the same inline style;
-// dark mode must adapt both together rather than creating dark-on-dark text.
-assert.match(css, /\[style\*="background: rgb\(229, 229, 227\)"\]\[style\*="color: rgb\(41, 47, 53\)"\]/)
-assert.match(css, /background: #394753 !important;\s*color: #F0EBDD !important;/)
-assert.match(shell, /dark \? 'linear-gradient\(110deg, #F2DCA8/)
-assert.match(shell, /dark \? '#C6D0D5' : AP\.body/)
-assert.match(shell, /focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-\[#F0C54B\]/)
-assert.match(css, /\.ie-app-appearance-option \{[\s\S]*?transition: background-color 150ms/)
-assert.match(css, /@media \(prefers-reduced-motion: reduce\) \{\s*\.ie-app-appearance-option \{ transition: none; \}/)
-const tint = (hex, overlay = '#FF995B', strength = 0.48) =>
-  hex.match(/[a-f0-9]{2}/gi).map((x, i) =>
-    Math.round(parseInt(x, 16) * (1 - strength +
-      strength * parseInt(overlay.slice(1 + i * 2, 3 + i * 2), 16) / 255)))
-const warmPaper = tint('#FFFDF7')
-assert.equal(warmPaper[0], 255)
-assert.ok(warmPaper[1] < 215 && warmPaper[2] < 180, 'white paper becomes orange-warm, not green')
-const luminance = (hex) => {
-  const [r, g, b] = hex.match(/[a-f0-9]{2}/gi).map(x => parseInt(x, 16) / 255)
-    .map(x => x <= 0.04045 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4)
-  return r * 0.2126 + g * 0.7152 + b * 0.0722
-}
-const contrast = (a, b) => {
-  const [lighter, darker] = [luminance(a), luminance(b)].sort((a, b) => b - a)
-  return (lighter + 0.05) / (darker + 0.05)
-}
-assert.ok(contrast('#263A63', '#FFFDF7') >= 7, 'original untinted paper retains strong contrast')
-for (const ink of ['#263A63', '#46546A', '#845918', '#31644E']) {
-  assert.ok(contrast(ink, '#FFFDF7') >= 4.5, 'readable ink on original app paper: ' + ink)
-}
-const darkStart = css.match(/\.ie-app-appearance-scope\[data-appearance="dark"\] \.ie-app-content \.ie-start \{([^}]+)\}/)?.[1]
-assert.ok(darkStart, 'Getting Started colors must be scoped to Dark mode')
-assert.equal((start.match(/className="ie-start max-w-5xl/g) || []).length, 2)
-for (const token of ['ink', 'gold', 'link', 'jade']) {
-  const color = darkStart.match(new RegExp('--ie-start-' + token + ': (#[a-f0-9]{6});', 'i'))?.[1]
-  assert.ok(color, 'missing Getting Started color: ' + token)
-  assert.match(start, new RegExp('var\\(--ie-start-' + token + ','))
-  for (const surface of ['#353F47', '#313B43', '#44413B']) {
-    assert.ok(contrast(color, surface) >= 4.5, token + ' must be readable on ' + surface)
+// All three appearances define complete role palettes. Verify real contrast
+// pairs, including selected/hover surfaces and semantic status panels.
+const luminance = hex => hex.match(/[a-f0-9]{2}/gi)
+  .map(x => parseInt(x, 16) / 255)
+  .map(x => x <= 0.04045 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4)
+  .reduce((sum, x, i) => sum + x * [0.2126, 0.7152, 0.0722][i], 0)
+const contrast = (a, b) => (Math.max(luminance(a), luminance(b)) + 0.05) /
+  (Math.min(luminance(a), luminance(b)) + 0.05)
+const modes = [...palette.matchAll(/\.ie-app-appearance-scope(?:\[data-appearance="(dark|blue-light)"\])? \{([^}]+)\}/g)]
+  .filter(match => match[2].includes('--ui-page:'))
+assert.equal(modes.length, 3)
+for (const [, mode = 'light', body] of modes) {
+  const colors = Object.fromEntries([...body.matchAll(/--ui-([a-z0-9-]+): (#[A-Fa-f0-9]{6});/g)]
+    .map(([, name, color]) => [name, color]))
+  for (const surface of ['page', 'surface', 'surface-muted', 'hover', 'selected']) {
+    for (const ink of ['text', 'body', 'muted', 'accent', 'link', 'success', 'warning', 'danger', 'info', 'purple']) {
+      assert.ok(contrast(colors[ink], colors[surface]) >= 4.5,
+        `${mode}: ${ink} on ${surface} is ${contrast(colors[ink], colors[surface]).toFixed(2)}:1`)
+    }
+  }
+  for (const status of ['success', 'warning', 'danger', 'info', 'purple']) {
+    for (const ink of [status, 'text', 'body', 'muted']) {
+      assert.ok(contrast(colors[ink], colors[status + '-surface']) >= 4.5,
+        `${mode}: ${ink} on ${status} panel must meet text contrast`)
+    }
+  }
+  for (let i = 1; i <= 9; i++) {
+    assert.ok(contrast(colors['chart-' + i], colors['surface-muted']) >= 3, mode + ': chart series ' + i)
+  }
+  for (const action of ['action', 'action-hover', 'danger-action', 'success-action']) {
+    assert.ok(contrast(colors['on-action'], colors[action]) >= 4.5, mode + ': ' + action + ' button')
+  }
+  assert.ok(contrast(colors['code-text'], colors['code-surface']) >= 4.5, mode + ': code')
+  for (const surface of ['page', 'surface', 'surface-muted']) {
+    assert.ok(contrast(colors.focus, colors[surface]) >= 3, mode + ': focus indicator')
+    assert.ok(contrast(colors['control-border'], colors[surface]) >= 3, mode + ': input boundary')
   }
 }
-assert.ok(luminance('#F8F8F5') > 0.8, 'original main background should remain a light neutral')
+assert.doesNotMatch(css, /\[style\*=/, 'appearance must not depend on serialized inline RGB strings')
+assert.doesNotMatch(css, /ie-start-(ink|gold|link)/, 'onboarding shares the app palette')
+assert.match(palette, /\.ie-app-content ::selection/)
+assert.match(palette, /color-scheme: dark/)
+assert.match(palette, /color-scheme: light/)
+assert.doesNotMatch(css, /\.ie-app-appearance-scope\[data-appearance="blue-light"\]::after/)
+assert.match(shell, /color: UI\.body/)
 for (const name of [
   'Overview', 'Chat', 'Exchange', 'Models', 'Providers', 'Provide', 'Billing',
   'Keys', 'Settings', 'Admin', 'Trace', 'ProviderDashboard', 'Docs',

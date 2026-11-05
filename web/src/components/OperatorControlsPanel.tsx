@@ -13,7 +13,7 @@ interface ProviderRow {
   active_requests?: number
 }
 
-const actionStyle = 'rounded-lg border border-gray-300 px-3 py-2 text-xs font-semibold disabled:opacity-40 hover:bg-gray-50'
+const actionStyle = 'rounded-lg border border-ui-border px-3 py-2 text-xs font-semibold disabled:opacity-40 hover:bg-ui-hover'
 
 export function OperatorControlsPanel({
   providers, refreshProviders, providerListUnavailable = false,
@@ -49,43 +49,43 @@ export function OperatorControlsPanel({
   const disabled = !!busy || !data || !!error
 
   return (
-    <section className="bg-white rounded-2xl border border-gray-200/60 p-5 space-y-4" aria-label="Operator safety controls">
+    <section className="bg-ui-surface rounded-2xl border border-ui-border p-5 space-y-4" aria-label="Operator safety controls">
       <div>
-        <h2 className="text-lg font-bold text-gray-900">Operator safety controls</h2>
-        <p className="text-xs text-amber-800 mt-1">
+        <h2 className="text-lg font-bold text-ui-text">Operator safety controls</h2>
+        <p className="text-xs text-ui-warning mt-1">
           Runtime changes reset to configured environment values after coordinator restart.
           Keep IE_SIGNUP_DISABLED=1 until the alpha release gates pass.
         </p>
       </div>
 
-      {isLoading && !data && <p role="status" className="text-sm text-gray-500">Loading operator controls…</p>}
-      {error && <p role="alert" className="text-sm text-red-700">
+      {isLoading && !data && <p role="status" className="text-sm text-ui-muted">Loading operator controls…</p>}
+      {error && <p role="alert" className="text-sm text-ui-danger">
         Could not load admin controls: {error.message}. Check IE admin authorization and Cloudflare Access.
       </p>}
-      {failure && <p role="alert" className="text-sm text-red-700">{failure}</p>}
-      {success && <p role="status" className="text-sm text-emerald-700">{success}</p>}
+      {failure && <p role="alert" className="text-sm text-ui-danger">{failure}</p>}
+      {success && <p role="status" className="text-sm text-ui-success">{success}</p>}
 
       {data && !error && (
         <>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
-            <div className="bg-gray-50 rounded-xl p-3">
-              <div className="text-xs text-gray-500">Inference</div>
-              <strong className={data.inference_paused ? 'text-red-700' : 'text-emerald-700'}>
+            <div className="bg-ui-surface-muted rounded-xl p-3">
+              <div className="text-xs text-ui-muted">Inference</div>
+              <strong className={data.inference_paused ? 'text-ui-danger' : 'text-ui-success'}>
                 {data.inference_paused ? 'Paused' : 'Accepting requests'}
               </strong>
             </div>
-            <div className="bg-gray-50 rounded-xl p-3">
-              <div className="text-xs text-gray-500">Registration</div>
-              <strong className={data.signup_disabled ? 'text-amber-700' : 'text-emerald-700'}>
+            <div className="bg-ui-surface-muted rounded-xl p-3">
+              <div className="text-xs text-ui-muted">Registration</div>
+              <strong className={data.signup_disabled ? 'text-ui-warning' : 'text-ui-success'}>
                 {data.signup_disabled ? 'Disabled' : 'Enabled'}
               </strong>
             </div>
-            <div className="bg-gray-50 rounded-xl p-3">
-              <div className="text-xs text-gray-500">Active requests</div>
+            <div className="bg-ui-surface-muted rounded-xl p-3">
+              <div className="text-xs text-ui-muted">Active requests</div>
               <strong>{data.active_requests_total}</strong>
             </div>
-            <div className="bg-gray-50 rounded-xl p-3">
-              <div className="text-xs text-gray-500">Queue / limit</div>
+            <div className="bg-ui-surface-muted rounded-xl p-3">
+              <div className="text-xs text-ui-muted">Queue / limit</div>
               <strong>{data.queue_length} / {data.queue_max_depth}</strong>
             </div>
           </div>
@@ -118,7 +118,7 @@ export function OperatorControlsPanel({
             <input
               id="alpha-concurrency" type="number" min={1} max={10} step={1}
               value={limitInput} onChange={e => setLimitInput(e.target.value)}
-              className="w-20 border border-gray-300 rounded-md px-2 py-1.5"
+              className="w-20 border border-ui-border rounded-md px-2 py-1.5"
             />
             <button className={actionStyle} disabled={disabled || !/^\d+$/.test(limitInput)
               || Number(limitInput) < 1 || Number(limitInput) > 10} onClick={() => {
@@ -126,22 +126,22 @@ export function OperatorControlsPanel({
                 if (!window.confirm(`Set the per-account concurrency limit to ${limit}? Currently ${data.max_concurrent_per_account}.`)) return
                 execute('Update concurrency limit', () => updateOperatorControls({ max_concurrent_per_account: limit }))
               }}>Apply limit</button>
-            <span className="text-gray-500">Current: {data.max_concurrent_per_account}; UI restricts 1–10 (no unlimited setting).</span>
+            <span className="text-ui-muted">Current: {data.max_concurrent_per_account}; UI restricts 1–10 (no unlimited setting).</span>
           </div>
 
-          <div className="border-t border-gray-100 pt-4">
+          <div className="border-t border-ui-border pt-4">
             <h3 className="font-semibold text-sm mb-2">Connected provider safety</h3>
             {providerListUnavailable
-              ? <p role="status" className="text-sm text-amber-800">Provider inventory unavailable. Retry admin state before interpreting provider availability.</p>
-              : providers.length === 0 ? <p className="text-sm text-gray-500">No providers connected.</p> : (
+              ? <p role="status" className="text-sm text-ui-warning">Provider inventory unavailable. Retry admin state before interpreting provider availability.</p>
+              : providers.length === 0 ? <p className="text-sm text-ui-muted">No providers connected.</p> : (
               <div className="space-y-2">
                 {providers.map(p => (
-                  <div key={p.provider_id} className="flex flex-wrap gap-3 items-center justify-between bg-gray-50 rounded-xl px-3 py-2">
+                  <div key={p.provider_id} className="flex flex-wrap gap-3 items-center justify-between bg-ui-surface-muted rounded-xl px-3 py-2">
                     <div className="text-xs">
                       <strong>{p.name}</strong>
-                      <span className="text-gray-500 ml-2 font-mono">{p.provider_id}</span>
+                      <span className="text-ui-muted ml-2 font-mono">{p.provider_id}</span>
                       <span className="ml-2">{p.quarantined ? 'Quarantined' : 'Routable'}</span>
-                      {p.quarantine_reason && <span className="block text-gray-500 mt-1">Reason: {p.quarantine_reason}</span>}
+                      {p.quarantine_reason && <span className="block text-ui-muted mt-1">Reason: {p.quarantine_reason}</span>}
                     </div>
                     <button className={actionStyle} disabled={disabled} onClick={() => {
                       if (p.quarantined) {
@@ -159,7 +159,7 @@ export function OperatorControlsPanel({
               </div>
             )}
           </div>
-          <p className="text-xs text-gray-500">
+          <p className="text-xs text-ui-muted">
             Controls require an authenticated IE admin session. Protect these URLs with Cloudflare Access
             before removing the broad alpha-host Access gate (#123). All credits are simulated.
           </p>
