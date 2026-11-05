@@ -18,7 +18,7 @@ const titles = [
   "Inference Exchange",
   "Supply meets demand",
   "Community-driven action",
-  "Security constraints built on the Open Confidential Inference Protocol (OCIP)",
+  "Built on the Open Confidential Inference Protocol (OCIP)",
   "Distributed AI inference, powered by everyone, for everyone."
 ]
 const copy = landing.slice(landing.indexOf('const CHAPTER_COPY = ['),
@@ -32,8 +32,8 @@ for (const title of titles) {
 for (const description of [
   "Empowering and enabling everybody everywhere with affordable AI.",
   "The freedom to create, tinker and invent the future with AI, whether you're in San Francisco or the Global South.",
-  "Consume from an OpenAI-compatible API, or provide your idle compute and earn passive income.",
-  "Know exactly the assumptions and limitations when working with consumer hardware"
+  "You can consume from an OpenAI-compatible API and also provide your idle compute to earn passive income.",
+  "Know the security levels of each hardware configuration."
 ]) {
   assert.ok(copy.includes(description), 'missing chapter description: ' + description)
 }
@@ -110,7 +110,7 @@ for (const name of ['ink', 'primary', 'secondary', 'link']) {
 // sweeping rainbow, shifting text, animation loops or layout changes.
 assert.match(landing, /function StoneCTA\(/)
 assert.match(landing, /<Link\s+to=\{to\}\s+tabIndex=\{tabIndex\}/)
-assert.equal((landing.match(/<StoneCTA to=/g) || []).length, 5)
+assert.equal((landing.match(/<StoneCTA to=/g) || []).length, 6)
 for (const [route, label, tone] of [
   ['/chat', 'Start chatting', 'light'],
   ['/provide', 'Become a provider', 'outline'],
@@ -120,9 +120,10 @@ for (const [route, label, tone] of [
     'missing opening mineral CTA ' + label)
 }
 const finalSlide = landing.slice(landing.indexOf('{/* One actual product screen'))
-assert.match(finalSlide, /<StoneCTA to="\/chat" tone="light"[\s\S]*?Start a conversation\s*<\/StoneCTA>/)
+assert.match(finalSlide, /<StoneCTA to="\/chat" tone="light"[\s\S]*?Start chatting\s*<\/StoneCTA>/)
 assert.match(finalSlide, /<StoneCTA to="\/provide" tone="outline"[\s\S]*?Become a provider\s*<\/StoneCTA>/)
-assert.equal((finalSlide.match(/<StoneCTA to=/g) || []).length, 2)
+assert.match(finalSlide, /<StoneCTA to="\/exchange" tone="quiet"[\s\S]*?Go to Exchange\s*<\/StoneCTA>/)
+assert.equal((finalSlide.match(/<StoneCTA to=/g) || []).length, 3)
 assert.match(finalSlide, /tabIndex=\{productOpacity > 0\.95 \? undefined : -1\}/)
 assert.match(styles, /\.hero-stone-cta \{/)
 assert.match(styles, /\.hero-stone-cta--light \{\s*color: #292B2A;\s*background: #D8D1BE;/)
@@ -300,4 +301,4 @@ assert.match(landing, /className="min-w-0 truncate text-sm font-medium" title=\{
 assert.doesNotMatch(landing, /<div key=\{m\.model\} className="flex items-center justify-between">/,
   'do not reintroduce unconstrained space-between Live Exchange rows')
 
-console.log('Landing: five pinned holds, five CTAs reuse exact main mineral-border pigment with pointer movement')
+console.log('Landing: five pinned holds, six CTAs reuse exact main mineral-border pigment with pointer movement')
