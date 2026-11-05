@@ -3,7 +3,7 @@ import useSWR from 'swr'
 import { Link } from 'react-router-dom'
 import { api } from '../lib/api'
 import { formatUsd } from '../lib/money.js'
-import { C, TRUST_COLORS } from '../lib/theme'
+import { UI, APP_TRUST_COLORS as TRUST_COLORS } from '../lib/theme'
 
 export function Overview() {
   const { data: stats } = useSWR('stats', api.stats, { refreshInterval: 5000 })
@@ -40,8 +40,8 @@ export function Overview() {
   useEffect(() => { feedRef.current?.scrollTo({ top: feedRef.current.scrollHeight }) }, [events])
 
   const eventColors: Record<string, string> = {
-    match: C.green, billing: C.gold, provider_connect: C.deepBlue,
-    provider_disconnect: C.red, attestation: C.turquoise,
+    match: UI.success, billing: UI.accent, provider_connect: UI.info,
+    provider_disconnect: UI.danger, attestation: UI.info,
   }
 
   return (
@@ -49,14 +49,14 @@ export function Overview() {
       {/* Stat cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          { label: 'Providers online', value: stats?.providers_online ?? providers.length, color: C.blueBlack },
-          { label: 'Models advertised', value: stats?.models_available ?? health?.models?.length ?? 0, color: C.blueBlack },
-          { label: 'Recent routed traces', value: traces.length > 0 ? String(routedTraces.length) : '—', color: C.blueBlack },
-          { label: 'Volume (simulated)', value: stats?.total_volume_usd != null ? `$${stats.total_volume_usd >= 1 ? stats.total_volume_usd.toFixed(2) : stats.total_volume_usd.toFixed(4)}` : '—', color: C.gold },
+          { label: 'Providers online', value: stats?.providers_online ?? providers.length, color: UI.text },
+          { label: 'Models advertised', value: stats?.models_available ?? health?.models?.length ?? 0, color: UI.text },
+          { label: 'Recent routed traces', value: traces.length > 0 ? String(routedTraces.length) : '—', color: UI.text },
+          { label: 'Volume (simulated)', value: stats?.total_volume_usd != null ? `$${stats.total_volume_usd >= 1 ? stats.total_volume_usd.toFixed(2) : stats.total_volume_usd.toFixed(4)}` : '—', color: UI.accent },
         ].map(s => (
-          <div key={s.label} className="bg-white rounded-2xl border border-gray-200/40 px-5 py-4">
+          <div key={s.label} className="bg-ui-surface rounded-2xl border border-ui-border px-5 py-4">
             <div className="text-2xl font-bold tracking-tight" style={{ color: s.color }}>{s.value}</div>
-            <div className="text-[11px] mt-0.5" style={{ color: '#999' }}>{s.label}</div>
+            <div className="text-[11px] mt-0.5" style={{ color: UI.muted }}>{s.label}</div>
           </div>
         ))}
       </div>
@@ -64,22 +64,22 @@ export function Overview() {
       {/* Two-column: Health + Transparency */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         {/* Network health */}
-        <div className="bg-white rounded-2xl border border-gray-200/40 p-6">
-          <div className="text-[10px] uppercase tracking-wider font-medium mb-1" style={{ color: C.gold }}>
+        <div className="bg-ui-surface rounded-2xl border border-ui-border p-6">
+          <div className="text-[10px] uppercase tracking-wider font-medium mb-1" style={{ color: UI.accent }}>
             Network Health
           </div>
-          <h2 className="text-lg font-bold mb-4" style={{ color: C.blueBlack }}>Request outcomes</h2>
+          <h2 className="text-lg font-bold mb-4" style={{ color: UI.text }}>Request outcomes</h2>
 
           <div className="flex items-center gap-6 mb-4">
             <div className="flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full" style={{ background: C.green }} />
-              <span className="text-sm" style={{ color: C.green }}>Matched or completed</span>
-              <span className="text-sm font-semibold" style={{ color: C.blueBlack }}>{routedTraces.length}</span>
+              <span className="w-2.5 h-2.5 rounded-full" style={{ background: UI.success }} />
+              <span className="text-sm" style={{ color: UI.success }}>Matched or completed</span>
+              <span className="text-sm font-semibold" style={{ color: UI.text }}>{routedTraces.length}</span>
             </div>
             <div className="flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full" style={{ background: '#999' }} />
-              <span className="text-sm" style={{ color: '#777' }}>Other statuses</span>
-              <span className="text-sm font-semibold" style={{ color: C.blueBlack }}>{traces.length - routedTraces.length}</span>
+              <span className="w-2.5 h-2.5 rounded-full" style={{ background: UI.track }} />
+              <span className="text-sm" style={{ color: UI.body }}>Other statuses</span>
+              <span className="text-sm font-semibold" style={{ color: UI.text }}>{traces.length - routedTraces.length}</span>
             </div>
           </div>
 
@@ -89,33 +89,33 @@ export function Overview() {
               {recentTraces.map((t: any, i: number) => (
                 <li key={t.request_id || i}>
                   <Link to={`/trace?id=${encodeURIComponent(t.request_id || '')}`}
-                    className="flex items-center justify-between gap-3 rounded-lg border border-gray-100 px-3 py-2 text-xs hover:bg-gray-50">
-                    <span className="truncate" style={{ color: C.blueBlack }}>{t.model || 'Unspecified model'}</span>
-                    <span className="shrink-0" style={{ color: '#777' }}>{t.status || 'unknown'}</span>
+                    className="flex items-center justify-between gap-3 rounded-lg border border-ui-border px-3 py-2 text-xs hover:bg-ui-hover">
+                    <span className="truncate" style={{ color: UI.text }}>{t.model || 'Unspecified model'}</span>
+                    <span className="shrink-0" style={{ color: UI.body }}>{t.status || 'unknown'}</span>
                   </Link>
                 </li>
               ))}
             </ul>
           ) : (
-            <div className="text-xs text-center py-8" style={{ color: '#aaa' }}>
+            <div className="text-xs text-center py-8" style={{ color: UI.muted }}>
               No request traces yet.
             </div>
           )}
 
           {/* Fleet capacity */}
-          <div className="mt-4 pt-4 flex items-center gap-4 text-xs" style={{ borderTop: '1px solid #eaeae8', color: '#888' }}>
-            <span>Capacity: <span className="font-semibold" style={{ color: C.blueBlack }}>{usedSlots}/{totalSlots}</span> slots</span>
-            {encryptedCount > 0 && <span><span className="font-semibold" style={{ color: C.deepBlue }}>{encryptedCount}</span> provider keys</span>}
-            {hardenedCount > 0 && <span><span className="font-semibold" style={{ color: C.gold }}>{hardenedCount}</span> Hardened+</span>}
+          <div className="mt-4 pt-4 flex items-center gap-4 text-xs" style={{ borderTop: "1px solid var(--ui-border)", color: UI.muted }}>
+            <span>Capacity: <span className="font-semibold" style={{ color: UI.text }}>{usedSlots}/{totalSlots}</span> slots</span>
+            {encryptedCount > 0 && <span><span className="font-semibold" style={{ color: UI.info }}>{encryptedCount}</span> provider keys</span>}
+            {hardenedCount > 0 && <span><span className="font-semibold" style={{ color: UI.accent }}>{hardenedCount}</span> Hardened+</span>}
           </div>
         </div>
 
         {/* Only observed network status, not guessed software versions. */}
-        <div className="bg-white rounded-2xl border border-gray-200/40 p-6">
-          <div className="text-[10px] uppercase tracking-wider font-medium mb-1" style={{ color: C.gold }}>
+        <div className="bg-ui-surface rounded-2xl border border-ui-border p-6">
+          <div className="text-[10px] uppercase tracking-wider font-medium mb-1" style={{ color: UI.accent }}>
             Network status
           </div>
-          <h2 className="text-lg font-bold mb-4" style={{ color: C.blueBlack }}>What is connected</h2>
+          <h2 className="text-lg font-bold mb-4" style={{ color: UI.text }}>What is connected</h2>
 
           <div className="space-y-3">
             {[
@@ -123,12 +123,12 @@ export function Overview() {
               { component: 'Provider connections', status: providers.length > 0 ? `${providers.length} online` : 'None reported', ok: providers.length > 0 },
               { component: 'Billing metrics', status: stats?.total_requests != null ? 'Available' : 'Unknown', ok: stats?.total_requests != null },
             ].map(c => (
-              <div key={c.component} className="flex items-center justify-between py-2 border-b border-gray-50 last:border-0">
-                <span className="text-sm" style={{ color: C.blueBlack }}>{c.component}</span>
+              <div key={c.component} className="flex items-center justify-between py-2 border-b border-ui-border last:border-0">
+                <span className="text-sm" style={{ color: UI.text }}>{c.component}</span>
                 <div className="flex items-center gap-3">
-                  <span className="text-xs font-mono" style={{ color: '#999' }}>{c.status}</span>
+                  <span className="text-xs font-mono" style={{ color: UI.muted }}>{c.status}</span>
                   <span className="text-[10px] font-medium px-2 py-0.5 rounded-full"
-                    style={{ background: c.ok ? '#edf7f1' : '#f3f3f3', color: c.ok ? C.green : '#999' }}>
+                    style={{ background: c.ok ? UI.successSurface : UI.surfaceMuted, color: c.ok ? UI.success : UI.muted }}>
                     {c.ok ? 'observed' : 'unknown'}
                   </span>
                 </div>
@@ -138,8 +138,8 @@ export function Overview() {
 
           {/* Trust level distribution */}
           {providers.length > 0 && (
-            <div className="mt-4 pt-4" style={{ borderTop: '1px solid #eaeae8' }}>
-              <div className="text-[10px] uppercase tracking-wider font-medium mb-2" style={{ color: '#aaa' }}>
+            <div className="mt-4 pt-4" style={{ borderTop: "1px solid var(--ui-border)" }}>
+              <div className="text-[10px] uppercase tracking-wider font-medium mb-2" style={{ color: UI.muted }}>
                 Provider-reported trust levels
               </div>
               <div className="flex items-center gap-2 flex-wrap">
@@ -163,27 +163,27 @@ export function Overview() {
       {/* Two-column: Recent activity + Provider reputation */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         {/* Live event feed */}
-        <div className="bg-white rounded-2xl border border-gray-200/40 p-6">
+        <div className="bg-ui-surface rounded-2xl border border-ui-border p-6">
           <div className="flex items-center justify-between mb-3">
             <div>
-              <div className="text-[10px] uppercase tracking-wider font-medium" style={{ color: C.gold }}>Live Feed</div>
-              <div className="text-xs mt-0.5" style={{ color: '#999' }}>Real-time exchange events</div>
+              <div className="text-[10px] uppercase tracking-wider font-medium" style={{ color: UI.accent }}>Live Feed</div>
+              <div className="text-xs mt-0.5" style={{ color: UI.muted }}>Real-time exchange events</div>
             </div>
             <span className="relative flex h-2 w-2">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full opacity-75" style={{ background: C.green }} />
-              <span className="relative inline-flex rounded-full h-2 w-2" style={{ background: C.green }} />
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full opacity-75" style={{ background: UI.success }} />
+              <span className="relative inline-flex rounded-full h-2 w-2" style={{ background: UI.success }} />
             </span>
           </div>
           <div ref={feedRef} className="h-48 overflow-y-auto text-[11px] space-y-0.5 font-mono">
             {events.length > 0 ? events.map((ev, i) => (
-              <div key={i} className="flex gap-2 py-0.5" style={{ color: '#888' }}>
-                <span className="shrink-0" style={{ color: '#ccc' }}>{new Date(ev.timestamp * 1000).toLocaleTimeString()}</span>
-                <span style={{ color: eventColors[ev.type] || '#aaa' }}>{ev.type}</span>
+              <div key={i} className="flex gap-2 py-0.5" style={{ color: UI.muted }}>
+                <span className="shrink-0" style={{ color: UI.muted }}>{new Date(ev.timestamp * 1000).toLocaleTimeString()}</span>
+                <span style={{ color: eventColors[ev.type] || UI.muted }}>{ev.type}</span>
                 {ev.provider && <span className="truncate">{ev.provider}</span>}
-                {ev.cost_usd != null && <span style={{ color: C.gold }}>{formatUsd(ev.cost_usd)}</span>}
+                {ev.cost_usd != null && <span style={{ color: UI.accent }}>{formatUsd(ev.cost_usd)}</span>}
               </div>
             )) : (
-              <div className="text-xs text-center py-12 font-sans" style={{ color: '#ccc' }}>
+              <div className="text-xs text-center py-12 font-sans" style={{ color: UI.muted }}>
                 Waiting for activity...
               </div>
             )}
@@ -191,11 +191,11 @@ export function Overview() {
         </div>
 
         {/* Provider reputation */}
-        <div className="bg-white rounded-2xl border border-gray-200/40 p-6">
-          <div className="text-[10px] uppercase tracking-wider font-medium mb-1" style={{ color: C.gold }}>
+        <div className="bg-ui-surface rounded-2xl border border-ui-border p-6">
+          <div className="text-[10px] uppercase tracking-wider font-medium mb-1" style={{ color: UI.accent }}>
             Provider Reputation
           </div>
-          <div className="text-xs mb-4" style={{ color: '#999' }}>EMA-based scoring from observed request outcomes</div>
+          <div className="text-xs mb-4" style={{ color: UI.muted }}>EMA-based scoring from observed request outcomes</div>
 
           {reputation.length > 0 ? (
             <div className="space-y-3">
@@ -204,20 +204,20 @@ export function Overview() {
                 return (
                   <div key={r.provider_id} className="flex items-center gap-3">
                     <span className="w-2 h-2 rounded-full shrink-0"
-                      style={{ background: r.is_degraded ? C.red : r.score > 0.8 ? C.green : C.gold }} />
-                    <span className="text-xs truncate flex-1" style={{ color: C.blueBlack }}>
+                      style={{ background: r.is_degraded ? UI.danger : r.score > 0.8 ? UI.success : UI.accent }} />
+                    <span className="text-xs truncate flex-1" style={{ color: UI.text }}>
                       {prov?.name || r.provider_id.slice(0, 12)}
                     </span>
-                    <div className="w-20 h-1.5 rounded-full overflow-hidden" style={{ background: '#f0f0f0' }}>
+                    <div className="w-20 h-1.5 rounded-full overflow-hidden" style={{ background: UI.track }}>
                       <div className="h-full rounded-full" style={{
                         width: `${r.score * 100}%`,
-                        background: r.score > 0.8 ? C.green : r.score > 0.5 ? C.gold : C.red,
+                        background: r.score > 0.8 ? UI.success : r.score > 0.5 ? UI.accent : UI.danger,
                       }} />
                     </div>
-                    <span className="text-[10px] font-mono w-8 text-right" style={{ color: '#888' }}>
+                    <span className="text-[10px] font-mono w-8 text-right" style={{ color: UI.muted }}>
                       {(r.score * 100).toFixed(0)}%
                     </span>
-                    <span className="text-[10px]" style={{ color: '#bbb' }}>
+                    <span className="text-[10px]" style={{ color: UI.muted }}>
                       {r.total_requests} req
                     </span>
                   </div>
@@ -225,7 +225,7 @@ export function Overview() {
               })}
             </div>
           ) : (
-            <div className="text-xs text-center py-8" style={{ color: '#ccc' }}>
+            <div className="text-xs text-center py-8" style={{ color: UI.muted }}>
               No reputation data yet. Reputation builds from request outcomes.
             </div>
           )}
@@ -234,31 +234,31 @@ export function Overview() {
 
       {/* Connected providers */}
       {providers.length > 0 && (
-        <div className="bg-white rounded-2xl border border-gray-200/40 p-6">
+        <div className="bg-ui-surface rounded-2xl border border-ui-border p-6">
           <div className="flex items-center justify-between mb-3">
             <div>
-              <div className="text-[10px] uppercase tracking-wider font-medium" style={{ color: C.gold }}>Connected Providers</div>
+              <div className="text-[10px] uppercase tracking-wider font-medium" style={{ color: UI.accent }}>Connected Providers</div>
             </div>
-            <Link to="/providers" className="text-[10px] font-medium" style={{ color: C.gold }}>View all</Link>
+            <Link to="/providers" className="text-[10px] font-medium" style={{ color: UI.accent }}>View all</Link>
           </div>
           <div className="space-y-2">
             {providers.slice(0, 5).map((p: any) => {
               const tc = TRUST_COLORS[p.trust_level] || TRUST_COLORS.open
               return (
-                <div key={p.id} className="flex items-center justify-between py-2 border-b border-gray-50 last:border-0">
+                <div key={p.id} className="flex items-center justify-between py-2 border-b border-ui-border last:border-0">
                   <div className="flex items-center gap-3">
-                    <span className="w-2 h-2 rounded-full" style={{ background: C.green }} />
-                    <span className="text-sm font-medium" style={{ color: C.blueBlack }}>{p.name || p.id.slice(0, 12)}</span>
-                    <span className="text-xs" style={{ color: '#999' }}>{p.hardware}</span>
+                    <span className="w-2 h-2 rounded-full" style={{ background: UI.success }} />
+                    <span className="text-sm font-medium" style={{ color: UI.text }}>{p.name || p.id.slice(0, 12)}</span>
+                    <span className="text-xs" style={{ color: UI.muted }}>{p.hardware}</span>
                     <span className="text-[9px] font-medium px-1.5 py-0.5 rounded-full" style={{ background: tc.bg, color: tc.text }}>
                       {tc.label}
                     </span>
-                    {p.encrypted && <span className="text-[8px] px-1 rounded" style={{ background: '#eef3f7', color: C.deepBlue }}>Key</span>}
+                    {p.encrypted && <span className="text-[8px] px-1 rounded" style={{ background: UI.infoSurface, color: UI.info }}>Key</span>}
                   </div>
                   <div className="flex items-center gap-4 text-xs">
-                    <span style={{ color: C.turquoise }}>{p.measured_tps > 0 ? `${p.measured_tps.toFixed(0)} tok/s` : '—'}</span>
-                    <span style={{ color: C.gold }}>${p.price_output.toFixed(2)}/M</span>
-                    <span style={{ color: '#999' }}>{p.active_requests}/{p.max_concurrent}</span>
+                    <span style={{ color: UI.info }}>{p.measured_tps > 0 ? `${p.measured_tps.toFixed(0)} tok/s` : '—'}</span>
+                    <span style={{ color: UI.accent }}>${p.price_output.toFixed(2)}/M</span>
+                    <span style={{ color: UI.muted }}>{p.active_requests}/{p.max_concurrent}</span>
                   </div>
                 </div>
               )

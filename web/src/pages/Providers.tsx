@@ -2,7 +2,7 @@ import { useState } from 'react'
 import useSWR from 'swr'
 import { Link } from 'react-router-dom'
 import { api, Provider, ReputationEntry, TPSEntry } from '../lib/api'
-import { C, TRUST_COLORS } from '../lib/theme'
+import { UI, APP_TRUST_COLORS as TRUST_COLORS } from '../lib/theme'
 
 function formatUptime(seconds: number): string {
   if (seconds < 60) return `${seconds}s`
@@ -24,42 +24,42 @@ function ProviderEvidence({ p, reputation, tps }: { p: Provider; reputation?: Re
   const caps = p.model_capabilities
 
   return (
-    <div className="px-5 py-4 border-t" style={{ background: '#f8f8f7', borderColor: '#eaeae8' }}>
+    <div className="px-5 py-4 border-t" style={{ background: UI.surfaceMuted, borderColor: UI.border }}>
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-5 text-xs">
         {/* Pricing */}
         <div>
-          <div className="text-[10px] uppercase tracking-wider mb-2" style={{ color: '#aaa' }}>Pricing / Mtok</div>
+          <div className="text-[10px] uppercase tracking-wider mb-2" style={{ color: UI.muted }}>Pricing / Mtok</div>
           <div className="space-y-1.5">
             <div className="flex justify-between">
-              <span style={{ color: C.deepBlue }}>Input</span>
-              <span className="font-semibold" style={{ color: C.blueBlack }}>${p.price_input.toFixed(2)}</span>
+              <span style={{ color: UI.info }}>Input</span>
+              <span className="font-semibold" style={{ color: UI.text }}>${p.price_input.toFixed(2)}</span>
             </div>
             <div className="flex justify-between">
-              <span style={{ color: C.turquoise }}>Cache</span>
-              <span className="font-semibold" style={{ color: (p.price_cache || 0) > 0 ? C.blueBlack : '#ccc' }}>
+              <span style={{ color: UI.info }}>Cache</span>
+              <span className="font-semibold" style={{ color: (p.price_cache || 0) > 0 ? UI.text : UI.muted }}>
                 {(p.price_cache || 0) > 0 ? `$${(p.price_cache || 0).toFixed(2)}` : '—'}
               </span>
             </div>
             <div className="flex justify-between">
-              <span style={{ color: C.gold }}>Output</span>
-              <span className="font-semibold" style={{ color: C.blueBlack }}>${p.price_output.toFixed(2)}</span>
+              <span style={{ color: UI.accent }}>Output</span>
+              <span className="font-semibold" style={{ color: UI.text }}>${p.price_output.toFixed(2)}</span>
             </div>
           </div>
         </div>
 
         {/* Security / Trust */}
         <div>
-          <div className="text-[10px] uppercase tracking-wider mb-2" style={{ color: '#aaa' }}>Security</div>
+          <div className="text-[10px] uppercase tracking-wider mb-2" style={{ color: UI.muted }}>Security</div>
           <div className="space-y-1.5">
             <div className="flex items-center gap-1.5">
               <span className="w-1.5 h-1.5 rounded-full" style={{ background: tc.text }} />
               <span>{tc.label} runtime</span>
             </div>
             <div className="flex items-center gap-1.5">
-              <span className="w-1.5 h-1.5 rounded-full" style={{ background: p.encrypted ? C.deepBlue : '#ddd' }} />
+              <span className="w-1.5 h-1.5 rounded-full" style={{ background: p.encrypted ? UI.info : UI.track }} />
               <span>{p.encrypted ? 'Provider encryption key advertised' : 'No provider key advertised'}</span>
             </div>
-            <div className="text-[10px] mt-1" style={{ color: '#aaa' }}>
+            <div className="text-[10px] mt-1" style={{ color: UI.muted }}>
               Uptime: {formatUptime(p.uptime_seconds)}
             </div>
           </div>
@@ -67,12 +67,12 @@ function ProviderEvidence({ p, reputation, tps }: { p: Provider; reputation?: Re
 
         {/* Hardware + Capabilities */}
         <div>
-          <div className="text-[10px] uppercase tracking-wider mb-2" style={{ color: '#aaa' }}>Hardware & Model</div>
+          <div className="text-[10px] uppercase tracking-wider mb-2" style={{ color: UI.muted }}>Hardware & Model</div>
           <div className="space-y-1">
-            <div style={{ color: C.blueBlack }}>{p.hardware || 'Unknown'}</div>
+            <div style={{ color: UI.text }}>{p.hardware || 'Unknown'}</div>
             <div className="flex items-center gap-1.5 flex-wrap">
               {p.models.map(m => (
-                <span key={m} className="text-[10px] font-medium px-1.5 py-0.5 rounded" style={{ background: '#f5f3f0', color: C.blueBlack }}>
+                <span key={m} className="text-[10px] font-medium px-1.5 py-0.5 rounded" style={{ background: UI.surfaceMuted, color: UI.text }}>
                   {m}
                 </span>
               ))}
@@ -80,23 +80,23 @@ function ProviderEvidence({ p, reputation, tps }: { p: Provider; reputation?: Re
             {caps && (
               <div className="flex items-center gap-1 mt-1 flex-wrap">
                 {caps.context_length > 0 && (
-                  <span className="text-[8px] font-medium px-1 py-0.5 rounded" style={{ background: '#f0f4f8', color: '#4a6fa5' }}>
+                  <span className="text-[8px] font-medium px-1 py-0.5 rounded" style={{ background: UI.infoSurface, color: UI.info }}>
                     {formatCtx(caps.context_length)} ctx
                   </span>
                 )}
                 {caps.supports_tool_calling && (
-                  <span className="text-[8px] font-medium px-1 py-0.5 rounded" style={{ background: '#eef7f0', color: '#2d7d46' }}>tools</span>
+                  <span className="text-[8px] font-medium px-1 py-0.5 rounded" style={{ background: UI.successSurface, color: UI.success }}>tools</span>
                 )}
                 {caps.supports_vision && (
-                  <span className="text-[8px] font-medium px-1 py-0.5 rounded" style={{ background: '#f3eef7', color: '#6b46a5' }}>vision</span>
+                  <span className="text-[8px] font-medium px-1 py-0.5 rounded" style={{ background: UI.purpleSurface, color: UI.purple }}>vision</span>
                 )}
                 {caps.model_format && (
-                  <span className="text-[8px] font-medium px-1 py-0.5 rounded" style={{ background: '#f5f3f0', color: '#8a7d60' }}>
+                  <span className="text-[8px] font-medium px-1 py-0.5 rounded" style={{ background: UI.surfaceMuted, color: UI.accent }}>
                     {caps.model_format.toUpperCase()}
                   </span>
                 )}
                 {caps.architecture && (
-                  <span className="text-[8px] font-medium px-1 py-0.5 rounded" style={{ background: '#f5f3f0', color: '#8a7d60' }}>
+                  <span className="text-[8px] font-medium px-1 py-0.5 rounded" style={{ background: UI.surfaceMuted, color: UI.accent }}>
                     {caps.architecture}
                   </span>
                 )}
@@ -107,48 +107,48 @@ function ProviderEvidence({ p, reputation, tps }: { p: Provider; reputation?: Re
 
         {/* Performance + Reputation */}
         <div>
-          <div className="text-[10px] uppercase tracking-wider mb-2" style={{ color: '#aaa' }}>Performance</div>
+          <div className="text-[10px] uppercase tracking-wider mb-2" style={{ color: UI.muted }}>Performance</div>
           <div className="space-y-1.5">
             <div>
-              <span style={{ color: C.turquoise }}>
+              <span style={{ color: UI.info }}>
                 {p.measured_tps > 0 ? `${p.measured_tps.toFixed(1)} tok/s` : '—'}
               </span>
-              <span style={{ color: '#bbb' }}> observed</span>
+              <span style={{ color: UI.muted }}> observed</span>
             </div>
             {tps && tps.total_requests > 0 && (
               <div>
-                <span style={{ color: C.turquoise }}>{tps.observed_tps_ema.toFixed(1)}</span>
-                <span style={{ color: '#bbb' }}> EMA over {tps.total_requests} req</span>
+                <span style={{ color: UI.info }}>{tps.observed_tps_ema.toFixed(1)}</span>
+                <span style={{ color: UI.muted }}> EMA over {tps.total_requests} req</span>
               </div>
             )}
             <div>
               Load:{' '}
-              <span style={{ color: p.load > 0.8 ? C.red : p.load > 0.5 ? C.orange : C.green }}>
+              <span style={{ color: p.load > 0.8 ? UI.danger : p.load > 0.5 ? UI.warning : UI.success }}>
                 {(p.load * 100).toFixed(0)}%
               </span>
-              <span style={{ color: '#bbb' }}> ({p.active_requests}/{p.max_concurrent} slots)</span>
+              <span style={{ color: UI.muted }}> ({p.active_requests}/{p.max_concurrent} slots)</span>
             </div>
             {reputation && (
-              <div className="mt-1.5 pt-1.5" style={{ borderTop: '1px solid #e5e5e3' }}>
+              <div className="mt-1.5 pt-1.5" style={{ borderTop: "1px solid var(--ui-border)" }}>
                 <div className="flex items-center justify-between">
                   <span>Reputation</span>
                   <span className="font-semibold" style={{
-                    color: reputation.score > 0.8 ? C.green : reputation.score > 0.5 ? C.gold : C.red
+                    color: reputation.score > 0.8 ? UI.success : reputation.score > 0.5 ? UI.accent : UI.danger
                   }}>
                     {(reputation.score * 100).toFixed(0)}%
                   </span>
                 </div>
                 <div className="flex items-center justify-between mt-0.5">
-                  <span style={{ color: '#bbb' }}>Success rate</span>
+                  <span style={{ color: UI.muted }}>Success rate</span>
                   <span>{(reputation.success_rate_ema * 100).toFixed(1)}%</span>
                 </div>
                 <div className="flex items-center justify-between mt-0.5">
-                  <span style={{ color: '#bbb' }}>Requests</span>
+                  <span style={{ color: UI.muted }}>Requests</span>
                   <span>{reputation.total_successes} ok / {reputation.total_failures} fail</span>
                 </div>
                 {reputation.is_degraded && (
                   <div className="mt-1 text-[10px] font-medium px-2 py-0.5 rounded-full inline-block"
-                    style={{ background: '#fdf5f4', color: C.red }}>
+                    style={{ background: UI.dangerSurface, color: UI.danger }}>
                     Degraded
                   </div>
                 )}
@@ -189,39 +189,39 @@ export function Providers() {
       <div className="flex items-center gap-4 flex-wrap">
         <div className="flex-1 grid grid-cols-2 lg:grid-cols-4 gap-3">
           {[
-            { label: 'providers online', value: providers.length, color: C.green },
-            { label: 'Hardened+', value: hardenedCount, color: C.gold },
-            { label: 'models live', value: modelCount, color: C.blueBlack },
-            { label: 'lowest output', value: cheapestOut > 0 ? `$${cheapestOut.toFixed(2)}` : '—', color: C.gold },
+            { label: 'providers online', value: providers.length, color: UI.success },
+            { label: 'Hardened+', value: hardenedCount, color: UI.accent },
+            { label: 'models live', value: modelCount, color: UI.text },
+            { label: 'lowest output', value: cheapestOut > 0 ? `$${cheapestOut.toFixed(2)}` : '—', color: UI.accent },
           ].map(s => (
-            <div key={s.label} className="bg-white rounded-2xl border border-gray-200/40 px-5 py-4">
+            <div key={s.label} className="bg-ui-surface rounded-2xl border border-ui-border px-5 py-4">
               <div className="text-2xl font-bold tracking-tight" style={{ color: s.color }}>{s.value}</div>
-              <div className="text-[11px] mt-0.5" style={{ color: '#999' }}>{s.label}</div>
+              <div className="text-[11px] mt-0.5" style={{ color: UI.muted }}>{s.label}</div>
             </div>
           ))}
         </div>
-        <Link to="/provide" className="px-5 py-3 rounded-xl text-sm font-medium shrink-0" style={{ background: C.blueBlack, color: '#fff' }}>
+        <Link to="/provide" className="px-5 py-3 rounded-xl text-sm font-medium shrink-0" style={{ background: UI.action, color: UI.onAction }}>
           Run a provider
         </Link>
       </div>
 
       {/* Fleet summary */}
       {providers.length > 0 && (
-        <div className="flex items-center gap-4 text-xs flex-wrap" style={{ color: '#888' }}>
-          <span>Capacity: <span className="font-semibold" style={{ color: C.blueBlack }}>{usedSlots}/{totalSlots}</span> slots</span>
-          {encryptedCount > 0 && <span><span className="font-semibold" style={{ color: C.deepBlue }}>{encryptedCount}</span> keys advertised</span>}
-          {avgTps > 0 && <span>Avg: <span className="font-semibold" style={{ color: C.turquoise }}>{avgTps.toFixed(1)}</span> tok/s</span>}
+        <div className="flex items-center gap-4 text-xs flex-wrap" style={{ color: UI.muted }}>
+          <span>Capacity: <span className="font-semibold" style={{ color: UI.text }}>{usedSlots}/{totalSlots}</span> slots</span>
+          {encryptedCount > 0 && <span><span className="font-semibold" style={{ color: UI.info }}>{encryptedCount}</span> keys advertised</span>}
+          {avgTps > 0 && <span>Avg: <span className="font-semibold" style={{ color: UI.info }}>{avgTps.toFixed(1)}</span> tok/s</span>}
         </div>
       )}
 
       {/* Provider table */}
-      <div className="bg-white rounded-2xl border border-gray-200/40 overflow-hidden">
-        <div className="text-[10px] uppercase tracking-wider font-medium px-5 pt-4 pb-2" style={{ color: C.gold }}>
+      <div className="bg-ui-surface rounded-2xl border border-ui-border overflow-hidden">
+        <div className="text-[10px] uppercase tracking-wider font-medium px-5 pt-4 pb-2" style={{ color: UI.accent }}>
           Available Providers
         </div>
 
         {/* Table header */}
-        <div className="grid grid-cols-12 gap-2 px-5 py-2 text-[9px] uppercase tracking-wider border-b border-gray-100" style={{ color: '#bbb' }}>
+        <div className="grid grid-cols-12 gap-2 px-5 py-2 text-[9px] uppercase tracking-wider border-b border-ui-border" style={{ color: UI.muted }}>
           <div className="col-span-2">Provider</div>
           <div className="col-span-2">Model</div>
           <div className="col-span-1 text-right">In</div>
@@ -243,46 +243,46 @@ export function Providers() {
           return (
             <div key={p.id}>
               <div
-                className="grid grid-cols-12 gap-2 px-5 py-3.5 items-center border-b border-gray-50 cursor-pointer transition-colors hover:bg-gray-50/50"
+                className="grid grid-cols-12 gap-2 px-5 py-3.5 items-center border-b border-ui-border cursor-pointer transition-colors hover:bg-ui-hover"
                 onClick={() => setExpandedId(isExpanded ? null : p.id)}
               >
                 {/* Name + hardware + badges */}
                 <div className="col-span-2 min-w-0">
                   <div className="flex items-center gap-1.5">
-                    <span className="w-2 h-2 rounded-full shrink-0" style={{ background: C.green }} />
-                    <span className="text-sm font-semibold truncate" style={{ color: C.blueBlack }}>
+                    <span className="w-2 h-2 rounded-full shrink-0" style={{ background: UI.success }} />
+                    <span className="text-sm font-semibold truncate" style={{ color: UI.text }}>
                       {p.name || p.id.slice(0, 12)}
                     </span>
                   </div>
                   <div className="flex items-center gap-1 mt-0.5 ml-3.5">
-                    <span className="text-[10px] truncate" style={{ color: '#999' }}>{p.hardware || 'Unknown'}</span>
-                    {p.encrypted && <span className="text-[7px] px-1 rounded" style={{ background: '#eef3f7', color: C.deepBlue }}>Key</span>}
+                    <span className="text-[10px] truncate" style={{ color: UI.muted }}>{p.hardware || 'Unknown'}</span>
+                    {p.encrypted && <span className="text-[7px] px-1 rounded" style={{ background: UI.infoSurface, color: UI.info }}>Key</span>}
                   </div>
                 </div>
 
                 {/* Model */}
                 <div className="col-span-2 min-w-0">
-                  <span className="text-sm truncate block" style={{ color: C.blueBlack }}>{modelName}</span>
+                  <span className="text-sm truncate block" style={{ color: UI.text }}>{modelName}</span>
                 </div>
 
                 {/* Three-tier pricing */}
-                <div className="col-span-1 text-right text-xs" style={{ color: C.deepBlue }}>${p.price_input.toFixed(2)}</div>
-                <div className="col-span-1 text-right text-xs" style={{ color: (p.price_cache || 0) > 0 ? C.turquoise : '#ddd' }}>
+                <div className="col-span-1 text-right text-xs" style={{ color: UI.info }}>${p.price_input.toFixed(2)}</div>
+                <div className="col-span-1 text-right text-xs" style={{ color: (p.price_cache || 0) > 0 ? UI.info : UI.muted }}>
                   {(p.price_cache || 0) > 0 ? `$${(p.price_cache || 0).toFixed(2)}` : '—'}
                 </div>
-                <div className="col-span-1 text-right text-sm font-semibold" style={{ color: C.gold }}>${p.price_output.toFixed(2)}</div>
+                <div className="col-span-1 text-right text-sm font-semibold" style={{ color: UI.accent }}>${p.price_output.toFixed(2)}</div>
 
                 {/* Speed */}
-                <div className="col-span-1 text-right text-sm" style={{ color: C.turquoise }}>
+                <div className="col-span-1 text-right text-sm" style={{ color: UI.info }}>
                   {p.measured_tps > 0 ? `${p.measured_tps.toFixed(0)}` : '—'}
                 </div>
 
                 {/* Load */}
                 <div className="col-span-1 text-center">
-                  <div className="w-full h-1.5 rounded-full overflow-hidden mx-auto" style={{ background: '#f0f0f0', maxWidth: '36px' }}>
+                  <div className="w-full h-1.5 rounded-full overflow-hidden mx-auto" style={{ background: UI.track, maxWidth: '36px' }}>
                     <div className="h-full rounded-full" style={{
                       width: `${Math.max(5, p.load * 100)}%`,
-                      background: p.load > 0.8 ? C.red : p.load > 0.5 ? C.orange : C.green,
+                      background: p.load > 0.8 ? UI.danger : p.load > 0.5 ? UI.warning : UI.success,
                     }} />
                   </div>
                 </div>
@@ -298,7 +298,7 @@ export function Providers() {
                 <div className="col-span-2 flex items-center justify-end gap-1.5">
                   <button
                     className="text-[10px] font-medium px-2.5 py-1 rounded-lg border"
-                    style={{ color: '#888', borderColor: '#ddd' }}
+                    style={{ color: UI.muted, borderColor: UI.border }}
                     onClick={e => { e.stopPropagation(); setExpandedId(isExpanded ? null : p.id) }}
                   >
                     {isExpanded ? 'Hide' : 'View evidence'}
@@ -306,12 +306,12 @@ export function Providers() {
                   <Link
                     to={`/chat?model=${encodeURIComponent(modelName)}`}
                     className="text-[10px] font-medium px-2.5 py-1 rounded-lg"
-                    style={{ background: C.blueBlack, color: '#fff' }}
+                    style={{ background: UI.action, color: UI.onAction }}
                     onClick={e => e.stopPropagation()}
                   >
                     Use
                   </Link>
-                  <svg className={`w-3 h-3 transition-transform ${isExpanded ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="#aaa" strokeWidth={2}>
+                  <svg className={`w-3 h-3 transition-transform ${isExpanded ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke={UI.muted} strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
                   </svg>
                 </div>
@@ -322,9 +322,9 @@ export function Providers() {
             </div>
           )
         }) : (
-          <div className="px-5 py-16 text-center text-sm" style={{ color: '#ccc' }}>
+          <div className="px-5 py-16 text-center text-sm" style={{ color: UI.muted }}>
             No providers connected.
-            <div className="mt-4 text-xs font-mono px-4 py-3 rounded-xl inline-block" style={{ background: '#f5f3f0', color: '#666' }}>
+            <div className="mt-4 text-xs font-mono px-4 py-3 rounded-xl inline-block" style={{ background: UI.surfaceMuted, color: UI.body }}>
               python -m ocip_agent.agent --model your-model.gguf
             </div>
           </div>
@@ -332,11 +332,11 @@ export function Providers() {
       </div>
 
       {/* Trust explanation footer */}
-      <div className="bg-white rounded-2xl border border-gray-200/40 px-5 py-4">
-        <div className="text-sm font-semibold" style={{ color: C.blueBlack }}>
+      <div className="bg-ui-surface rounded-2xl border border-ui-border px-5 py-4">
+        <div className="text-sm font-semibold" style={{ color: UI.text }}>
           Provider trust is evidence-based
         </div>
-        <div className="text-xs mt-1" style={{ color: '#888' }}>
+        <div className="text-xs mt-1" style={{ color: UI.muted }}>
           See binary hash, trust level, recent success rate and observed throughput before routing.
         </div>
       </div>

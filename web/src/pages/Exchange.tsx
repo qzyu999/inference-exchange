@@ -1,7 +1,7 @@
 import useSWR from 'swr'
 import { api } from '../lib/api'
 import { useState, useMemo, useRef, useEffect } from 'react'
-import { C, TRUST_COLORS } from '../lib/theme'
+import { UI, APP_TRUST_COLORS as TRUST_COLORS } from '../lib/theme'
 import { ModelSearch, type ModelSearchItem } from '../components/ModelSearch'
 
 // ─── Constants ───────────────────────────────────────────────
@@ -86,13 +86,13 @@ function fmtPrice(p: number): string {
 
 // ─── Interactive Price Chart ─────────────────────────────────
 
-const CHART_COLORS = [C.gold, C.turquoise, C.deepBlue, C.orange, C.red, '#888', C.indigo, C.green, C.maroon]
+const CHART_COLORS = [UI.chart1, UI.chart2, UI.chart3, UI.chart4, UI.chart5, UI.chart6, UI.chart7, UI.chart8, UI.chart9]
 
 type PriceTier = 'output' | 'input' | 'cache'
 const TIER_META: Record<PriceTier, { label: string; color: string; key: keyof OfferRow }> = {
-  output: { label: 'Output', color: C.gold, key: 'priceOutput' },
-  input: { label: 'Input', color: C.deepBlue, key: 'priceInput' },
-  cache: { label: 'Cache', color: C.turquoise, key: 'priceCache' },
+  output: { label: 'Output', color: UI.accent, key: 'priceOutput' },
+  input: { label: 'Input', color: UI.info, key: 'priceInput' },
+  cache: { label: 'Cache', color: UI.info, key: 'priceCache' },
 }
 
 function PriceChart({ offerRows, modelName }: { offerRows: OfferRow[]; modelName: string }) {
@@ -110,7 +110,7 @@ function PriceChart({ offerRows, modelName }: { offerRows: OfferRow[]; modelName
     }).map((r, i) => ({
       name: r.name,
       price: r[tierKey] as number,
-      color: r.isIE ? C.gold : CHART_COLORS[i % CHART_COLORS.length],
+      color: r.isIE ? UI.accent : CHART_COLORS[i % CHART_COLORS.length],
       isIE: r.isIE,
       // Flat line for 30 days (current price). IE starts at day 15.
       prices: r.isIE
@@ -131,63 +131,74 @@ function PriceChart({ offerRows, modelName }: { offerRows: OfferRow[]; modelName
     const ctx = canvas.getContext('2d')
     if (!ctx) return
 
-    // DPR-aware sizing to prevent text distortion
-    const dpr = window.devicePixelRatio || 1
-    const rect = canvas.getBoundingClientRect()
-    canvas.width = rect.width * dpr
-    canvas.height = rect.height * dpr
-    ctx.scale(dpr, dpr)
+    // Canvas needs resolved colors; CSS variables are resolved by the DOM only.
+    const paint = (color: string) => color.startsWith('var(')
+      ? getComputedStyle(canvas).getPropertyValue(color.slice(4, -1)).trim()
+      : color
+    const draw = () => {
+      // DPR-aware sizing to prevent text distortion
+      const dpr = window.devicePixelRatio || 1
+      const rect = canvas.getBoundingClientRect()
+      canvas.width = rect.width * dpr
+      canvas.height = rect.height * dpr
+      ctx.scale(dpr, dpr)
 
-    const W = rect.width, H = rect.height
-    const PAD = { t: 8, r: 40, b: 14, l: 4 }
-    const pW = W - PAD.l - PAD.r, pH = H - PAD.t - PAD.b
+      const W = rect.width, H = rect.height
+      const PAD = { t: 8, r: 40, b: 14, l: 4 }
+      const pW = W - PAD.l - PAD.r, pH = H - PAD.t - PAD.b
 
-    const yC = (v: number) => PAD.t + pH * (1 - v / yMax)
-    const xC = (i: number) => PAD.l + (i / 29) * pW
+      const yC = (v: number) => PAD.t + pH * (1 - v / yMax)
+      const xC = (i: number) => PAD.l + (i / 29) * pW
 
-    ctx.clearRect(0, 0, W, H)
+      ctx.clearRect(0, 0, W, H)
 
-    // Grid
-    ctx.strokeStyle = '#e0e0e0'
-    ctx.lineWidth = 0.5
-    for (const f of [0.25, 0.5, 0.75, 1]) {
-      const y = yC(yMax * f)
-      ctx.beginPath(); ctx.moveTo(PAD.l, y); ctx.lineTo(W - PAD.r, y); ctx.stroke()
-    }
-
-    // Y labels
-    ctx.fillStyle = '#999'
-    ctx.font = '9px SF Mono,Menlo,monospace'
-    ctx.textAlign = 'left'
-    for (const f of [0, 0.25, 0.5, 0.75, 1]) {
-      ctx.fillText('$' + (yMax * f).toFixed(2), W - PAD.r + 4, yC(yMax * f) + 3)
-    }
-
-    // Lines
-    providers.forEach((p, pi) => {
-      if (hiddenIdx.has(pi)) return
-      ctx.strokeStyle = p.color
-      ctx.lineWidth = p.isIE ? 3 : 1.5
-      ctx.setLineDash(p.isIE ? [] : [6, 4])
-      ctx.beginPath()
-      let started = false
-      p.prices.forEach((v: number | null, i: number) => {
-        if (v === null) return
-        const x = xC(i), y = yC(v)
-        if (!started) { ctx.moveTo(x, y); started = true } else ctx.lineTo(x, y)
-      })
-      ctx.stroke()
-      ctx.setLineDash([])
-
-      // Entry dot for IE
-      if (p.prices[0] === null) {
-        const fi = p.prices.findIndex((v: number | null) => v !== null)
-        if (fi >= 0) {
-          ctx.fillStyle = p.color
-          ctx.beginPath(); ctx.arc(xC(fi), yC(p.prices[fi]!), 4, 0, Math.PI * 2); ctx.fill()
-        }
+      // Grid
+      ctx.strokeStyle = paint(UI.border)
+      ctx.lineWidth = 0.5
+      for (const f of [0.25, 0.5, 0.75, 1]) {
+        const y = yC(yMax * f)
+        ctx.beginPath(); ctx.moveTo(PAD.l, y); ctx.lineTo(W - PAD.r, y); ctx.stroke()
       }
-    })
+
+      // Y labels
+      ctx.fillStyle = paint(UI.muted)
+      ctx.font = '9px SF Mono,Menlo,monospace'
+      ctx.textAlign = 'left'
+      for (const f of [0, 0.25, 0.5, 0.75, 1]) {
+        ctx.fillText('$' + (yMax * f).toFixed(2), W - PAD.r + 4, yC(yMax * f) + 3)
+      }
+
+      // Lines
+      providers.forEach((p, pi) => {
+        if (hiddenIdx.has(pi)) return
+        ctx.strokeStyle = paint(p.color)
+        ctx.lineWidth = p.isIE ? 3 : 1.5
+        ctx.setLineDash(p.isIE ? [] : [6, 4])
+        ctx.beginPath()
+        let started = false
+        p.prices.forEach((v: number | null, i: number) => {
+          if (v === null) return
+          const x = xC(i), y = yC(v)
+          if (!started) { ctx.moveTo(x, y); started = true } else ctx.lineTo(x, y)
+        })
+        ctx.stroke()
+        ctx.setLineDash([])
+
+        // Entry dot for IE
+        if (p.prices[0] === null) {
+          const fi = p.prices.findIndex((v: number | null) => v !== null)
+          if (fi >= 0) {
+            ctx.fillStyle = paint(p.color)
+            ctx.beginPath(); ctx.arc(xC(fi), yC(p.prices[fi]!), 4, 0, Math.PI * 2); ctx.fill()
+          }
+        }
+      })
+    }
+    draw()
+    const shell = canvas.closest('[data-appearance]')
+    const observer = new MutationObserver(draw)
+    if (shell) observer.observe(shell, { attributes: true, attributeFilter: ['data-appearance'] })
+    return () => observer.disconnect()
   }, [providers, yMax, hiddenIdx, tier])
 
   // Hover
@@ -237,8 +248,8 @@ function PriceChart({ offerRows, modelName }: { offerRows: OfferRow[]; modelName
   }
 
   return (
-    <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #eaeae8', padding: 14, paddingBottom: 8, overflow: 'hidden' }}>
-      <h4 style={{ fontSize: 8, textTransform: 'uppercase', letterSpacing: '.06em', color: '#888', marginBottom: 8, fontWeight: 600 }}>
+    <div style={{ background: UI.surface, borderRadius: 12, border: "1px solid var(--ui-border)", padding: 14, paddingBottom: 8, overflow: 'hidden' }}>
+      <h4 style={{ fontSize: 8, textTransform: 'uppercase', letterSpacing: '.06em', color: UI.muted, marginBottom: 8, fontWeight: 600 }}>
         {modelName} — provider prices (30d)
       </h4>
 
@@ -247,9 +258,9 @@ function PriceChart({ offerRows, modelName }: { offerRows: OfferRow[]; modelName
         {(['input', 'cache', 'output'] as PriceTier[]).map(t => (
           <span key={t} onClick={() => setTier(t)} style={{
             fontSize: 9, fontWeight: 600, padding: '3px 8px', borderRadius: 5, cursor: 'pointer',
-            background: tier === t ? TIER_META[t].color : '#f5f5f3',
-            color: tier === t ? '#fff' : '#888',
-            border: `1px solid ${tier === t ? TIER_META[t].color : '#e5e5e5'}`,
+            background: tier === t ? UI.selected : UI.surfaceMuted,
+            color: tier === t ? UI.selectedText : UI.muted,
+            border: `1px solid ${tier === t ? TIER_META[t].color : UI.border}`,
           }}>
             {TIER_META[t].label}
           </span>
@@ -259,14 +270,14 @@ function PriceChart({ offerRows, modelName }: { offerRows: OfferRow[]; modelName
       {providers.length > 0 ? (
         <div ref={containerRef} style={{ position: 'relative' }}>
           <canvas ref={canvasRef}
-            style={{ width: '100%', height: 160, borderRadius: 8, background: '#fafaf8', cursor: 'crosshair', display: 'block' }}
+            style={{ width: '100%', height: 160, borderRadius: 8, background: UI.surfaceMuted, cursor: 'crosshair', display: 'block' }}
             onMouseMove={handleMove}
             onMouseLeave={() => setTooltip(null)}
           />
           {tooltip && (
             <div style={{
               position: 'absolute', left: tooltip.x, top: tooltip.y,
-              background: '#292F35', color: '#fff', fontSize: 10, padding: '4px 8px',
+              background: UI.codeSurface, color: UI.onAction, fontSize: 10, padding: '4px 8px',
               borderRadius: 5, whiteSpace: 'nowrap', pointerEvents: 'none', zIndex: 10,
               borderLeft: `3px solid ${tooltip.color}`,
             }}>
@@ -280,7 +291,7 @@ function PriceChart({ offerRows, modelName }: { offerRows: OfferRow[]; modelName
               <span key={i} onClick={() => toggleProvider(i)} style={{
                 fontSize: 9, fontWeight: 600, padding: '2px 6px', borderRadius: 4,
                 cursor: 'pointer', userSelect: 'none',
-                border: `1px solid ${p.color}`, color: p.color, background: p.color + '11',
+                border: `1px solid ${p.color}`, color: p.color, background: `color-mix(in srgb, ${p.color} 7%, transparent)`,
                 opacity: hiddenIdx.has(i) ? 0.3 : 1, transition: 'opacity .15s',
               }}>
                 {p.name}
@@ -288,15 +299,15 @@ function PriceChart({ offerRows, modelName }: { offerRows: OfferRow[]; modelName
             ))}
           </div>
 
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 8, color: '#aaa', marginTop: 2 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 8, color: UI.muted, marginTop: 2 }}>
             <span>30d ago</span><span>Today</span>
           </div>
-          <div style={{ fontSize: 8, color: '#aaa', marginTop: 4 }}>
+          <div style={{ fontSize: 8, color: UI.muted, marginTop: 4 }}>
             Hover for details. Click legend to toggle. Historical data fills in as the coordinator collects snapshots.
           </div>
         </div>
       ) : (
-        <div style={{ fontSize: 11, color: '#ccc', padding: '12px 0', textAlign: 'center' }}>
+        <div style={{ fontSize: 11, color: UI.muted, padding: '12px 0', textAlign: 'center' }}>
           No {TIER_META[tier].label.toLowerCase()} pricing data for this tier
         </div>
       )}
@@ -480,9 +491,9 @@ export function Exchange() {
       priceLabel: m.price > 0 ? (m.price < 1 ? '$' + m.price.toFixed(2) : '$' + m.price.toFixed(0)) : undefined,
       badges: [
         { label: m.source === 'ref' ? 'Reference only' : m.source === 'both' ? 'IE + reference' : 'On IE',
-          color: m.source === 'ref' ? C.indigo : C.green, background: m.source === 'ref' ? '#f3eef7' : '#edf7f1' },
-        ...(m.cache ? [{ label: 'Cache', color: C.turquoise, background: '#e8f5f3' }] : []),
-        ...(m.quality != null ? [{ label: '★ ' + m.quality, color: C.deepBlue, background: '#f0f4f8' }] : []),
+          color: m.source === 'ref' ? UI.purple : UI.success, background: m.source === 'ref' ? UI.purpleSurface : UI.successSurface },
+        ...(m.cache ? [{ label: 'Cache', color: UI.info, background: UI.infoSurface }] : []),
+        ...(m.quality != null ? [{ label: '★ ' + m.quality, color: UI.info, background: UI.infoSurface }] : []),
       ],
     }))), [groupedModels])
 
@@ -582,11 +593,11 @@ export function Exchange() {
     return (
       <div style={{ maxWidth: 500, margin: '60px auto', textAlign: 'center' }}>
         <img src="/logo-icon.svg" alt="IE" style={{ width: 48, height: 48, margin: '0 auto 20px', opacity: 0.2 }} />
-        <h2 style={{ fontSize: 18, fontWeight: 700, color: C.blueBlack, marginBottom: 8 }}>The exchange is quiet</h2>
-        <p style={{ fontSize: 13, color: '#888', marginBottom: 24 }}>No providers connected and no reference data loaded.</p>
-        <div style={{ background: C.blueBlack, color: C.warmWhite, borderRadius: 10, padding: 16, fontFamily: 'SF Mono,Menlo,Consolas,monospace', fontSize: 12, textAlign: 'left' }}>
-          <div><span style={{ color: '#666' }}>$</span> pip install ie-provider</div>
-          <div><span style={{ color: '#666' }}>$</span> ie-provider start</div>
+        <h2 style={{ fontSize: 18, fontWeight: 700, color: UI.text, marginBottom: 8 }}>The exchange is quiet</h2>
+        <p style={{ fontSize: 13, color: UI.muted, marginBottom: 24 }}>No providers connected and no reference data loaded.</p>
+        <div style={{ background: UI.action, color: UI.onAction, borderRadius: 10, padding: 16, fontFamily: 'SF Mono,Menlo,Consolas,monospace', fontSize: 12, textAlign: 'left' }}>
+          <div><span style={{ color: UI.body }}>$</span> pip install ie-provider</div>
+          <div><span style={{ color: UI.body }}>$</span> ie-provider start</div>
         </div>
       </div>
     )
@@ -597,21 +608,21 @@ export function Exchange() {
       {/* ── 1. Live status strip ── */}
       <div className="spot" style={{
         display: 'flex', alignItems: 'center', gap: 12, padding: '8px 12px',
-        background: '#fff', borderRadius: 10, border: '1px solid #eaeae8',
-        marginBottom: 16, fontSize: 11, color: '#888', flexWrap: 'wrap',
+        background: UI.surface, borderRadius: 10, border: "1px solid var(--ui-border)",
+        marginBottom: 16, fontSize: 11, color: UI.muted, flexWrap: 'wrap',
       }}>
-        <span style={{ width: 5, height: 5, borderRadius: '50%', background: C.green, animation: 'pulse 2s infinite' }} />
-        <span style={{ color: C.green }}>Live</span>
-        <span style={{ color: '#ddd' }}>|</span>
+        <span style={{ width: 5, height: 5, borderRadius: '50%', background: UI.success, animation: 'pulse 2s infinite' }} />
+        <span style={{ color: UI.success }}>Live</span>
+        <span style={{ color: UI.muted }}>|</span>
         {stats && <>
           <span>{stats.providers_online} providers online</span>
-          <span style={{ color: '#ddd' }}>|</span>
+          <span style={{ color: UI.muted }}>|</span>
           <span>{stats.models_available} models</span>
-          <span style={{ color: '#ddd' }}>|</span>
-          <span style={{ color: C.gold }}>{stats.total_requests.toLocaleString()} fills / 24h</span>
+          <span style={{ color: UI.muted }}>|</span>
+          <span style={{ color: UI.accent }}>{stats.total_requests.toLocaleString()} fills / 24h</span>
         </>}
         <span style={{ flex: 1 }} />
-        <span style={{ fontSize: 9, color: '#bbb' }}>Updated live</span>
+        <span style={{ fontSize: 9, color: UI.muted }}>Updated live</span>
       </div>
 
       {/* ── 2. Model Selector — Shared Search (same component as Chat) ── */}
@@ -628,38 +639,38 @@ export function Exchange() {
         filters={
           <>
             {/* Filter bar */}
-            <div style={{ padding: '6px 12px', borderBottom: '1px solid #f0f0f0', display: 'flex', gap: 4, flexWrap: 'wrap', alignItems: 'center' }}>
-              <span style={{ fontSize: 8, textTransform: 'uppercase', letterSpacing: '.06em', color: '#aaa', marginRight: 2 }}>Filter</span>
-              <Chip label="Open-weight" active={filterOpen === true} color={C.green} bg="#edf7f1"
+            <div style={{ padding: '6px 12px', borderBottom: "1px solid var(--ui-border)", display: 'flex', gap: 4, flexWrap: 'wrap', alignItems: 'center' }}>
+              <span style={{ fontSize: 8, textTransform: 'uppercase', letterSpacing: '.06em', color: UI.muted, marginRight: 2 }}>Filter</span>
+              <Chip label="Open-weight" active={filterOpen === true} color={UI.success} bg={UI.successSurface}
                 onClick={() => setFilterOpen(filterOpen === true ? null : true)} />
-              <Chip label="Proprietary" active={filterOpen === false} color={C.indigo} bg="#f3eef7"
+              <Chip label="Proprietary" active={filterOpen === false} color={UI.purple} bg={UI.purpleSurface}
                 onClick={() => setFilterOpen(filterOpen === false ? null : false)} />
               <Sep />
-              <Chip label="Cache discount" active={filterCache} color={C.turquoise} bg="#e8f5f3"
+              <Chip label="Cache discount" active={filterCache} color={UI.info} bg={UI.infoSurface}
                 onClick={() => setFilterCache(!filterCache)} />
-              <Chip label="Benchmarked" active={filterBenchmarked} color={C.deepBlue} bg="#eef3f7"
+              <Chip label="Benchmarked" active={filterBenchmarked} color={UI.info} bg={UI.infoSurface}
                 onClick={() => setFilterBenchmarked(!filterBenchmarked)} />
               <Sep />
-              <span style={{ fontSize: 8, color: '#aaa' }}>Size:</span>
+              <span style={{ fontSize: 8, color: UI.muted }}>Size:</span>
               {['<7B', '7-30B', '30-100B', '100B+'].map(r => (
-                <Chip key={r} label={r} active={filterSize === r} color={C.gold} bg="#fdf6ec"
+                <Chip key={r} label={r} active={filterSize === r} color={UI.accent} bg={UI.warningSurface}
                   onClick={() => setFilterSize(filterSize === r ? null : r)} />
               ))}
               <Sep />
-              <span style={{ fontSize: 8, color: '#aaa' }}>Max $:</span>
+              <span style={{ fontSize: 8, color: UI.muted }}>Max $:</span>
               {[1, 5, 15].map(cap => (
-                <Chip key={cap} label={`$${cap}`} active={filterPriceCap === cap} color={C.red} bg="#fef2f2"
+                <Chip key={cap} label={`$${cap}`} active={filterPriceCap === cap} color={UI.danger} bg={UI.dangerSurface}
                   onClick={() => setFilterPriceCap(filterPriceCap === cap ? null : cap)} />
               ))}
               <Sep />
               <select value={filterFamily || ''} onChange={e => setFilterFamily(e.target.value || null)}
-                style={{ fontSize: 9, border: '1px solid #e5e5e5', borderRadius: 5, padding: '2px 4px', color: '#888', background: '#f5f5f3', cursor: 'pointer', outline: 'none' }}>
+                style={{ fontSize: 9, border: "1px solid var(--ui-border)", borderRadius: 5, padding: '2px 4px', color: UI.muted, background: UI.surfaceMuted, cursor: 'pointer', outline: 'none' }}>
                 <option value="">All families</option>
                 {families.map(f => <option key={f}>{f}</option>)}
               </select>
               <button type="button" onClick={clearFilters} disabled={!filtersActive}
-                className="rounded border border-gray-200 bg-white px-2 py-1 text-[10px] font-semibold disabled:opacity-40"
-                style={{ color: C.blueBlack }}>
+                className="rounded border border-ui-border bg-ui-surface px-2 py-1 text-[10px] font-semibold disabled:opacity-40"
+                style={{ color: UI.text }}>
                 Clear filters
               </button>
             </div>
@@ -672,36 +683,36 @@ export function Exchange() {
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 14, marginBottom: 4, flexWrap: 'wrap' }}>
         <h1 style={{ fontSize: 20, fontWeight: 700 }}>{activeUnified?.name || 'Select a model'}</h1>
         {bestPrice > 0 && (
-          <span style={{ fontSize: 11, color: '#888' }}>
-            Best <b style={{ fontFamily: 'SF Mono,Menlo,Consolas,monospace', color: C.green }}>{fmtPrice(bestPrice)}</b> /Mtok out
+          <span style={{ fontSize: 11, color: UI.muted }}>
+            Best <b style={{ fontFamily: 'SF Mono,Menlo,Consolas,monospace', color: UI.success }}>{fmtPrice(bestPrice)}</b> /Mtok out
           </span>
         )}
         {spreadPct > 0 && (
-          <span style={{ fontSize: 11, color: '#888' }}>
-            Spread <b style={{ fontFamily: 'SF Mono,Menlo,Consolas,monospace', color: C.orange }}>
+          <span style={{ fontSize: 11, color: UI.muted }}>
+            Spread <b style={{ fontFamily: 'SF Mono,Menlo,Consolas,monospace', color: UI.warning }}>
               {fmtPrice(bestPrice)} — {fmtPrice(worstPrice)}</b> ({spreadPct}%)
           </span>
         )}
-        <span style={{ fontSize: 11, color: '#888' }}><b>{offerRows.length}</b> providers</span>
+        <span style={{ fontSize: 11, color: UI.muted }}><b>{offerRows.length}</b> providers</span>
       </div>
       <div style={{ display: 'flex', gap: 4, marginBottom: 16, flexWrap: 'wrap' }}>
-        {activeUnified?.open && <CapBadge bg="#eef7f0" color={C.green}>open-weight</CapBadge>}
-        {!activeUnified?.open && activeUnified && <CapBadge bg="#f3eef7" color={C.indigo}>proprietary</CapBadge>}
-        {caps && caps.context_length > 0 && <CapBadge bg="#eef7f0" color={C.green}>{formatCtx(caps.context_length)} ctx</CapBadge>}
-        {caps?.supports_tool_calling && <CapBadge bg="#eef7f0" color={C.green}>tools</CapBadge>}
-        {caps?.supports_vision && <CapBadge bg="#f3eef7" color={C.indigo}>vision</CapBadge>}
+        {activeUnified?.open && <CapBadge bg={UI.successSurface} color={UI.success}>open-weight</CapBadge>}
+        {!activeUnified?.open && activeUnified && <CapBadge bg={UI.purpleSurface} color={UI.purple}>proprietary</CapBadge>}
+        {caps && caps.context_length > 0 && <CapBadge bg={UI.successSurface} color={UI.success}>{formatCtx(caps.context_length)} ctx</CapBadge>}
+        {caps?.supports_tool_calling && <CapBadge bg={UI.successSurface} color={UI.success}>tools</CapBadge>}
+        {caps?.supports_vision && <CapBadge bg={UI.purpleSurface} color={UI.purple}>vision</CapBadge>}
         {activeUnified?.codingIndex != null && (
-          <CapBadge bg="#f0f4f8" color={C.deepBlue}>Code: {activeUnified.codingIndex}</CapBadge>
+          <CapBadge bg={UI.infoSurface} color={UI.info}>Code: {activeUnified.codingIndex}</CapBadge>
         )}
         {activeUnified?.quality != null && (
-          <CapBadge bg="#f0f4f8" color={C.deepBlue}>Intelligence: {activeUnified.quality}</CapBadge>
+          <CapBadge bg={UI.infoSurface} color={UI.info}>Intelligence: {activeUnified.quality}</CapBadge>
         )}
       </div>
 
       {/* ── 4. Main Grid ── */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginBottom: 16 }}>
         {/* ── Sortable offer table (full width) ── */}
-        <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #eaeae8', overflow: 'auto' }}>
+        <div style={{ background: UI.surface, borderRadius: 12, border: "1px solid var(--ui-border)", overflow: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr>
@@ -719,28 +730,28 @@ export function Exchange() {
                 const cachePct = r.priceInput > 0 && r.priceCache > 0 ? cacheDiscount(r.priceInput, r.priceCache) : 0
                 const tc = r.trust ? (TRUST_COLORS[r.trust] || TRUST_COLORS.open) : null
                 return (
-                  <tr key={i} style={{ background: r.isIE ? '#fdf6ec' : 'transparent' }}
-                    onMouseEnter={e => { if (!r.isIE) (e.currentTarget as HTMLElement).style.background = '#fafaf8' }}
+                  <tr key={i} style={{ background: r.isIE ? UI.warningSurface : 'transparent' }}
+                    onMouseEnter={e => { if (!r.isIE) (e.currentTarget as HTMLElement).style.background = UI.hover }}
                     onMouseLeave={e => { if (!r.isIE) (e.currentTarget as HTMLElement).style.background = '' }}>
-                    <td style={{ padding: '9px 10px', borderBottom: '1px solid #fafaf8', textAlign: 'left', borderLeft: r.isIE ? `3px solid ${C.gold}` : '3px solid transparent' }}>
-                      <div style={{ fontWeight: 600, fontSize: 12, color: r.isIE ? C.gold : C.blueBlack }}>{r.name}</div>
-                      <div style={{ fontSize: 9, color: '#999', marginTop: 1, display: 'flex', gap: 3, flexWrap: 'wrap', alignItems: 'center' }}>
+                    <td style={{ padding: '9px 10px', borderBottom: "1px solid var(--ui-border)", textAlign: 'left', borderLeft: r.isIE ? `3px solid ${UI.focus}` : '3px solid transparent' }}>
+                      <div style={{ fontWeight: 600, fontSize: 12, color: r.isIE ? UI.accent : UI.text }}>{r.name}</div>
+                      <div style={{ fontSize: 9, color: UI.muted, marginTop: 1, display: 'flex', gap: 3, flexWrap: 'wrap', alignItems: 'center' }}>
                         {tc && <span style={{ fontSize: 7, fontWeight: 600, padding: '1px 4px', borderRadius: 3, background: tc.bg, color: tc.text }}>{tc.label}</span>}
-                        {r.encrypted && <span style={{ fontSize: 7, fontWeight: 600, padding: '1px 4px', borderRadius: 3, background: '#eef3f7', color: C.deepBlue }}>E2E</span>}
-                        {cachePct > 0 && <span style={{ fontSize: 7, fontWeight: 600, padding: '1px 4px', borderRadius: 3, background: '#f3eef7', color: C.indigo }}>-{cachePct}% cache</span>}
+                        {r.encrypted && <span style={{ fontSize: 7, fontWeight: 600, padding: '1px 4px', borderRadius: 3, background: UI.infoSurface, color: UI.info }}>E2E</span>}
+                        {cachePct > 0 && <span style={{ fontSize: 7, fontWeight: 600, padding: '1px 4px', borderRadius: 3, background: UI.purpleSurface, color: UI.purple }}>-{cachePct}% cache</span>}
                         {r.quantization && <span>{r.quantization}</span>}
                         {r.displayName && !r.isIE && <span>{r.displayName}</span>}
                       </div>
                     </td>
-                    <Td mono color={C.deepBlue}>{fmtPrice(r.priceInput)}</Td>
-                    <Td mono color={r.priceCache > 0 ? C.turquoise : '#ccc'}>{r.priceCache > 0 ? fmtPrice(r.priceCache) : '—'}</Td>
-                    <Td mono color={C.gold} bold={isBest} highlight={isBest}>{fmtPrice(r.priceOutput)}</Td>
-                    <Td mono color={r.quality ? C.deepBlue : '#ccc'}>{r.quality ? r.quality.toFixed(1) : '—'}</Td>
-                    <Td mono color={r.tps ? C.turquoise : '#ccc'}>{r.tps ? Math.round(r.tps).toString() : '—'}</Td>
+                    <Td mono color={UI.info}>{fmtPrice(r.priceInput)}</Td>
+                    <Td mono color={r.priceCache > 0 ? UI.info : UI.muted}>{r.priceCache > 0 ? fmtPrice(r.priceCache) : '—'}</Td>
+                    <Td mono color={UI.accent} bold={isBest} highlight={isBest}>{fmtPrice(r.priceOutput)}</Td>
+                    <Td mono color={r.quality ? UI.info : UI.muted}>{r.quality ? r.quality.toFixed(1) : '—'}</Td>
+                    <Td mono color={r.tps ? UI.info : UI.muted}>{r.tps ? Math.round(r.tps).toString() : '—'}</Td>
                   </tr>
                 )
               }) : (
-                <tr><td colSpan={6} style={{ padding: '40px 10px', textAlign: 'center', color: '#ccc', fontSize: 13 }}>
+                <tr><td colSpan={6} style={{ padding: '40px 10px', textAlign: 'center', color: UI.muted, fontSize: 13 }}>
                   {activeUnified ? 'No provider data available for this model.' : 'Select a model above.'}
                 </td></tr>
               )}
@@ -753,21 +764,21 @@ export function Exchange() {
           {/* Left: DOM stacked on chart */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             {/* 3-column DOM */}
-            <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #eaeae8', padding: 14, overflow: 'hidden' }}>
-              <h4 style={{ fontSize: 8, textTransform: 'uppercase', letterSpacing: '.06em', color: '#888', marginBottom: 10, fontWeight: 600 }}>
+            <div style={{ background: UI.surface, borderRadius: 12, border: "1px solid var(--ui-border)", padding: 14, overflow: 'hidden' }}>
+              <h4 style={{ fontSize: 8, textTransform: 'uppercase', letterSpacing: '.06em', color: UI.muted, marginBottom: 10, fontWeight: 600 }}>
                 Depth of market — three-tier pricing
               </h4>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, minWidth: 0 }}>
-                <DOMColumn label="Input" unit="$/Mtok" color={C.deepBlue} levels={domData.input} />
-                <DOMColumn label="Cache read" unit="$/Mtok" color={C.turquoise} levels={domData.cache} emptyMsg="Only IE publishes cache pricing" offerRows={offerRows} />
-                <DOMColumn label="Output" unit="$/Mtok" color={C.gold} levels={domData.output} />
+                <DOMColumn label="Input" unit="$/Mtok" color={UI.info} levels={domData.input} />
+                <DOMColumn label="Cache read" unit="$/Mtok" color={UI.info} levels={domData.cache} emptyMsg="Only IE publishes cache pricing" offerRows={offerRows} />
+                <DOMColumn label="Output" unit="$/Mtok" color={UI.accent} levels={domData.output} />
               </div>
-              <div style={{ fontSize: 8, color: '#aaa', marginTop: 8 }}>
+              <div style={{ fontSize: 8, color: UI.muted, marginTop: 8 }}>
                 Cheapest at bottom (best ask). Bars = relative supply at each price level.
               </div>
               {offerRows.length > 0 && (
-                <div style={{ fontSize: 8, color: '#999', marginTop: 6, paddingTop: 6, borderTop: '1px solid #f0f0f0' }}>
-                  <b style={{ color: '#666' }}>Abbreviations: </b>
+                <div style={{ fontSize: 8, color: UI.muted, marginTop: 6, paddingTop: 6, borderTop: "1px solid var(--ui-border)" }}>
+                  <b style={{ color: UI.body }}>Abbreviations: </b>
                   {[...new Set(offerRows.map(r => r.name))]
                     .map(n => `${providerAbbr(n)} = ${n}`)
                     .join(' · ')}
@@ -780,8 +791,8 @@ export function Exchange() {
           </div>
 
           {/* Right: Recent fills with in/cache/out details */}
-          <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #eaeae8', padding: 14, overflow: 'hidden' }}>
-            <h4 style={{ fontSize: 8, textTransform: 'uppercase', letterSpacing: '.06em', color: '#888', marginBottom: 10, fontWeight: 600 }}>
+          <div style={{ background: UI.surface, borderRadius: 12, border: "1px solid var(--ui-border)", padding: 14, overflow: 'hidden' }}>
+            <h4 style={{ fontSize: 8, textTransform: 'uppercase', letterSpacing: '.06em', color: UI.muted, marginBottom: 10, fontWeight: 600 }}>
               Recent fills
             </h4>
             {recentFills.length > 0 ? recentFills.map((t: any) => {
@@ -789,31 +800,31 @@ export function Exchange() {
               const time = new Date(t.timestamp * 1000).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit' })
               return (
                 <div key={t.request_id} style={{
-                  padding: '6px 0', borderBottom: '1px solid #f5f5f3', fontSize: 10,
+                  padding: '6px 0', borderBottom: "1px solid var(--ui-border)", fontSize: 10,
                 }}>
                   {/* Row 1: status, time, model, price */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                    <div style={{ width: 4, height: 4, borderRadius: '50%', background: ok ? C.green : C.red, flexShrink: 0 }} />
-                    <div style={{ fontFamily: 'SF Mono,Menlo,Consolas,monospace', color: '#bbb', width: 52, flexShrink: 0 }}>{time}</div>
+                    <div style={{ width: 4, height: 4, borderRadius: '50%', background: ok ? UI.success : UI.danger, flexShrink: 0 }} />
+                    <div style={{ fontFamily: 'SF Mono,Menlo,Consolas,monospace', color: UI.muted, width: 52, flexShrink: 0 }}>{time}</div>
                     <div style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 500 }}>
-                      <span style={{ color: C.gold }}>Inference Exchange</span>
+                      <span style={{ color: UI.accent }}>Inference Exchange</span>
                       {t.selected_provider && (
-                        <span style={{ color: '#aaa', fontWeight: 400 }}> · {t.selected_provider}</span>
+                        <span style={{ color: UI.muted, fontWeight: 400 }}> · {t.selected_provider}</span>
                       )}
                     </div>
                   </div>
                   {/* Row 2: in / cache / out rates ($/Mtok) */}
                   <div style={{ display: 'flex', gap: 8, marginTop: 3, marginLeft: 9, fontSize: 9, fontFamily: 'SF Mono,Menlo,Consolas,monospace' }}>
-                    <span><span style={{ color: C.deepBlue }}>in </span>
-                      <span style={{ color: '#555' }}>{t.selected_price_input > 0 ? `$${t.selected_price_input.toFixed(2)}` : '—'}</span></span>
-                    <span><span style={{ color: C.turquoise }}>cache </span>
-                      <span style={{ color: '#555' }}>{t.selected_price_cache > 0 ? `$${t.selected_price_cache.toFixed(2)}` : '—'}</span></span>
-                    <span><span style={{ color: C.gold }}>out </span>
-                      <span style={{ color: C.gold, fontWeight: 600 }}>{t.selected_price != null ? `$${t.selected_price.toFixed(2)}` : '—'}</span></span>
-                    <span style={{ color: '#bbb', marginLeft: 'auto' }}>/Mtok</span>
+                    <span><span style={{ color: UI.info }}>in </span>
+                      <span style={{ color: UI.body }}>{t.selected_price_input > 0 ? `$${t.selected_price_input.toFixed(2)}` : '—'}</span></span>
+                    <span><span style={{ color: UI.info }}>cache </span>
+                      <span style={{ color: UI.body }}>{t.selected_price_cache > 0 ? `$${t.selected_price_cache.toFixed(2)}` : '—'}</span></span>
+                    <span><span style={{ color: UI.accent }}>out </span>
+                      <span style={{ color: UI.accent, fontWeight: 600 }}>{t.selected_price != null ? `$${t.selected_price.toFixed(2)}` : '—'}</span></span>
+                    <span style={{ color: UI.muted, marginLeft: 'auto' }}>/Mtok</span>
                   </div>
                   {/* Row 3: trust + tokens */}
-                  <div style={{ display: 'flex', gap: 4, marginTop: 2, marginLeft: 9, fontSize: 9, color: '#aaa' }}>
+                  <div style={{ display: 'flex', gap: 4, marginTop: 2, marginLeft: 9, fontSize: 9, color: UI.muted }}>
                     {t.selected_trust && (
                       <span style={{
                         fontSize: 8, fontWeight: 600, padding: '1px 4px', borderRadius: 3,
@@ -823,21 +834,21 @@ export function Exchange() {
                         {(TRUST_COLORS[t.selected_trust] || TRUST_COLORS.open).label}
                       </span>
                     )}
-                    {t.encrypted && <span style={{ fontSize: 8, fontWeight: 600, padding: '1px 4px', borderRadius: 3, background: '#eef3f7', color: C.deepBlue }}>E2E</span>}
+                    {t.encrypted && <span style={{ fontSize: 8, fontWeight: 600, padding: '1px 4px', borderRadius: 3, background: UI.infoSurface, color: UI.info }}>E2E</span>}
                     {t.input_tokens > 0 && <span>{t.input_tokens} in</span>}
                     {t.output_tokens > 0 && <span>{t.output_tokens} out</span>}
                   </div>
                 </div>
               )
             }) : (
-              <div style={{ fontSize: 11, color: '#ccc', padding: '12px 0', textAlign: 'center' }}>No recent fills</div>
+              <div style={{ fontSize: 11, color: UI.muted, padding: '12px 0', textAlign: 'center' }}>No recent fills</div>
             )}
           </div>
         </div>
       </div>
 
       {/* ── 5. Footer ── */}
-      <div style={{ fontSize: 9, color: '#bbb', marginTop: 8 }}>
+      <div style={{ fontSize: 9, color: UI.muted, marginTop: 8 }}>
         Prices $/Mtok. Data: OpenRouter API + IE static reference prices + IE provider network.
         Quality = Artificial Analysis intelligence/coding index. TPS = observed tokens/sec for IE providers.
       </div>
@@ -858,7 +869,7 @@ function Chip({ label, active, color, bg, onClick }: {
       style={{
         fontSize: 9, fontWeight: 600, padding: '2px 7px', borderRadius: 5, cursor: 'pointer',
         userSelect: 'none', transition: 'all .12s',
-        background: active ? bg : '#f5f5f3', color: active ? color : '#888',
+        background: active ? bg : UI.surfaceMuted, color: active ? color : UI.muted,
         border: `1px solid ${active ? color + '44' : 'transparent'}`,
       }}>
       {label}
@@ -867,7 +878,7 @@ function Chip({ label, active, color, bg, onClick }: {
 }
 
 function Sep() {
-  return <span style={{ width: 1, height: 14, background: '#e5e5e5', margin: '0 2px' }} />
+  return <span style={{ width: 1, height: 14, background: UI.track, margin: '0 2px' }} />
 }
 
 function CapBadge({ bg, color, children }: { bg: string; color: string; children: React.ReactNode }) {
@@ -883,8 +894,8 @@ function Th({ children, align, style, onClick }: {
 }) {
   return (
     <th onClick={onClick} style={{
-      fontSize: 8, textTransform: 'uppercase', letterSpacing: '.06em', color: '#aaa',
-      padding: '8px 10px', textAlign: (align as any) || 'right', borderBottom: '1px solid #f0f0f0',
+      fontSize: 8, textTransform: 'uppercase', letterSpacing: '.06em', color: UI.muted,
+      padding: '8px 10px', textAlign: (align as any) || 'right', borderBottom: "1px solid var(--ui-border)",
       fontWeight: 600, cursor: onClick ? 'pointer' : 'default', userSelect: 'none', whiteSpace: 'nowrap',
       ...style,
     }}>
@@ -898,11 +909,11 @@ function Td({ children, mono, color, bold, highlight }: {
 }) {
   return (
     <td style={{
-      padding: '9px 10px', borderBottom: '1px solid #fafaf8', textAlign: 'right', fontSize: 12,
+      padding: '9px 10px', borderBottom: "1px solid var(--ui-border)", textAlign: 'right', fontSize: 12,
       whiteSpace: 'nowrap',
       fontFamily: mono ? 'SF Mono,Menlo,Consolas,monospace' : undefined,
-      color: color || C.blueBlack, fontWeight: bold ? 700 : 400,
-      background: highlight ? '#edf7f1' : undefined,
+      color: color || UI.text, fontWeight: bold ? 700 : 400,
+      background: highlight ? UI.successSurface : undefined,
     }}>
       {children}
     </td>
@@ -930,16 +941,16 @@ function DOMColumn({ label, unit, color, levels, emptyMsg, offerRows }: {
         }}>
           {label} {unit}
         </div>
-        <div style={{ fontSize: 10, color: '#ccc', padding: '12px 0', textAlign: 'center' }}>{emptyMsg}</div>
+        <div style={{ fontSize: 10, color: UI.muted, padding: '12px 0', textAlign: 'center' }}>{emptyMsg}</div>
         {ieCache && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 0' }}>
-            <span style={{ fontFamily: 'SF Mono,Menlo,Consolas,monospace', fontSize: 9, width: 36, textAlign: 'right', color: C.green, fontWeight: 600 }}>
+            <span style={{ fontFamily: 'SF Mono,Menlo,Consolas,monospace', fontSize: 9, width: 36, textAlign: 'right', color: UI.success, fontWeight: 600 }}>
               ${ieCache.priceCache.toFixed(2)}
             </span>
-            <div style={{ flex: 1, height: 14, background: '#fafaf8', borderRadius: 3, overflow: 'hidden' }}>
-              <div style={{ height: '100%', width: '100%', background: C.green, borderRadius: 3 }} />
+            <div style={{ flex: 1, height: 14, background: UI.surfaceMuted, borderRadius: 3, overflow: 'hidden' }}>
+              <div style={{ height: '100%', width: '100%', background: UI.success, borderRadius: 3 }} />
             </div>
-            <span title="Inference Exchange" style={{ fontSize: 8, color: C.gold, fontWeight: 600 }}>1 IE</span>
+            <span title="Inference Exchange" style={{ fontSize: 8, color: UI.accent, fontWeight: 600 }}>1 IE</span>
           </div>
         )}
       </div>
@@ -957,7 +968,7 @@ function DOMColumn({ label, unit, color, levels, emptyMsg, offerRows }: {
       {levels.map((level, i) => {
         const isBest = i === levels.length - 1 // cheapest at bottom
         const barW = Math.max(20, (level.providers.length / maxProviders) * 100)
-        const priceColor = isBest ? C.green : (i === 0 ? C.red : '#888')
+        const priceColor = isBest ? UI.success : (i === 0 ? UI.danger : UI.muted)
         const hasIE = level.providers.some(p => p.isIE)
         const names = level.providers.map(p => providerAbbr(p.name)).join(', ')
         const fullNames = level.providers.map(p => p.name).join(', ')
@@ -969,14 +980,14 @@ function DOMColumn({ label, unit, color, levels, emptyMsg, offerRows }: {
             }}>
               ${level.price.toFixed(2)}
             </span>
-            <div style={{ flex: 1, height: 14, background: '#fafaf8', borderRadius: 3, overflow: 'hidden' }}>
+            <div style={{ flex: 1, height: 14, background: UI.surfaceMuted, borderRadius: 3, overflow: 'hidden' }}>
               <div style={{
                 height: '100%', width: `${barW}%`, borderRadius: 3,
-                background: isBest ? C.green : (hasIE ? C.gold : color),
+                background: isBest ? UI.success : (hasIE ? UI.accent : color),
               }} />
             </div>
             <span title={fullNames} style={{
-              fontSize: 8, color: hasIE ? C.gold : '#888', width: 80, flexShrink: 0,
+              fontSize: 8, color: hasIE ? UI.accent : UI.muted, width: 80, flexShrink: 0,
               overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
             }}>
               {level.providers.length} {names}
@@ -985,7 +996,7 @@ function DOMColumn({ label, unit, color, levels, emptyMsg, offerRows }: {
         )
       })}
       {levels.length === 0 && (
-        <div style={{ fontSize: 10, color: '#ccc', padding: '12px 0', textAlign: 'center' }}>No data</div>
+        <div style={{ fontSize: 10, color: UI.muted, padding: '12px 0', textAlign: 'center' }}>No data</div>
       )}
     </div>
   )

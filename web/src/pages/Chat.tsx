@@ -9,7 +9,7 @@ import { authState, loginHref } from '../lib/nav.js'
 import { formatUsd } from '../lib/money.js'
 import { normalizeOnlineModels, isRunnableChatModel } from '../lib/chat-models.js'
 import { ChatModelPicker } from '../components/ChatModelPicker'
-import { C, TRUST_CLAIM_NOTE, TRUST_COLORS } from '../lib/theme'
+import { UI, TRUST_CLAIM_NOTE, APP_TRUST_COLORS as TRUST_COLORS } from '../lib/theme'
 
 interface Message {
   role: 'user' | 'assistant'
@@ -198,25 +198,25 @@ export function Chat() {
 
   // Guests may inspect the exchange, but cannot submit billable inference.
   if (authState(authLoading, user) === 'loading') {
-    return <div role="status" className="py-16 text-center text-sm" style={{ color: '#888' }}>Checking sign-in…</div>
+    return <div role="status" className="py-16 text-center text-sm" style={{ color: UI.muted }}>Checking sign-in…</div>
   }
   if (authState(authLoading, user) === 'signed-out') {
     return (
-      <div className="max-w-xl mx-auto bg-white rounded-2xl border border-gray-200/60 p-8 md:p-12 text-center space-y-5">
-        <h2 className="text-2xl font-bold" style={{ color: C.blueBlack }}>Sign in to start chatting</h2>
-        <p className="text-sm leading-relaxed" style={{ color: '#777' }}>
+      <div className="max-w-xl mx-auto bg-ui-surface rounded-2xl border border-ui-border p-8 md:p-12 text-center space-y-5">
+        <h2 className="text-2xl font-bold" style={{ color: UI.text }}>Sign in to start chatting</h2>
+        <p className="text-sm leading-relaxed" style={{ color: UI.body }}>
           Explore models and prices without an account. To run inference, sign in with GitHub.
           New accounts receive simulated alpha credits; no real payment is taken.
         </p>
-        <p className="text-xs leading-relaxed" style={{ color: '#536171' }}>
+        <p className="text-xs leading-relaxed" style={{ color: UI.body }}>
           Browser chat uses TLS, not end-to-end encryption. The coordinator can read prompts and responses.
           Use nonsensitive test prompts.
         </p>
         <div className="flex flex-wrap justify-center gap-3">
-          <Link to={loginHref('/chat')} className="px-5 py-3 rounded-xl text-sm font-semibold" style={{ background: C.blueBlack, color: '#fff' }}>
+          <Link to={loginHref('/chat')} className="px-5 py-3 rounded-xl text-sm font-semibold" style={{ background: UI.action, color: UI.onAction }}>
             Continue with GitHub
           </Link>
-          <Link to="/models" className="px-5 py-3 rounded-xl text-sm font-medium border" style={{ borderColor: '#ddd', color: C.blueBlack }}>
+          <Link to="/models" className="px-5 py-3 rounded-xl text-sm font-medium border" style={{ borderColor: UI.border, color: UI.text }}>
             Explore models
           </Link>
         </div>
@@ -229,7 +229,7 @@ export function Chat() {
       {/* ── Main chat column ── */}
       <div className="flex-1 flex flex-col min-w-0 min-h-[65vh] lg:min-h-0">
         {/* Model + trust header bar */}
-        <div className="bg-white rounded-2xl border border-gray-200/40 px-5 py-3 mb-4 flex items-center gap-3 flex-wrap">
+        <div className="bg-ui-surface rounded-2xl border border-ui-border px-5 py-3 mb-4 flex items-center gap-3 flex-wrap">
           <ChatModelPicker
             models={onlineModels}
             value={model}
@@ -251,7 +251,7 @@ export function Chat() {
           <button
             onClick={() => { setMessages([]); if (chatKey) localStorage.removeItem(chatKey) }}
             className="text-xs px-3 py-1.5 rounded-lg border transition-colors"
-            style={{ color: '#888', borderColor: '#ddd' }}
+            style={{ color: UI.muted, borderColor: UI.border }}
           >
             New chat
           </button>
@@ -261,7 +261,7 @@ export function Chat() {
             aria-expanded={showSidebar}
             aria-controls="chat-advanced-settings"
             className="text-xs px-3 py-1.5 rounded-lg border"
-            style={{ color: '#888', borderColor: '#ddd' }}
+            style={{ color: UI.muted, borderColor: UI.border }}
           >
             {showSidebar ? 'Hide settings' : 'Advanced settings'}
           </button>
@@ -269,7 +269,7 @@ export function Chat() {
 
         {/* Report missing, offline and stale model states before the user sends. */}
         {(modelsError || providersError) ? (
-          <div role="alert" className="flex flex-wrap items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 mb-3 text-xs text-red-800">
+          <div role="alert" className="flex flex-wrap items-center gap-2 rounded-xl border border-ui-danger bg-ui-danger-surface px-4 py-3 mb-3 text-xs text-ui-danger">
             <span className="flex-1">Could not verify available models or providers. Requests are disabled until the connection recovers.</span>
             <button type="button" className="underline font-semibold" onClick={() => {
               void refreshModels()
@@ -277,15 +277,15 @@ export function Chat() {
             }}>Retry</button>
           </div>
         ) : (!modelsData || !providerData) ? (
-          <div role="status" className="rounded-xl bg-gray-50 px-4 py-3 mb-3 text-xs text-gray-600">
+          <div role="status" className="rounded-xl bg-ui-surface-muted px-4 py-3 mb-3 text-xs text-ui-body">
             Checking connected models and providers…
           </div>
         ) : onlineModels.length === 0 ? (
-          <div role="status" className="rounded-xl bg-gray-50 px-4 py-3 mb-3 text-xs text-gray-700">
+          <div role="status" className="rounded-xl bg-ui-surface-muted px-4 py-3 mb-3 text-xs text-ui-body">
             No runnable models are connected right now. Chat will be available when a provider returns.
           </div>
         ) : !modelListed ? (
-          <div role="alert" className="rounded-xl bg-amber-50 px-4 py-3 mb-3 text-xs text-amber-900">
+          <div role="alert" className="rounded-xl bg-ui-warning-surface px-4 py-3 mb-3 text-xs text-ui-warning">
             {model ? (
               <>The selected model <strong>{model}</strong> is not currently available.
                 {model === 'default' ? ' “default” is a routing alias, not a runnable model.' : ''}
@@ -293,7 +293,7 @@ export function Chat() {
             ) : 'Choose an available model above before sending.'}
           </div>
         ) : !modelReady ? (
-          <div role="status" className="rounded-xl bg-amber-50 px-4 py-3 mb-3 text-xs text-amber-900">
+          <div role="status" className="rounded-xl bg-ui-warning-surface px-4 py-3 mb-3 text-xs text-ui-warning">
             No provider is currently connected for <strong>{model}</strong>. Choose another online model or try again when this provider returns.
           </div>
         ) : null}
@@ -301,7 +301,7 @@ export function Chat() {
         {/* The public alpha may have only an L0 provider. Make that visible before the user sends. */}
         {trustMismatch && (
           <div className="flex flex-wrap items-center gap-2 px-4 py-3 mb-3 rounded-xl text-xs"
-            style={{ background: '#fdf6ec', color: C.blueBlack, border: '1px solid rgba(196,154,69,0.25)' }}>
+            style={{ background: UI.warningSurface, color: UI.text, border: "1px solid var(--ui-border)" }}>
             <span className="flex-1 min-w-48">
               This model is available, but no provider meets your {trustInfo.label} minimum.
               To test with L0/Open, choose it explicitly below. At L0, both the IE coordinator
@@ -310,7 +310,7 @@ export function Chat() {
             <button
               onClick={() => setMinTrust('open')}
               className="font-semibold px-3 py-1.5 rounded-lg border shrink-0"
-              style={{ borderColor: C.gold, color: C.gold }}
+              style={{ borderColor: UI.focus, color: UI.accent }}
             >
               I understand — use L0/Open
             </button>
@@ -319,20 +319,20 @@ export function Chat() {
 
         {/* Privacy downgrade warning */}
         {(minTrust === 'open' || minTrust === 'contained') && (
-          <div className="flex items-center gap-2 px-4 py-2.5 mb-3 rounded-xl text-xs" style={{ background: '#fdf6ec', color: C.gold, border: '1px solid rgba(196,154,69,0.15)' }}>
+          <div className="flex items-center gap-2 px-4 py-2.5 mb-3 rounded-xl text-xs" style={{ background: UI.warningSurface, color: UI.accent, border: "1px solid var(--ui-border)" }}>
             <span>⚠</span>
             <span>
               {minTrust === 'open'
                 ? 'L0/Open selected: the coordinator and provider can read prompts and responses. Do not send secrets.'
                 : 'L1 providers have basic isolation only.'}
             </span>
-            <button onClick={() => setMinTrust('hardened')} className="ml-auto font-medium shrink-0" style={{ color: C.gold }}>
+            <button onClick={() => setMinTrust('hardened')} className="ml-auto font-medium shrink-0" style={{ color: UI.accent }}>
               Use L2
             </button>
           </div>
         )}
 
-        <div className="text-xs leading-relaxed mb-3" style={{ color: '#536171' }}>
+        <div className="text-xs leading-relaxed mb-3" style={{ color: UI.body }}>
           Browser chat uses TLS, not end-to-end encryption. The coordinator can read prompts
           and responses regardless of the provider trust selection.
         </div>
@@ -342,8 +342,8 @@ export function Chat() {
           {messages.length === 0 && (
             <div className="text-center mt-24">
               <img src="/logo-icon.svg" alt="IE" className="w-14 h-14 mx-auto mb-4 opacity-30" />
-              <div className="text-sm font-medium" style={{ color: '#999' }}>Send a message to start</div>
-              <div className="text-xs mt-1" style={{ color: '#bbb' }}>
+              <div className="text-sm font-medium" style={{ color: UI.muted }}>Send a message to start</div>
+              <div className="text-xs mt-1" style={{ color: UI.muted }}>
                 {modelReady ? 'Using ' + model : 'Select a connected model above'}
               </div>
             </div>
@@ -352,38 +352,38 @@ export function Chat() {
             <div key={i}>
               {m.role === 'user' ? (
                 <div>
-                  <div className="text-[10px] uppercase tracking-wider mb-1.5" style={{ color: '#bbb' }}>You</div>
+                  <div className="text-[10px] uppercase tracking-wider mb-1.5" style={{ color: UI.muted }}>You</div>
                   <div
                     className="inline-block px-4 py-3 rounded-2xl text-sm"
-                    style={{ background: '#e5e5e3', color: C.blueBlack }}
+                    style={{ background: UI.selected, color: UI.text }}
                   >
                     <div className="whitespace-pre-wrap">{m.content || '...'}</div>
                   </div>
                 </div>
               ) : (
                 <div>
-                  <div className="text-[10px] uppercase tracking-wider mb-1.5" style={{ color: C.gold }}>
+                  <div className="text-[10px] uppercase tracking-wider mb-1.5" style={{ color: UI.accent }}>
                     Inference Exchange
                   </div>
                   <div
                     className="inline-block px-4 py-3 rounded-2xl text-sm max-w-full"
-                    style={{ background: C.blueBlack, color: C.warmWhite }}
+                    style={{ background: UI.action, color: UI.onAction }}
                   >
                     {m.content ? (
-                      <div className="prose prose-sm prose-invert max-w-none prose-p:my-1 prose-pre:bg-black/30 prose-pre:border-0 prose-code:text-amber-300 prose-code:bg-transparent prose-code:before:content-none prose-code:after:content-none">
+                      <div className="prose prose-sm prose-invert max-w-none prose-p:my-1 prose-pre:bg-black/30 prose-pre:border-0 prose-code:text-ui-warning prose-code:bg-transparent prose-code:before:content-none prose-code:after:content-none">
                         <ReactMarkdown remarkPlugins={[remarkGfm]}>{m.content}</ReactMarkdown>
                       </div>
                     ) : (
                       <span className="inline-flex gap-1">
-                        <span className="w-1.5 h-1.5 rounded-full animate-bounce" style={{ background: '#666', animationDelay: '0ms' }} />
-                        <span className="w-1.5 h-1.5 rounded-full animate-bounce" style={{ background: '#666', animationDelay: '150ms' }} />
-                        <span className="w-1.5 h-1.5 rounded-full animate-bounce" style={{ background: '#666', animationDelay: '300ms' }} />
+                        <span className="w-1.5 h-1.5 rounded-full animate-bounce" style={{ background: UI.surfaceMuted, animationDelay: '0ms' }} />
+                        <span className="w-1.5 h-1.5 rounded-full animate-bounce" style={{ background: UI.surfaceMuted, animationDelay: '150ms' }} />
+                        <span className="w-1.5 h-1.5 rounded-full animate-bounce" style={{ background: UI.surfaceMuted, animationDelay: '300ms' }} />
                       </span>
                     )}
                   </div>
                   {/* Message metadata */}
                   {(m.input_tokens != null || m.tokens != null || m.cost_usd != null) && (
-                    <div className="text-[11px] mt-1.5 flex gap-2" style={{ color: '#bbb' }}>
+                    <div className="text-[11px] mt-1.5 flex gap-2" style={{ color: UI.muted }}>
                       {m.input_tokens != null && m.output_tokens != null && (
                         <span>{(m.input_tokens / 1000).toFixed(1)}k input · {(m.output_tokens / 1000).toFixed(1)}k output</span>
                       )}
@@ -405,7 +405,7 @@ export function Chat() {
               onKeyDown={e => e.key === 'Enter' && !e.shiftKey && send()}
               placeholder="Message the exchange..."
               disabled={streaming || trustMismatch || !modelReady}
-              className="flex-1 px-4 py-3 bg-white border border-gray-200/60 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/20 placeholder:text-gray-300"
+              className="flex-1 px-4 py-3 bg-ui-surface border border-ui-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-ui-warning placeholder:text-ui-muted"
             />
             {streaming ? (
               <button onClick={() => {
@@ -417,11 +417,11 @@ export function Chat() {
                   if (last?.role === 'assistant' && last.content) return [...prev.slice(0, -1), { ...last, content: last.content + '\n\n*[stopped]*' }]
                   return prev
                 })
-              }} className="px-5 py-3 rounded-xl text-sm font-medium" style={{ background: C.red, color: C.warmWhite }}>
+              }} className="px-5 py-3 rounded-xl text-sm font-medium" style={{ background: UI.dangerAction, color: UI.onAction }}>
                 Stop
               </button>
             ) : (
-              <button onClick={send} disabled={trustMismatch || !modelReady || !input.trim()} className="px-5 py-3 rounded-xl text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed" aria-label="Send chat message" style={{ background: C.blueBlack, color: '#fff' }}>
+              <button onClick={send} disabled={trustMismatch || !modelReady || !input.trim()} className="px-5 py-3 rounded-xl text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed" aria-label="Send chat message" style={{ background: UI.action, color: UI.onAction }}>
                 Send
               </button>
             )}
@@ -432,15 +432,15 @@ export function Chat() {
       {/* Only enforced settings are exposed; routing is automatic for alpha. */}
       {showSidebar && (
         <aside id="chat-advanced-settings" aria-label="Advanced request settings"
-          className="order-first lg:order-last w-full lg:w-60 shrink-0 rounded-2xl border border-gray-200/60 bg-white p-4 space-y-4">
+          className="order-first lg:order-last w-full lg:w-60 shrink-0 rounded-2xl border border-ui-border bg-ui-surface p-4 space-y-4">
           <div>
-            <h2 className="text-sm font-semibold" style={{ color: C.blueBlack }}>Advanced request settings</h2>
-            <p className="text-xs mt-1" style={{ color: '#777' }}>
+            <h2 className="text-sm font-semibold" style={{ color: UI.text }}>Advanced request settings</h2>
+            <p className="text-xs mt-1" style={{ color: UI.body }}>
               Matching is automatic. With one eligible provider, there is no provider choice to optimize.
             </p>
           </div>
           <div>
-            <div className="text-xs mb-2" style={{ color: '#777' }}>Minimum OCIP level</div>
+            <div className="text-xs mb-2" style={{ color: UI.body }}>Minimum OCIP level</div>
             <div className="flex flex-wrap gap-1.5">
               {TRUST_LEVELS.map(t => {
                 const tc = TRUST_COLORS[t.value] || TRUST_COLORS.hardened
@@ -449,23 +449,23 @@ export function Chat() {
                     aria-pressed={minTrust === t.value}
                     className="text-xs px-2.5 py-1.5 rounded-lg border"
                     style={{ background: minTrust === t.value ? tc.bg : 'white',
-                      color: minTrust === t.value ? tc.text : C.blueBlack, borderColor: '#ddd' }}>
+                      color: minTrust === t.value ? tc.text : UI.text, borderColor: UI.border }}>
                     {t.label}
                   </button>
                 )
               })}
             </div>
-            <p className="text-[11px] mt-2" style={{ color: '#888' }}>{TRUST_CLAIM_NOTE}</p>
+            <p className="text-[11px] mt-2" style={{ color: UI.muted }}>{TRUST_CLAIM_NOTE}</p>
           </div>
           <div>
-            <div className="flex justify-between gap-2 text-xs mb-2" style={{ color: C.blueBlack }}>
+            <div className="flex justify-between gap-2 text-xs mb-2" style={{ color: UI.text }}>
               <label htmlFor="chat-max-output">Maximum output token price</label>
               <strong>${maxPrice} / 1M</strong>
             </div>
             <input id="chat-max-output" type="range" min="0.01" max="1.00" step="0.01"
               value={maxPrice} onChange={e => setMaxPrice(e.target.value)}
-              className="w-full accent-amber-500" />
-            <p className="text-[11px] mt-2" style={{ color: '#888' }}>
+              className="w-full accent-ui-warning" />
+            <p className="text-[11px] mt-2" style={{ color: UI.muted }}>
               This ceiling applies only to the provider output rate. It is not a total-request
               budget and does not cap input or cached-input prices. Simulated requests may
               include a minimum charge.

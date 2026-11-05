@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { C } from '../lib/theme'
+import { UI } from '../lib/theme'
 
 // This is an experimental recipe, not a claim of independent-Mac qualification.
 // These nonsecret commands can be copied without exposing a provider credential.
@@ -71,27 +71,27 @@ function Command({ title, code }: { title: string; code: string }) {
   }
 
   return (
-    <div className="rounded-lg border border-gray-200 overflow-hidden">
-      <div className="flex items-center justify-between gap-3 px-3 py-2 bg-gray-50">
-        <span className="text-xs font-semibold text-gray-700">{title}</span>
+    <div className="rounded-lg border border-ui-border overflow-hidden">
+      <div className="flex items-center justify-between gap-3 px-3 py-2 bg-ui-surface-muted">
+        <span className="text-xs font-semibold text-ui-body">{title}</span>
         <button type="button" onClick={() => void copy()}
-          className="text-xs underline font-medium" style={{ color: C.blueBlack }}
+          className="text-xs underline font-medium" style={{ color: UI.text }}
           aria-label={'Copy ' + title + ' commands'}>Copy commands</button>
       </div>
-      <pre className="overflow-x-auto p-3 text-xs leading-relaxed text-gray-800 bg-gray-50/40 whitespace-pre">
+      <pre className="overflow-x-auto p-3 text-xs leading-relaxed text-ui-text bg-ui-surface-muted whitespace-pre">
         <code>{code}</code>
       </pre>
-      {status && <p role="status" className="px-3 py-2 text-xs text-gray-600">{status}</p>}
+      {status && <p role="status" className="px-3 py-2 text-xs text-ui-body">{status}</p>}
     </div>
   )
 }
 
 export function ProviderMacSetup() {
   return (
-    <section className="bg-white rounded-2xl border border-gray-200/60 p-6 space-y-5" aria-label="Experimental Mac provider installation">
+    <section className="bg-ui-surface rounded-2xl border border-ui-border p-6 space-y-5" aria-label="Experimental Mac provider installation">
       <div className="space-y-2">
-        <h3 className="text-lg font-semibold" style={{ color: C.blueBlack }}>3. Set up and connect your Mac</h3>
-        <p className="text-sm text-gray-600">
+        <h3 className="text-lg font-semibold" style={{ color: UI.text }}>3. Set up and connect your Mac</h3>
+        <p className="text-sm text-ui-body">
           These are copy-ready <strong>experimental</strong> steps for Apple Silicon and L0/Open.
           A new independent Mac has not yet qualified this full recipe. Self-service enrollment
           may still be disabled. You can prepare your Mac without creating a credential.
@@ -99,8 +99,8 @@ export function ProviderMacSetup() {
       </div>
 
       <div className="space-y-2">
-        <h4 className="text-sm font-semibold" style={{ color: C.blueBlack }}>A. Check compatibility</h4>
-        <p className="text-sm text-gray-600">
+        <h4 className="text-sm font-semibold" style={{ color: UI.text }}>A. Check compatibility</h4>
+        <p className="text-sm text-ui-body">
           Open Terminal on your provider Mac. Confirm <code>arm64</code>, Python 3.11+ and Git.
           Check available RAM and disk space before choosing a larger model.
         </p>
@@ -108,8 +108,8 @@ export function ProviderMacSetup() {
       </div>
 
       <div className="space-y-2">
-        <h4 className="text-sm font-semibold" style={{ color: C.blueBlack }}>B. Install llama-server</h4>
-        <p className="text-sm text-gray-600">
+        <h4 className="text-sm font-semibold" style={{ color: UI.text }}>B. Install llama-server</h4>
+        <p className="text-sm text-ui-body">
           Install <a href="https://formulae.brew.sh/formula/llama.cpp" target="_blank" rel="noopener noreferrer" className="underline">llama.cpp through Homebrew</a>.
           If <code>brew</code> is missing, install Homebrew from <a href="https://brew.sh/" target="_blank" rel="noopener noreferrer" className="underline">its official website</a> first.
           Do not start <code>llama-server</code> yourself: the OCIP agent starts and stops it on <code>127.0.0.1</code>.
@@ -118,21 +118,21 @@ export function ProviderMacSetup() {
       </div>
 
       <div className="space-y-2">
-        <h4 className="text-sm font-semibold" style={{ color: C.blueBlack }}>C. Download a small test model</h4>
-        <p className="text-sm text-gray-600">
+        <h4 className="text-sm font-semibold" style={{ color: UI.text }}>C. Download a small test model</h4>
+        <p className="text-sm text-ui-body">
           Start with <a href="https://huggingface.co/bartowski/Qwen2.5-0.5B-Instruct-GGUF" target="_blank" rel="noopener noreferrer" className="underline">Qwen2.5 0.5B Instruct, Q4_K_M GGUF</a> (about 400 MB).
           The commands download one model file to <code>~/.inference-exchange/models/</code> and check its
           published SHA-256 before use. The check must print <code>OK</code>. A mismatch means stop and inspect the download.
           No API key or Hugging Face login is required for this public file.
         </p>
         <Command title="Download and verify Qwen GGUF" code={DOWNLOAD_MODEL} />
-        <p className="text-xs text-gray-600">
+        <p className="text-xs text-ui-body">
           Why GGUF? The current OCIP agent manages native <code>llama-server</code>, which loads GGUF weights.
           A <code>.safetensors</code> file or an Ollama model name cannot be passed directly as <code>--model</code>.
           Other runtimes may be added later; they are not part of this Apple Silicon L0 recipe.
         </p>
-        <details className="rounded-lg border border-gray-200 p-3 text-sm text-gray-600">
-          <summary className="cursor-pointer font-medium" style={{ color: C.blueBlack }}>Use a different GGUF model</summary>
+        <details className="rounded-lg border border-ui-border p-3 text-sm text-ui-body">
+          <summary className="cursor-pointer font-medium" style={{ color: UI.text }}>Use a different GGUF model</summary>
           <p className="mt-2">
             Choose an instruct/chat GGUF compatible with your installed llama.cpp build.
             Read its model card and license. Check RAM, disk and context memory; the GGUF file size
@@ -146,8 +146,8 @@ export function ProviderMacSetup() {
       </div>
 
       <div className="space-y-2">
-        <h4 className="text-sm font-semibold" style={{ color: C.blueBlack }}>D. Install the OCIP agent</h4>
-        <p className="text-sm text-gray-600">
+        <h4 className="text-sm font-semibold" style={{ color: UI.text }}>D. Install the OCIP agent</h4>
+        <p className="text-sm text-ui-body">
           Run this in Terminal after installing Git and Python. The checkout is a code-reviewed
           candidate revision, not a qualified Mac build. Python dependencies may compile on first
           install; this step is not yet a lightweight signed installer.
@@ -156,15 +156,15 @@ export function ProviderMacSetup() {
       </div>
 
       <div className="space-y-2">
-        <h4 className="text-sm font-semibold" style={{ color: C.blueBlack }}>E. Enroll, connect, and verify</h4>
-        <p className="text-sm text-gray-600">
+        <h4 className="text-sm font-semibold" style={{ color: UI.text }}>E. Enroll, connect, and verify</h4>
+        <p className="text-sm text-ui-body">
           After self-service enrollment is enabled, save your one-time provider credential from
           step 2. Keep the Python virtual environment active. The command prompts for your token
           without showing what you type; do not put the token in a URL, CLI argument or screenshot.
           The agent opens an outbound encrypted WebSocket. It does not expose a public local port.
         </p>
         <Command title="Start the OCIP agent (token entered at hidden prompt)" code={CONNECT_AGENT} />
-        <p className="text-sm text-gray-600">
+        <p className="text-sm text-ui-body">
           While the agent is running, open your <Link to="/dashboard" className="underline">private provider dashboard</Link>.
           Confirm the node and advertised model are actually online. Complete one nonsensitive
           consumer request and verify the owner-only <strong>simulated</strong> earnings. An online
@@ -173,8 +173,8 @@ export function ProviderMacSetup() {
         </p>
       </div>
 
-      <details className="rounded-lg border border-gray-200 p-3 text-sm text-gray-600">
-        <summary className="cursor-pointer font-medium" style={{ color: C.blueBlack }}>Troubleshooting and safety</summary>
+      <details className="rounded-lg border border-ui-border p-3 text-sm text-ui-body">
+        <summary className="cursor-pointer font-medium" style={{ color: UI.text }}>Troubleshooting and safety</summary>
         <ul className="list-disc pl-5 mt-2 space-y-1">
           <li><code>brew: command not found</code>: install Homebrew and follow its PATH instructions.</li>
           <li><code>llama-server</code> not found: verify Homebrew installation and your shell PATH.</li>

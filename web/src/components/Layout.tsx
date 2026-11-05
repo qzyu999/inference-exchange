@@ -4,7 +4,7 @@ import { useCoordinatorStatus, useWebSocket } from '../lib/useWebSocket'
 import { useAuth } from '../lib/auth'
 import { loginHref } from '../lib/nav.js'
 import { canShowAdminConsole, canShowProviderDashboard } from '../lib/role-nav.js'
-import { C, TRUST_COLORS, GRADIENTS, APP_PIGMENTS as AP } from '../lib/theme'
+import { C, TRUST_COLORS, UI, GRADIENTS, APP_PIGMENTS as AP } from '../lib/theme'
 import { ErrorBoundary } from './ErrorBoundary'
 import { MineralAurora, NetworkHeartbeat, useNetworkPulses } from './MineralAurora'
 
@@ -212,7 +212,7 @@ function AppearanceSelector({ value, onChange }: {
           aria-pressed={value === mode.value}
           onClick={() => onChange(mode.value)}
           className="ie-app-appearance-option flex min-h-[56px] min-w-0 flex-col items-center justify-center gap-1 rounded-lg px-1 py-1.5 text-[10px] leading-tight font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#F0C54B]"
-          title={mode.value === 'blue-light' ? 'Warm blue-light filtering overlay; not a calibrated screen whitepoint' : mode.label + ' appearance'}
+          title={mode.value === 'blue-light' ? 'Warm paper and muted colors' : mode.label + ' appearance'}
         >
           <AppearanceIcon mode={mode.value} />
           <span className="text-center">{mode.label}</span>
@@ -328,7 +328,7 @@ export function Layout() {
         {coordinatorOnline !== null && (
           <div className="flex items-center gap-2">
             <NetworkHeartbeat online={!!coordinatorOnline} eventCount={events.length} />
-            <span className="text-xs" style={{ color: coordinatorOnline ? '#B4E3B5' : '#FFC3AD' }}>
+            <span className="text-xs" style={{ color: coordinatorOnline ? UI.success : UI.danger }}>
               {coordinatorOnline ? 'Network online' : 'Network offline'}
             </span>
           </div>
@@ -430,7 +430,7 @@ export function Layout() {
           </div>
           {coordinatorOnline !== null && (
             <div className="hidden lg:flex items-center gap-2 pt-1">
-              <span className="text-xs" style={{ color: coordinatorOnline ? '#B4E3B5' : '#FFC3AD' }}>
+              <span className="text-xs" style={{ color: coordinatorOnline ? UI.success : UI.danger }}>
                 Network · {coordinatorOnline ? 'live' : 'offline'}
               </span>
               <NetworkHeartbeat online={!!coordinatorOnline} eventCount={events.length} />
@@ -493,7 +493,7 @@ function PageTitle({ pathname, dark }: { pathname: string; dark: boolean }) {
       >
         {meta.title}
       </h1>
-      <p className="text-sm mt-1" style={{ color: dark ? '#C6D0D5' : AP.body }}>
+      <p className="text-sm mt-1" style={{ color: UI.body }}>
         {meta.subtitle}
       </p>
     </div>

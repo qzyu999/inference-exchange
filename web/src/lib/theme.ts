@@ -1,3 +1,49 @@
+/** Semantic app colors resolve through the active appearance on the shell. */
+export const UI = {
+  chart1: 'var(--ui-chart-1)',
+  chart2: 'var(--ui-chart-2)',
+  chart3: 'var(--ui-chart-3)',
+  chart4: 'var(--ui-chart-4)',
+  chart5: 'var(--ui-chart-5)',
+  chart6: 'var(--ui-chart-6)',
+  chart7: 'var(--ui-chart-7)',
+  chart8: 'var(--ui-chart-8)',
+  chart9: 'var(--ui-chart-9)',
+
+  actionHover: 'var(--ui-action-hover)',
+  dangerAction: 'var(--ui-danger-action)',
+  successAction: 'var(--ui-success-action)',
+  page: 'var(--ui-page)',
+  surface: 'var(--ui-surface)',
+  surfaceMuted: 'var(--ui-surface-muted)',
+  hover: 'var(--ui-hover)',
+  selected: 'var(--ui-selected)',
+  selectedText: 'var(--ui-selected-text)',
+  border: 'var(--ui-border)',
+  controlBorder: 'var(--ui-control-border)',
+  focus: 'var(--ui-focus)',
+  body: 'var(--ui-body)',
+  muted: 'var(--ui-muted)',
+  link: 'var(--ui-link)',
+  accent: 'var(--ui-accent)',
+  action: 'var(--ui-action)',
+  onAction: 'var(--ui-on-action)',
+  success: 'var(--ui-success)',
+  successSurface: 'var(--ui-success-surface)',
+  warning: 'var(--ui-warning)',
+  warningSurface: 'var(--ui-warning-surface)',
+  danger: 'var(--ui-danger)',
+  dangerSurface: 'var(--ui-danger-surface)',
+  info: 'var(--ui-info)',
+  infoSurface: 'var(--ui-info-surface)',
+  purple: 'var(--ui-purple)',
+  purpleSurface: 'var(--ui-purple-surface)',
+  track: 'var(--ui-track)',
+  codeSurface: 'var(--ui-code-surface)',
+  codeText: 'var(--ui-code-text)',
+  text: 'var(--ui-text)',
+} as const
+
 /**
  * Inference Exchange — Tibetan mineral spectrum
  *
@@ -91,6 +137,13 @@ export const TRUST_COLORS: Record<string, { bg: string; text: string; label: str
   contained: { bg: '#EEF3F7', text: C.deepBlue, label: 'Contained' },
   hardened: { bg: '#FDF6EC', text: C.gold, label: 'Hardened+' },
   confidential: { bg: '#EDF7F1', text: C.green, label: 'Confidential' },
+}
+
+export const APP_TRUST_COLORS: typeof TRUST_COLORS = {
+  open: { bg: UI.surfaceMuted, text: UI.muted, label: 'Open' },
+  contained: { bg: UI.infoSurface, text: UI.info, label: 'Contained' },
+  hardened: { bg: UI.warningSurface, text: UI.warning, label: 'Hardened+' },
+  confidential: { bg: UI.successSurface, text: UI.success, label: 'Confidential' },
 }
 
 export const GRADIENTS = {

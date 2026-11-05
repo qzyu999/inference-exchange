@@ -1,0 +1,213 @@
+/* App colors are semantic pairs. Components select a role, and appearance
+   selects its value. Keep literal RGB values in this file. */
+@theme inline {
+  --color-ui-success-action: var(--ui-success-action);
+  --color-ui-danger-action: var(--ui-danger-action);
+  --color-ui-action-hover: var(--ui-action-hover);
+  --color-ui-page: var(--ui-page);
+  --color-ui-surface: var(--ui-surface);
+  --color-ui-surface-muted: var(--ui-surface-muted);
+  --color-ui-hover: var(--ui-hover);
+  --color-ui-selected: var(--ui-selected);
+  --color-ui-selected-text: var(--ui-selected-text);
+  --color-ui-border: var(--ui-border);
+  --color-ui-control-border: var(--ui-control-border);
+  --color-ui-focus: var(--ui-focus);
+  --color-ui-body: var(--ui-body);
+  --color-ui-muted: var(--ui-muted);
+  --color-ui-link: var(--ui-link);
+  --color-ui-accent: var(--ui-accent);
+  --color-ui-action: var(--ui-action);
+  --color-ui-on-action: var(--ui-on-action);
+  --color-ui-success: var(--ui-success);
+  --color-ui-success-surface: var(--ui-success-surface);
+  --color-ui-warning: var(--ui-warning);
+  --color-ui-warning-surface: var(--ui-warning-surface);
+  --color-ui-danger: var(--ui-danger);
+  --color-ui-danger-surface: var(--ui-danger-surface);
+  --color-ui-info: var(--ui-info);
+  --color-ui-info-surface: var(--ui-info-surface);
+  --color-ui-purple: var(--ui-purple);
+  --color-ui-purple-surface: var(--ui-purple-surface);
+  --color-ui-track: var(--ui-track);
+  --color-ui-code-surface: var(--ui-code-surface);
+  --color-ui-code-text: var(--ui-code-text);
+  --color-ui-text: var(--ui-text);
+}
+
+.ie-app-appearance-scope {
+  --ui-page: #F5F5F1;
+  --ui-chart-1: #805D23;
+  --ui-chart-2: #347970;
+  --ui-chart-3: #315B72;
+  --ui-chart-4: #985522;
+  --ui-chart-5: #A13932;
+  --ui-chart-6: #626D76;
+  --ui-chart-7: #674C83;
+  --ui-chart-8: #276347;
+  --ui-chart-9: #854C69;
+  --ui-success-action: #2D6148;
+  --ui-danger-action: #963F38;
+  --ui-action-hover: #3C5262;
+  --ui-surface: #FFFDF7;
+  --ui-surface-muted: #F1F2EE;
+  --ui-hover: #E9ECE7;
+  --ui-selected: #E8DCC4;
+  --ui-selected-text: #263A63;
+  --ui-border: #C3C7C2;
+  --ui-control-border: #77827F;
+  --ui-focus: #845918;
+  --ui-body: #46546A;
+  --ui-muted: #57626A;
+  --ui-link: #163E8C;
+  --ui-accent: #78551E;
+  --ui-action: #2F414F;
+  --ui-on-action: #F7F4EB;
+  --ui-success: #276347;
+  --ui-success-surface: #E9F2EB;
+  --ui-warning: #805524;
+  --ui-warning-surface: #F4ECD9;
+  --ui-danger: #A13932;
+  --ui-danger-surface: #F8EBE8;
+  --ui-info: #315B72;
+  --ui-info-surface: #EAF0F4;
+  --ui-purple: #674C83;
+  --ui-purple-surface: #F0EBF5;
+  --ui-track: #D9DEDA;
+  --ui-code-surface: #29343B;
+  --ui-code-text: #E6E9E6;
+  --ui-text: #263A63;
+  color-scheme: light;
+  background: var(--ui-page) !important;
+  color: var(--ui-text);
+}
+
+.ie-app-appearance-scope[data-appearance="dark"] {
+  --ui-page: #252D33;
+  --ui-chart-1: #CEB78F;
+  --ui-chart-2: #8EBDBA;
+  --ui-chart-3: #A9BDD4;
+  --ui-chart-4: #D1AE8D;
+  --ui-chart-5: #D9AEA9;
+  --ui-chart-6: #B0BDC5;
+  --ui-chart-7: #BEB0D0;
+  --ui-chart-8: #A6C1AE;
+  --ui-chart-9: #C7A9BE;
+  --ui-success-action: #3E5C4C;
+  --ui-danger-action: #69413F;
+  --ui-action-hover: #4A6475;
+  --ui-surface: #313B43;
+  --ui-surface-muted: #2B353D;
+  --ui-hover: #3B4750;
+  --ui-selected: #414943;
+  --ui-selected-text: #D9E0D8;
+  --ui-border: #53616B;
+  --ui-control-border: #83949E;
+  --ui-focus: #CEB78F;
+  --ui-body: #C9D0D3;
+  --ui-muted: #B0BDC5;
+  --ui-link: #A9BDD4;
+  --ui-accent: #CEB78F;
+  --ui-action: #415A6A;
+  --ui-on-action: #E5EBEC;
+  --ui-success: #A6C1AE;
+  --ui-success-surface: #2E413A;
+  --ui-warning: #CEB78F;
+  --ui-warning-surface: #413D34;
+  --ui-danger: #D9AEA9;
+  --ui-danger-surface: #443636;
+  --ui-info: #A9BDCD;
+  --ui-info-surface: #33414B;
+  --ui-purple: #BEB0D0;
+  --ui-purple-surface: #3E3947;
+  --ui-track: #4B5862;
+  --ui-code-surface: #263139;
+  --ui-code-text: #CED7DB;
+  --ui-text: #DFE3E2;
+  color-scheme: dark;
+  background: var(--ui-page) !important;
+  color: var(--ui-text);
+}
+
+.ie-app-appearance-scope[data-appearance="blue-light"] {
+  --ui-page: #EDE1C9;
+  --ui-chart-1: #75521C;
+  --ui-chart-2: #3B7066;
+  --ui-chart-3: #36586C;
+  --ui-chart-4: #8B552C;
+  --ui-chart-5: #8A3E32;
+  --ui-chart-6: #655D4E;
+  --ui-chart-7: #64516F;
+  --ui-chart-8: #355C40;
+  --ui-chart-9: #7D4E62;
+  --ui-success-action: #3E6047;
+  --ui-danger-action: #864638;
+  --ui-action-hover: #4B5858;
+  --ui-surface: #F4E9D4;
+  --ui-surface-muted: #EADFC8;
+  --ui-hover: #E1D4B9;
+  --ui-selected: #DDCCAB;
+  --ui-selected-text: #3A352C;
+  --ui-border: #BBAF94;
+  --ui-control-border: #80755F;
+  --ui-focus: #75521C;
+  --ui-body: #4F4A3E;
+  --ui-muted: #5D5546;
+  --ui-link: #36577C;
+  --ui-accent: #704A16;
+  --ui-action: #3F4B4C;
+  --ui-on-action: #F7EEDC;
+  --ui-success: #355C40;
+  --ui-success-surface: #E1E6CF;
+  --ui-warning: #704A16;
+  --ui-warning-surface: #E7D8B9;
+  --ui-danger: #8A3E32;
+  --ui-danger-surface: #ECD9C7;
+  --ui-info: #36586C;
+  --ui-info-surface: #E0E4DC;
+  --ui-purple: #64516F;
+  --ui-purple-surface: #E5DDE0;
+  --ui-track: #CFC3A8;
+  --ui-code-surface: #343D3C;
+  --ui-code-text: #E7E3D7;
+  --ui-text: #39372F;
+  color-scheme: light;
+  background: var(--ui-page) !important;
+  color: var(--ui-text);
+}
+
+/* The sidebar has a dark surface in all three appearances. */
+.ie-mineral-sidebar {
+  --ui-success: #A6C1AE;
+  --ui-danger: #D9AEA9;
+}
+
+/* Compatibility names used by the existing app shell. */
+.ie-app-appearance-scope {
+  --ie-app-surface: var(--ui-surface);
+  --ie-app-paper: var(--ui-surface-muted);
+  --ie-app-ink: var(--ui-text);
+  --ie-app-line: var(--ui-border);
+  --ie-app-gold: var(--ui-accent);
+}
+.ie-app-content { color: var(--ui-text); }
+.ie-app-content ::selection { background: var(--ui-selected); color: var(--ui-selected-text); }
+.ie-app-content :is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]), textarea, select) {
+  background: var(--ui-surface-muted);
+  color: var(--ui-text);
+  border-color: var(--ui-control-border);
+}
+.ie-app-content :is(input, textarea)::placeholder { color: var(--ui-muted); }
+.ie-app-content :is(input, textarea, select, button, a, summary):focus-visible {
+  outline: 2px solid var(--ui-focus);
+  outline-offset: 3px;
+}
+.ie-app-content :is(input[type="checkbox"], input[type="radio"], input[type="range"]) {
+  accent-color: var(--ui-action);
+}
+.ie-app-content pre { color: var(--ui-code-text); background: var(--ui-code-surface); }
+.ie-app-content .ie-mineral-panel { background: var(--ui-surface); border-color: var(--ui-border); }
+.ie-app-content .ie-mineral-action {
+  background: var(--ui-action); color: var(--ui-on-action); border-color: var(--ui-control-border);
+}
+.ie-app-content .ie-mineral-action:hover { background: var(--ui-action-hover); }

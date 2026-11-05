@@ -4,19 +4,11 @@ import useSWR from 'swr'
 import { useAuth } from '../lib/auth'
 import { api } from '../lib/api'
 import { loginHref } from '../lib/nav.js'
-import { APP_PIGMENTS as AP } from '../lib/theme'
+import { UI } from '../lib/theme'
 import {
   JOURNEYS, GLOSSARY, completedSteps, feedbackHref, progressStorageKey,
   type StartJourney, type StartStep,
 } from '../lib/getting-started.js'
-
-const startInk = `var(--ie-start-ink, ${AP.ink})`
-const startGold = `var(--ie-start-gold, ${AP.goldInk})`
-const startLink = `var(--ie-start-link, ${AP.lapis})`
-const startJade = `var(--ie-start-jade, ${AP.jadeInk})`
-const startLine = `var(--ie-start-line, ${AP.line})`
-const startSurface = `var(--ie-start-surface, ${AP.paper})`
-const startSelected = 'var(--ie-start-selected, #F8EDD7)'
 
 type Platform = 'windows' | 'mac' | 'linux'
 const SDK_COMMANDS: Record<Platform, string> = {
@@ -43,22 +35,22 @@ const KEY_INPUT: Record<Platform, string> = {
 }
 const MAC_CHECKS = 'uname -m\nsw_vers\npython3 --version\ncommand -v llama-server'
 
-const focus = 'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#845918]'
+const focus = 'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ui-focus'
 const panel = 'ie-mineral-panel rounded-2xl border'
 
 function JourneyLanding() {
   return (
     <div className="ie-start max-w-5xl space-y-7">
       <section className={panel + ' p-6 md:p-8 space-y-3'}>
-        <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: startGold }}>Private alpha · start here</p>
-        <h2 className="text-2xl md:text-3xl font-bold tracking-tight" style={{ color: startInk }}>
+        <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: UI.accent }}>Private alpha · start here</p>
+        <h2 className="text-2xl md:text-3xl font-bold tracking-tight" style={{ color: UI.text }}>
           What would you like to do?
         </h2>
-        <p className="text-sm text-gray-600 leading-relaxed max-w-2xl">
+        <p className="text-sm text-ui-body leading-relaxed max-w-2xl">
           Use AI, build with the API, connect your own Mac, or do both.
           Each guide takes you through a few real actions. You can resume later.
         </p>
-        <p className="text-xs text-gray-500">
+        <p className="text-xs text-ui-muted">
           This is an experimental exchange. Credits are simulated and cannot be redeemed.
           L0/Open inference is not confidential. Provider installation has not yet passed independent-Mac qualification.
         </p>
@@ -68,36 +60,36 @@ function JourneyLanding() {
           <Link key={journey.id} to={'/start/' + journey.id}
             className={panel + ' ie-mineral-journey group p-5 md:p-6 transition-shadow hover:shadow-md ' + focus}>
             <div className="flex items-center justify-between gap-3">
-              <span className="text-[11px] uppercase tracking-wider font-semibold" style={{ color: startGold }}>
+              <span className="text-[11px] uppercase tracking-wider font-semibold" style={{ color: UI.accent }}>
                 {journey.audience}
               </span>
-              <span className="text-xs text-gray-400">0{index + 1}</span>
+              <span className="text-xs text-ui-muted">0{index + 1}</span>
             </div>
-            <h3 className="text-xl font-semibold mt-4 group-hover:underline" style={{ color: startInk }}>
+            <h3 className="text-xl font-semibold mt-4 group-hover:underline" style={{ color: UI.text }}>
               {journey.name}
             </h3>
-            <p className="mt-2 text-sm leading-relaxed text-gray-600">{journey.summary}</p>
-            <p className="mt-5 text-xs font-semibold" style={{ color: startLink }}>
+            <p className="mt-2 text-sm leading-relaxed text-ui-body">{journey.summary}</p>
+            <p className="mt-5 text-xs font-semibold" style={{ color: UI.link }}>
               {journey.steps.length} guided steps · Open guide →
             </p>
           </Link>
         ))}
       </div>
       <details className={panel + ' p-5 md:p-6'}>
-        <summary className="cursor-pointer text-sm font-semibold" style={{ color: startInk }}>
+        <summary className="cursor-pointer text-sm font-semibold" style={{ color: UI.text }}>
           New to IE? A few useful definitions
         </summary>
         <dl className="grid sm:grid-cols-2 gap-x-8 gap-y-4 mt-5">
           {GLOSSARY.map(([term, meaning]) => (
             <div key={term}>
-              <dt className="text-sm font-semibold" style={{ color: startInk }}>{term}</dt>
-              <dd className="text-xs text-gray-600 mt-1 leading-relaxed">{meaning}</dd>
+              <dt className="text-sm font-semibold" style={{ color: UI.text }}>{term}</dt>
+              <dd className="text-xs text-ui-body mt-1 leading-relaxed">{meaning}</dd>
             </div>
           ))}
         </dl>
       </details>
-      <p className="text-sm text-gray-600">
-        Looking for technical reference material? <Link className="underline" style={{ color: startLink }} to="/docs">Go to Docs</Link>.
+      <p className="text-sm text-ui-body">
+        Looking for technical reference material? <Link className="underline" style={{ color: UI.link }} to="/docs">Go to Docs</Link>.
       </p>
     </div>
   )
@@ -107,7 +99,7 @@ function StepAction({ journey, step }: { journey: StartJourney; step: StartStep 
   const isLogin = step.to === '/login'
   const href = isLogin ? loginHref('/start/' + journey.id + '?step=' + step.id) : step.to
   const classes = 'ie-mineral-action inline-flex items-center justify-center px-4 py-2.5 rounded-xl text-sm font-semibold ' + focus
-  const style = { color: AP.cloud, background: AP.lapis }
+  const style = { color: UI.onAction, background: UI.action }
   if (/^https:\/\//.test(href)) {
     return <a href={href} target="_blank" rel="noopener noreferrer" className={classes} style={style}>{step.action} ↗</a>
   }
@@ -164,7 +156,7 @@ export function GettingStarted() {
   if (!journey || !step) {
     return (
       <>
-        {requestedJourney && <p role="alert" className="mb-4 text-sm text-red-700">That journey does not exist. Choose a guide below.</p>}
+        {requestedJourney && <p role="alert" className="mb-4 text-sm text-ui-danger">That journey does not exist. Choose a guide below.</p>}
         <JourneyLanding />
       </>
     )
@@ -195,28 +187,28 @@ export function GettingStarted() {
   return (
     <div className="ie-start max-w-5xl space-y-5">
       <div className="flex flex-wrap gap-2 items-center text-xs">
-        <Link to="/start" className={'underline ' + focus} style={{ color: startLink }}>← All journeys</Link>
-        <span className="text-gray-400">/</span>
-        <span className="font-semibold" style={{ color: startInk }}>{journey.name}</span>
+        <Link to="/start" className={'underline ' + focus} style={{ color: UI.link }}>← All journeys</Link>
+        <span className="text-ui-muted">/</span>
+        <span className="font-semibold" style={{ color: UI.text }}>{journey.name}</span>
       </div>
 
       <section className={panel + ' p-6 md:p-8 space-y-4'}>
         <div className="flex items-start flex-wrap justify-between gap-3">
           <div>
-            <p className="text-xs uppercase tracking-wider font-semibold" style={{ color: startGold }}>{journey.audience}</p>
-            <h2 className="text-2xl font-bold mt-1" style={{ color: startInk }}>{journey.name}</h2>
-            <p className="text-sm text-gray-600 mt-1">{journey.summary}</p>
+            <p className="text-xs uppercase tracking-wider font-semibold" style={{ color: UI.accent }}>{journey.audience}</p>
+            <h2 className="text-2xl font-bold mt-1" style={{ color: UI.text }}>{journey.name}</h2>
+            <p className="text-sm text-ui-body mt-1">{journey.summary}</p>
           </div>
-          <span className="rounded-full border border-gray-200 px-3 py-1 text-xs text-gray-600">
+          <span className="rounded-full border border-ui-border px-3 py-1 text-xs text-ui-body">
             {doneCount} of {journey.steps.length} user-confirmed
           </span>
         </div>
         <div role="progressbar" aria-label="Self-reported journey progress" aria-valuemin={0}
           aria-valuemax={journey.steps.length} aria-valuenow={doneCount}
-          className="h-1.5 rounded-full bg-gray-100 overflow-hidden">
-          <div className="h-full rounded-full transition-all" style={{ width: (100 * doneCount / journey.steps.length) + '%', background: startJade }} />
+          className="h-1.5 rounded-full bg-ui-track overflow-hidden">
+          <div className="h-full rounded-full transition-all" style={{ width: (100 * doneCount / journey.steps.length) + '%', background: UI.success }} />
         </div>
-        <p className="text-xs text-gray-500">
+        <p className="text-xs text-ui-muted">
           Progress is saved on this device for the current account. A checkmark means <strong>you confirmed it</strong>,
           not that IE verified a request or installation.
         </p>
@@ -228,11 +220,11 @@ export function GettingStarted() {
                   aria-current={i === stepIndex ? 'step' : undefined}
                   className={'flex items-start gap-2 rounded-xl border px-3 py-3 text-xs leading-relaxed ' + focus}
                   style={{
-                    borderColor: i === stepIndex ? startGold : startLine,
-                    background: i === stepIndex ? startSelected : startSurface,
-                    color: startInk,
+                    borderColor: i === stepIndex ? UI.accent : UI.border,
+                    background: i === stepIndex ? UI.selected : UI.surface,
+                    color: UI.text,
                   }}>
-                  <span aria-hidden="true" className="font-semibold shrink-0" style={{ color: visibleConfirmations[journey.id + '/' + item.id] ? startJade : startGold }}>
+                  <span aria-hidden="true" className="font-semibold shrink-0" style={{ color: visibleConfirmations[journey.id + '/' + item.id] ? UI.success : UI.accent }}>
                     {visibleConfirmations[journey.id + '/' + item.id] ? '✓' : String(i + 1).padStart(2, '0')}
                   </span>
                   <span>{item.title}</span>
@@ -245,13 +237,13 @@ export function GettingStarted() {
 
       <article className={panel + ' p-6 md:p-8 space-y-5'}>
         <div>
-          <p className="text-xs uppercase tracking-wider font-semibold" style={{ color: startGold }}>Step {stepIndex + 1} of {journey.steps.length}</p>
-          <h3 className="text-xl md:text-2xl font-semibold mt-1" style={{ color: startInk }}>{step.title}</h3>
-          <p className="text-sm mt-3 leading-relaxed text-gray-600">{step.description}</p>
+          <p className="text-xs uppercase tracking-wider font-semibold" style={{ color: UI.accent }}>Step {stepIndex + 1} of {journey.steps.length}</p>
+          <h3 className="text-xl md:text-2xl font-semibold mt-1" style={{ color: UI.text }}>{step.title}</h3>
+          <p className="text-sm mt-3 leading-relaxed text-ui-body">{step.description}</p>
         </div>
 
         {step.gate && (
-          <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+          <div className="rounded-xl border border-ui-warning bg-ui-warning-surface p-4 text-sm text-ui-warning">
             <strong>Private-alpha availability:</strong> Provider enrollment is disabled by default while independent Mac onboarding is qualified.
             In the intended general release, signup and provider enrollment are self-service without scheduled windows.
             This guide cannot check the live global enrollment switch. Follow the coordinator’s current alpha instructions;
@@ -261,11 +253,11 @@ export function GettingStarted() {
 
         {step.id === 'hardware' && journey.id === 'provider' && (
           <div className="space-y-2">
-            <p className="text-xs font-semibold text-gray-600">Run locally on your own Mac (read-only):</p>
-            <pre className="overflow-x-auto rounded-xl p-4 text-xs leading-relaxed" style={{ background: AP.ink, color: '#eee' }}>
+            <p className="text-xs font-semibold text-ui-body">Run locally on your own Mac (read-only):</p>
+            <pre className="overflow-x-auto rounded-xl p-4 text-xs leading-relaxed" style={{ background: UI.action, color: UI.onAction }}>
               <code>{MAC_CHECKS}</code>
             </pre>
-            <p className="text-xs text-gray-500">
+            <p className="text-xs text-ui-muted">
               Browser pages cannot verify your Mac architecture, RAM, macOS or local tools.
               Collect the output privately; share only nonsensitive compatibility details.
             </p>
@@ -274,7 +266,7 @@ export function GettingStarted() {
 
         {step.platform && (
           <section className="space-y-3" aria-label="Python SDK setup commands">
-            <p className="text-sm font-semibold" style={{ color: startInk }}>Choose your terminal</p>
+            <p className="text-sm font-semibold" style={{ color: UI.text }}>Choose your terminal</p>
             <div className="flex flex-wrap gap-2" role="group" aria-label="Operating system">
               {([
                 ['windows', 'Windows CMD'], ['mac', 'macOS'], ['linux', 'Linux'],
@@ -282,30 +274,30 @@ export function GettingStarted() {
                 <button type="button" key={id} aria-pressed={platform === id}
                   onClick={() => { setPlatform(id); setCopyMessage('') }}
                   className={'px-3 py-2 rounded-lg border text-xs ' + focus}
-                  style={{ borderColor: platform === id ? startGold : startLine, background: platform === id ? startSelected : startSurface, color: startInk }}>
+                  style={{ borderColor: platform === id ? UI.accent : UI.border, background: platform === id ? UI.selected : UI.surface, color: UI.text }}>
                   {label}
                 </button>
               ))}
             </div>
-            <p className="text-xs text-gray-500">
+            <p className="text-xs text-ui-muted">
               First save the existing <strong>non-streaming Python example</strong> from API keys as hello_ie.py.
               Copy the installation commands first. The API-key prompt is a separate action below, so it cannot consume a pasted command as a secret.
             </p>
-            <pre className="overflow-x-auto rounded-xl p-4 text-xs leading-relaxed" style={{ background: AP.ink, color: '#eee' }}>
+            <pre className="overflow-x-auto rounded-xl p-4 text-xs leading-relaxed" style={{ background: UI.action, color: UI.onAction }}>
               <code>{SDK_COMMANDS[platform]}</code>
             </pre>
             <button type="button" onClick={() => void copyCommands()}
               className={'px-3 py-2 rounded-lg border text-xs font-semibold ' + focus}>Copy setup commands</button>
-            {copyMessage && <p role="status" className="text-xs text-gray-600">{copyMessage}</p>}
-            <p className="text-xs text-gray-500">
+            {copyMessage && <p role="status" className="text-xs text-ui-body">{copyMessage}</p>}
+            <p className="text-xs text-ui-muted">
               Run this separate interactive command only after installing the SDK.
               Type or paste your own key when prompted, then press Enter:
             </p>
-            <pre className="overflow-x-auto rounded-xl p-4 text-xs leading-relaxed" style={{ background: 'var(--ie-start-surface, #eff1f1)', color: startInk }}>
+            <pre className="overflow-x-auto rounded-xl p-4 text-xs leading-relaxed" style={{ background: UI.surfaceMuted, color: UI.text }}>
               <code>{KEY_INPUT[platform]}</code>
             </pre>
-            <p className="text-xs text-gray-500">Then run <code>python hello_ie.py</code> in that same terminal session.</p>
-            <p className="text-xs text-gray-500">
+            <p className="text-xs text-ui-muted">Then run <code>python hello_ie.py</code> in that same terminal session.</p>
+            <p className="text-xs text-ui-muted">
               {platform === 'windows'
                 ? 'CMD set /p shows what you type. Avoid screen sharing and clear the session afterward.'
                 : 'The read command accepts the key without echoing it. Do not save it in shell history or a project file.'}
@@ -315,15 +307,15 @@ export function GettingStarted() {
         )}
 
         {step.check && (
-          <div className="rounded-xl bg-gray-50 border border-gray-100 p-4 space-y-2" aria-live="polite">
-            <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: startLink }}>Read-only live check</p>
+          <div className="rounded-xl bg-ui-surface-muted border border-ui-border p-4 space-y-2" aria-live="polite">
+            <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: UI.link }}>Read-only live check</p>
             {step.check === 'auth' && (
-              <p className="text-sm text-gray-700">
+              <p className="text-sm text-ui-body">
                 {authLoading ? 'Checking sign-in…' : user ? 'Signed in: ' + (user.name || user.email) : 'No IE account session. Sign in to continue.'}
               </p>
             )}
             {step.check === 'models' && (
-              <p className="text-sm text-gray-700">
+              <p className="text-sm text-ui-body">
                 {modelError ? 'Model availability cannot be checked right now.'
                   : modelLoading || !models ? 'Loading online model IDs…'
                   : models.data.length ? 'Advertised online models: ' + models.data.map(model => model.id).join(', ')
@@ -331,7 +323,7 @@ export function GettingStarted() {
               </p>
             )}
             {step.check === 'keys' && (
-              <p className="text-sm text-gray-700">
+              <p className="text-sm text-ui-body">
                 {!user ? 'Sign in to read your own API key metadata.'
                   : keysError ? 'Your API key status is unavailable.'
                   : !keys ? 'Loading your key metadata…'
@@ -339,7 +331,7 @@ export function GettingStarted() {
               </p>
             )}
             {step.check === 'nodes' && (
-              <p className="text-sm text-gray-700">
+              <p className="text-sm text-ui-body">
                 {!user ? 'Sign in to check your own provider nodes.'
                   : nodeError ? 'Your node status is unavailable.'
                   : !nodes ? 'Loading your nodes…'
@@ -348,7 +340,7 @@ export function GettingStarted() {
               </p>
             )}
             {step.check === 'earnings' && (
-              <p className="text-sm text-gray-700">
+              <p className="text-sm text-ui-body">
                 {!user ? 'Sign in to read your own provider earnings.'
                   : earningsError ? 'Earnings data cannot be checked right now.'
                   : !earnings ? 'Loading your owner-scoped earnings…'
@@ -358,34 +350,34 @@ export function GettingStarted() {
                     '. This does not prove a request was served during this guide.'}
               </p>
             )}
-            <p className="text-xs text-gray-500">Live observations are not step completion. Use the action below and confirm only after seeing the expected result.</p>
+            <p className="text-xs text-ui-muted">Live observations are not step completion. Use the action below and confirm only after seeing the expected result.</p>
           </div>
         )}
 
-        <div className="rounded-xl border border-gray-100 p-4 space-y-2">
-          <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: startLink }}>Expected result</p>
-          <p className="text-sm text-gray-700">{step.expected}</p>
+        <div className="rounded-xl border border-ui-border p-4 space-y-2">
+          <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: UI.link }}>Expected result</p>
+          <p className="text-sm text-ui-body">{step.expected}</p>
         </div>
 
         <div className="flex flex-wrap gap-3 items-center">
           <StepAction journey={journey} step={step} />
           <button type="button" aria-pressed={checked} onClick={confirmStep} disabled={authLoading || loadedScope !== scope}
             className={'px-4 py-2.5 rounded-xl border text-sm font-semibold disabled:opacity-50 ' + focus}
-            style={{ borderColor: checked ? startJade : 'var(--ie-start-line, #d1d5db)', color: checked ? startJade : startInk }}>
+            style={{ borderColor: checked ? UI.success : UI.border, color: checked ? UI.success : UI.text }}>
             {checked ? '✓ I marked this complete' : 'I completed this step'}
           </button>
         </div>
 
-        <section className="border-t border-gray-100 pt-5 space-y-3">
+        <section className="border-t border-ui-border pt-5 space-y-3">
           <button type="button" aria-expanded={helpOpen} aria-controls="start-step-help"
             onClick={() => setHelpOpen(open => !open)} className={'text-sm font-semibold underline ' + focus}
-            style={{ color: startLink }}>
+            style={{ color: UI.link }}>
             {helpOpen ? 'Hide troubleshooting' : "What if this doesn't work? / I'm stuck"}
           </button>
           {helpOpen && (
-            <div id="start-step-help" className="rounded-xl bg-gray-50 p-4 space-y-3">
-              <p className="text-sm leading-relaxed text-gray-700">{step.help}</p>
-              <p className="text-xs text-gray-600">
+            <div id="start-step-help" className="rounded-xl bg-ui-surface-muted p-4 space-y-3">
+              <p className="text-sm leading-relaxed text-ui-body">{step.help}</p>
+              <p className="text-xs text-ui-body">
                 Report the exact step through GitHub. You can describe the problem there.
                 <strong> Never include passwords, API keys, provider tokens, cookies, auth headers, private prompts, personal data or full logs.</strong>
                 No notes, credentials or account details are inserted in the report URL.
@@ -399,18 +391,18 @@ export function GettingStarted() {
           )}
         </section>
 
-        <div className="flex items-center justify-between flex-wrap gap-3 pt-4 border-t border-gray-100">
+        <div className="flex items-center justify-between flex-wrap gap-3 pt-4 border-t border-ui-border">
           {previous
             ? <Link className={'text-sm underline ' + focus} to={'/start/' + journey.id + '?step=' + previous.id}>← Previous step</Link>
             : <Link className={'text-sm underline ' + focus} to="/start">← All journeys</Link>}
           {next
             ? <Link className={'rounded-lg px-4 py-2 text-sm font-semibold ' + focus}
-                style={{ background: 'var(--ie-start-next, #EEDDBB)', color: startInk }}
+                style={{ background: UI.selected, color: UI.text }}
                 to={'/start/' + journey.id + '?step=' + next.id}>Next step →</Link>
             : <Link className={'text-sm font-semibold underline ' + focus} to="/start">Explore other journeys →</Link>}
         </div>
       </article>
-      <p className="text-xs text-gray-500">
+      <p className="text-xs text-ui-muted">
         Advanced setup, protocol and security details are in <Link className="underline" to="/docs">Docs</Link>.
         The provider installation flow remains experimental until an independent Mac owner qualifies it.
       </p>

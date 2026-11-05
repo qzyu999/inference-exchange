@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "./app-theme.css";
 
 :root {
   --color-accent: #C49A45;
@@ -117,36 +118,6 @@ body {
   animation: mineral-shift 12s ease-in-out infinite;
 }
 
-/* Issue #203: mineral workbench pilot. The app stays calm and
-   task-oriented; cinematic colors live primarily in its navigation. */
-.ie-mineral-app {
-  --ie-app-surface: #FFFDF7;
-  --ie-app-paper: #F7F2E8;
-  --ie-app-ink: #263A63;
-  --ie-app-line: #D9C8AA;
-  --ie-app-gold: #845918;
-}
-
-/* The optional 2400K-inspired color wash is now one explicit appearance
-   choice. Light (the default) and Dark render with no overlay. This is not a
-   calibrated display whitepoint; f.lux remains a separate system setting. */
-.ie-app-appearance-scope[data-appearance="blue-light"]::after {
-  content: '';
-  position: fixed;
-  inset: 0;
-  z-index: 70;
-  pointer-events: none;
-  background: #FF995B;
-  opacity: 0.48;
-  mix-blend-mode: multiply;
-}
-
-@media (forced-colors: active), print {
-  .ie-app-appearance-scope[data-appearance="blue-light"]::after {
-    display: none;
-  }
-}
-
 .ie-mineral-sidebar .ie-app-wordmark {
   /* Preserve the living mineral spectrum on the restored charcoal shell. */
   background: linear-gradient(95deg,
@@ -177,7 +148,7 @@ body {
 }
 
 .ie-mineral-app .ie-mineral-panel {
-  background: linear-gradient(140deg, #FFFDF7 0%, #FAF5E9 100%);
+  background: var(--ui-surface);
   border-color: var(--ie-app-line);
   box-shadow: 0 3px 18px rgba(34, 49, 101, 0.045);
 }
@@ -208,12 +179,12 @@ body {
 }
 
 .ie-mineral-app .ie-mineral-action {
-  background: #163E8C;
-  border: 1px solid #102D6D;
-  color: #FBF4E4;
+  background: var(--ui-action);
+  border: 1px solid var(--ui-control-border);
+  color: var(--ui-on-action);
   box-shadow: inset 0 1px 0 rgba(251,244,228,0.2);
 }
-.ie-mineral-app .ie-mineral-action:hover { background: #102D6D; }
+.ie-mineral-app .ie-mineral-action:hover { background: var(--ui-action); }
 .ie-mineral-app .ie-mineral-action:focus-visible { outline: 2px solid #845918; outline-offset: 2px; }
 
 @media (prefers-reduced-motion: reduce) {
@@ -224,8 +195,7 @@ body {
 
 /* Three exclusive non-landing appearance choices.
    The sidebar keeps its established dark charcoal across all appearances.
-   Light preserves existing paper surfaces; blue-light adds the overlay above;
-   Dark substitutes semantic charcoal surfaces and contrasting content ink. */
+   Their content palettes are defined in app-theme.css. */
 .ie-app-appearance-selector {
   background: rgba(13, 19, 24, 0.42);
   border: 1px solid rgba(240, 197, 75, 0.22);
@@ -264,141 +234,12 @@ body {
 .ie-app-appearance-scope[data-appearance="dark"]:not(.ie-mineral-app) .ie-app-appearance-option {
   color: #D9E2E2;
 }
-.ie-app-appearance-scope[data-appearance="dark"]:not(.ie-mineral-app) .ie-app-appearance-option[aria-pressed="true"] {
-  background: #E8DDC4;
-  color: #252A30;
+.ie-app-appearance-scope[data-appearance="dark"] .ie-app-appearance-option[aria-pressed="true"] {
+  background: var(--ui-selected);
+  color: var(--ui-selected-text);
+  border-color: var(--ui-focus);
 }
 
-/* Dark mode deliberately changes actual surfaces/text, NOT a tint or
-   whole-page inverse filter (which would distort mineral colors and charts).
-   Selectors stay inside the app content: the landing page, sidebar spectrum,
-   and semantic warning/alert fills are not recolored. */
-.ie-app-appearance-scope[data-appearance="dark"] {
-  --ie-app-surface: #353F47;
-  --ie-app-paper: #313B43;
-  --ie-app-ink: #EDE9DE;
-  --ie-app-line: #52606A;
-  --ie-app-gold: #E9C786;
-  color-scheme: dark;
-  color: #E8E4DA;
-  background: linear-gradient(160deg, #292F35 0%, #252D33 55%, #21282F 100%) !important;
-}
-.ie-app-appearance-scope[data-appearance="dark"] .ie-app-content {
-  color: #E8E4DA;
-}
-.ie-app-appearance-scope[data-appearance="dark"] .ie-app-content :is(
-  .bg-white, .bg-gray-50, .bg-gray-100, .bg-slate-50, .bg-stone-50,
-  .ie-mineral-panel
-) {
-  background: var(--ie-app-surface) !important;
-  border-color: var(--ie-app-line) !important;
-}
-/* A few older data-heavy pages use inline white/off-white card surfaces. */
-.ie-app-appearance-scope[data-appearance="dark"] .ie-app-content :is(
-  [style*="background: rgb(255, 255, 255)"],
-  [style*="background: rgb(255, 253, 247)"],
-  [style*="background: rgb(250, 250, 248)"],
-  [style*="background: rgb(247, 242, 232)"],
-  [style*="background: rgb(245, 245, 243)"],
-  [style*="background: rgb(229, 229, 227)"]
-):not(button):not(a):not(input):not(textarea) {
-  background: var(--ie-app-surface) !important;
-  border-color: var(--ie-app-line) !important;
-}
-.ie-app-appearance-scope[data-appearance="dark"] .ie-app-content :is(
-  .border-gray-50, .border-gray-100, .border-gray-200, .border-gray-300,
-  .divide-gray-100, .divide-gray-200
-) {
-  border-color: var(--ie-app-line) !important;
-}
-.ie-app-appearance-scope[data-appearance="dark"] .ie-app-content :is(
-  .text-gray-400, .text-gray-500, .text-gray-600, .text-gray-700,
-  .text-gray-800, .text-slate-500, .text-slate-600
-) {
-  color: #C1CCD1 !important;
-}
-/* The JSX's old inline neutral ink colors are retained for Light but must be
-   readable on charcoal. Leave colored trust pills and semantic alert surfaces
-   alone: those often set their own light background beside the ink. */
-.ie-app-appearance-scope[data-appearance="dark"] .ie-app-content :is(
-  [style*="color: rgb(41, 47, 53)"],
-  [style*="color: rgb(38, 58, 99)"],
-  [style*="color: rgb(41, 43, 42)"],
-  [style*="color: rgb(70, 84, 106)"]
-):not([style*="background:"]):not([style*="background-color:"]) {
-  color: #E8E4DA !important;
-}
-.ie-app-appearance-scope[data-appearance="dark"] .ie-app-content :is(
-  [style*="color: rgb(119, 119, 119)"],
-  [style*="color: rgb(136, 136, 136)"],
-  [style*="color: rgb(153, 153, 153)"],
-  [style*="color: rgb(170, 170, 170)"],
-  [style*="color: rgb(187, 187, 187)"],
-  [style*="color: rgb(204, 204, 204)"],
-  [style*="color: rgb(83, 97, 113)"]
-):not([style*="background:"]):not([style*="background-color:"]) {
-  color: #BDCACF !important;
-}
-/* User chat bubbles are a legacy exception: their neutral surface and dark
-   ink share one inline style object. Both must change together in Dark mode;
-   the general ink overrides deliberately leave colored alert fills alone. */
-.ie-app-appearance-scope[data-appearance="dark"] .ie-app-content
-  [style*="background: rgb(229, 229, 227)"][style*="color: rgb(41, 47, 53)"] {
-  background: #394753 !important;
-  color: #F0EBDD !important;
-}
-/* Deep-lapis links readable on charcoal; don't touch the colors on their
-   semantic, independently colored trust/availability badges. */
-.ie-app-appearance-scope[data-appearance="dark"] .ie-app-content :is(
-  [style*="color: rgb(22, 62, 140)"],
-  [style*="color: rgb(16, 45, 109)"]
-):not([style*="background:"]):not([style*="background-color:"]) {
-  color: #ABC9FA !important;
-}
-.ie-app-appearance-scope[data-appearance="dark"] .ie-app-content :is(
-  input:not([type="checkbox"]):not([type="radio"]), textarea, select
-) {
-  background: #29343B !important;
-  color: #F1EBDF !important;
-  border-color: #66727A !important;
-}
-.ie-app-appearance-scope[data-appearance="dark"] .ie-app-content :is(
-  input, textarea
-)::placeholder {
-  color: #A3B0B8 !important;
-}
-.ie-app-appearance-scope[data-appearance="dark"] .ie-app-content :is(
-  .docs-body, .docs-body h1, .docs-body h2, .docs-body p,
-  .docs-body li, .docs-body td, .docs-body strong
-) {
-  color: #E8E4DA;
-}
-.ie-app-appearance-scope[data-appearance="dark"] .ie-app-content .docs-body :is(
-  code, th
-) {
-  background: #263139;
-  color: #E8E4DA;
-}
-.ie-app-appearance-scope[data-appearance="dark"] .ie-app-content .docs-body pre {
-  background: #1C252C;
-}
-
-.ie-app-appearance-scope[data-appearance="dark"] .ie-app-content .ie-start {
-  --ie-start-ink: #E8E4DA;
-  --ie-start-gold: #CEB78F;
-  --ie-start-link: #A9BDD4;
-  --ie-start-jade: #A6C1AE;
-  --ie-start-line: var(--ie-app-line);
-  --ie-start-surface: var(--ie-app-paper);
-  --ie-start-selected: #44413B;
-  --ie-start-next: #44413B;
-}
-.ie-app-appearance-scope[data-appearance="dark"] .ie-app-content .ie-start :is(.text-gray-600, .text-gray-700) {
-  color: #CBD2D4 !important;
-}
-.ie-app-appearance-scope[data-appearance="dark"] .ie-app-content .ie-start :is(.text-gray-400, .text-gray-500) {
-  color: #B7C2C7 !important;
-}
 @media (prefers-reduced-motion: reduce) {
   .ie-app-appearance-option { transition: none; }
 }
@@ -766,21 +607,21 @@ body {
 }
 
 /* /docs page: markdown typography */
-.docs-body { color: #292F35; font-size: 0.9375rem; line-height: 1.65; }
+.docs-body { color: var(--ui-text); font-size: 0.9375rem; line-height: 1.65; }
 .docs-body h1 { font-size: 1.6rem; font-weight: 700; margin: 0 0 1rem; letter-spacing: -0.01em; }
-.docs-body h2 { font-size: 1.2rem; font-weight: 700; margin: 2rem 0 0.75rem; padding-top: 1rem; border-top: 1px solid #eeede8; }
+.docs-body h2 { font-size: 1.2rem; font-weight: 700; margin: 2rem 0 0.75rem; padding-top: 1rem; border-top: 1px solid var(--ui-border); }
 .docs-body h3 { font-size: 1rem; font-weight: 700; margin: 1.5rem 0 0.5rem; font-family: 'SF Mono', Menlo, Consolas, monospace; }
 .docs-body p, .docs-body ul, .docs-body ol, .docs-body pre, .docs-body table { margin: 0 0 0.9rem; }
 .docs-body ul { list-style: disc; padding-left: 1.4rem; }
 .docs-body ol { list-style: decimal; padding-left: 1.4rem; }
 .docs-body li { margin: 0.2rem 0; }
-.docs-body a { color: #8a6a24; text-decoration: underline; text-underline-offset: 2px; }
-.docs-body a:focus-visible { outline: 2px solid #C49A45; outline-offset: 2px; border-radius: 2px; }
+.docs-body a { color: var(--ui-link); text-decoration: underline; text-underline-offset: 2px; }
+.docs-body a:focus-visible { outline: 2px solid var(--ui-focus); outline-offset: 2px; border-radius: 2px; }
 .docs-body strong { font-weight: 650; }
-.docs-body code { font-family: 'SF Mono', Menlo, Consolas, monospace; font-size: 0.85em; background: #f3f2ee; padding: 0.1em 0.35em; border-radius: 4px; }
-.docs-body pre { background: #292F35; color: #e6e3da; padding: 1rem; border-radius: 10px; overflow-x: auto; font-size: 0.8rem; line-height: 1.5; }
+.docs-body code { font-family: 'SF Mono', Menlo, Consolas, monospace; font-size: 0.85em; background: var(--ui-surface-muted); padding: 0.1em 0.35em; border-radius: 4px; }
+.docs-body pre { background: var(--ui-code-surface); color: var(--ui-code-text); padding: 1rem; border-radius: 10px; overflow-x: auto; font-size: 0.8rem; line-height: 1.5; }
 .docs-body pre code { background: none; padding: 0; color: inherit; }
 .docs-body table { border-collapse: collapse; font-size: 0.85rem; display: block; overflow-x: auto; }
-.docs-body th, .docs-body td { border: 1px solid #e5e4de; padding: 0.4rem 0.65rem; text-align: left; vertical-align: top; }
-.docs-body th { background: #f7f6f2; font-weight: 600; }
-.docs-body blockquote { border-left: 3px solid #C49A45; padding-left: 1rem; color: #555; }
+.docs-body th, .docs-body td { border: 1px solid var(--ui-border); padding: 0.4rem 0.65rem; text-align: left; vertical-align: top; }
+.docs-body th { background: var(--ui-surface-muted); font-weight: 600; }
+.docs-body blockquote { border-left: 3px solid var(--ui-focus); padding-left: 1rem; color: var(--ui-body); }

@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { api } from '../lib/api'
 import { formatUsd, formatUsdPrecise, microToUsd, sumMicro } from '../lib/money.js'
 import { requestedModelLabel, servedModelLabel } from '../lib/model-attribution.js'
-import { C } from '../lib/theme'
+import { UI } from '../lib/theme'
 
 function formatTokens(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`
@@ -44,30 +44,30 @@ export function Billing() {
       {balance ? (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           {[
-            { label: 'Balance (simulated credits)', value: formatUsd(balance.balance_usd), exact: formatUsdPrecise(balance.balance_usd), color: C.green },
-            { label: 'Spent', value: formatUsd(balance.total_spent_usd), exact: formatUsdPrecise(balance.total_spent_usd), color: C.blueBlack },
-            { label: 'Requests', value: balance.requests_made.toLocaleString(), color: C.blueBlack },
-            { label: 'Tokens', value: formatTokens(balance.tokens_consumed), color: C.blueBlack },
+            { label: 'Balance (simulated credits)', value: formatUsd(balance.balance_usd), exact: formatUsdPrecise(balance.balance_usd), color: UI.success },
+            { label: 'Spent', value: formatUsd(balance.total_spent_usd), exact: formatUsdPrecise(balance.total_spent_usd), color: UI.text },
+            { label: 'Requests', value: balance.requests_made.toLocaleString(), color: UI.text },
+            { label: 'Tokens', value: formatTokens(balance.tokens_consumed), color: UI.text },
           ].map(s => (
-            <div key={s.label} className="bg-white rounded-2xl border border-gray-200/40 px-5 py-4">
+            <div key={s.label} className="bg-ui-surface rounded-2xl border border-ui-border px-5 py-4">
               <div className="text-2xl font-bold tracking-tight" style={{ color: s.color }} title={s.exact}>{s.value}</div>
-              <div className="text-[11px] mt-0.5" style={{ color: '#999' }}>{s.label}</div>
+              <div className="text-[11px] mt-0.5" style={{ color: UI.muted }}>{s.label}</div>
               {s.exact && s.exact !== s.value && (
-                <div className="text-[10px] font-mono mt-0.5" style={{ color: '#888' }}>exact {s.exact}</div>
+                <div className="text-[10px] font-mono mt-0.5" style={{ color: UI.muted }}>exact {s.exact}</div>
               )}
             </div>
           ))}
         </div>
       ) : balErr ? (
-        <div className="rounded-2xl border p-5 text-sm" style={{ background: '#fdf5f4', borderColor: '#e8c5c0', color: C.red }}>
+        <div className="rounded-2xl border p-5 text-sm" style={{ background: UI.dangerSurface, borderColor: UI.border, color: UI.danger }}>
           Could not load balance. Is the coordinator running?
         </div>
       ) : (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           {[1,2,3,4].map(i => (
-            <div key={i} className="bg-white rounded-2xl border border-gray-200/40 p-5 animate-pulse">
-              <div className="h-7 bg-gray-100 rounded w-20 mb-1" />
-              <div className="h-3 bg-gray-100 rounded w-14" />
+            <div key={i} className="bg-ui-surface rounded-2xl border border-ui-border p-5 animate-pulse">
+              <div className="h-7 bg-ui-track rounded w-20 mb-1" />
+              <div className="h-3 bg-ui-track rounded w-14" />
             </div>
           ))}
         </div>
@@ -76,11 +76,11 @@ export function Billing() {
       {/* Two-column: Usage + Pricing */}
       <div className="flex gap-5 flex-col lg:flex-row">
         {/* Usage: Spend by model */}
-        <div className="flex-1 bg-white rounded-2xl border border-gray-200/40 p-6">
-          <div className="text-[10px] uppercase tracking-wider font-medium mb-1" style={{ color: C.gold }}>
+        <div className="flex-1 bg-ui-surface rounded-2xl border border-ui-border p-6">
+          <div className="text-[10px] uppercase tracking-wider font-medium mb-1" style={{ color: UI.accent }}>
             Usage
           </div>
-          <h2 className="text-lg font-bold mb-5" style={{ color: C.blueBlack }}>Spend by model</h2>
+          <h2 className="text-lg font-bold mb-5" style={{ color: UI.text }}>Spend by model</h2>
 
           {topModels.length > 0 ? (
             <div className="space-y-4">
@@ -88,17 +88,17 @@ export function Billing() {
                 const pct = totalSpent > 0 ? (spend / totalSpent) * 100 : 0
                 return (
                   <div key={model} className="flex items-center gap-3">
-                    <span className="text-sm w-36 truncate" style={{ color: C.blueBlack }}>{model}</span>
-                    <span className="text-sm font-semibold w-20" style={{ color: C.gold }}>
+                    <span className="text-sm w-36 truncate" style={{ color: UI.text }}>{model}</span>
+                    <span className="text-sm font-semibold w-20" style={{ color: UI.accent }}>
                       {formatUsd(spend)}
                     </span>
-                    <div className="flex-1 h-3 rounded-full overflow-hidden" style={{ background: '#eaeae8' }}>
+                    <div className="flex-1 h-3 rounded-full overflow-hidden" style={{ background: UI.track }}>
                       <div
                         className="h-full rounded-full transition-all"
-                        style={{ width: `${Math.max(3, pct)}%`, background: C.gold }}
+                        style={{ width: `${Math.max(3, pct)}%`, background: UI.accent }}
                       />
                     </div>
-                    <span className="text-xs w-10 text-right" style={{ color: '#999' }}>
+                    <span className="text-xs w-10 text-right" style={{ color: UI.muted }}>
                       {pct.toFixed(0)}%
                     </span>
                   </div>
@@ -106,69 +106,69 @@ export function Billing() {
               })}
               {otherSpend > 0 && (
                 <div className="flex items-center gap-3">
-                  <span className="text-sm w-36" style={{ color: '#999' }}>Other</span>
-                  <span className="text-sm font-semibold w-20" style={{ color: '#999' }}>
+                  <span className="text-sm w-36" style={{ color: UI.muted }}>Other</span>
+                  <span className="text-sm font-semibold w-20" style={{ color: UI.muted }}>
                     {formatUsd(otherSpend)}
                   </span>
-                  <div className="flex-1 h-3 rounded-full overflow-hidden" style={{ background: '#eaeae8' }}>
+                  <div className="flex-1 h-3 rounded-full overflow-hidden" style={{ background: UI.track }}>
                     <div
                       className="h-full rounded-full"
                       style={{
                         width: `${Math.max(3, totalSpent > 0 ? (otherSpend / totalSpent) * 100 : 0)}%`,
-                        background: '#ccc',
+                        background: UI.track,
                       }}
                     />
                   </div>
-                  <span className="text-xs w-10 text-right" style={{ color: '#999' }}>
+                  <span className="text-xs w-10 text-right" style={{ color: UI.muted }}>
                     {totalSpent > 0 ? ((otherSpend / totalSpent) * 100).toFixed(0) : 0}%
                   </span>
                 </div>
               )}
             </div>
           ) : (
-            <div className="text-sm py-8 text-center" style={{ color: '#ccc' }}>
+            <div className="text-sm py-8 text-center" style={{ color: UI.muted }}>
               No usage yet. Send a chat request to see spend breakdown.
             </div>
           )}
         </div>
 
         {/* Pricing sidebar */}
-        <div className="w-full lg:w-64 shrink-0 bg-white rounded-2xl border border-gray-200/40 p-6">
-          <div className="text-[10px] uppercase tracking-wider font-medium mb-1" style={{ color: C.gold }}>
+        <div className="w-full lg:w-64 shrink-0 bg-ui-surface rounded-2xl border border-ui-border p-6">
+          <div className="text-[10px] uppercase tracking-wider font-medium mb-1" style={{ color: UI.accent }}>
             Pricing
           </div>
-          <h2 className="text-lg font-bold mb-5" style={{ color: C.blueBlack }}>Three token prices</h2>
+          <h2 className="text-lg font-bold mb-5" style={{ color: UI.text }}>Three token prices</h2>
 
           <div className="space-y-4">
             <div>
-              <div className="text-xs" style={{ color: '#888' }}>Input</div>
-              <div className="text-xl font-bold mt-0.5" style={{ color: C.blueBlack }}>
+              <div className="text-xs" style={{ color: UI.muted }}>Input</div>
+              <div className="text-xl font-bold mt-0.5" style={{ color: UI.text }}>
                 ${cheapestPricing ? (cheapestPricing as any).input?.toFixed(2) || '0.08' : '0.08'} / M
               </div>
             </div>
             <div>
-              <div className="text-xs" style={{ color: '#888' }}>Cached</div>
-              <div className="text-xl font-bold mt-0.5" style={{ color: C.gold }}>
+              <div className="text-xs" style={{ color: UI.muted }}>Cached</div>
+              <div className="text-xl font-bold mt-0.5" style={{ color: UI.accent }}>
                 $0.02 / M
               </div>
             </div>
             <div>
-              <div className="text-xs" style={{ color: '#888' }}>Output</div>
-              <div className="text-xl font-bold mt-0.5" style={{ color: C.blueBlack }}>
+              <div className="text-xs" style={{ color: UI.muted }}>Output</div>
+              <div className="text-xl font-bold mt-0.5" style={{ color: UI.text }}>
                 ${cheapestPricing ? (cheapestPricing as any).output?.toFixed(2) || '0.15' : '0.15'} / M
               </div>
             </div>
 
-            <div className="pt-3" style={{ borderTop: '1px solid #e5e5e3' }}>
-              <div className="text-xs" style={{ color: '#888' }}>Provider share</div>
-              <div className="text-xl font-bold mt-0.5" style={{ color: C.green }}>
+            <div className="pt-3" style={{ borderTop: "1px solid var(--ui-border)" }}>
+              <div className="text-xs" style={{ color: UI.muted }}>Provider share</div>
+              <div className="text-xl font-bold mt-0.5" style={{ color: UI.success }}>
                 {100 - (billingConfig?.platform_fee_percent ?? 10)}%
               </div>
             </div>
-            <div className="pt-3" style={{ borderTop: '1px solid #e5e5e3' }}>
-              <div className="text-xs" style={{ color: '#888' }}>Minimum per request</div>
-              <div className="text-xl font-bold mt-0.5" style={{ color: C.blueBlack }}>{formatUsd(minCharge)}</div>
-              <div className="text-[11px] mt-1 leading-snug" style={{ color: '#777' }}>
+            <div className="pt-3" style={{ borderTop: "1px solid var(--ui-border)" }}>
+              <div className="text-xs" style={{ color: UI.muted }}>Minimum per request</div>
+              <div className="text-xl font-bold mt-0.5" style={{ color: UI.text }}>{formatUsd(minCharge)}</div>
+              <div className="text-[11px] mt-1 leading-snug" style={{ color: UI.body }}>
                 If the token cost of a request is less than this, you pay the minimum.
               </div>
             </div>
@@ -177,19 +177,19 @@ export function Billing() {
       </div>
 
       {/* Transaction history table */}
-      <div className="bg-white rounded-2xl border border-gray-200/40 p-6">
-        <div className="text-[10px] uppercase tracking-wider font-medium mb-1" style={{ color: C.gold }}>
+      <div className="bg-ui-surface rounded-2xl border border-ui-border p-6">
+        <div className="text-[10px] uppercase tracking-wider font-medium mb-1" style={{ color: UI.accent }}>
           Transaction History
         </div>
-        <h2 className="text-lg font-bold mb-4" style={{ color: C.blueBlack }}>Every request, every charge</h2>
+        <h2 className="text-lg font-bold mb-4" style={{ color: UI.text }}>Every request, every charge</h2>
 
-        <div className="grid grid-cols-12 gap-2 pb-2 mb-2 border-b border-gray-100 text-[9px] uppercase tracking-wider" style={{ color: '#bbb' }}>
+        <div className="grid grid-cols-12 gap-2 pb-2 mb-2 border-b border-ui-border text-[9px] uppercase tracking-wider" style={{ color: UI.muted }}>
           <div className="col-span-2">Time</div>
           <div className="col-span-1">ID</div>
           <div className="col-span-2">Model</div>
-          <div className="col-span-1 text-right" style={{ color: C.deepBlue }}>Input</div>
-          <div className="col-span-1 text-right" style={{ color: C.turquoise }}>Cache</div>
-          <div className="col-span-1 text-right" style={{ color: C.gold }}>Output</div>
+          <div className="col-span-1 text-right" style={{ color: UI.info }}>Input</div>
+          <div className="col-span-1 text-right" style={{ color: UI.info }}>Cache</div>
+          <div className="col-span-1 text-right" style={{ color: UI.accent }}>Output</div>
           <div className="col-span-2 text-right">Cost</div>
           <div className="col-span-2 text-right">Trace</div>
         </div>
@@ -199,34 +199,34 @@ export function Billing() {
             {[...transactions].reverse().map((t: any, i: number) => {
               const time = new Date(t.timestamp * 1000).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
               return (
-                <div key={i} className="grid grid-cols-12 gap-2 py-2.5 items-center border-b border-gray-50 last:border-0 text-xs">
-                  <div className="col-span-2" style={{ color: '#999' }}>{time}</div>
-                  <div className="col-span-1 font-mono truncate" style={{ color: '#bbb' }}>{t.request_id?.slice(0, 8) || '—'}</div>
-                  <div className="col-span-2 min-w-0" style={{ color: C.blueBlack }} title={`Requested: ${requestedModelLabel(t)}`}>
+                <div key={i} className="grid grid-cols-12 gap-2 py-2.5 items-center border-b border-ui-border last:border-0 text-xs">
+                  <div className="col-span-2" style={{ color: UI.muted }}>{time}</div>
+                  <div className="col-span-1 font-mono truncate" style={{ color: UI.muted }}>{t.request_id?.slice(0, 8) || '—'}</div>
+                  <div className="col-span-2 min-w-0" style={{ color: UI.text }} title={`Requested: ${requestedModelLabel(t)}`}>
                      <div className="truncate">{servedModelLabel(t)}</div>
-                     <div className="text-[9px] truncate" style={{ color: '#999' }}>Requested: {requestedModelLabel(t)}</div>
+                     <div className="text-[9px] truncate" style={{ color: UI.muted }}>Requested: {requestedModelLabel(t)}</div>
                    </div>
-                  <div className="col-span-1 text-right" style={{ color: C.deepBlue }}>{(t.input_tokens || 0).toLocaleString()}</div>
-                  <div className="col-span-1 text-right" style={{ color: (t.cached_tokens || 0) > 0 ? C.turquoise : '#ddd' }}>
+                  <div className="col-span-1 text-right" style={{ color: UI.info }}>{(t.input_tokens || 0).toLocaleString()}</div>
+                  <div className="col-span-1 text-right" style={{ color: (t.cached_tokens || 0) > 0 ? UI.info : UI.muted }}>
                     {(t.cached_tokens || 0) > 0 ? (t.cached_tokens || 0).toLocaleString() : '—'}
                   </div>
-                  <div className="col-span-1 text-right" style={{ color: C.gold }}>{(t.output_tokens || 0).toLocaleString()}</div>
-                  <div className="col-span-2 text-right font-semibold" style={{ color: C.red }} title={t.minimum_applied ? 'Minimum charge applied' : undefined}>
-                    -{formatUsdPrecise(t.cost_usd)}{t.minimum_applied && <span className="ml-1 text-[9px] font-normal" style={{ color: '#888' }}>min</span>}
+                  <div className="col-span-1 text-right" style={{ color: UI.accent }}>{(t.output_tokens || 0).toLocaleString()}</div>
+                  <div className="col-span-2 text-right font-semibold" style={{ color: UI.danger }} title={t.minimum_applied ? 'Minimum charge applied' : undefined}>
+                    -{formatUsdPrecise(t.cost_usd)}{t.minimum_applied && <span className="ml-1 text-[9px] font-normal" style={{ color: UI.muted }}>min</span>}
                   </div>
                   <div className="col-span-2 text-right">
-                    {t.request_id && <Link to={`/trace?id=${t.request_id}`} className="text-[10px] font-medium" style={{ color: C.gold }}>View trace</Link>}
+                    {t.request_id && <Link to={`/trace?id=${t.request_id}`} className="text-[10px] font-medium" style={{ color: UI.accent }}>View trace</Link>}
                   </div>
                 </div>
               )
             })}
           </div>
         ) : (
-          <div className="text-sm text-center py-8" style={{ color: '#ccc' }}>No transactions yet</div>
+          <div className="text-sm text-center py-8" style={{ color: UI.muted }}>No transactions yet</div>
         )}
 
         {transactions.length > 0 && (
-          <div className="mt-3 pt-3 border-t border-gray-100 text-xs space-y-0.5" style={{ color: '#777' }}>
+          <div className="mt-3 pt-3 border-t border-ui-border text-xs space-y-0.5" style={{ color: UI.body }}>
             <div>
               {transactions.length} listed {transactions.length === 1 ? 'charge' : 'charges'}: <span className="font-mono">{formatUsdPrecise(listedSpent)}</span>
               {balance && <> · all-time spent: <span className="font-mono">{formatUsdPrecise(balance.total_spent_usd)}</span></>}
@@ -240,10 +240,10 @@ export function Billing() {
       </div>
 
       {/* Alpha reset CTA */}
-      <div className="rounded-2xl border px-5 py-4 flex items-center justify-between" style={{ background: '#fdf6ec', borderColor: 'rgba(196,154,69,0.15)' }}>
+      <div className="rounded-2xl border px-5 py-4 flex items-center justify-between" style={{ background: UI.warningSurface, borderColor: UI.border }}>
         <div>
-          <div className="text-sm font-semibold" style={{ color: C.blueBlack }}>Alpha credits</div>
-          <div className="text-xs" style={{ color: '#888' }}>
+          <div className="text-sm font-semibold" style={{ color: UI.text }}>Alpha credits</div>
+          <div className="text-xs" style={{ color: UI.muted }}>
             Simulated credits, not real money. No payments are taken. Amounts are in USD, stored as whole micro-dollars ($0.000001). {billingConfig?.allow_balance_reset ? 'Local development allows test resets.' : 'Balance resets are disabled on the public alpha.'}
           </div>
         </div>
@@ -254,7 +254,7 @@ export function Billing() {
               if (response.ok) window.location.reload()
             }}
             className="px-4 py-2 rounded-xl text-sm font-medium transition-colors shrink-0"
-            style={{ background: C.gold, color: 'white' }}
+            style={{ background: UI.action, color: UI.onAction }}
           >
             Reset to $10
           </button>
