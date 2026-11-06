@@ -261,7 +261,7 @@ export function Layout() {
   const pulses = useNetworkPulses(events, performance.now() / 1000)
 
   // Landing page gets full-screen layout (no sidebar) — preserves scroll sequence
-  if (location.pathname === '/' || ['/news', '/about'].includes(location.pathname)) {
+  if (location.pathname === '/' || ['/news', '/about'].includes(location.pathname) || location.pathname.startsWith('/news/')) {
     return (
       <ErrorBoundary>
         <Outlet />

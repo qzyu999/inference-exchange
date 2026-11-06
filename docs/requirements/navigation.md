@@ -37,3 +37,15 @@ MUST: Signed-out visitors go through sign-in for `/keys` and `/provide`. The sig
 - Principle: P6, P8
 - Status: implemented
 - Verified by: web/src/lib/nav.test.mjs, web/src/lib/hero-editorial.test.mjs
+
+### NAV-004: Publish news from repository Markdown
+
+MUST: The owner can publish a post by adding a Markdown file with a title, date, summary, and body. The filename defines its stable `/news/:slug` URL. A site build includes the posts. No database or admin editor is required.
+
+MUST: News lists all published posts with the newest date first. The landing page shows the latest three posts. Equal dates use slug order. Both lists use the same content and empty state. A draft does not appear in either list or at a post URL. Unknown post URLs show a missing-post message with a link to News.
+
+MUST: The build rejects invalid metadata, invalid dates, and duplicate slugs. Post pages show the date and render Markdown without executing embedded HTML. Dates do not shift with the reader's time zone.
+
+- Principle: P2, P8
+- Status: implemented
+- Verified by: web/src/lib/news.test.mjs, web/src/lib/landing-news.test.mjs

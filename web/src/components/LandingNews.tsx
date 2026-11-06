@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom'
-import { NewsEmptyState } from './NewsEmptyState'
+import { NewsList } from './NewsList'
 import './landing-news.css'
 
 export function LandingNews() {
@@ -10,7 +10,7 @@ export function LandingNews() {
           <h2 id="latest-news-heading">Latest news</h2>
           <Link to="/news">View all news <span aria-hidden="true">↗</span></Link>
         </div>
-        <NewsEmptyState headingLevel={3} />
+        <NewsList limit={3} headingLevel={3} />
       </div>
     </section>
   )
