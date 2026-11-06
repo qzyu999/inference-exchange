@@ -6,6 +6,7 @@ import { landingActionHref } from '../lib/nav.js'
 import { api } from '../lib/api'
 import { C, GRADIENTS, HERO_PIGMENTS as HP } from '../lib/theme'
 import { HeroScene } from '../components/HeroScene'
+import { LandingNews } from '../components/LandingNews'
 import { LandingNav } from '../components/LandingNav'
 import { MineralFlowField } from '../components/MineralFlowField'
 import { LandscapeVideo } from '../components/LandscapeVideo'
@@ -517,7 +518,7 @@ export function Landing() {
         )}
       </div>
 
-
+      {!rawVideoOnly && <LandingNews />}
     </>
   )
 }

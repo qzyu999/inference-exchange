@@ -18,7 +18,7 @@ const PRIMARY_NAV = [
   { path: '/exchange', label: 'Exchange', icon: ExchangeIcon },
   { path: '/models', label: 'Models', icon: ModelsIcon },
   { path: '/providers', label: 'Providers', icon: ProvidersIcon },
-  { path: '/provide', label: 'Offer Compute', icon: ProvidersIcon },
+  { path: '/provide', label: 'Offer Compute', icon: OfferComputeIcon },
 ]
 
 const ACCOUNT_NAV = [
@@ -29,90 +29,114 @@ const ACCOUNT_NAV = [
   { path: '/settings', label: 'Settings', icon: SettingsIcon },
 ]
 
-// ─── Icons (simple SVG, 18x18) ──────────────────────────────
+// Lucide outline icons (ISC/MIT). See public/licenses/lucide-icons.txt.
 
 function StartIcon({ className }: { className?: string }) {
   return (
-    <svg className={className} width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <circle cx="9" cy="9" r="6.5" />
-      <path d="M11.4 6.6l-1.6 3.2-3.2 1.6 1.6-3.2z" />
+    <svg className={className} width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
+      <polygon points="3 11 22 2 13 21 11 13 3 11" />
     </svg>
   )
 }
 
 function OverviewIcon({ className }: { className?: string }) {
   return (
-    <svg className={className} width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="2" y="2" width="5.5" height="5.5" rx="1" />
-      <rect x="10.5" y="2" width="5.5" height="5.5" rx="1" />
-      <rect x="2" y="10.5" width="5.5" height="5.5" rx="1" />
-      <rect x="10.5" y="10.5" width="5.5" height="5.5" rx="1" />
+    <svg className={className} width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
+      <rect width="18" height="18" x="3" y="3" rx="2" />
+  <path d="M3 9h18" />
+  <path d="M9 21V9" />
     </svg>
   )
 }
 
 function ChatIcon({ className }: { className?: string }) {
   return (
-    <svg className={className} width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M3 3.5h12a1 1 0 011 1v7a1 1 0 01-1 1H6l-3 2.5v-2.5a1 1 0 01-1-1v-7a1 1 0 011-1z" />
+    <svg className={className} width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
+      <path d="M2.992 16.342a2 2 0 0 1 .094 1.167l-1.065 3.29a1 1 0 0 0 1.236 1.168l3.413-.998a2 2 0 0 1 1.099.092 10 10 0 1 0-4.777-4.719" />
+  <path d="M8 12h.01" />
+  <path d="M12 12h.01" />
+  <path d="M16 12h.01" />
     </svg>
   )
 }
 
 function ExchangeIcon({ className }: { className?: string }) {
   return (
-    <svg className={className} width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M2 13l4-4 3 3 7-8" />
-      <path d="M10 4h6v6" />
+    <svg className={className} width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
+      <path d="M10 18v-7" />
+  <path d="M11.119 2.205a2 2 0 0 1 1.762 0l7.84 3.846A.5.5 0 0 1 20.5 7h-17a.5.5 0 0 1-.22-.949z" />
+  <path d="M14 18v-7" />
+  <path d="M18 18v-7" />
+  <path d="M3 22h18" />
+  <path d="M6 18v-7" />
     </svg>
   )
 }
 
 function ModelsIcon({ className }: { className?: string }) {
   return (
-    <svg className={className} width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="3" y="3" width="12" height="12" rx="2" />
-      <path d="M3 7h12M7 3v12" />
+    <svg className={className} width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
+      <path d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83z" />
+  <path d="M2 12a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 12" />
+  <path d="M2 17a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 17" />
     </svg>
   )
 }
 
 function ProvidersIcon({ className }: { className?: string }) {
   return (
-    <svg className={className} width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="9" cy="9" r="2" />
-      <circle cx="9" cy="3" r="1.5" />
-      <circle cx="14" cy="13" r="1.5" />
-      <circle cx="4" cy="13" r="1.5" />
-      <path d="M9 5v2M10.7 10.3l2 1.5M7.3 10.3l-2 1.5" />
+    <svg className={className} width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
+      <rect width="20" height="8" x="2" y="2" rx="2" ry="2" />
+  <rect width="20" height="8" x="2" y="14" rx="2" ry="2" />
+  <line x1="6" x2="6.01" y1="6" y2="6" />
+  <line x1="6" x2="6.01" y1="18" y2="18" />
+    </svg>
+  )
+}
+
+function OfferComputeIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
+      <path d="m10.852 14.772-.383.923" />
+  <path d="M13.148 14.772a3 3 0 1 0-2.296-5.544l-.383-.923" />
+  <path d="m13.148 9.228.383-.923" />
+  <path d="m13.53 15.696-.382-.924a3 3 0 1 1-2.296-5.544" />
+  <path d="m14.772 10.852.923-.383" />
+  <path d="m14.772 13.148.923.383" />
+  <path d="M4.5 10H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-.5" />
+  <path d="M4.5 14H4a2 2 0 0 0-2 2v4a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-4a2 2 0 0 0-2-2h-.5" />
+  <path d="M6 18h.01" />
+  <path d="M6 6h.01" />
+  <path d="m9.228 10.852-.923-.383" />
+  <path d="m9.228 13.148-.923.383" />
     </svg>
   )
 }
 
 function BillingIcon({ className }: { className?: string }) {
   return (
-    <svg className={className} width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="9" cy="9" r="7" />
-      <path d="M9 5v8M7 7h3.5a1.5 1.5 0 010 3H7h4a1.5 1.5 0 010 3H7" />
+    <svg className={className} width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
+      <rect width="20" height="12" x="2" y="6" rx="2" />
+  <circle cx="12" cy="12" r="2" />
+  <path d="M6 12h.01M18 12h.01" />
     </svg>
   )
 }
 
 function KeysIcon({ className }: { className?: string }) {
   return (
-    <svg className={className} width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M11.5 2l4.5 4.5-7 7-4.5-4.5 7-7z" />
-      <path d="M2 16l3-3" />
-      <path d="M9 4.5l4.5 4.5" />
+    <svg className={className} width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
+      <path d="M2.586 17.414A2 2 0 0 0 2 18.828V21a1 1 0 0 0 1 1h3a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h1a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h.172a2 2 0 0 0 1.414-.586l.814-.814a6.5 6.5 0 1 0-4-4z" />
+  <circle cx="16.5" cy="7.5" r=".5" fill="currentColor" />
     </svg>
   )
 }
 
 function DocsIcon({ className }: { className?: string }) {
   return (
-    <svg className={className} width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M4 2.5h7l3 3v10H4z" />
-      <path d="M11 2.5v3h3M6.5 9h5M6.5 12h5" />
+    <svg className={className} width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
+      <path d="M12 5v16" />
+  <path d="M20.001 19A2 2 0 0022 17V5a2 2 0 00-1.999-2L16 3.002A5 5 0 0012 5a5 5 0 00-4-2H4a2 2 0 00-2 2v12a2 2 0 001.999 2H8a5 5 0 014 2 5 5 0 014-2z" />
     </svg>
   )
 }
