@@ -49,3 +49,17 @@ MUST: The build rejects invalid metadata, invalid dates, and duplicate slugs. Po
 - Principle: P2, P8
 - Status: implemented
 - Verified by: web/src/lib/news.test.mjs, web/src/lib/landing-news.test.mjs
+
+### NAV-005: Keep Getting Started focused on two setup paths
+
+MUST: Getting Started offers Use the API and Provide compute. Chat is an optional link. The page shows one short step at a time, with Back and Continue controls. Help stays collapsed until requested. The setup uses the active Light, Dark, or Night Shift palette.
+
+MUST: Use the API covers sign-in, API key creation, Python setup, model selection, and a test request. Generate the example for a currently advertised model. Require explicit consent before showing an Open inference example. Do not embed a key in code or store credentials in browser storage. Keep credential input separate from pasted setup commands.
+
+MUST: Provide compute presents the existing versioned Apple Silicon preview commands in short steps. Preserve the model checksum, pinned agent version, hidden provider credential input, and private-alpha enrollment gate. Do not claim that browser navigation verifies hardware or inference. Read provider status only from the current owner's endpoint. Online status does not prove that a request was served.
+
+MUST: Existing consumer links lead to Use the API. Existing both links lead to the path chooser. Completion claims remain user-reported. Visiting a step does not create or rotate credentials.
+
+- Principle: P1, P3, P6, P8
+- Status: implemented
+- Verified by: web/src/lib/getting-started.test.mjs, web/src/lib/mineral-app-visual.test.mjs

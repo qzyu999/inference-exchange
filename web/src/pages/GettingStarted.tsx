@@ -1,411 +1,145 @@
-import { useEffect, useState } from 'react'
-import { Link, useParams, useSearchParams } from 'react-router-dom'
+import { useEffect, useRef, useState } from 'react'
+import { Link, Navigate, useParams, useSearchParams } from 'react-router-dom'
 import useSWR from 'swr'
 import { useAuth } from '../lib/auth'
 import { api } from '../lib/api'
 import { loginHref } from '../lib/nav.js'
-import { UI } from '../lib/theme'
-import {
-  JOURNEYS, GLOSSARY, completedSteps, feedbackHref, progressStorageKey,
-  type StartJourney, type StartStep,
-} from '../lib/getting-started.js'
+import { JOURNEYS, feedbackHref, resolveStartJourney, sdkExample } from '../lib/getting-started.js'
+import { PROVIDER_COMMANDS } from '../lib/provider-start-commands.js'
+import './getting-started.css'
 
-type Platform = 'windows' | 'mac' | 'linux'
+type Platform = 'mac' | 'windows' | 'linux'
 const SDK_COMMANDS: Record<Platform, string> = {
-  windows: [
-    'py -m venv .venv',
-    '.venv\\Scripts\\activate.bat',
-    'python -m pip install openai',
-  ].join('\n'),
-  mac: [
-    'python3 -m venv .venv',
-    'source .venv/bin/activate',
-    'python -m pip install openai',
-  ].join('\n'),
-  linux: [
-    'python3 -m venv .venv',
-    'source .venv/bin/activate',
-    'python -m pip install openai',
-  ].join('\n'),
+  mac: 'python3 -m venv .venv\nsource .venv/bin/activate\npython -m pip install openai',
+  linux: 'python3 -m venv .venv\nsource .venv/bin/activate\npython -m pip install openai',
+  windows: 'py -m venv .venv\n.venv\\Scripts\\activate.bat\npython -m pip install openai',
 }
 const KEY_INPUT: Record<Platform, string> = {
-  windows: 'set /p IE_API_KEY=Paste your IE API key (visible input): ',
   mac: 'read -rs IE_API_KEY && export IE_API_KEY',
   linux: 'read -rs IE_API_KEY && export IE_API_KEY',
+  windows: 'set /p IE_API_KEY=Paste your IE API key (visible input): ',
 }
-const MAC_CHECKS = 'uname -m\nsw_vers\npython3 --version\ncommand -v llama-server'
 
-const focus = 'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ui-focus'
-const panel = 'ie-mineral-panel rounded-2xl border'
+function CodeBlock({ code, label = 'Copy commands' }: { code: string; label?: string }) {
+  const [message, setMessage] = useState('')
+  useEffect(() => setMessage(''), [code])
+  async function copy() {
+    try { await navigator.clipboard.writeText(code); setMessage('Copied') }
+    catch { setMessage('Select the code and copy it manually.') }
+  }
+  return <div className="ie-setup-code">
+    <pre><code>{code}</code></pre>
+    <div className="ie-setup-copy"><button type="button" onClick={() => void copy()}>{label}</button><span role="status">{message}</span></div>
+  </div>
+}
 
 function JourneyLanding() {
-  return (
-    <div className="ie-start max-w-5xl space-y-7">
-      <section className={panel + ' p-6 md:p-8 space-y-3'}>
-        <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: UI.accent }}>Private alpha · start here</p>
-        <h2 className="text-2xl md:text-3xl font-bold tracking-tight" style={{ color: UI.text }}>
-          What would you like to do?
-        </h2>
-        <p className="text-sm text-ui-body leading-relaxed max-w-2xl">
-          Use AI, build with the API, connect your own Mac, or do both.
-          Each guide takes you through a few real actions. You can resume later.
-        </p>
-        <p className="text-xs text-ui-muted">
-          This is an experimental exchange. Credits are simulated and cannot be redeemed.
-          L0/Open inference is not confidential. Provider installation has not yet passed independent-Mac qualification.
-        </p>
-      </section>
-      <div className="grid sm:grid-cols-2 gap-4" aria-label="Choose a Getting Started journey">
-        {JOURNEYS.map((journey, index) => (
-          <Link key={journey.id} to={'/start/' + journey.id}
-            className={panel + ' ie-mineral-journey group p-5 md:p-6 transition-shadow hover:shadow-md ' + focus}>
-            <div className="flex items-center justify-between gap-3">
-              <span className="text-[11px] uppercase tracking-wider font-semibold" style={{ color: UI.accent }}>
-                {journey.audience}
-              </span>
-              <span className="text-xs text-ui-muted">0{index + 1}</span>
-            </div>
-            <h3 className="text-xl font-semibold mt-4 group-hover:underline" style={{ color: UI.text }}>
-              {journey.name}
-            </h3>
-            <p className="mt-2 text-sm leading-relaxed text-ui-body">{journey.summary}</p>
-            <p className="mt-5 text-xs font-semibold" style={{ color: UI.link }}>
-              {journey.steps.length} guided steps · Open guide →
-            </p>
-          </Link>
-        ))}
-      </div>
-      <details className={panel + ' p-5 md:p-6'}>
-        <summary className="cursor-pointer text-sm font-semibold" style={{ color: UI.text }}>
-          New to IE? A few useful definitions
-        </summary>
-        <dl className="grid sm:grid-cols-2 gap-x-8 gap-y-4 mt-5">
-          {GLOSSARY.map(([term, meaning]) => (
-            <div key={term}>
-              <dt className="text-sm font-semibold" style={{ color: UI.text }}>{term}</dt>
-              <dd className="text-xs text-ui-body mt-1 leading-relaxed">{meaning}</dd>
-            </div>
-          ))}
-        </dl>
-      </details>
-      <p className="text-sm text-ui-body">
-        Looking for technical reference material? <Link className="underline" style={{ color: UI.link }} to="/docs">Go to Docs</Link>.
-      </p>
+  return <div className="ie-start ie-setup">
+    <div className="ie-setup-intro"><h2>What would you like to do?</h2><p>Choose where to start. You can do both with one account.</p></div>
+    <div className="ie-setup-choices" aria-label="Choose a setup path">
+      {JOURNEYS.map(journey => <Link key={journey.id} className="ie-setup-choice" to={'/start/' + journey.id}>
+        <span className="ie-setup-kicker">{journey.audience}</span>
+        <h3>{journey.name} <span aria-hidden="true">→</span></h3>
+        <p>{journey.summary}</p>
+      </Link>)}
     </div>
-  )
-}
-
-function StepAction({ journey, step }: { journey: StartJourney; step: StartStep }) {
-  const isLogin = step.to === '/login'
-  const href = isLogin ? loginHref('/start/' + journey.id + '?step=' + step.id) : step.to
-  const classes = 'ie-mineral-action inline-flex items-center justify-center px-4 py-2.5 rounded-xl text-sm font-semibold ' + focus
-  const style = { color: UI.onAction, background: UI.action }
-  if (/^https:\/\//.test(href)) {
-    return <a href={href} target="_blank" rel="noopener noreferrer" className={classes} style={style}>{step.action} ↗</a>
-  }
-  return <Link to={href} className={classes} style={style}>{step.action} →</Link>
+    <p className="ie-setup-note">Private alpha · Credits and provider earnings are simulated.</p>
+    <div className="ie-setup-links"><Link to="/chat">Try it in your browser</Link><Link to="/docs">Documentation</Link></div>
+  </div>
 }
 
 export function GettingStarted() {
   const { journey: requestedJourney } = useParams()
   const [query] = useSearchParams()
   const { user, loading: authLoading } = useAuth()
-  const [confirmations, setConfirmations] = useState<Record<string, boolean>>({})
-  const [loadedScope, setLoadedScope] = useState('')
-  const [helpOpen, setHelpOpen] = useState(false)
-  const [platform, setPlatform] = useState<Platform>('windows')
-  const [copyMessage, setCopyMessage] = useState('')
-
-  const journey = JOURNEYS.find(item => item.id === requestedJourney)
+  const [platform, setPlatform] = useState<Platform>(() => /Mac/i.test(navigator.platform) ? 'mac' : /Win/i.test(navigator.platform) ? 'windows' : 'linux')
+  const [selectedModel, setSelectedModel] = useState('')
+  const [allowOpen, setAllowOpen] = useState(false)
+  const stepHeading = useRef<HTMLHeadingElement>(null)
+  const [finished, setFinished] = useState(false)
+  const journeyId = resolveStartJourney(requestedJourney)
+  const journey = JOURNEYS.find(item => item.id === journeyId)
   const requestedStep = query.get('step')
   const matchingIndex = journey?.steps.findIndex(item => item.id === requestedStep) ?? -1
   const stepIndex = matchingIndex >= 0 ? matchingIndex : 0
   const step = journey?.steps[stepIndex]
-  const scope = progressStorageKey(user?.user_id)
+  const needModels = journey?.id === 'api' && ['find-model', 'request'].includes(step?.id || '')
+  const { data: models, error: modelError, isLoading: modelLoading } = useSWR(needModels ? 'models' : null, api.models, { refreshInterval: 15000 })
+  const { data: keys, error: keysError } = useSWR(step?.check === 'keys' && user ? ['myKeys', user.user_id] : null, api.myKeys)
+  const { data: nodes, error: nodeError } = useSWR(step?.check === 'nodes' && user ? ['dashboard/provider-nodes', user.user_id] : null, api.ownedProviderNodes, { refreshInterval: 5000 })
+  // A model must still be advertised when its example is generated.
+  const model = models?.data.find(item => item.id === selectedModel)?.id || ''
+  useEffect(() => { setAllowOpen(false); setFinished(false) }, [user?.user_id, selectedModel, journeyId])
+  useEffect(() => { stepHeading.current?.focus(); setFinished(false) }, [requestedJourney, requestedStep])
 
-  useEffect(() => {
-    if (authLoading) return
-    try {
-      const saved = JSON.parse(localStorage.getItem(scope) || '{}')
-      setConfirmations(saved && typeof saved === 'object' && !Array.isArray(saved) ? saved : {})
-    } catch {
-      setConfirmations({})
-    }
-    setLoadedScope(scope)
-  }, [scope, authLoading])
+  if (requestedJourney && journeyId !== requestedJourney) return <Navigate replace to={journeyId ? '/start/' + journeyId : '/start'} />
+  if (!journey || !step) return <>{requestedJourney && <p role="alert" className="text-ui-body mb-4">Choose a setup path below.</p>}<JourneyLanding /></>
 
-  useEffect(() => {
-    setHelpOpen(false)
-    setCopyMessage('')
-  }, [requestedJourney, requestedStep])
-
-  // Read-only existing APIs. These checks show the present account/network
-  // state, never automatically mark a step as completed.
-  const needModels = journey?.id === 'consumer' || journey?.id === 'api' || journey?.id === 'both'
-  const needKeys = journey?.id === 'api'
-  const needNodes = journey?.id === 'provider' || journey?.id === 'both'
-  const { data: models, error: modelError, isLoading: modelLoading } =
-    useSWR(needModels ? 'models' : null, api.models, { refreshInterval: 15000 })
-  const { data: keys, error: keysError } =
-    useSWR(needKeys && user ? ['myKeys', user.user_id] : null, api.myKeys)
-  const { data: nodes, error: nodeError } =
-    useSWR(needNodes && user ? ['dashboard/provider-nodes', user.user_id] : null, api.ownedProviderNodes)
-  const { data: earnings, error: earningsError } =
-    useSWR(needNodes && user ? ['dashboard/provider-earnings', user.user_id] : null, api.ownedProviderEarnings)
-
-  if (!journey || !step) {
-    return (
-      <>
-        {requestedJourney && <p role="alert" className="mb-4 text-sm text-ui-danger">That journey does not exist. Choose a guide below.</p>}
-        <JourneyLanding />
-      </>
-    )
-  }
-
-  const visibleConfirmations = loadedScope === scope && !authLoading ? confirmations : {}
-  const doneCount = completedSteps(journey, visibleConfirmations)
-  const checked = visibleConfirmations[journey.id + '/' + step.id] === true
   const next = journey.steps[stepIndex + 1]
   const previous = journey.steps[stepIndex - 1]
+  const href = (id: string) => '/start/' + journey.id + '?step=' + id
+  const canContinue = step.check === 'auth' ? Boolean(user) : step.id === 'find-model' ? Boolean(model) : true
+  const online = nodes?.nodes.filter(node => ['online', 'busy'].includes(node.status)) || []
+  const actionHref = step.to === '/login' ? loginHref(href(step.id)) : step.to
+  const modelPicker = <div className="ie-setup-field">
+    <label htmlFor="setup-model">Available model</label>
+    {modelError ? <p role="status">Models are unavailable right now. Try again shortly.</p>
+      : modelLoading || !models ? <p role="status">Checking available models…</p>
+      : !models.data.length ? <p role="status">No models are online. Try again when a provider connects.</p>
+      : <select id="setup-model" value={model} onChange={event => setSelectedModel(event.target.value)}>
+        <option value="" disabled>Choose a model</option>{models.data.map(item => <option key={item.id} value={item.id}>{item.id}</option>)}
+      </select>}
+  </div>
 
-  function confirmStep() {
-    if (authLoading || loadedScope !== scope) return
-    const updated = { ...visibleConfirmations, [journey!.id + '/' + step!.id]: !checked }
-    setConfirmations(updated)
-    try { localStorage.setItem(scope, JSON.stringify(updated)) } catch { /* Storage is optional. */ }
-  }
-
-  async function copyCommands() {
-    try {
-      await navigator.clipboard.writeText(SDK_COMMANDS[platform])
-      setCopyMessage('Commands copied. They contain no API key.')
-    } catch {
-      setCopyMessage('Clipboard unavailable. Select and copy the commands manually.')
-    }
-  }
-
-  return (
-    <div className="ie-start max-w-5xl space-y-5">
-      <div className="flex flex-wrap gap-2 items-center text-xs">
-        <Link to="/start" className={'underline ' + focus} style={{ color: UI.link }}>← All journeys</Link>
-        <span className="text-ui-muted">/</span>
-        <span className="font-semibold" style={{ color: UI.text }}>{journey.name}</span>
+  return <div className="ie-start ie-setup">
+    <Link className="ie-setup-back" to="/start">← Choose a path</Link>
+    <header className="ie-setup-header"><p className="ie-setup-kicker">{journey.name}</p>
+      <p className="ie-setup-note">Step {stepIndex + 1} of {journey.steps.length}</p>
+    </header>
+    <nav aria-label={journey.name + ' steps'} className="ie-setup-progress"><ol>{journey.steps.map((item, i) => <li key={item.id}>
+      <Link to={href(item.id)} aria-current={i === stepIndex ? 'step' : undefined} aria-label={'Step ' + (i + 1) + ': ' + item.title} title={item.title}><span aria-hidden="true">{i + 1}</span></Link>
+    </li>)}</ol></nav>
+    <article key={step.id} className="ie-setup-step">
+      <h2 ref={stepHeading} tabIndex={-1}>{step.title}</h2><p className="ie-setup-description">{step.description}</p>
+      {step.id === 'hardware' && <p className="ie-setup-note">The first line must say <code>arm64</code>. This preview is experimental.</p>}
+      {step.command && PROVIDER_COMMANDS[step.command] && <CodeBlock code={PROVIDER_COMMANDS[step.command]} />}
+      {step.command === 'server' && <p className="ie-setup-note">Need Homebrew? <a href="https://brew.sh/" target="_blank" rel="noopener noreferrer">Install it first ↗</a></p>}
+      {step.command === 'connect' && <p className="ie-setup-note">Open inference is not confidential. Keep Terminal open to stay connected.</p>}
+      {step.command === 'model' && <p className="ie-setup-note">Wait for the download to finish and the checksum to say <strong>OK</strong>.</p>}
+      {step.command === 'sdk' && <>
+        <div className="ie-setup-platform" role="group" aria-label="Operating system">{([['mac', 'macOS'], ['windows', 'Windows CMD'], ['linux', 'Linux']] as [Platform, string][]).map(([id, label]) => <button key={id} aria-pressed={platform === id} onClick={() => setPlatform(id)}>{label}</button>)}</div>
+        <CodeBlock code={SDK_COMMANDS[platform]} />
+      </>}
+      {step.id === 'find-model' && modelPicker}
+      {step.gate && <p className="ie-setup-notice">Provider registration may be paused during the private alpha. If unavailable, stop here and try again later.</p>}
+      {step.check === 'auth' && <p className="ie-setup-status" role="status">{authLoading ? 'Checking sign-in…' : user ? 'Signed in' : 'Sign in to continue.'}</p>}
+      {step.check === 'keys' && user && <p className="ie-setup-status" role="status">{keysError ? 'Could not check your keys.' : !keys ? 'Checking your keys…' : keys.keys.length ? 'You have an active API key. Make sure you have its secret saved.' : 'No API keys yet.'}</p>}
+      {step.check === 'nodes' && <p className="ie-setup-status" role="status">{!user ? 'Sign in to check your Mac.' : nodeError ? 'Could not check your connection.' : !nodes ? 'Checking your connection…' : online.length ? 'Connected: ' + online.map(node => node.name + (node.models.length ? ' · ' + node.models.join(', ') : ' · no models listed')).join('; ') : 'No connected providers yet. Keep the agent running while you check.'}</p>}
+      {step.command === 'request' && <>
+        {modelPicker}
+        <label className="ie-setup-consent"><input type="checkbox" checked={allowOpen} onChange={event => setAllowOpen(event.target.checked)} /><span>Allow Open inference for this test. The coordinator and provider can read the message and response. Use a nonsensitive message.</span></label>
+        {allowOpen && model && <>
+          <h3>1. Set your API key</h3><p>Run this separately in the terminal you set up earlier. Paste your API key when prompted.</p>
+          <CodeBlock code={KEY_INPUT[platform]} label="Copy key prompt" />
+          <p className="ie-setup-note">{platform === 'windows' ? 'Windows CMD shows the key as you paste it. Use a private terminal.' : 'Your key stays hidden while you paste it.'}</p>
+          <h3>2. Run the example</h3><p>Save this as <code>hello_ie.py</code>.</p>
+          <CodeBlock code={sdkExample(model)} label="Copy Python example" />
+          <CodeBlock code="python hello_ie.py" label="Copy run command" />
+          <p className="ie-setup-note">A model response in your terminal means the request worked.</p>
+        </>}
+      </>}
+      <div className="ie-setup-actions">
+        {actionHref && !(step.check === 'auth' && user) && <Link className="ie-setup-primary" to={actionHref} target={step.to === '/login' ? undefined : '_blank'} rel="noopener noreferrer">{step.action}{step.to !== '/login' && ' ↗'}</Link>}
+        {next ? <Link className={actionHref && !(step.check === 'auth' && user) ? 'ie-setup-secondary' : 'ie-setup-primary'} to={href(next.id)} aria-disabled={!canContinue} onClick={event => { if (!canContinue) event.preventDefault() }}>Continue →</Link>
+          : journey.id === 'api' ? <button className="ie-setup-primary" disabled={!allowOpen || !model} onClick={() => setFinished(true)}>I got a response</button> : <Link className="ie-setup-secondary" to="/exchange">Explore the exchange →</Link>}
       </div>
-
-      <section className={panel + ' p-6 md:p-8 space-y-4'}>
-        <div className="flex items-start flex-wrap justify-between gap-3">
-          <div>
-            <p className="text-xs uppercase tracking-wider font-semibold" style={{ color: UI.accent }}>{journey.audience}</p>
-            <h2 className="text-2xl font-bold mt-1" style={{ color: UI.text }}>{journey.name}</h2>
-            <p className="text-sm text-ui-body mt-1">{journey.summary}</p>
-          </div>
-          <span className="rounded-full border border-ui-border px-3 py-1 text-xs text-ui-body">
-            {doneCount} of {journey.steps.length} user-confirmed
-          </span>
-        </div>
-        <div role="progressbar" aria-label="Self-reported journey progress" aria-valuemin={0}
-          aria-valuemax={journey.steps.length} aria-valuenow={doneCount}
-          className="h-1.5 rounded-full bg-ui-track overflow-hidden">
-          <div className="h-full rounded-full transition-all" style={{ width: (100 * doneCount / journey.steps.length) + '%', background: UI.success }} />
-        </div>
-        <p className="text-xs text-ui-muted">
-          Progress is saved on this device for the current account. A checkmark means <strong>you confirmed it</strong>,
-          not that IE verified a request or installation.
-        </p>
-        <nav aria-label={journey.name + ' steps'}>
-          <ol className="grid sm:grid-cols-2 lg:grid-cols-3 gap-2">
-            {journey.steps.map((item, i) => (
-              <li key={item.id}>
-                <Link to={'/start/' + journey.id + '?step=' + item.id}
-                  aria-current={i === stepIndex ? 'step' : undefined}
-                  className={'flex items-start gap-2 rounded-xl border px-3 py-3 text-xs leading-relaxed ' + focus}
-                  style={{
-                    borderColor: i === stepIndex ? UI.accent : UI.border,
-                    background: i === stepIndex ? UI.selected : UI.surface,
-                    color: UI.text,
-                  }}>
-                  <span aria-hidden="true" className="font-semibold shrink-0" style={{ color: visibleConfirmations[journey.id + '/' + item.id] ? UI.success : UI.accent }}>
-                    {visibleConfirmations[journey.id + '/' + item.id] ? '✓' : String(i + 1).padStart(2, '0')}
-                  </span>
-                  <span>{item.title}</span>
-                </Link>
-              </li>
-            ))}
-          </ol>
-        </nav>
-      </section>
-
-      <article className={panel + ' p-6 md:p-8 space-y-5'}>
-        <div>
-          <p className="text-xs uppercase tracking-wider font-semibold" style={{ color: UI.accent }}>Step {stepIndex + 1} of {journey.steps.length}</p>
-          <h3 className="text-xl md:text-2xl font-semibold mt-1" style={{ color: UI.text }}>{step.title}</h3>
-          <p className="text-sm mt-3 leading-relaxed text-ui-body">{step.description}</p>
-        </div>
-
-        {step.gate && (
-          <div className="rounded-xl border border-ui-warning bg-ui-warning-surface p-4 text-sm text-ui-warning">
-            <strong>Private-alpha availability:</strong> Provider enrollment is disabled by default while independent Mac onboarding is qualified.
-            In the intended general release, signup and provider enrollment are self-service without scheduled windows.
-            This guide cannot check the live global enrollment switch. Follow the coordinator’s current alpha instructions;
-            HTTP 503 from /provide means enrollment is unavailable. Never bypass the gate.
-          </div>
-        )}
-
-        {step.id === 'hardware' && journey.id === 'provider' && (
-          <div className="space-y-2">
-            <p className="text-xs font-semibold text-ui-body">Run locally on your own Mac (read-only):</p>
-            <pre className="overflow-x-auto rounded-xl p-4 text-xs leading-relaxed" style={{ background: UI.action, color: UI.onAction }}>
-              <code>{MAC_CHECKS}</code>
-            </pre>
-            <p className="text-xs text-ui-muted">
-              Browser pages cannot verify your Mac architecture, RAM, macOS or local tools.
-              Collect the output privately; share only nonsensitive compatibility details.
-            </p>
-          </div>
-        )}
-
-        {step.platform && (
-          <section className="space-y-3" aria-label="Python SDK setup commands">
-            <p className="text-sm font-semibold" style={{ color: UI.text }}>Choose your terminal</p>
-            <div className="flex flex-wrap gap-2" role="group" aria-label="Operating system">
-              {([
-                ['windows', 'Windows CMD'], ['mac', 'macOS'], ['linux', 'Linux'],
-              ] as [Platform, string][]).map(([id, label]) => (
-                <button type="button" key={id} aria-pressed={platform === id}
-                  onClick={() => { setPlatform(id); setCopyMessage('') }}
-                  className={'px-3 py-2 rounded-lg border text-xs ' + focus}
-                  style={{ borderColor: platform === id ? UI.accent : UI.border, background: platform === id ? UI.selected : UI.surface, color: UI.text }}>
-                  {label}
-                </button>
-              ))}
-            </div>
-            <p className="text-xs text-ui-muted">
-              First save the existing <strong>non-streaming Python example</strong> from API keys as hello_ie.py.
-              Copy the installation commands first. The API-key prompt is a separate action below, so it cannot consume a pasted command as a secret.
-            </p>
-            <pre className="overflow-x-auto rounded-xl p-4 text-xs leading-relaxed" style={{ background: UI.action, color: UI.onAction }}>
-              <code>{SDK_COMMANDS[platform]}</code>
-            </pre>
-            <button type="button" onClick={() => void copyCommands()}
-              className={'px-3 py-2 rounded-lg border text-xs font-semibold ' + focus}>Copy setup commands</button>
-            {copyMessage && <p role="status" className="text-xs text-ui-body">{copyMessage}</p>}
-            <p className="text-xs text-ui-muted">
-              Run this separate interactive command only after installing the SDK.
-              Type or paste your own key when prompted, then press Enter:
-            </p>
-            <pre className="overflow-x-auto rounded-xl p-4 text-xs leading-relaxed" style={{ background: UI.surfaceMuted, color: UI.text }}>
-              <code>{KEY_INPUT[platform]}</code>
-            </pre>
-            <p className="text-xs text-ui-muted">Then run <code>python hello_ie.py</code> in that same terminal session.</p>
-            <p className="text-xs text-ui-muted">
-              {platform === 'windows'
-                ? 'CMD set /p shows what you type. Avoid screen sharing and clear the session afterward.'
-                : 'The read command accepts the key without echoing it. Do not save it in shell history or a project file.'}
-              {' '}The /keys page owns the actual SDK code, including model discovery, base_url and L0/Open trust setting.
-            </p>
-          </section>
-        )}
-
-        {step.check && (
-          <div className="rounded-xl bg-ui-surface-muted border border-ui-border p-4 space-y-2" aria-live="polite">
-            <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: UI.link }}>Read-only live check</p>
-            {step.check === 'auth' && (
-              <p className="text-sm text-ui-body">
-                {authLoading ? 'Checking sign-in…' : user ? 'Signed in: ' + (user.name || user.email) : 'No IE account session. Sign in to continue.'}
-              </p>
-            )}
-            {step.check === 'models' && (
-              <p className="text-sm text-ui-body">
-                {modelError ? 'Model availability cannot be checked right now.'
-                  : modelLoading || !models ? 'Loading online model IDs…'
-                  : models.data.length ? 'Advertised online models: ' + models.data.map(model => model.id).join(', ')
-                  : 'No models are advertised online right now.'}
-              </p>
-            )}
-            {step.check === 'keys' && (
-              <p className="text-sm text-ui-body">
-                {!user ? 'Sign in to read your own API key metadata.'
-                  : keysError ? 'Your API key status is unavailable.'
-                  : !keys ? 'Loading your key metadata…'
-                  : 'Your account lists ' + keys.keys.length + ' active key(s). Keys listed do not prove a request succeeded or 401 revocation was tested.'}
-              </p>
-            )}
-            {step.check === 'nodes' && (
-              <p className="text-sm text-ui-body">
-                {!user ? 'Sign in to check your own provider nodes.'
-                  : nodeError ? 'Your node status is unavailable.'
-                  : !nodes ? 'Loading your nodes…'
-                  : nodes.nodes.filter(node => node.status === 'online').length +
-                    ' online owned node(s), ' + nodes.nodes.length + ' total. Account ownership is verified by the backend; hardware is self-reported.'}
-              </p>
-            )}
-            {step.check === 'earnings' && (
-              <p className="text-sm text-ui-body">
-                {!user ? 'Sign in to read your own provider earnings.'
-                  : earningsError ? 'Earnings data cannot be checked right now.'
-                  : !earnings ? 'Loading your owner-scoped earnings…'
-                  : 'Your nodes have served ' + earnings.summary.requests_served +
-                    ' recorded request(s). Ledger check: ' +
-                    (earnings.summary.reconciled ? 'matched' : 'needs investigation') +
-                    '. This does not prove a request was served during this guide.'}
-              </p>
-            )}
-            <p className="text-xs text-ui-muted">Live observations are not step completion. Use the action below and confirm only after seeing the expected result.</p>
-          </div>
-        )}
-
-        <div className="rounded-xl border border-ui-border p-4 space-y-2">
-          <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: UI.link }}>Expected result</p>
-          <p className="text-sm text-ui-body">{step.expected}</p>
-        </div>
-
-        <div className="flex flex-wrap gap-3 items-center">
-          <StepAction journey={journey} step={step} />
-          <button type="button" aria-pressed={checked} onClick={confirmStep} disabled={authLoading || loadedScope !== scope}
-            className={'px-4 py-2.5 rounded-xl border text-sm font-semibold disabled:opacity-50 ' + focus}
-            style={{ borderColor: checked ? UI.success : UI.border, color: checked ? UI.success : UI.text }}>
-            {checked ? '✓ I marked this complete' : 'I completed this step'}
-          </button>
-        </div>
-
-        <section className="border-t border-ui-border pt-5 space-y-3">
-          <button type="button" aria-expanded={helpOpen} aria-controls="start-step-help"
-            onClick={() => setHelpOpen(open => !open)} className={'text-sm font-semibold underline ' + focus}
-            style={{ color: UI.link }}>
-            {helpOpen ? 'Hide troubleshooting' : "What if this doesn't work? / I'm stuck"}
-          </button>
-          {helpOpen && (
-            <div id="start-step-help" className="rounded-xl bg-ui-surface-muted p-4 space-y-3">
-              <p className="text-sm leading-relaxed text-ui-body">{step.help}</p>
-              <p className="text-xs text-ui-body">
-                Report the exact step through GitHub. You can describe the problem there.
-                <strong> Never include passwords, API keys, provider tokens, cookies, auth headers, private prompts, personal data or full logs.</strong>
-                No notes, credentials or account details are inserted in the report URL.
-              </p>
-              <a className={'inline-block text-sm font-semibold underline ' + focus}
-                href={feedbackHref(journey, step)} target="_blank" rel="noopener noreferrer"
-                aria-label={'Report a problem with ' + step.title + ' on GitHub'}>
-                Something wrong with this step? Open GitHub issue ↗
-              </a>
-            </div>
-          )}
-        </section>
-
-        <div className="flex items-center justify-between flex-wrap gap-3 pt-4 border-t border-ui-border">
-          {previous
-            ? <Link className={'text-sm underline ' + focus} to={'/start/' + journey.id + '?step=' + previous.id}>← Previous step</Link>
-            : <Link className={'text-sm underline ' + focus} to="/start">← All journeys</Link>}
-          {next
-            ? <Link className={'rounded-lg px-4 py-2 text-sm font-semibold ' + focus}
-                style={{ background: UI.selected, color: UI.text }}
-                to={'/start/' + journey.id + '?step=' + next.id}>Next step →</Link>
-            : <Link className={'text-sm font-semibold underline ' + focus} to="/start">Explore other journeys →</Link>}
-        </div>
-      </article>
-      <p className="text-xs text-ui-muted">
-        Advanced setup, protocol and security details are in <Link className="underline" to="/docs">Docs</Link>.
-        The provider installation flow remains experimental until an independent Mac owner qualifies it.
-      </p>
-    </div>
-  )
+      {finished && <div className="ie-setup-notice" role="status">You marked your first request complete. <Link to="/billing">View your usage</Link> or <Link to="/start/provider">provide compute</Link>.</div>}
+      <details className="ie-setup-help"><summary>Need help?</summary><p>{step.help}</p>
+        {step.command === 'request' && <p>Terminal changed? Choose your platform on the <Link to={href('install')}>Python setup step</Link>.</p>}
+        {journey.id === 'provider' && <p><Link to="/docs/guides/provider-l0-apple-silicon-preview">Full technical reference</Link>. Open inference is not confidential. Provider credentials and API keys are separate.</p>}
+        <a href={feedbackHref(journey, step)} target="_blank" rel="noopener noreferrer">Report a problem ↗</a><p className="ie-setup-note">Do not include keys, provider credentials, private prompts, or full logs.</p>
+      </details>
+    </article>
+    <footer className="ie-setup-footer">{previous ? <Link to={href(previous.id)}>← Back</Link> : <Link to="/start">← Choose a path</Link>}<span>Private alpha · Simulated credits</span></footer>
+  </div>
 }

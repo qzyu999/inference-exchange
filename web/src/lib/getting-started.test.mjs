@@ -1,75 +1,57 @@
-// #199 Phase A: offline contract checks. Not a substitute for browser or external-Mac acceptance.
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
-import { JOURNEYS, GLOSSARY, completedSteps, feedbackHref, progressStorageKey } from './getting-started.js'
-
+import { JOURNEYS, feedbackHref, resolveStartJourney, sdkExample } from './getting-started.js'
+import { PROVIDER_COMMANDS } from './provider-start-commands.js'
 const read = path => readFileSync(new URL(path, import.meta.url), 'utf8')
-const nav = read('../components/Layout.tsx')
-const routes = read('../main.tsx')
 const page = read('../pages/GettingStarted.tsx')
-const landingNav = read('./nav.js')
-const providePage = read('../pages/Provide.tsx')
-
-assert.deepEqual(JOURNEYS.map(journey => journey.id), ['consumer', 'api', 'provider', 'both'])
-assert.equal(GLOSSARY.length >= 7, true)
+const shell = read('../components/Layout.tsx')
+const routes = read('../main.tsx')
+assert.deepEqual(JOURNEYS.map(item => [item.id, item.name]), [['api', 'Use the API'], ['provider', 'Provide compute']])
+assert.equal(resolveStartJourney('consumer'), 'api')
+assert.equal(resolveStartJourney('both'), '')
+assert.equal(resolveStartJourney('api'), 'api')
+assert.equal(resolveStartJourney('provider'), 'provider')
+assert.equal(resolveStartJourney('missing'), 'missing')
 for (const journey of JOURNEYS) {
-  const ids = journey.steps.map(step => step.id)
-  assert.equal(new Set(ids).size, ids.length, journey.id + ' step IDs must be unique')
-  assert.ok(journey.steps.length >= 3, journey.id + ' should have meaningful progression')
+  assert.equal(new Set(journey.steps.map(step => step.id)).size, journey.steps.length)
   for (const step of journey.steps) {
-    for (const prop of ['title', 'description', 'expected', 'help', 'action', 'to']) {
-      assert.ok(typeof step[prop] === 'string' && step[prop].trim(), journey.id + '/' + step.id + ' missing ' + prop)
-    }
-    // Do not invent new credential workflows or link to admin APIs.
-    assert.ok(step.to.startsWith('/') || step.to.startsWith('https://github.com/qzyu999/inference-exchange/blob/main/docs/guides/'))
-    assert.doesNotMatch(step.to, /\/admin|provider-tokens|token=|sk-ie-[A-Za-z0-9]|pt-ie-[A-Za-z0-9]/)
+    for (const field of ['title', 'description', 'help']) assert.ok(step[field]?.trim())
+    assert.ok(step.description.length < 190, 'keep each instruction short')
+    if (step.to) assert.ok(['/login', '/keys', '/provide', '/dashboard'].includes(step.to))
     const report = new URL(feedbackHref(journey, step))
     assert.equal(report.origin, 'https://github.com')
     assert.equal(report.pathname, '/qzyu999/inference-exchange/issues/new')
-    assert.match(report.searchParams.get('body'), new RegExp('Step ID: ' + step.id))
+    assert.ok(report.searchParams.get('body').includes('Step ID: ' + step.id))
     assert.match(report.searchParams.get('body'), /Do not share API keys, provider tokens/)
-    assert.doesNotMatch(report.href, /auth_header|Authorization%3A%20Bearer|account_id|localStorage/)
   }
-  const done = {}
-  done[journey.id + '/' + journey.steps[0].id] = true
-  assert.equal(completedSteps(journey, done), 1)
-  done[journey.id + '/' + journey.steps[0].id] = false
-  assert.equal(completedSteps(journey, done), 0)
 }
-
-const provider = JOURNEYS.find(journey => journey.id === 'provider')
-assert.equal(provider.steps.find(step => step.id === 'enroll').title, 'Enroll your provider node')
-assert.match(provider.steps.find(step => step.id === 'enroll').description, /intended to be available on demand/)
-assert.doesNotMatch(provider.steps.map(step => step.title).join(' '), /approved window/i)
-assert.match(JOURNEYS.find(journey => journey.id === 'both').steps.find(step => step.id === 'provide').help, /temporarily unavailable/)
-
-assert.notEqual(progressStorageKey('user-a'), progressStorageKey('user-b'))
-assert.notEqual(progressStorageKey('user-a'), progressStorageKey(null))
-assert.match(nav, /path: '\/start', label: 'Getting Started'/)
-assert.match(nav, /location\.pathname\.startsWith\('\/start\/'\)/)
-assert.match(nav, /\{sidebarContent\}/g) // shared desktop/mobile nav
-assert.match(nav, /pathname\.startsWith\('\/start\/'\) \? '\/start'/)
-assert.match(routes, /path="\/start" element=\{<GettingStarted \/>/)
-assert.match(routes, /path="\/start\/:journey" element=\{<GettingStarted \/>/)
-assert.match(landingNav, /to: '\/start', label: 'Getting Started'/)
-assert.match(page, /role="progressbar"/)
-assert.match(page, /user-confirmed/)
-assert.match(page, /aria-current=\{i === stepIndex \? 'step'/)
-assert.match(page, /useSWR\(needModels \? 'models'/)
-assert.match(page, /\['myKeys', user\.user_id\]/)
-assert.match(page, /\['dashboard\/provider-nodes', user\.user_id\]/)
-assert.match(page, /\['dashboard\/provider-earnings', user\.user_id\]/)
-assert.match(page, /Something wrong with this step\? Open GitHub issue/)
-assert.match(page, /Private-alpha availability/)
-assert.match(page, /disabled by default/)
-assert.match(page, /self-service without scheduled windows/)
-assert.match(page, /cannot check the live global enrollment switch/)
-assert.match(providePage, /Private-alpha availability/)
-assert.match(providePage, /temporary testing restriction/)
-assert.match(providePage, /enroll on demand/)
-assert.doesNotMatch(providePage, /only in a supervised enrollment/)
-assert.match(page, /Windows CMD/)
-assert.match(page, /Copy setup commands/)
+// Keep provider commands tied to the already-reviewed preview, including the
+// pinned agent version and verified model download. No new installer recipe.
+const guide = read('../../../docs/guides/provider-l0-apple-silicon-preview.md')
+const blocks = [...guide.matchAll(/```bash\n([\s\S]*?)```/g)].map(match => match[1].trim())
+for (const [name, index] of [['hardware', 0], ['server', 1], ['model', 2], ['agent', 3]]) assert.equal(PROVIDER_COMMANDS[name], blocks[index])
+assert.equal(PROVIDER_COMMANDS.connect, blocks[4] + '\n' + blocks[5])
+assert.match(PROVIDER_COMMANDS.model, /shasum -a 256 -c -/)
+assert.match(PROVIDER_COMMANDS.connect, /getpass/)
+assert.doesNotMatch(PROVIDER_COMMANDS.connect, /\?token=|--token/)
+// Model IDs stay quoted as data; no credential is embedded in an example.
+for (const model of ['Qwen2.5 0.5B Instruct', 'a"b\nc']) {
+  const code = sdkExample(model)
+  assert.ok(code.includes('model=' + JSON.stringify(model)))
+  assert.match(code, /os.environ\["IE_API_KEY"\]/)
+  assert.match(code, /"ocip_min_confidence": "open"/)
+  assert.doesNotMatch(code, /sk-ie-|pt-ie-/)
+}
+assert.match(page, /allowOpen && model/)
+assert.match(page, /The coordinator and provider can read/)
+assert.match(page, /models\?\.data.find/)
+assert.match(page, /\['myKeys', user.user_id\]/)
+assert.match(page, /\['dashboard\/provider-nodes', user.user_id\]/)
+assert.doesNotMatch(page, /localStorage|createUserKey|enrollSelfServiceProvider|\/v1\/admin/)
+assert.match(page, /You marked your first request complete/)
+assert.match(page, /Need help\?/)
 assert.match(page, /read -rs IE_API_KEY/)
-assert.doesNotMatch(page, /\/v1\/admin\/|enrollSelfServiceProvider|createUserKey|setItem\(.+token|setItem\(.+key/)
-console.log('#199: journeys, safe feedback URLs, routes, scopes and step distinctions passed')
+assert.match(page, /Windows CMD/)
+assert.match(shell, /pathname.startsWith\('\/start\/'\)/)
+assert.match(routes, /path="\/start\/:journey"/)
+console.log('Getting Started: two paths, aliases, scoped checks, explicit Open consent, examples and versioned commands passed')
