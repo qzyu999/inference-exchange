@@ -34,19 +34,15 @@ function CodeBlock({ code, label = 'Copy commands' }: { code: string; label?: st
 }
 
 function JourneyLanding() {
-  return <div className="ie-start ie-setup">
+  return <div className="ie-start ie-setup ie-setup-landing">
     <div className="ie-setup-intro"><h2>What would you like to do?</h2><p>Choose where to start.</p></div>
-    <div className="ie-setup-choices" aria-label="Choose a setup path">
+    <div className="ie-setup-choices" aria-label="Choose where to start">
       {JOURNEYS.map(journey => <Link key={journey.id} className="ie-setup-choice" to={'/start/' + journey.id}>
         <span className="ie-setup-kicker">{journey.audience}</span>
         <h3>{journey.name} <span aria-hidden="true">→</span></h3>
         <p>{journey.summary}</p>
       </Link>)}
-      <a className="ie-setup-choice ie-setup-learn" href="https://github.com/qzyu999/ocip" target="_blank" rel="noopener noreferrer">
-        <span className="ie-setup-kicker">Learn</span>
-        <h3>Understand OCIP <span aria-hidden="true">↗</span></h3>
-        <p>Learn the security levels and their limitations.</p>
-      </a>
+
     </div>
     <p className="ie-setup-note">Private alpha · Credits and provider earnings are simulated.</p>
     <div className="ie-setup-links"><Link to="/chat">Try it in your browser</Link><Link to="/docs">Documentation</Link></div>
@@ -96,7 +92,7 @@ export function GettingStarted() {
       </select>}
   </div>
 
-  return <div className="ie-start ie-setup">
+  return <div className={'ie-start ie-setup' + (journey.id === 'ocip' ? ' ie-setup-learning' : '')}>
     <Link className="ie-setup-back" to="/start">← Choose a path</Link>
     <header className="ie-setup-header"><p className="ie-setup-kicker">{journey.name}</p>
       <p className="ie-setup-note">Step {stepIndex + 1} of {journey.steps.length}</p>
@@ -105,7 +101,12 @@ export function GettingStarted() {
       <Link to={href(item.id)} aria-current={i === stepIndex ? 'step' : undefined} aria-label={'Step ' + (i + 1) + ': ' + item.title} title={item.title}><span aria-hidden="true">{i + 1}</span></Link>
     </li>)}</ol></nav>
     <article key={step.id} className="ie-setup-step">
+      {step.label && <p className="ie-setup-kicker">{step.label}</p>}
       <h2 ref={stepHeading} tabIndex={-1}>{step.title}</h2><p className="ie-setup-description">{step.description}</p>
+      {journey.id === 'ocip' && step.id === 'protocol' && <ol className="ie-setup-flow" aria-label="A request moves from your app through the exchange to a provider">
+        <li>Your app</li><li>The exchange</li><li>A provider</li>
+      </ol>}
+      {step.takeaway && <div className="ie-setup-takeaway"><span>Remember</span><p>{step.takeaway}</p></div>}
       {step.id === 'hardware' && <p className="ie-setup-note">The first line must say <code>arm64</code>. This preview is experimental.</p>}
       {step.command && PROVIDER_COMMANDS[step.command] && <CodeBlock code={PROVIDER_COMMANDS[step.command]} />}
       {step.command === 'server' && <p className="ie-setup-note">Need Homebrew? <a href="https://brew.sh/" target="_blank" rel="noopener noreferrer">Install it first ↗</a></p>}
@@ -136,15 +137,16 @@ export function GettingStarted() {
       <div className="ie-setup-actions">
         {actionHref && !(step.check === 'auth' && user) && <Link className="ie-setup-primary" to={actionHref} target={step.to === '/login' ? undefined : '_blank'} rel="noopener noreferrer">{step.action}{step.to !== '/login' && ' ↗'}</Link>}
         {next ? <Link className={actionHref && !(step.check === 'auth' && user) ? 'ie-setup-secondary' : 'ie-setup-primary'} to={href(next.id)} aria-disabled={!canContinue} onClick={event => { if (!canContinue) event.preventDefault() }}>Continue →</Link>
-          : journey.id === 'api' ? <button className="ie-setup-primary" disabled={!allowOpen || !model} onClick={() => setFinished(true)}>I got a response</button> : <Link className="ie-setup-secondary" to="/exchange">Explore the exchange →</Link>}
+          : journey.id === 'ocip' ? <><Link className="ie-setup-primary" to="/start/api">Use the API →</Link><Link className="ie-setup-secondary" to="/start/provider">Provide compute →</Link></> : journey.id === 'api' ? <button className="ie-setup-primary" disabled={!allowOpen || !model} onClick={() => setFinished(true)}>I got a response</button> : <Link className="ie-setup-secondary" to="/exchange">Explore the exchange →</Link>}
       </div>
       {finished && <div className="ie-setup-notice" role="status">You marked your first request complete. <Link to="/billing">View your usage</Link> or <Link to="/start/provider">provide compute</Link>.</div>}
-      <details className="ie-setup-help"><summary>Need help?</summary><p>{step.help}</p>
+      <details className="ie-setup-help"><summary>{journey.id === 'ocip' ? 'Learn more' : 'Need help?'}</summary><p>{step.help}</p>
         {step.command === 'request' && <p>Terminal changed? Choose your platform on the <Link to={href('install')}>Python setup step</Link>.</p>}
         {journey.id === 'provider' && <p><Link to="/docs/guides/provider-l0-apple-silicon-preview">Full technical reference</Link>. Open inference is not confidential. Provider credentials and API keys are separate.</p>}
+        {step.reference && <p>{step.reference.startsWith('/') ? <Link to={step.reference}>Read the reference</Link> : <a href={step.reference} target="_blank" rel="noopener noreferrer">Read the OCIP specification ↗</a>}</p>}
         <a href={feedbackHref(journey, step)} target="_blank" rel="noopener noreferrer">Report a problem ↗</a><p className="ie-setup-note">Do not include keys, provider credentials, private prompts, or full logs.</p>
       </details>
     </article>
-    <footer className="ie-setup-footer">{previous ? <Link to={href(previous.id)}>← Back</Link> : <Link to="/start">← Choose a path</Link>}<span>Private alpha · Simulated credits</span></footer>
+    <footer className="ie-setup-footer">{previous ? <Link to={href(previous.id)}>← Back</Link> : <Link to="/start">← Choose a path</Link>}<span>{journey.id === 'ocip' ? 'Protocol overview · No sign-in needed' : 'Private alpha · Simulated credits'}</span></footer>
   </div>
 }

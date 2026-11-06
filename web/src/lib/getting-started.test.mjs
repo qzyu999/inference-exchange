@@ -6,9 +6,10 @@ const read = path => readFileSync(new URL(path, import.meta.url), 'utf8')
 const page = read('../pages/GettingStarted.tsx')
 const shell = read('../components/Layout.tsx')
 const routes = read('../main.tsx')
-assert.deepEqual(JOURNEYS.map(item => [item.id, item.name]), [['api', 'Use the API'], ['provider', 'Provide compute']])
+assert.deepEqual(JOURNEYS.map(item => [item.id, item.name]), [['ocip', 'Understand the Open Confidential Inference Protocol (OCIP)'], ['api', 'Use the API'], ['provider', 'Provide compute']])
 assert.equal(resolveStartJourney('consumer'), 'api')
 assert.equal(resolveStartJourney('both'), '')
+assert.equal(resolveStartJourney('ocip'), 'ocip')
 assert.equal(resolveStartJourney('api'), 'api')
 assert.equal(resolveStartJourney('provider'), 'provider')
 assert.equal(resolveStartJourney('missing'), 'missing')
@@ -25,6 +26,21 @@ for (const journey of JOURNEYS) {
     assert.match(report.searchParams.get('body'), /Do not share API keys, provider tokens/)
   }
 }
+// Learning stays short, public, and separate from credential/setup operations.
+const learning = JOURNEYS[0]
+assert.equal(learning.id, 'ocip')
+assert.deepEqual(learning.steps.map(step => step.id), ['protocol', 'open', 'contained', 'hardened', 'confidential', 'fully-confidential', 'evidence', 'minimum', 'alpha'])
+for (const step of learning.steps) {
+  assert.ok(step.description.split(/\s+/).length <= 30, 'one short explanation per screen')
+  assert.ok(step.takeaway && step.takeaway.split(/\s+/).length <= 16, 'a short takeaway')
+  assert.equal(step.check, undefined, 'no authenticated data checks')
+  assert.equal(step.command, undefined, 'no setup commands')
+  assert.equal(step.to, undefined, 'no sign-in gate or credential action')
+  assert.ok(step.reference.startsWith('/docs/') || step.reference.startsWith('https://github.com/qzyu999/ocip/'))
+}
+assert.match(learning.steps.find(step => step.id === 'evidence').description, /claim.*Verification needs evidence/)
+assert.match(learning.steps.find(step => step.id === 'minimum').description, /must not silently lower/)
+assert.match(learning.steps.find(step => step.id === 'alpha').description, /preview uses Open/)
 // Keep provider commands tied to the already-reviewed preview, including the
 // pinned agent version and verified model download. No new installer recipe.
 const guide = read('../../../docs/guides/provider-l0-apple-silicon-preview.md')
@@ -54,4 +70,4 @@ assert.match(page, /read -rs IE_API_KEY/)
 assert.match(page, /Windows CMD/)
 assert.match(shell, /pathname.startsWith\('\/start\/'\)/)
 assert.match(routes, /path="\/start\/:journey"/)
-console.log('Getting Started: two paths, aliases, scoped checks, explicit Open consent, examples and versioned commands passed')
+console.log('Getting Started: OCIP learning and two setup paths, aliases, scoped checks, explicit Open consent, examples and versioned commands passed')

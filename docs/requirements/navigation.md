@@ -50,9 +50,9 @@ MUST: The build rejects invalid metadata, invalid dates, and duplicate slugs. Po
 - Status: implemented
 - Verified by: web/src/lib/news.test.mjs, web/src/lib/landing-news.test.mjs
 
-### NAV-005: Keep Getting Started focused on two setup paths
+### NAV-005: Offer a short learning journey and two setup paths
 
-MUST: Getting Started offers Use the API and Provide compute as setup paths. A separate Understand OCIP learning card links to the official OCIP repository. It opens in a new tab and requires no sign-in. Chat is an optional link. The page shows one short step at a time, with Back and Continue controls. Help stays collapsed until requested. The setup uses the active Light, Dark, or Night Shift palette.
+MUST: Getting Started offers Understand the Open Confidential Inference Protocol (OCIP), Use the API, and Provide compute in that order. Show all three in one row on wide screens and stack them on narrow screens. The OCIP card opens a local click-through learning journey without sign-in. Each learning step has one short explanation and one takeaway. Extra references stay in collapsed Learn more sections. Explain protocol levels, claimed versus verified evidence, minimum routing requirements, and the Open alpha preview without promising unverified protection. Chat is an optional link. The page shows one short step at a time, with Back and Continue controls. Help stays collapsed until requested. The setup uses the active Light, Dark, or Night Shift palette.
 
 MUST: Use the API covers sign-in, API key creation, Python setup, model selection, and a test request. Generate the example for a currently advertised model. Require explicit consent before showing an Open inference example. Do not embed a key in code or store credentials in browser storage. Keep credential input separate from pasted setup commands.
 

@@ -3,8 +3,9 @@ export interface StartStep {
   action?: string; to?: string; command?: string
   check?: 'auth' | 'models' | 'keys' | 'nodes'
   gate?: boolean
+  takeaway?: string; label?: string; reference?: string
 }
-export interface StartJourney { id: 'api' | 'provider'; name: string; summary: string; audience: string; steps: StartStep[] }
+export interface StartJourney { id: 'ocip' | 'api' | 'provider'; name: string; summary: string; audience: string; steps: StartStep[] }
 export const JOURNEYS: StartJourney[]
 export function feedbackHref(journey: StartJourney, step: StartStep): string
 export function resolveStartJourney(id?: string): string | undefined
