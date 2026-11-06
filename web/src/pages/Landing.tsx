@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
 import useSWR from 'swr'
 import { Link } from 'react-router-dom'
+import { useAuth } from '../lib/auth'
+import { landingActionHref } from '../lib/nav.js'
 import { api } from '../lib/api'
 import { C, GRADIENTS, HERO_PIGMENTS as HP } from '../lib/theme'
 import { HeroScene } from '../components/HeroScene'
@@ -127,9 +129,10 @@ function StoneCTA({
   children: ReactNode
   tabIndex?: number
 }) {
+  const { user } = useAuth()
   return (
     <Link
-      to={to}
+      to={landingActionHref(to, Boolean(user))}
       tabIndex={tabIndex}
       onPointerMove={movePigmentSpotlight}
       className={`hero-stone-cta hero-stone-cta--${tone}${STATIC_CTA_PREVIEW ? '' : ' mineral-border hero-stone-cta--interactive'}`}
@@ -207,9 +210,9 @@ function EditorialStory({
               )}
               {index === 0 && (
                 <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
-                  <StoneCTA to="/chat" tone="light">Start chatting</StoneCTA>
-                  <StoneCTA to="/provide" tone="outline">Become a provider</StoneCTA>
-                  <StoneCTA to="/exchange" tone="quiet">Go to Exchange</StoneCTA>
+                  <StoneCTA to="/keys" tone="light">Use the API</StoneCTA>
+                  <StoneCTA to="/provide" tone="outline">Provide compute</StoneCTA>
+                  <StoneCTA to="/exchange" tone="quiet">Explore the exchange</StoneCTA>
                 </div>
               )}
             </div>
@@ -475,17 +478,17 @@ export function Landing() {
                   </p>
 
                   <div className="flex flex-wrap gap-3 mt-8">
-                    <StoneCTA to="/chat" tone="light"
+                    <StoneCTA to="/keys" tone="light"
                       tabIndex={productOpacity > 0.95 ? undefined : -1}>
-                      Start chatting
+                      Use the API
                     </StoneCTA>
                     <StoneCTA to="/provide" tone="outline"
                       tabIndex={productOpacity > 0.95 ? undefined : -1}>
-                      Become a provider
+                      Provide compute
                     </StoneCTA>
                     <StoneCTA to="/exchange" tone="quiet"
                       tabIndex={productOpacity > 0.95 ? undefined : -1}>
-                      Go to Exchange
+                      Explore the exchange
                     </StoneCTA>
                   </div>
                 </div>
