@@ -90,3 +90,60 @@ def test_anonymous_other_account_and_admin_get_same_network_but_not_same_trace(m
     assert client.post('/v1/auth/signup', json={'email': 'boss@example.com', 'password': 'password1'}).status_code == 200
     assert client.get('/v1/exchange/activity/network').json() == anonymous.json()
     assert client.get('/v1/exchange/traces/private-request-id').status_code == 200
+
+
+def add_route(store, request_id, source, target, timestamp, *, status='completed'):
+    store.save_request_outcome({'request_id': request_id, 'timestamp': timestamp, 'status': 'matched'}, 'account')
+    store.amend_request_outcome(request_id, consumer_id='account', status=status,
+                                provider_country=source, caller_country=target)
+
+
+def test_distinct_routes_preserve_older_global_pair_across_domestic_burst_and_restart(tmp_path):
+    path = tmp_path / 'db'
+    store = Store(path)
+    now = time.time()
+    add_route(store, 'older-japan', 'US', 'JP', now - 120)
+    add_route(store, 'reverse-japan', 'JP', 'US', now - 60)
+    for i in range(100):
+        add_route(store, f'domestic-{i}', 'US', 'US', now + i)
+    body = store.public_network_activity(geography_enabled=True)
+    assert len(body['requests']) == len(body['completions']) == 30
+    assert all(row['caller_country'] == 'US' for row in body['completions'])
+    assert [(r['provider_country'], r['caller_country']) for r in body['routes']] == [('US', 'US'), ('JP', 'US'), ('US', 'JP')]
+    assert body['routes'][0]['timestamp_minute'] == int((now + 99) // 60) * 60
+    assert all(set(row) == {'provider_country', 'caller_country', 'timestamp_minute'} for row in body['routes'])
+    store._conn.close()
+    restarted = Store(path)
+    assert restarted.public_network_activity(geography_enabled=True) == body
+    assert restarted.public_network_activity(geography_enabled=False)['routes'] == []
+
+
+def test_route_limit_evicts_least_recent_pair_and_refreshes_existing_pair(tmp_path):
+    from inference_exchange.coordinator.country_activity import COUNTRIES
+    store = Store(tmp_path / 'db')
+    now = time.time()
+    destinations = sorted(COUNTRIES)[:31]
+    for i, country in enumerate(destinations):
+        add_route(store, f'route-{i}', 'US', country, now + i)
+    routes = store.public_network_activity(geography_enabled=True)['routes']
+    assert len(routes) == 30
+    assert [r['caller_country'] for r in routes] == list(reversed(destinations[1:]))
+    add_route(store, 'oldest-pair-refreshed', 'US', destinations[0], now + 100)
+    routes = store.public_network_activity(geography_enabled=True)['routes']
+    assert len(routes) == 30 and routes[0]['caller_country'] == destinations[0]
+    assert destinations[1] not in [r['caller_country'] for r in routes]
+    for i in range(50):
+        add_route(store, f'repeat-{i}', 'US', destinations[0], now + 101 + i)
+    assert len(store.public_network_activity(geography_enabled=True)['routes']) == 30
+
+
+def test_route_selection_ignores_unknown_failed_expired_and_uses_stable_ties(tmp_path):
+    store = Store(tmp_path / 'db')
+    now = time.time()
+    add_route(store, 'us-gh', 'US', 'GH', now)
+    add_route(store, 'gh-us', 'GH', 'US', now)
+    add_route(store, 'unknown', 'US', None, now + 1)
+    add_route(store, 'failed', 'US', 'JP', now + 2, status='failed')
+    add_route(store, 'expired', 'US', 'DE', now - 8 * 86400)
+    routes = store.public_network_activity(geography_enabled=True)['routes']
+    assert [(r['provider_country'], r['caller_country']) for r in routes] == [('GH', 'US'), ('US', 'GH')]

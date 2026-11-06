@@ -759,9 +759,27 @@ class Store:
                 })
             return result
 
+        # Choose routes from the whole retained history, before applying the
+        # display limit. Repeated domestic requests occupy only one route slot.
+        routes = []
+        if geography_enabled:
+            from .country_activity import COUNTRIES
+            pairs = self._conn.execute("""SELECT provider_country, caller_country,
+                MAX(timestamp) AS latest FROM request_outcomes
+                WHERE status='completed' AND provider_country IS NOT NULL AND caller_country IS NOT NULL
+                GROUP BY provider_country, caller_country
+                ORDER BY latest DESC, provider_country ASC, caller_country ASC""").fetchall()
+            for pair in pairs:
+                if pair["provider_country"] not in COUNTRIES or pair["caller_country"] not in COUNTRIES:
+                    continue
+                routes.append({"provider_country": pair["provider_country"], "caller_country": pair["caller_country"],
+                               "timestamp_minute": int(pair["latest"] // 60) * 60})
+                if len(routes) == 30:
+                    break
+
         return {"scope": "exchange", "retention_days": 7, "limit": 30,
                 "geography_enabled": geography_enabled, "time_precision": "minute",
-                "requests": window(), "completions": window(completed=True)}
+                "requests": window(), "completions": window(completed=True), "routes": routes}
 
     @serialized_write
     def request_outcome(self, request_id: str, consumer_id: str | None):

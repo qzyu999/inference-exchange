@@ -6,9 +6,16 @@ No date parameters or minimum daily volume are required.
 
 ## Globe
 
-The globe uses the latest 30 completed recorded requests across the exchange.
-Its window is independent of the latest 30 outcomes below it.
-Failed requests do not displace these completed routes.
+The globe shows up to 30 distinct directional country routes across the exchange.
+It uses each pair's latest completed request from the retained history.
+US → Japan and Japan → US are different routes.
+Repeated US → US requests refresh that route without displacing US → Japan.
+If more than 30 pairs exist, the least recently active route leaves the view.
+Routes with equal activity times use country-code order as a stable tie breaker.
+A route disappears when its last completion expires from operational history.
+The globe is derived from SQLite, without a separate cache.
+Its selection is independent of the latest 30 outcomes below it.
+Failed requests and unknown countries do not take route slots.
 The history covers at most seven days and 10,000 exchange-wide operational records.
 Country anchors are approximate connection origins, not device locations or residences.
 A same-country route has a pulse marker.
@@ -23,7 +30,7 @@ It can show a settled served model, status, tokens, latency, simulated request c
 It rounds timestamps down to the minute.
 It reports missing metadata as unknown.
 It does not expose the requested-model string or free-text failure reason.
-The completion count in the globe can differ from this mixed-outcome list.
+The distinct route count in the globe can differ from this mixed-outcome list.
 These windows are not all-time totals.
 
 The public response contains no original request IDs or ID hashes, account IDs, emails, IPs, credentials, provider identities, prompts, responses, or private trace links.
