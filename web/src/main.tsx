@@ -21,6 +21,7 @@ import { ProviderDashboard } from './pages/ProviderDashboard'
 import { Docs } from './pages/Docs'
 import { GettingStarted } from './pages/GettingStarted'
 import { News } from './pages/News'
+import { NewsPost } from './pages/NewsPost'
 import { About } from './pages/About'
 import { NotFound } from './pages/NotFound'
 
@@ -32,6 +33,7 @@ createRoot(document.getElementById('root')!).render(
           <Route element={<Layout />}>
             <Route path="/" element={<Landing />} />
             <Route path="/news" element={<News />} />
+            <Route path="/news/:slug" element={<NewsPost />} />
             <Route path="/about" element={<About />} />
             <Route path="/overview" element={<Overview />} />
             <Route path="/start" element={<GettingStarted />} />

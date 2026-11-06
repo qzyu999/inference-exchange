@@ -1,11 +1,11 @@
 import { PublicPage } from '../components/PublicPage'
-import { NewsEmptyState } from '../components/NewsEmptyState'
+import { NewsList } from '../components/NewsList'
 import '../components/landing-news.css'
 
 export function News() {
   return (
     <PublicPage title="News">
-      <NewsEmptyState />
+      <NewsList />
     </PublicPage>
   )
 }
