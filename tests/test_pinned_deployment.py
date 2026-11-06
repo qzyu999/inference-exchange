@@ -37,3 +37,25 @@ def test_backup_includes_committed_wal_without_changing_live_data(tmp_path):
     live.commit()
     assert live.execute('SELECT COUNT(*) FROM example').fetchone()[0] == 2
     live.close()
+
+
+def test_readiness_checks_shared_route_and_rejects_old_or_protected_backend(monkeypatch):
+    from contextlib import contextmanager
+    from urllib.error import HTTPError
+    seen = []
+    @contextmanager
+    def good(url, timeout):
+        seen.append(url)
+        yield type('Response', (), {'status': 200})()
+    monkeypatch.setattr(deploy, 'urlopen', good)
+    deploy.ready('http://localhost')
+    assert seen == ['http://localhost/health', 'http://localhost/v1/exchange/activity/network']
+    monkeypatch.setattr(deploy.time, 'sleep', lambda _: None)
+    @contextmanager
+    def denied(url, timeout):
+        if url.endswith('/activity/network'):
+            raise HTTPError(url, 404, 'not deployed', {}, None)
+        yield type('Response', (), {'status': 200})()
+    monkeypatch.setattr(deploy, 'urlopen', denied)
+    with pytest.raises(RuntimeError):
+        deploy.ready('http://localhost')

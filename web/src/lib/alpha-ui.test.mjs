@@ -28,7 +28,7 @@ assert.match(keys, /Copy Python code/)
 assert.doesNotMatch(keys, /curl \/v1\/chat\/completions/)
 
 assert.doesNotMatch(overview, /Math\.random|v0\.1\.0|'verified' : 'unavailable'/)
-assert.match(overview, /Recent routed traces/)
+assert.match(overview, /Routed · latest 30 requests/)
 assert.match(overview, /Provider-reported trust levels/)
 assert.match(provide, /Private-alpha availability/)
 assert.match(provide, /Provider enrollment is disabled by default/)

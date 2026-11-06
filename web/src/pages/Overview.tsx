@@ -13,11 +13,11 @@ export function Overview() {
   const { data: stats } = useSWR('stats', api.stats, { refreshInterval: 5000 })
   const { data: provData } = useSWR('providers', api.providers, { refreshInterval: 5000 })
   const { data: repData } = useSWR('reputation', api.reputation, { refreshInterval: 10000 })
-  const { data: traceData, error: traceError } = useSWR(user ? ['traces', user.user_id, user.is_admin] : null, api.traces, { refreshInterval: 5000 })
+  const { data: traceData, error: traceError } = useSWR('network-activity', api.networkActivity, { refreshInterval: 5000 })
   const { data: health } = useSWR('health', api.health, { refreshInterval: 10000 })
 
   const providers = provData?.providers || []
-  const traces = traceData?.traces || []
+  const traces = traceData?.requests || []
   const reputation = repData?.reputation || []
 
   // Compute real stats
@@ -64,7 +64,7 @@ export function Overview() {
         {[
           { label: 'Providers online', value: stats?.providers_online ?? providers.length, color: UI.text },
           { label: 'Models advertised', value: stats?.models_available ?? health?.models?.length ?? 0, color: UI.text },
-          { label: 'Recent routed traces', value: traces.length > 0 ? String(routedTraces.length) : '—', color: UI.text },
+          { label: 'Routed · latest 30 requests', value: traces.length > 0 ? String(routedTraces.length) : '—', color: UI.text },
           { label: 'Exchange spend · all time (simulated)', value: stats ? formatUsd(stats.total_volume_usd) : '—', color: UI.accent },
         ].map(s => (
           <div key={s.label} className="bg-ui-surface rounded-2xl border border-ui-border px-5 py-4">
@@ -84,8 +84,8 @@ export function Overview() {
           <h2 className="text-lg font-bold mb-4" style={{ color: UI.text }}>Request outcomes</h2>
 
           <p className="text-xs text-ui-muted mb-3">
-            {user?.is_admin ? 'Exchange' : 'Your account'} · latest {traces.length} recorded requests, newest first.
-            Retained for up to 7 days, with a 10,000-request exchange-wide limit. Counts cover this list.
+            Shared exchange activity · latest {traces.length} recorded requests, newest first.
+            Retained for up to 7 days, with a 10,000-request exchange-wide limit. Counts cover this list. Times are rounded to the minute.
           </p>
           <div className="flex flex-wrap gap-x-5 gap-y-2 mb-4">
             {outcomeCounts.filter(item => item.count > 0).map(item => (
@@ -98,31 +98,35 @@ export function Overview() {
 
           {recentTraces.length > 0 ? (
             <ol className="space-y-2" aria-label="Recent requests, newest first">
-              {recentTraces.map(t => {
+              {recentTraces.map((t, index) => {
                 const outcome = requestOutcome(t.status)
                 return (
-                  <li key={t.request_id}>
-                    <Link to={`/trace?id=${encodeURIComponent(t.request_id)}`}
-                      className="block rounded-lg border border-ui-border px-3 py-3 text-xs hover:bg-ui-hover">
+                  <li key={`${t.timestamp_minute}-${index}`}>
+                    <div className="block rounded-lg border border-ui-border px-3 py-3 text-xs">
                       <div className="flex flex-wrap items-start justify-between gap-2">
-                        <span className="min-w-0 break-words font-medium text-ui-text">{t.model || 'Unspecified model'}</span>
+                        <span className="min-w-0 break-words font-medium text-ui-text">{t.model || 'Served model not recorded'}</span>
                         <span style={{ color: UI[outcome.tone] }}>{outcome.label}</span>
                       </div>
                       <div className="flex flex-wrap gap-x-3 gap-y-1 mt-1 text-ui-muted">
-                        <span className="font-mono">{t.request_id.slice(0, 8)}</span>
-                        <time dateTime={new Date(t.timestamp * 1000).toISOString()}>
-                          {new Date(t.timestamp * 1000).toLocaleString()}
+                        <time dateTime={new Date(t.timestamp_minute * 1000).toISOString()}>
+                          {new Date(t.timestamp_minute * 1000).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}
                         </time>
                       </div>
-                      {t.reason && <p className="mt-2 text-ui-body line-clamp-2" title={t.reason}>{t.reason}</p>}
-                    </Link>
+                      <div className="flex flex-wrap gap-x-3 gap-y-1 mt-2 text-ui-muted">
+                        {t.input_tokens != null && t.output_tokens != null && <span>{t.input_tokens} input · {t.output_tokens} output tokens</span>}
+                        {t.latency_ms != null && <span>{t.latency_ms} ms</span>}
+                        {t.cost_micro != null && <span>{formatUsd(t.cost_micro / 1_000_000)} simulated</span>}
+                      </div>
+                    </div>
                   </li>
                 )
               })}
             </ol>
           ) : (
-            <div className="text-xs text-center py-8 text-ui-muted">{traceError ? 'Request history unavailable. Try again later.' : !user ? 'Sign in to see your request history.' : !traceData ? 'Loading request history…' : 'No recorded requests in this window.'}</div>
+            <div className="text-xs text-center py-8 text-ui-muted">{traceError ? 'Request history unavailable. Try again later.' : !traceData ? 'Loading request history…' : 'No recorded requests in this window.'}</div>
           )}
+
+          <Link to="/trace" className="inline-block mt-4 text-xs underline text-ui-link">{user?.is_admin ? 'Open detailed admin traces' : 'Open your detailed request history'}</Link>
 
           {/* Fleet capacity */}
           <div className="mt-4 pt-4 flex items-center gap-4 text-xs" style={{ borderTop: "1px solid var(--ui-border)", color: UI.muted }}>

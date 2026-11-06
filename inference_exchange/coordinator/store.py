@@ -97,6 +97,8 @@ CREATE TABLE IF NOT EXISTS transactions (
     timestamp REAL NOT NULL
 );
 
+CREATE INDEX IF NOT EXISTS idx_transactions_request_id ON transactions(request_id, id DESC);
+
 CREATE TABLE IF NOT EXISTS provider_history (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     provider_id TEXT NOT NULL,
@@ -721,6 +723,45 @@ class Store:
         if completed:
             return [{"request_id": r["request_id"], "timestamp": r["timestamp"], "provider_country": r["provider_country"], "caller_country": r["caller_country"]} for r in rows]
         return [{k: v for k, v in json.loads(r["payload"]).items() if k != "_consumer_id"} for r in rows]
+
+    @serialized_write
+    def public_network_activity(self, *, geography_enabled: bool):
+        """Explicit public projection. Never serialize a private trace or ledger row."""
+        self._prune_outcomes()
+        public_statuses = {"completed", "matched", "matched_from_queue", "interrupted", "failed",
+                           "no_compatible_provider", "no_provider_available", "model_not_available",
+                           "queue_full", "queue_timeout", "no_provider"}
+
+        def window(completed=False):
+            where = "WHERE o.status='completed'" if completed else ""
+            rows = self._conn.execute(f"""SELECT o.timestamp, o.status, o.provider_country, o.caller_country,
+                t.served_model, t.input_tokens, t.output_tokens, t.cost_micro, t.latency_ms
+                FROM request_outcomes o LEFT JOIN transactions t ON t.id =
+                    (SELECT id FROM transactions WHERE request_id=o.request_id ORDER BY id DESC LIMIT 1)
+                {where} ORDER BY o.timestamp DESC, o.request_id DESC LIMIT 30""").fetchall()
+            from .country_activity import COUNTRIES
+            result = []
+            for row in rows:
+                settled = row["status"] == "completed"
+                source = row["provider_country"] if geography_enabled and settled and row["provider_country"] in COUNTRIES else None
+                target = row["caller_country"] if source and row["caller_country"] in COUNTRIES else None
+                result.append({
+                    "timestamp_minute": int(row["timestamp"] // 60) * 60,
+                    "status": row["status"] if row["status"] in public_statuses else "other",
+                    # Use settled served-model metadata, never arbitrary requested model or reason text.
+                    "model": row["served_model"] if settled else None,
+                    "provider_country": source if target else None,
+                    "caller_country": target,
+                    "input_tokens": row["input_tokens"] if settled else None,
+                    "output_tokens": row["output_tokens"] if settled else None,
+                    "cost_micro": row["cost_micro"] if settled else None,
+                    "latency_ms": row["latency_ms"] if settled else None,
+                })
+            return result
+
+        return {"scope": "exchange", "retention_days": 7, "limit": 30,
+                "geography_enabled": geography_enabled, "time_precision": "minute",
+                "requests": window(), "completions": window(completed=True)}
 
     @serialized_write
     def request_outcome(self, request_id: str, consumer_id: str | None):

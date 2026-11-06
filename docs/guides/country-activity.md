@@ -1,102 +1,75 @@
-# Approximate country activity
+# Shared network activity
 
-Overview can show where completed inference connects providers and API callers.
-The globe uses country anchors, not device coordinates.
-The same Cloudflare country header applies to browser and SDK requests through the public hostname.
-An SDK call from a server describes that server's connection origin.
-VPNs and proxies can change the apparent country.
-Unknown countries are omitted.
-The first version covers `/v1/chat/completions`; the separate confidential-session API is not included.
+Overview shows the same exchange activity to visitors, members, and administrators.
+A new account can see activity before it sends any requests.
+No date parameters or minimum daily volume are required.
 
-## What the public globe shows
+## Globe
 
-The globe releases the previous UTC day's grouped country pairs.
-Each pair needs at least five completed requests and three distinct consumer accounts.
-Counts appear in bands such as `5–9`.
-Matched, rejected, and failed requests do not qualify.
-A node being online does not qualify.
-With a small alpha network, an empty globe is expected.
-The Show example control displays an illustration, not real traffic.
-Routes do not link to individual traces.
-The animation is decorative; it does not indicate active streaming or a direct network connection.
-The coordinator still relays the inference traffic.
+The globe uses the latest 30 completed recorded requests across the exchange.
+Its window is independent of the latest 30 outcomes below it.
+Failed requests do not displace these completed routes.
+The history covers at most seven days and 10,000 exchange-wide operational records.
+Country anchors are approximate connection origins, not device locations or residences.
+A same-country route has a pulse marker.
+Reduced-motion settings disable animation.
+The example control is labeled as an illustration.
+Completed routes are historical activity, not live streams.
 
-## Public counter data handling
+## Request outcomes
 
-Collection is disabled by default.
-The public counters do not retain raw IPs, prompts, precise coordinates, or raw account/request IDs.
-It keeps country counters and daily keyed hashes in process memory.
-Only the current and previous UTC days are retained.
-A cleanup task runs every minute.
-A restart clears the counters; a release can then be empty or incomplete.
-This first version assumes one coordinator process. Multiple workers do not share these counters.
-No historic traces are backfilled.
-Suppression reduces exposure but does not guarantee anonymity or resist users who control multiple accounts.
-For stronger public anonymity, use larger cohorts and separately reviewed privacy measures.
+The shared list shows the latest 30 recorded routing outcomes, newest first.
+It can show a settled served model, status, tokens, latency, simulated request cost, and country pair.
+It rounds timestamps down to the minute.
+It reports missing metadata as unknown.
+It does not expose the requested-model string or free-text failure reason.
+The completion count in the globe can differ from this mixed-outcome list.
+These windows are not all-time totals.
 
-## Enable collection at a trusted edge
+The public response contains no original request IDs or ID hashes, account IDs, emails, IPs, credentials, provider identities, prompts, responses, or private trace links.
+Removing identifiers does not guarantee anonymity.
+Someone with outside knowledge can still recognize distinctive activity on a small network.
 
-Complete these steps before enabling collection.
-Do not trust a country header sent directly by an arbitrary client.
+## Private details
 
-1. Keep the coordinator and local web ingress unreachable from the public internet except through the configured Cloudflare path.
-2. Enable Cloudflare IP Geolocation for the public hostname. This supplies `CF-IPCountry`.
-3. Generate a random secret with `python3 -c 'import secrets; print(secrets.token_hex(32))'` in a private terminal.
-4. In a Cloudflare Request Header Transform Rule, match only the IE API hostname. Set `X-IE-Geo-Secret` to that secret as a static value. Use Set, not Add, so an incoming client marker is overwritten. The rule must cover the API requests and `/ws/provider` upgrade.
-5. Set the same value in `IE_GEO_INGRESS_SECRET` in the coordinator service's private environment. Set `IE_COUNTRY_ACTIVITY_ENABLED=1` there too. Do not place the secret in Git, URLs, logs, or screenshots.
-6. Restart the coordinator with that environment. Reconnect providers so their new WebSocket handshakes carry the trusted country header.
-7. Send authorized test requests through the public hostname. Direct local calls without the marker must remain unlocated. Do not log the complete incoming headers to debug this.
-8. Check `/v1/exchange/country-activity` after the next UTC boundary. Sparse routes remain hidden. The enabled flag confirms configuration, not that Cloudflare supplied valid country data.
+Use the detailed-history link to inspect your own exact request traces.
+An IE admin can inspect all retained traces.
+Other members cannot inspect your detailed traces or personal billing history.
+Signup reports remain admin-only.
+The legacy `/v1/exchange/activity/recent` endpoint remains owner/admin scoped.
+The shared view uses `/v1/exchange/activity/network` instead.
 
-This PR does not modify Cloudflare rules or service environments.
-Never reuse an API key, JWT secret, or provider credential as the geography marker.
-Clear the flag and restart the coordinator to disable collection and clear the counters.
+## Country collection
 
-References:
-- [Cloudflare IP geolocation](https://developers.cloudflare.com/network/ip-geolocation/)
-- [Request Header Transform Rules](https://developers.cloudflare.com/rules/transform/request-header-modification/)
+Country collection is disabled by default.
+Enable it with `IE_COUNTRY_ACTIVITY_ENABLED=1` and an ingress secret of at least 32 characters.
+Keep the coordinator reachable only through your trusted ingress.
+Enable Cloudflare IP Geolocation for the API hostname.
+Set `X-IE-Geo-Secret` in a Request Header Transform Rule to the same secret as `IE_GEO_INGRESS_SECRET`.
+The rule must overwrite client values on HTTP requests and provider WebSocket upgrades.
+Keep the secret out of Git, logs, URLs, and screenshots.
+Restart the coordinator and reconnect providers after configuration changes.
 
-## Exclude an API request
+The trusted `CF-IPCountry` header applies to browser and SDK connections through the public hostname.
+VPNs and servers can change the apparent country.
+An enabled flag confirms configuration, not valid country delivery.
+Capture country pairs only after provider completion and successful settlement.
+Do not infer historical countries.
+The separate confidential-session API is not included in country collection.
+Country data is not an attestation and does not affect routing or trust.
 
-An SDK caller can opt out without changing routing:
+Set `X-IE-Exclude-Geography: 1` to omit countries for a request.
+This does not hide its non-geographic activity.
+Disabling collection also hides retained countries from activity endpoints.
+It does not disable shared non-geographic activity.
+Operational retention and account deletion remove the operational records.
+Private SQLite backups can retain old records until the operator removes those backups.
 
-```python
-client = OpenAI(
-    api_key=os.environ["IE_API_KEY"],
-    base_url="https://alpha.inferenceex.com/v1",
-    default_headers={"X-IE-Exclude-Geography": "true"},
-)
-```
+## Legacy daily aggregate
 
-The same header excludes a provider WebSocket handshake if the client supplies it.
-A provider without an available custom-header option can ask the operator to exclude its connection at the edge.
-Do not interpret this approximate geography as an attestation or use it for access control.
+`/v1/exchange/country-activity` remains compatible.
+It publishes only the previous UTC day's pairs with at least five completed requests from three consumer accounts.
+Its count bands use bounded process-memory counters that clear on restart.
+Overview no longer uses this delayed aggregate.
 
-
-## Private recent activity
-
-When signed in, Overview shows the latest 30 completed recorded requests for your account.
-IE administrators see the latest 30 across the exchange.
-The list uses request time, newest first.
-The window is at most seven days.
-The shared operational history holds at most 10,000 requests.
-No date parameters are needed.
-A route within one country appears as a pulse at that country's anchor.
-Reduced-motion settings disable the pulse.
-Requests with unknown countries are counted but are not plotted.
-Old countries are not reconstructed from IPs or later requests.
-
-These private records survive a coordinator restart.
-They contain country codes, not IP addresses or prompt text.
-They are separate from the public daily counters described above.
-The public thresholds do not apply to your private records.
-The geography exclusion header applies to new private records too.
-Disabling geography hides retained countries from the recent-activity endpoint.
-Retention and account deletion remove the operational records.
-SQLite backups can retain older records until the operator removes those backups.
-
-The admin console also shows account signup counts.
-Country is recorded only during new account creation through trusted ingress.
-Earlier accounts show Unknown.
-Later logins do not change their signup country.
-These counts describe existing accounts, including tests, rather than unique people.
+See [decision 0007](../decisions/0007-shared-network-activity.md) for the visibility policy.
