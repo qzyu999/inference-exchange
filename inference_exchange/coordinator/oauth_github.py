@@ -150,9 +150,10 @@ async def github_callback(request: Request, code: str = "", state: str = ""):
     # OPS-009: while sign-up is paused, only an existing GitHub identity can sign in
     if get_controls().signup_disabled and not store.has_github_user(str(gh["id"])):
         return _login_error("signup_disabled")
+    from .country_activity import trusted_country
     try:
         user, created = store.upsert_github_user(
-            str(gh["id"]), gh.get("login", ""), gh.get("email", ""), gh.get("name") or "",
+            str(gh["id"]), gh.get("login", ""), gh.get("email", ""), gh.get("name") or "", signup_country=trusted_country(request.headers),
         )
     except ValueError:
         return _login_error("email_taken")

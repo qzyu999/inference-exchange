@@ -94,7 +94,7 @@ async def get_admin_state(request: Request):
         "total_ws_connections": hub._next_provider_id,
         "active_connections": hub.provider_count,
         "active_response_queues": len(hub._response_queues),
-        "total_requests_traced": len(_request_traces),
+        "total_requests_traced": len(traces_for(None, limit=100)),
     }
 
     # Recent bills
@@ -353,3 +353,10 @@ async def disconnect_provider(provider_id: str, request: Request):
     if not await get_hub().force_disconnect(provider_id):
         return JSONResponse({"error": "Provider not connected"}, status_code=404)
     return {"ok": True, "provider_id": provider_id}
+
+
+@router.get("/v1/admin/signups")
+async def get_signups(request: Request):
+    if not is_admin_request(request):
+        return admin_required_response()
+    return get_store().signup_analytics()

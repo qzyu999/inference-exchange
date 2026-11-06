@@ -175,12 +175,21 @@ class ProviderHub:
         )
         return provider_id
 
+    @staticmethod
+    def _record_failed_outcome(request_id: str):
+        from .dependencies import get_store
+        try:
+            get_store().amend_request_outcome(request_id, status="failed")
+        except Exception:
+            logger.warning("Request outcome failure could not be saved")
+
     def disconnect_provider(self, provider_id: str):
         if provider_id in self._providers:
             provider = self._providers[provider_id]
             name = provider.name
             orphaned_requests = [req_id for req_id, pid in self._request_to_provider.items() if pid == provider_id]
             for req_id in orphaned_requests:
+                self._record_failed_outcome(req_id)
                 if req_id in self._response_queues:
                     self._response_queues[req_id].put_nowait(
                         InferenceError(request_id=req_id, error="provider_disconnected")
@@ -413,6 +422,7 @@ class ProviderHub:
                 try:
                     callback(done_msg)
                 except Exception as e:
+                    self._record_failed_outcome(request_id)
                     logger.error(f"Billing callback error for {request_id[:8]}: {e}")
             if provider_id in self._providers:
                 self._providers[provider_id].active_requests = max(0, self._providers[provider_id].active_requests - 1)
@@ -426,6 +436,7 @@ class ProviderHub:
         if msg_type == MessageType.INFERENCE_RESPONSE:
             queue.put_nowait(InferenceResponseChunk(**data))
         elif msg_type == MessageType.INFERENCE_ERROR:
+            self._record_failed_outcome(request_id)
             queue.put_nowait(InferenceError(**data))
             self._billing_callbacks.pop(request_id, None)
             if provider_id in self._providers:

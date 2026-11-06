@@ -122,7 +122,7 @@ async def _relay_confidential(request: "ConfidentialInferenceRequest", consumer_
 
     if provider is None:
         _add_trace({
-            "request_id": request_id[:8],
+            "request_id": request_id,
             "timestamp": time.time(),
             "model": request.model,
             "status": "no_provider",
@@ -149,7 +149,7 @@ async def _relay_confidential(request: "ConfidentialInferenceRequest", consumer_
         raise ProviderError(f"Failed to reach provider: {e}")
 
     _add_trace({
-        "request_id": request_id[:8],
+        "request_id": request_id,
         "timestamp": time.time(),
         "model": request.model,
         "status": "matched",

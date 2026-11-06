@@ -17,9 +17,11 @@ for (const status of [null, undefined, '', 'new_status', 'toString', '__proto__'
 // the oldest entries or treating a provider match as a completed response.
 const overview = readFileSync(new URL('../pages/Overview.tsx', import.meta.url), 'utf8')
 const trace = readFileSync(new URL('../pages/Trace.tsx', import.meta.url), 'utf8')
-assert.match(overview, /const recentTraces = traces\.slice\(0, 10\)/)
+assert.match(overview, /const recentTraces = traces\b/)
 assert.doesNotMatch(overview, /traces\]\.reverse\(\)/)
 assert.match(trace, /: traces\[0\] \|\| null/)
+assert.match(trace, /\? exactTrace\?\.trace/)
+assert.match(trace, /api\.trace\(requestId!\)/)
 assert.doesNotMatch(trace, /traces\[traces\.length - 1\]|traces\]\.reverse\(\)/)
 assert.match(trace, /const isCompleted = trace\.status === 'completed'/)
 assert.match(overview, /t\.reason/)

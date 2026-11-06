@@ -191,6 +191,7 @@ async def get_history(request: Request):
         "transactions": [
             {
                 "request_id": dict(r)["request_id"][:8],
+                "full_request_id": dict(r)["request_id"],
                 "model": dict(r)["model"],  # legacy requested model
                 "requested_model": dict(r).get("requested_model") or dict(r)["model"],
                 "served_model": dict(r).get("served_model"),
@@ -693,3 +694,36 @@ async def country_activity():
     """Public, suppressed country totals for the previous UTC day. No trace links."""
     from .country_activity import activity
     return activity.snapshot()
+
+
+@router.get("/v1/exchange/usage")
+async def get_usage(request: Request):
+    from .routes_auth import resolve_private_caller
+    from .dependencies import get_store
+    return get_store().consumer_usage(resolve_private_caller(request))
+
+
+@router.get("/v1/exchange/activity/recent")
+async def get_recent_activity(request: Request):
+    from .routes_auth import resolve_private_caller, is_admin_request
+    from .dependencies import get_store
+    from .country_activity import enabled
+    caller = resolve_private_caller(request)
+    admin = is_admin_request(request)
+    rows = get_store().request_outcomes(None if admin else caller, 30, completed=True)
+    # Disabling collection also hides retained location metadata.
+    if not enabled():
+        rows = [{**row, "provider_country": None, "caller_country": None} for row in rows]
+    return {"scope": "exchange" if admin else "your_account", "retention_days": 7, "limit": 30, "enabled": enabled(), "requests": rows}
+
+
+@router.get("/v1/exchange/traces/{request_id}")
+async def get_trace(request_id: str, request: Request):
+    from fastapi import HTTPException
+    from .routes_auth import resolve_private_caller, is_admin_request
+    from .dependencies import get_store
+    caller = resolve_private_caller(request)
+    trace = get_store().request_outcome(request_id, None if is_admin_request(request) else caller)
+    if trace is None:
+        raise HTTPException(status_code=404, detail="Request trace not found in retained history")
+    return {"trace": trace}

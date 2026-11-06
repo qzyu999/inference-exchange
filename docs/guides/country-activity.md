@@ -21,10 +21,10 @@ Routes do not link to individual traces.
 The animation is decorative; it does not indicate active streaming or a direct network connection.
 The coordinator still relays the inference traffic.
 
-## Data handling
+## Public counter data handling
 
 Collection is disabled by default.
-The feature does not retain raw IPs, prompts, precise coordinates, or raw account/request IDs.
+The public counters do not retain raw IPs, prompts, precise coordinates, or raw account/request IDs.
 It keeps country counters and daily keyed hashes in process memory.
 Only the current and previous UTC days are retained.
 A cleanup task runs every minute.
@@ -71,3 +71,32 @@ client = OpenAI(
 The same header excludes a provider WebSocket handshake if the client supplies it.
 A provider without an available custom-header option can ask the operator to exclude its connection at the edge.
 Do not interpret this approximate geography as an attestation or use it for access control.
+
+
+## Private recent activity
+
+When signed in, Overview shows the latest 30 completed recorded requests for your account.
+IE administrators see the latest 30 across the exchange.
+The list uses request time, newest first.
+The window is at most seven days.
+The shared operational history holds at most 10,000 requests.
+No date parameters are needed.
+A route within one country appears as a pulse at that country's anchor.
+Reduced-motion settings disable the pulse.
+Requests with unknown countries are counted but are not plotted.
+Old countries are not reconstructed from IPs or later requests.
+
+These private records survive a coordinator restart.
+They contain country codes, not IP addresses or prompt text.
+They are separate from the public daily counters described above.
+The public thresholds do not apply to your private records.
+The geography exclusion header applies to new private records too.
+Disabling geography hides retained countries from the recent-activity endpoint.
+Retention and account deletion remove the operational records.
+SQLite backups can retain older records until the operator removes those backups.
+
+The admin console also shows account signup counts.
+Country is recorded only during new account creation through trusted ingress.
+Earlier accounts show Unknown.
+Later logins do not change their signup country.
+These counts describe existing accounts, including tests, rather than unique people.

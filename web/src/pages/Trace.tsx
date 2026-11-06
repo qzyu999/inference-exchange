@@ -1,3 +1,4 @@
+import { useAuth } from '../lib/auth'
 import { useState } from 'react'
 import { useSearchParams, Link } from 'react-router-dom'
 import useSWR from 'swr'
@@ -62,22 +63,24 @@ function TraceStep({ number, label, value, detail, dot, expanded, children, onTo
 // ─── Main ────────────────────────────────────────────────────
 
 export function Trace() {
+  const { user } = useAuth()
   const [searchParams] = useSearchParams()
   const requestId = searchParams.get('id')
-  const { data: traceData } = useSWR('traces', api.traces, { refreshInterval: 5000 })
-  const { data: historyData } = useSWR('history', api.history, { refreshInterval: 10000 })
+  const { data: traceData } = useSWR(user ? ['traces', user.user_id, user.is_admin] : null, api.traces, { refreshInterval: 5000 })
+  const { data: historyData } = useSWR(user ? ['history', user.user_id] : null, api.history, { refreshInterval: 10000 })
+  const { data: exactTrace, error: traceError } = useSWR(user && requestId ? ['trace', user.user_id, user.is_admin, requestId] : null, () => api.trace(requestId!), { refreshInterval: 5000 })
   const [expandedStep, setExpandedStep] = useState<string | null>(null)
 
   const traces = traceData?.traces || []
   const trace = requestId
-    ? traces.find((t: any) => t.request_id === requestId)
+    ? exactTrace?.trace
     : traces[0] || null
 
   if (!trace) {
     return (
       <div className="max-w-2xl mx-auto text-center py-16">
         <div className="text-sm" style={{ color: UI.muted }}>
-          {requestId ? `Trace ${requestId} not found` : 'No recent requests to inspect yet.'}
+          {!user ? 'Sign in to inspect your requests.' : requestId ? traceError ? 'Trace unavailable or outside retained history.' : 'Loading trace…' : 'No recent requests to inspect yet.'}
         </div>
         <div className="text-xs mt-2" style={{ color: UI.muted }}>
           Send a chat request, then come back here to inspect the evidence.
@@ -102,7 +105,7 @@ export function Trace() {
   const preference = trace.preference || 'balanced'
 
   // Cross-reference billing history for per-tier token data
-  const billingTx = (historyData?.transactions || []).find(t => t.request_id === trace.request_id)
+  const billingTx = (historyData?.transactions || []).find(t => (t.full_request_id || t.request_id) === trace.request_id)
 
   // FIX: Get TPS from the SELECTED provider's scoring entry, not scoring[0]
   const selectedScoring = scoring.find((s: any) => s.selected || s.name === provider)
@@ -124,7 +127,7 @@ export function Trace() {
       <div className="bg-ui-surface rounded-2xl border border-ui-border px-6 py-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h2 className="text-lg font-bold font-mono" style={{ color: UI.text }}>{trace.request_id}</h2>
+            <h2 className="text-lg font-bold font-mono" style={{ color: UI.text }}>{trace.request_id.slice(0, 8)}</h2>
             <div className="text-xs mt-0.5" style={{ color: UI.muted }}>
               {requestedModelLabel(billingTx || trace)}
               {' · '}{trace.providers_evaluated || scoring.length} provider{(trace.providers_evaluated || scoring.length) !== 1 ? 's' : ''} evaluated

@@ -303,7 +303,8 @@ async def signup(req: SignupRequest, request: Request):
         return JSONResponse({"error": "Invalid email"}, status_code=400)
 
     try:
-        user = store.create_user(req.email, req.password, req.name)
+        from .country_activity import trusted_country
+        user = store.create_user(req.email, req.password, req.name, signup_country=trusted_country(request.headers))
     except ValueError as e:
         return JSONResponse({"error": str(e)}, status_code=409)
 

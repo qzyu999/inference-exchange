@@ -34,6 +34,9 @@ ROUTES = {
     ("GET", "/v1/exchange/pricing"): PUBLIC,
     ("GET", "/v1/exchange/billing-config"): PUBLIC,
     ("GET", "/v1/exchange/stats"): PUBLIC,
+    ("GET", "/v1/exchange/usage"): ACCOUNT,
+    ("GET", "/v1/exchange/traces/{request_id}"): ACCOUNT,
+    ("GET", "/v1/exchange/activity/recent"): ACCOUNT,
     ("GET", "/v1/exchange/country-activity"): PUBLIC,  # GEO-001 suppressed daily totals
     ("GET", "/v1/exchange/depth"): PUBLIC,
     ("GET", "/v1/exchange/tps"): PUBLIC,
@@ -61,6 +64,7 @@ ROUTES = {
     ("POST", "/v1/confidential/infer"): ACCOUNT,
     ("GET", "/v1/exchange/provider-earnings"): ADMIN,
     ("GET", "/v1/admin/state"): ADMIN,
+    ("GET", "/v1/admin/signups"): ADMIN,
     ("GET", "/v1/admin/accounts"): ADMIN,
     ("POST", "/v1/admin/accounts/{user_id}/suspend"): ADMIN,
     ("POST", "/v1/admin/accounts/{user_id}/unsuspend"): ADMIN,

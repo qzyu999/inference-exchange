@@ -1,4 +1,5 @@
 import useSWR from 'swr'
+import { useAuth } from '../lib/auth'
 import { Link } from 'react-router-dom'
 import { api } from '../lib/api'
 import { formatUsd, formatUsdPrecise, microToUsd, sumMicro } from '../lib/money.js'
@@ -12,25 +13,24 @@ function formatTokens(n: number): string {
 }
 
 export function Billing() {
-  const { data: balance, error: balErr } = useSWR('me', api.me, { refreshInterval: 5000 })
-  const { data: history } = useSWR('history', api.history, { refreshInterval: 10000 })
+  const { user } = useAuth()
+  const { data: usage, error: usageError } = useSWR(user ? ['usage', user.user_id] : null, api.usage, { refreshInterval: 10000 })
+  const { data: balance, error: balErr } = useSWR(user ? ['me', user.user_id] : null, api.me, { refreshInterval: 5000 })
+  const { data: history } = useSWR(user ? ['history', user.user_id] : null, api.history, { refreshInterval: 10000 })
   const { data: pricing } = useSWR('pricing', api.pricing, { refreshInterval: 15000 })
   const { data: billingConfig } = useSWR('billingConfig', api.billingConfig)
   const minCharge = billingConfig?.minimum_charge_usd ?? 0.0001
 
   // Spend by model, summed in integer micro-USD (BILL-009)
   const transactions = history?.transactions || []
-  const microByModel: Record<string, number> = {}
-  for (const t of transactions) {
-    const model = servedModelLabel(t)
-    microByModel[model] = (microByModel[model] || 0) + sumMicro([t])
+  const spendByModel: Record<string, number> = {}
+  for (const row of usage?.models || []) {
+    const model = row.served_model || 'Unknown served model'
+    spendByModel[model] = (spendByModel[model] || 0) + microToUsd(row.cost_micro)
   }
-  const spendByModel: Record<string, number> = Object.fromEntries(
-    Object.entries(microByModel).map(([m, micro]) => [m, microToUsd(micro)]),
-  )
   const listedSpent = microToUsd(sumMicro(transactions))
   const minimumCount = transactions.filter(t => t.minimum_applied).length
-  const totalSpent = balance?.total_spent_usd || listedSpent
+  const totalSpent = microToUsd(usage?.cost_micro || 0)
   const sortedModels = Object.entries(spendByModel).sort((a, b) => b[1] - a[1])
   const topModels = sortedModels.slice(0, 4)
   const otherSpend = sortedModels.slice(4).reduce((sum, [, v]) => sum + v, 0)
@@ -45,7 +45,7 @@ export function Billing() {
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           {[
             { label: 'Balance (simulated credits)', value: formatUsd(balance.balance_usd), exact: formatUsdPrecise(balance.balance_usd), color: UI.success },
-            { label: 'Spent', value: formatUsd(balance.total_spent_usd), exact: formatUsdPrecise(balance.total_spent_usd), color: UI.text },
+            { label: 'Your spend · all time', value: formatUsd(balance.total_spent_usd), exact: formatUsdPrecise(balance.total_spent_usd), color: UI.text },
             { label: 'Requests', value: balance.requests_made.toLocaleString(), color: UI.text },
             { label: 'Tokens', value: formatTokens(balance.tokens_consumed), color: UI.text },
           ].map(s => (
@@ -80,7 +80,7 @@ export function Billing() {
           <div className="text-[10px] uppercase tracking-wider font-medium mb-1" style={{ color: UI.accent }}>
             Usage
           </div>
-          <h2 className="text-lg font-bold mb-5" style={{ color: UI.text }}>Spend by model</h2>
+          <h2 className="text-lg font-bold mb-5" style={{ color: UI.text }}>Your spend by model · all time</h2>
 
           {topModels.length > 0 ? (
             <div className="space-y-4">
@@ -127,7 +127,7 @@ export function Billing() {
             </div>
           ) : (
             <div className="text-sm py-8 text-center" style={{ color: UI.muted }}>
-              No usage yet. Send a chat request to see spend breakdown.
+              {usageError ? 'Usage unavailable. Try again later.' : !usage ? 'Loading usage…' : 'No usage yet. Use the API to see your spend.'}
             </div>
           )}
         </div>
@@ -196,7 +196,7 @@ export function Billing() {
 
         {transactions.length > 0 ? (
           <div className="max-h-[400px] overflow-y-auto">
-            {[...transactions].reverse().map((t: any, i: number) => {
+            {transactions.map((t: any, i: number) => {
               const time = new Date(t.timestamp * 1000).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
               return (
                 <div key={i} className="grid grid-cols-12 gap-2 py-2.5 items-center border-b border-ui-border last:border-0 text-xs">
@@ -215,7 +215,7 @@ export function Billing() {
                     -{formatUsdPrecise(t.cost_usd)}{t.minimum_applied && <span className="ml-1 text-[9px] font-normal" style={{ color: UI.muted }}>min</span>}
                   </div>
                   <div className="col-span-2 text-right">
-                    {t.request_id && <Link to={`/trace?id=${t.request_id}`} className="text-[10px] font-medium" style={{ color: UI.accent }}>View trace</Link>}
+                    {t.request_id && <Link to={`/trace?id=${encodeURIComponent(t.full_request_id || t.request_id)}`} className="text-[10px] font-medium" style={{ color: UI.accent }}>View trace</Link>}
                   </div>
                 </div>
               )

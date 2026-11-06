@@ -49,12 +49,14 @@ export function Admin() {
 }
 
 function AdminConsoleContent() {
+  const { user } = useAuth()
+  const { data: signups, error: signupError } = useSWR(user ? ['signups', user.user_id] : null, api.signups, { refreshInterval: 30000 })
   const { data: state, error: stateErr, mutate: refreshState } = useSWR('adminState', loadAdminState, { refreshInterval: 5000 })
   const { data: stats } = useSWR('stats', api.stats, { refreshInterval: 3000 })
   const { data: tpsData } = useSWR('tps', api.tps, { refreshInterval: 5000 })
   const { data: repData } = useSWR('reputation', api.reputation, { refreshInterval: 5000 })
   const { data: telemetry } = useSWR('telemetry', api.telemetry, { refreshInterval: 5000 })
-  const { data: traces } = useSWR('traces', api.traces, { refreshInterval: 3000 })
+  const { data: traces } = useSWR(user ? ['traces', user.user_id, user.is_admin] : null, api.traces, { refreshInterval: 3000 })
 
 
   return (
@@ -63,6 +65,21 @@ function AdminConsoleContent() {
         <h1 className="text-2xl font-bold text-ui-text">Admin</h1>
         <p className="text-sm text-ui-muted mt-1">System state and operations</p>
       </div>
+
+      <Section title="Account signups">
+        {signups ? <div className="pt-4 space-y-4 text-sm text-ui-body">
+          <div className="flex flex-wrap gap-6">
+            <span><strong className="text-ui-text">{signups.total_accounts}</strong> existing accounts</span>
+            <span><strong className="text-ui-text">{signups.created_today}</strong> created today (UTC)</span>
+            <span><strong className="text-ui-text">{signups.created_last_30_days}</strong> created in the last 30 UTC days</span>
+          </div>
+          <p className="text-ui-muted">Accounts, not unique people or website visitors. Includes test accounts; excludes deleted accounts. Repeat sign-ins do not add signups.</p>
+          <h3 className="font-semibold text-ui-text">Country at signup · all existing accounts</h3>
+          <ul className="flex flex-wrap gap-4">{signups.countries.map(row => <li key={row.country}>{row.country === 'unknown' ? 'Unknown' : new Intl.DisplayNames(['en'], { type: 'region' }).of(row.country)}: {row.accounts}</li>)}</ul>
+          <p className="text-ui-muted">Country is recorded only at account creation through trusted ingress. Earlier accounts remain unknown. VPNs and servers can affect it.</p>
+          <details><summary className="cursor-pointer">Daily signups · {signups.since} to {signups.through} UTC</summary><div className="max-h-60 overflow-auto mt-3"><table className="w-full text-left"><thead><tr><th>Date (UTC)</th><th>Accounts</th></tr></thead><tbody>{signups.daily.map(row => <tr key={row.date} className="border-t border-ui-border"><td className="py-2">{row.date}</td><td>{row.accounts}</td></tr>)}</tbody></table></div></details>
+        </div> : <p className="pt-4 text-ui-muted">{signupError ? 'Signup analytics unavailable.' : 'Loading signups…'}</p>}
+      </Section>
 
       {stateErr && (
         <div role="alert" className="bg-ui-warning-surface rounded-2xl border border-ui-warning p-4 text-ui-warning text-sm">
@@ -164,7 +181,7 @@ function AdminConsoleContent() {
       {traces?.traces && traces.traces.length > 0 && (
         <Section title="Decision Traces" count={traces.traces.length}>
           <div className="space-y-3 mt-3">
-            {traces.traces.slice(-5).reverse().map((t: any) => (
+            {traces.traces.slice(0, 5).map((t: any) => (
               <div key={t.request_id} className="bg-ui-surface-muted rounded-xl p-4">
                 <div className="flex items-center gap-3 text-sm mb-2">
                   <span className="font-mono text-xs text-ui-muted">{t.request_id.slice(0, 12)}</span>

@@ -1,4 +1,6 @@
 const OUTCOMES = {
+  interrupted: { label: 'Interrupted · completion unknown', group: 'other', tone: 'muted' },
+  failed: { label: 'Failed', group: 'other', tone: 'danger' },
   completed: { label: 'Completed', group: 'completed', tone: 'success' },
   matched: { label: 'Routed · completion unconfirmed', group: 'routed', tone: 'warning' },
   matched_from_queue: { label: 'Routed from queue · completion unconfirmed', group: 'routed', tone: 'warning' },
