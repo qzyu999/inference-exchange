@@ -35,13 +35,18 @@ function CodeBlock({ code, label = 'Copy commands' }: { code: string; label?: st
 
 function JourneyLanding() {
   return <div className="ie-start ie-setup">
-    <div className="ie-setup-intro"><h2>What would you like to do?</h2><p>Choose where to start. You can do both with one account.</p></div>
+    <div className="ie-setup-intro"><h2>What would you like to do?</h2><p>Choose where to start.</p></div>
     <div className="ie-setup-choices" aria-label="Choose a setup path">
       {JOURNEYS.map(journey => <Link key={journey.id} className="ie-setup-choice" to={'/start/' + journey.id}>
         <span className="ie-setup-kicker">{journey.audience}</span>
         <h3>{journey.name} <span aria-hidden="true">→</span></h3>
         <p>{journey.summary}</p>
       </Link>)}
+      <a className="ie-setup-choice ie-setup-learn" href="https://github.com/qzyu999/ocip" target="_blank" rel="noopener noreferrer">
+        <span className="ie-setup-kicker">Learn</span>
+        <h3>Understand OCIP <span aria-hidden="true">↗</span></h3>
+        <p>Learn the security levels and their limitations.</p>
+      </a>
     </div>
     <p className="ie-setup-note">Private alpha · Credits and provider earnings are simulated.</p>
     <div className="ie-setup-links"><Link to="/chat">Try it in your browser</Link><Link to="/docs">Documentation</Link></div>

@@ -473,7 +473,7 @@ export function Layout() {
 // ─── Page titles ─────────────────────────────────────────────
 
 const PAGE_META: Record<string, { title: string; subtitle: string }> = {
-  '/start': { title: 'Getting Started', subtitle: 'Use the API or connect your Mac.' },
+  '/start': { title: 'Getting Started', subtitle: 'Use the API, provide compute, or understand OCIP.' },
   '/overview': { title: 'Network', subtitle: 'Operational transparency for the exchange.' },
   '/chat': { title: 'Chat', subtitle: 'Familiar entry point first. Exchange mechanics stay one click away.' },
   '/exchange': { title: 'Exchange', subtitle: 'A serious market surface for users who care about the routing mechanics.' },

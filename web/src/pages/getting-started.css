@@ -19,3 +19,5 @@
 @media(prefers-reduced-motion:reduce){.ie-setup-choice{transition:none}}
 
 .ie-setup-step h2:focus{outline:none}
+
+.ie-setup-learn{grid-column:1 / -1}
