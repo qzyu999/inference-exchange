@@ -28,7 +28,8 @@ export interface CountryRoute { provider_country: string; caller_country: string
 export interface CountryActivity { enabled: boolean; period: string | null; routes: CountryRoute[] }
 
 export interface NetworkRequest { timestamp_minute: number; status: string; model: string | null; provider_country: string | null; caller_country: string | null; input_tokens: number | null; output_tokens: number | null; cost_micro: number | null; latency_ms: number | null }
-export interface NetworkActivity { scope: 'exchange'; retention_days: number; limit: number; geography_enabled: boolean; time_precision: 'minute'; requests: NetworkRequest[]; completions: NetworkRequest[] }
+export interface NetworkCountryRoute { provider_country: string; caller_country: string; timestamp_minute: number }
+export interface NetworkActivity { scope: 'exchange'; retention_days: number; limit: number; geography_enabled: boolean; time_precision: 'minute'; requests: NetworkRequest[]; completions: NetworkRequest[]; routes: NetworkCountryRoute[] }
 export interface RecentActivity { scope: string; enabled: boolean; retention_days: number; limit: number; requests: { request_id: string; timestamp: number; provider_country: string | null; caller_country: string | null }[] }
 export interface Usage { scope: string; period: string; cost_micro: number; requests: number; tokens: number; models: { served_model: string | null; requests: number; cost_micro: number; tokens: number }[] }
 export interface Signups { total_accounts: number; created_today: number; created_last_30_days: number; since: string; through: string; countries: { country: string; accounts: number }[]; daily: { date: string; accounts: number }[] }

@@ -18,15 +18,15 @@ export function NetworkGlobe() {
   const { data, error } = useSWR('network-activity', api.networkActivity, { refreshInterval: 5000 })
   const [rotation, setRotation] = useState(-25)
   const [example, setExample] = useState(false)
-  const located = (data?.completions || []).filter(row => row.provider_country && row.caller_country).map(row => ({
-    provider_country: row.provider_country!, caller_country: row.caller_country!,
-    count_band: new Date(row.timestamp_minute * 1000).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }),
+  const located = (data?.routes || []).map(row => ({
+    provider_country: row.provider_country, caller_country: row.caller_country,
+    count_band: 'Latest request · ' + new Date(row.timestamp_minute * 1000).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }),
   }))
-  const routes = (example ? EXAMPLE : located).map((row, i) => ({ ...row, key: `${row.provider_country}${row.caller_country}${i}` }))
+  const routes = (example ? EXAMPLE : located).map(row => ({ ...row, key: `${row.provider_country}${row.caller_country}` }))
   const land = useMemo(() => earth.land.map(point => project(point, rotation)).filter(point => point.visible), [rotation])
   const paths = useMemo(() => graticules.map(points => linePath(points, rotation)), [rotation])
   return <section className="ie-network-globe" aria-labelledby="network-globe-title">
-    <header><div><h2 id="network-globe-title">Across the exchange</h2><p>{example ? 'Illustration · not network activity' : 'Shared network · latest 30 completions · up to 7 days'}</p></div>
+    <header><div><h2 id="network-globe-title">Across the exchange</h2><p>{example ? 'Illustration · not network activity' : 'Shared network · up to 30 distinct routes · last 7 days'}</p></div>
       <button type="button" aria-pressed={example} onClick={() => setExample(value => !value)}>{example ? 'Show network activity' : 'Show example'}</button>
     </header>
     <div className="ie-globe-content">
@@ -52,7 +52,7 @@ export function NetworkGlobe() {
       <div className="ie-globe-description" aria-live="polite">
         {routes.length ? <><p className="ie-globe-label">Provider → API caller</p><ul>{routes.map(route => <li key={route.key}><span>{route.provider_country === route.caller_country ? `Within ${countryName(route.provider_country)}` : `${countryName(route.provider_country)} → ${countryName(route.caller_country)}`}</span><small>{route.count_band}</small></li>)}</ul></>
           : <div><h3>{error ? 'Activity unavailable' : !data ? 'Checking activity…' : !data.geography_enabled ? 'Country activity is not enabled yet' : 'No recent requests with country data'}</h3><p>{error ? 'Try again later.' : 'Completed requests with trusted country data appear here for everyone. Requests without country data are not plotted.'}</p></div>}
-        {!example && data && <p className="ie-globe-note">{located.length} of {data.completions.length} recent completions have country data. Everyone sees the same network activity. Times are rounded to the minute.</p>}
+        {!example && data && <p className="ie-globe-note">{located.length} distinct routes. Each route shows its latest completed request. Repeated requests refresh the route without taking another slot. Times are rounded to the minute.</p>}
         <p className="ie-globe-note">Country anchors are approximate, not device locations. VPNs and servers can change the apparent origin. Historical routes are not live streams.</p>
         <Link to="/docs/guides/country-activity">How this works</Link>
       </div>
