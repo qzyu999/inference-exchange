@@ -1,5 +1,7 @@
 # Update a pinned coordinator
 
+See [Alpha operations](alpha-operations.md) for the deployment inventory, maintenance checks, and recovery limits.
+
 Use this helper only for an existing launchd coordinator.
 The launcher must use a final `exec` line.
 Its release `cd` must be followed by `export PYTHONPATH`.

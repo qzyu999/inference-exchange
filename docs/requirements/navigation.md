@@ -63,3 +63,14 @@ MUST: Existing consumer links lead to Use the API. Existing both links lead to t
 - Principle: P1, P3, P6, P8
 - Status: implemented
 - Verified by: web/src/lib/getting-started.test.mjs, web/src/lib/mineral-app-visual.test.mjs
+
+
+### NAV-006: Warn without a Chat acknowledgment gate
+
+MUST: Browser Chat starts with an explicit L0/Open minimum and shows a nonblocking caution for L0/Open or L1/Contained. Explain that browser chat is not end-to-end encrypted and that the coordinator and provider can read prompts and responses. Label the selected value as a routing minimum, not a model's verified security level. Do not require a separate acknowledgment button.
+
+MUST: Keep drafting available during a trust mismatch when a model is ready. Sending still requires a provider that meets the chosen minimum. Do not automatically lower a user-selected minimum when the model or provider availability changes. Keep the TLS-versus-end-to-end notice for higher selections. This changes only the browser Chat default; it does not change SDK/API defaults or Getting Started's Open example consent.
+
+- Principle: P1, P3, P8
+- Status: implemented
+- Verified by: web/src/lib/alpha-ui.test.mjs, web/src/lib/chat-model-picker.test.mjs
