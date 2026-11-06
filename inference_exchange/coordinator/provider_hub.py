@@ -54,6 +54,8 @@ class ConnectedProvider:
     # Globally unique connection audit ID, including across coordinator restarts.
     session_id: str = field(default_factory=lambda: "conn-" + secrets.token_hex(16))
     # Operator removed this provider from routing; it stays connected (#113)
+    # Private, approximate handshake country. Never included in provider listings.
+    network_country: str | None = None
     quarantined: bool = False
     quarantine_reason: str = ""
 

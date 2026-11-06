@@ -686,3 +686,10 @@ async def get_reference_price_history(family_key: str = "", days: int = 30):
         "data_points": len(history),
         "history": history,
     }
+
+
+@router.get("/v1/exchange/country-activity")
+async def country_activity():
+    """Public, suppressed country totals for the previous UTC day. No trace links."""
+    from .country_activity import activity
+    return activity.snapshot()

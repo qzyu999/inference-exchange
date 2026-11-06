@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import useSWR from 'swr'
+import { NetworkGlobe } from '../components/NetworkGlobe'
 import { Link } from 'react-router-dom'
 import { api } from '../lib/api'
 import { requestOutcome } from '../lib/request-outcomes.js'
@@ -55,6 +56,7 @@ export function Overview() {
 
   return (
     <div className="space-y-6">
+      <NetworkGlobe />
       {/* Stat cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[

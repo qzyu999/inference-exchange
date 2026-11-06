@@ -34,6 +34,7 @@ ROUTES = {
     ("GET", "/v1/exchange/pricing"): PUBLIC,
     ("GET", "/v1/exchange/billing-config"): PUBLIC,
     ("GET", "/v1/exchange/stats"): PUBLIC,
+    ("GET", "/v1/exchange/country-activity"): PUBLIC,  # GEO-001 suppressed daily totals
     ("GET", "/v1/exchange/depth"): PUBLIC,
     ("GET", "/v1/exchange/tps"): PUBLIC,
     ("GET", "/v1/exchange/reputation"): PUBLIC,

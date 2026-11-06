@@ -23,6 +23,7 @@ from inference_exchange.shared.protocol import (
     RegisterMessage,
 )
 
+from .country_activity import cleanup_loop as country_cleanup_loop, trusted_country
 from .dependencies import set_auth, set_billing, set_event_bus, set_hub, set_reputation, set_store, set_tps_tracker, set_audit_log, set_price_collector
 from .audit_log import AuditLog
 from .operator_controls import reset_controls
@@ -245,6 +246,7 @@ def create_app() -> FastAPI:
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
+        country_task = asyncio.create_task(country_cleanup_loop())
         # Start attestation challenge background task
         task = asyncio.create_task(attestation_challenge_loop(hub))
         logger.info("Attestation challenge loop started (interval=5m, timeout=30s)")
@@ -257,6 +259,11 @@ def create_app() -> FastAPI:
 
         yield
 
+        country_task.cancel()
+        try:
+            await country_task
+        except asyncio.CancelledError:
+            pass
         price_collector.stop()
         task.cancel()
         try:
@@ -440,6 +447,7 @@ def create_app() -> FastAPI:
             registration_guard.finish()
             registration_pending = False
             live_provider = hub._providers[provider_id]
+            live_provider.network_country = trusted_country(ws.headers)
             provider_session_id = live_provider.session_id
             live_provider.token_id = token_id
             # Bind new earnings to the authenticated credential, never the
