@@ -63,10 +63,10 @@ def ready(url: str):
             with urlopen(url + '/health', timeout=2) as response:
                 healthy = response.status == 200
             try:
-                with urlopen(url + '/v1/exchange/activity/recent', timeout=2) as response:
+                with urlopen(url + '/v1/exchange/activity/network', timeout=2) as response:
                     route_exists = response.status == 200
-            except HTTPError as error:
-                route_exists = error.code in (401, 403)
+            except HTTPError:
+                route_exists = False
             if healthy and route_exists:
                 return
         except (URLError, TimeoutError, OSError):

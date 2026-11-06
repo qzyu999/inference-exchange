@@ -42,7 +42,7 @@ MUST: `/metrics` labels requests by route template. It does not include path val
 
 ### PRIV-006: Public aggregates are not targetable
 
-MUST: Public metrics are aggregates in time buckets. Do not publish a bucket that has fewer than k requests.
+MUST: Public aggregate metrics use time buckets. Do not publish an aggregate bucket that has fewer than k requests. GEO-003 is an explicit exception for the owner-approved shared activity projection in decision 0007. It does not publish identifiers and does not claim anonymity.
 
 - Principle: P2
 - Status: not-implemented

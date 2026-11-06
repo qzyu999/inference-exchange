@@ -10,7 +10,7 @@ The system must not send a request to a provider below the trust level that the 
 
 ## P2. Make the system transparent, not the users
 
-Publish how the system works: code, configuration, infrastructure, and aggregate metrics. Do not publish data that identifies a user or a single request. Public data must not let a person find, target, or profile a user.
+Publish how the system works: code, configuration, infrastructure, aggregate metrics, and an explicitly allowlisted account-free activity view. Do not publish account identities, original request identifiers, credentials, IP addresses, prompts, or responses in that view. Round its timestamps to the minute. Do not describe removal of identifiers as an anonymity guarantee. Detailed request traces and personal billing remain private. See [decision 0007](decisions/0007-shared-network-activity.md).
 
 ## P3. A claim is not evidence
 

@@ -727,3 +727,11 @@ async def get_trace(request_id: str, request: Request):
     if trace is None:
         raise HTTPException(status_code=404, detail="Request trace not found in retained history")
     return {"trace": trace}
+
+
+@router.get("/v1/exchange/activity/network")
+async def get_network_activity():
+    """Shared account-free activity. Exact traces remain owner/admin only."""
+    from .dependencies import get_store
+    from .country_activity import enabled
+    return get_store().public_network_activity(geography_enabled=enabled())

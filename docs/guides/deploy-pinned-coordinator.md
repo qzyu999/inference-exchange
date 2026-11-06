@@ -35,7 +35,7 @@ It restarts the loaded service with `launchctl kickstart`.
 The restart briefly interrupts in-flight requests.
 Providers must reconnect.
 
-It checks local health and the new private activity route.
+It checks local health and the new public network activity route.
 It does not send a billable inference request.
 A failed check restores the old launcher and attempts to restart that version.
 The database remains in place.
@@ -50,11 +50,12 @@ Remove old backups according to your retention policy.
 
 ## Review after deployment
 
-Sign in and open Overview.
+Open Overview while signed in and signed out.
+Both views show the same shared network activity.
 Send a new API request with a compatible trust setting.
 Check that the completion appears in Request outcomes.
 The list uses request time, newest first.
-The request stays in place when its status changes.
+The private trace keeps its request time when its status changes.
 A same-country route has a pulse marker.
 A route requires trusted country data from both connections.
 The provider must reconnect after geography is enabled.

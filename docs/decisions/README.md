@@ -12,3 +12,4 @@ Format: one file for each decision, named `NNNN-short-title.md`. Do not change a
 | [0004](0004-single-vm-sqlite.md) | One VM and SQLite for alpha | Accepted |
 | [0005](0005-opentofu.md) | OpenTofu for infrastructure as code | Accepted |
 | [0006](0006-docs-as-requirements.md) | Requirements in docs, checked by CI | Accepted |
+| [0007](0007-shared-network-activity.md) | Shared account-free recent activity | Accepted |
