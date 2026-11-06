@@ -16,10 +16,6 @@ export function About() {
         <h2>Built on the Open Confidential Inference Protocol (OCIP)</h2>
         <p>Know the security levels of each hardware configuration.</p>
       </section>
-      <section>
-        <h2>Built by Jared Yu.</h2>
-        <p><a href="https://github.com/qzyu999/inference-exchange">View the project on GitHub</a></p>
-      </section>
     </PublicPage>
   )
 }
