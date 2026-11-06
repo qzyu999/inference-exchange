@@ -29,6 +29,7 @@ from inference_exchange.shared.protocol import (
     InferenceResponseChunk,
 )
 
+from .country_activity import activity as country_activity, consumer_country, trusted_country
 from .dependencies import (
     _add_trace,
     _complete_trace,
@@ -134,6 +135,9 @@ def _make_billing_callback(
     the consumer HTTP response is still open.
     """
 
+    caller_country = consumer_country.get()
+    provider_country = getattr(provider, "network_country", None)
+
     def callback(done_msg: InferenceDone):
         actual_input = done_msg.input_tokens if done_msg.input_tokens > 0 else input_token_estimate
         actual_cached = done_msg.cached_tokens
@@ -169,6 +173,11 @@ def _make_billing_callback(
             queue_wait_ms=queue_wait_ms,
         )
 
+        # Country aggregation must never affect settlement or request delivery.
+        try:
+            country_activity.record(provider_country, caller_country, consumer_id, request_id)
+        except Exception:
+            logger.warning("Country activity skipped")
         _complete_trace(request_id, consumer_id, served_model, latency_ms)
 
         logger.info(
@@ -250,7 +259,11 @@ async def chat_completions(request: ChatCompletionRequest, raw_request: Request)
     if not _rate_limiter.allow(consumer_id):
         raise RateLimitExceeded()
 
-    return await run_guarded(consumer_id, lambda: _route_and_dispatch(request, consumer_id))
+    country_token = consumer_country.set(trusted_country(raw_request.headers))
+    try:
+        return await run_guarded(consumer_id, lambda: _route_and_dispatch(request, consumer_id))
+    finally:
+        consumer_country.reset(country_token)
 
 
 async def _route_and_dispatch(request: ChatCompletionRequest, consumer_id: str):

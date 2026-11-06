@@ -24,6 +24,9 @@ export async function post<T>(path: string, body: unknown): Promise<T> {
 
 // --- Typed API calls ---
 
+export interface CountryRoute { provider_country: string; caller_country: string; count_band: string }
+export interface CountryActivity { enabled: boolean; period: string | null; routes: CountryRoute[] }
+
 export interface HealthResponse {
   status: string
   providers: number
@@ -205,6 +208,7 @@ export const api = {
   depth: () => get<{ asks: DepthLevel[]; total_capacity: number; available_capacity: number }>('/v1/exchange/depth'),
   balance: () => get<Balance>('/v1/exchange/balance'),
   history: () => get<{ transactions: Transaction[] }>('/v1/exchange/history'),
+  countryActivity: () => get<CountryActivity>('/v1/exchange/country-activity'),
   traces: () => get<{ traces: Trace[] }>('/v1/exchange/traces'),
   reputation: () => get<{ reputation: ReputationEntry[] }>('/v1/exchange/reputation'),
   tps: () => get<{ tps_stats: TPSEntry[] }>('/v1/exchange/tps'),
