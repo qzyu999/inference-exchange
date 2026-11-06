@@ -1,5 +1,103 @@
-// Two task-based entry points. Credentials stay in the existing product pages.
+// One learning journey and two setup paths. Credentials stay in the existing product pages.
 export const JOURNEYS = [
+{
+  "id": "ocip",
+  "name": "Understand the Open Confidential Inference Protocol (OCIP)",
+  "summary": "Learn the security levels, one short step at a time.",
+  "audience": "Start here · No setup needed",
+  "steps": [
+    {
+      "id": "protocol",
+      "title": "A shared rulebook.",
+      "description": "OCIP defines how your app, the exchange, and a provider communicate.",
+      "takeaway": "One protocol connects different machines.",
+      "help": "OCIP is a protocol. Inference Exchange is one implementation. It handles model discovery, routing, and billing.",
+      "label": "The protocol",
+      "reference": "https://github.com/qzyu999/ocip/blob/main/spec/01-overview.md",
+      "expected": "One protocol connects different machines."
+    },
+    {
+      "id": "open",
+      "title": "Open means your message can be read.",
+      "description": "The coordinator and provider can read your message and response.",
+      "takeaway": "Use nonsensitive messages with Open.",
+      "help": "An encrypted connection protects data in transit. It does not stop the machines processing your request from reading it.",
+      "label": "L0 · Open",
+      "reference": "https://github.com/qzyu999/ocip/blob/main/spec/02-confidence-levels.md",
+      "expected": "Use nonsensitive messages with Open."
+    },
+    {
+      "id": "contained",
+      "title": "Contained adds a sandbox.",
+      "description": "A container or sandbox separates the inference software. The host administrator can still access its data.",
+      "takeaway": "A sandbox is not protection from the host owner.",
+      "help": "Containers help isolate software. They do not make the machine owner unable to inspect prompts or memory.",
+      "label": "L1 · Contained",
+      "reference": "https://github.com/qzyu999/ocip/blob/main/spec/02-confidence-levels.md",
+      "expected": "A sandbox is not protection from the host owner."
+    },
+    {
+      "id": "hardened",
+      "title": "Hardened adds stronger isolation.",
+      "description": "Operating-system or virtual-machine protections aim to restrict access to inference memory.",
+      "takeaway": "The exact setup and evidence matter.",
+      "help": "Hardening is not one universal guarantee. Read the threat model for the actual platform and configuration.",
+      "label": "L2 · Hardened",
+      "reference": "https://github.com/qzyu999/ocip/blob/main/spec/02-confidence-levels.md",
+      "expected": "The exact setup and evidence matter."
+    },
+    {
+      "id": "confidential",
+      "title": "Confidential protects CPU memory.",
+      "description": "This level calls for hardware-backed protection of CPU memory. Accelerator memory needs separate protection.",
+      "takeaway": "Protecting the CPU does not automatically protect the GPU.",
+      "help": "A trusted execution environment has a specific threat model. Transport encryption alone does not meet this level.",
+      "label": "L3 · Confidential",
+      "reference": "https://github.com/qzyu999/ocip/blob/main/spec/02-confidence-levels.md",
+      "expected": "Protecting the CPU does not automatically protect the GPU."
+    },
+    {
+      "id": "fully-confidential",
+      "title": "Cover the whole inference path.",
+      "description": "The highest level calls for protected CPU and accelerator memory, with evidence covering both.",
+      "takeaway": "Check every part of the path.",
+      "help": "These are protocol requirements, not a claim that this alpha offers verified hardware confidentiality. Timing and traffic volume can still be visible.",
+      "label": "L4 · Fully confidential",
+      "reference": "https://github.com/qzyu999/ocip/blob/main/spec/02-confidence-levels.md",
+      "expected": "Check every part of the path."
+    },
+    {
+      "id": "evidence",
+      "title": "Claimed is not verified.",
+      "description": "A provider can claim a level. Verification needs evidence for the actual hardware and configuration.",
+      "takeaway": "A label alone is not proof.",
+      "help": "Look for verified evidence and its limits. Being online, owning an Apple Silicon Mac, or reporting a level does not establish confidentiality.",
+      "label": "Check the evidence",
+      "reference": "/docs/security/threat-model",
+      "expected": "A label alone is not proof."
+    },
+    {
+      "id": "minimum",
+      "title": "You choose your minimum.",
+      "description": "IE routes to a matching provider or rejects the request. It must not silently lower your requirement.",
+      "takeaway": "No match means your requirement stays in place.",
+      "help": "A no-compatible-provider outcome can mean no provider meets your minimum. Lower it only if you accept the weaker protection.",
+      "label": "Your choice",
+      "reference": "/docs/requirements/routing",
+      "expected": "No match means your requirement stays in place."
+    },
+    {
+      "id": "alpha",
+      "title": "Know what you are testing.",
+      "description": "The Apple Silicon preview uses Open inference. Start with a nonsensitive test message.",
+      "takeaway": "The protocol describes more than this preview provides.",
+      "help": "The API setup asks for explicit consent before showing an Open example. Treat protocol levels and available verified protection as separate things.",
+      "label": "The alpha today",
+      "reference": "/docs/guides/provider-l0-apple-silicon-preview",
+      "expected": "The protocol describes more than this preview provides."
+    }
+  ]
+},
   {
     "id": "api",
     "name": "Use the API",
