@@ -44,7 +44,7 @@ export function Chat() {
   const [streaming, setStreaming] = useState(false)
   const requestedModel = searchParams.get('model') || ''
   const [model, setModel] = useState(() => requestedModel)
-  const [minTrust, setMinTrust] = useState('hardened')
+  const [minTrust, setMinTrust] = useState('open')
   const [maxPrice, setMaxPrice] = useState('0.15')
   const [showSidebar, setShowSidebar] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -99,6 +99,7 @@ export function Chat() {
   useEffect(() => { if (!streaming) inputRef.current?.focus() }, [streaming])
 
   const trustInfo = TRUST_COLORS[minTrust] || TRUST_COLORS.hardened
+  const minimumLabel = TRUST_LEVELS.find(level => level.value === minTrust)?.label || trustInfo.label
   const trustOrder: Record<string, number> = { open: 0, contained: 1, hardened: 2, confidential: 3 }
   // Show a trust mismatch before a request is sent; never silently weaken privacy.
   const trustMismatch = minTrust !== 'open' && modelProviders.length > 0 &&
@@ -243,7 +244,7 @@ export function Chat() {
             className="text-[11px] font-semibold px-2.5 py-1 rounded-full"
             style={{ background: trustInfo.bg, color: trustInfo.text }}
           >
-            {trustInfo.label}
+            Minimum: {minimumLabel}
           </span>
 
           <div className="flex-1" />
@@ -298,44 +299,28 @@ export function Chat() {
           </div>
         ) : null}
 
-        {/* The public alpha may have only an L0 provider. Make that visible before the user sends. */}
+        {/* A mismatch never lowers a user-selected minimum. Drafting stays available. */}
         {trustMismatch && (
-          <div className="flex flex-wrap items-center gap-2 px-4 py-3 mb-3 rounded-xl text-xs"
-            style={{ background: UI.warningSurface, color: UI.text, border: "1px solid var(--ui-border)" }}>
-            <span className="flex-1 min-w-48">
-              This model is available, but no provider meets your {trustInfo.label} minimum.
-              To test with L0/Open, choose it explicitly below. At L0, both the IE coordinator
-              and the provider can read your prompts and responses. Use nonsensitive test messages only.
-            </span>
-            <button
-              onClick={() => setMinTrust('open')}
-              className="font-semibold px-3 py-1.5 rounded-lg border shrink-0"
-              style={{ borderColor: UI.focus, color: UI.accent }}
-            >
-              I understand — use L0/Open
-            </button>
+          <div role="status" className="px-4 py-3 mb-3 rounded-xl text-xs"
+            style={{ background: UI.warningSurface, color: UI.body, border: "1px solid var(--ui-border)" }}>
+            No online provider for this model meets your {minimumLabel} minimum.
+            You can keep typing. To send, wait for a compatible provider or change your minimum in Advanced settings.
           </div>
         )}
 
-        {/* Privacy downgrade warning */}
-        {(minTrust === 'open' || minTrust === 'contained') && (
-          <div className="flex items-center gap-2 px-4 py-2.5 mb-3 rounded-xl text-xs" style={{ background: UI.warningSurface, color: UI.accent, border: "1px solid var(--ui-border)" }}>
-            <span>⚠</span>
-            <span>
-              {minTrust === 'open'
-                ? 'L0/Open selected: the coordinator and provider can read prompts and responses. Do not send secrets.'
-                : 'L1 providers have basic isolation only.'}
-            </span>
-            <button onClick={() => setMinTrust('hardened')} className="ml-auto font-medium shrink-0" style={{ color: UI.accent }}>
-              Use L2
-            </button>
+        {(minTrust === 'open' || minTrust === 'contained') ? (
+          <div role="note" aria-label="OCIP privacy caution" className="px-4 py-3 mb-3 rounded-xl text-xs leading-relaxed"
+            style={{ background: UI.warningSurface, color: UI.body, border: "1px solid var(--ui-border)" }}>
+            <strong style={{ color: UI.warning }}>Caution · {minimumLabel} minimum</strong>
+            <p className="mt-1">This chat is not end-to-end encrypted. The coordinator and provider can read prompts and responses. Avoid sensitive information.</p>
+            <Link to="/start/ocip" className="inline-block mt-1 underline text-ui-link">Understand OCIP</Link>
+          </div>
+        ) : (
+          <div role="note" className="text-xs leading-relaxed mb-3" style={{ color: UI.body }}>
+            Browser chat uses TLS, not end-to-end encryption. The coordinator can read prompts
+            and responses regardless of the provider trust selection.
           </div>
         )}
-
-        <div className="text-xs leading-relaxed mb-3" style={{ color: UI.body }}>
-          Browser chat uses TLS, not end-to-end encryption. The coordinator can read prompts
-          and responses regardless of the provider trust selection.
-        </div>
 
         {/* Messages */}
         <div ref={scrollRef} className="flex-1 overflow-y-auto space-y-4 pb-4">
@@ -404,7 +389,7 @@ export function Chat() {
               ref={inputRef}
               onKeyDown={e => e.key === 'Enter' && !e.shiftKey && send()}
               placeholder="Message the exchange..."
-              disabled={streaming || trustMismatch || !modelReady}
+              disabled={streaming || !modelReady}
               className="flex-1 px-4 py-3 bg-ui-surface border border-ui-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-ui-warning placeholder:text-ui-muted"
             />
             {streaming ? (
@@ -448,7 +433,7 @@ export function Chat() {
                   <button key={t.value} type="button" onClick={() => setMinTrust(t.value)}
                     aria-pressed={minTrust === t.value}
                     className="text-xs px-2.5 py-1.5 rounded-lg border"
-                    style={{ background: minTrust === t.value ? tc.bg : 'white',
+                    style={{ background: minTrust === t.value ? tc.bg : UI.surface,
                       color: minTrust === t.value ? tc.text : UI.text, borderColor: UI.border }}>
                     {t.label}
                   </button>

@@ -23,6 +23,7 @@ If the code and a requirement disagree, the code is wrong, or the requirement mu
 | [Decisions](decisions/README.md) | Why the project chose each option |
 | [Status](status.md) | What works and the known limits |
 | [Getting started](guides/getting-started.md) | Run the system on your computer or a server |
+| [Alpha operations](guides/alpha-operations.md) | Releases, service pins, backup/recovery, geography, and routine checks |
 | [Security](security/threat-model.md) | Threat model and protocol |
 | [Archive](archive/README.md) | Earlier design notes (not normative) |
 

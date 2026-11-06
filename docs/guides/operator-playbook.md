@@ -1,5 +1,7 @@
 # Operator playbook
 
+For releases, service pins, backup/recovery, and routine maintenance, see [Alpha operations](alpha-operations.md).
+
 This guide tells an operator how to find and stop abuse during the alpha. It uses only metadata. Do not read user prompts or responses.
 
 All commands need an admin session. Sign in with an email that is in `IE_ADMIN_EMAILS`. Then send the requests from the browser session, or copy the `ie_session` cookie to `curl`.
