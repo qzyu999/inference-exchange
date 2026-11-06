@@ -95,21 +95,17 @@ function ProvidersIcon({ className }: { className?: string }) {
 }
 
 function OfferComputeIcon({ className }: { className?: string }) {
+  // Use the selected Untitled UI asset from its publisher, without redistributing it.
+  const image = 'url("https://cdn.prod.website-files.com/6365d860c7b7a7191055eb8a/69ab9bf38699e5f36a162e59_server-03.svg")'
   return (
-    <svg className={className} width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
-      <path d="m10.852 14.772-.383.923" />
-  <path d="M13.148 14.772a3 3 0 1 0-2.296-5.544l-.383-.923" />
-  <path d="m13.148 9.228.383-.923" />
-  <path d="m13.53 15.696-.382-.924a3 3 0 1 1-2.296-5.544" />
-  <path d="m14.772 10.852.923-.383" />
-  <path d="m14.772 13.148.923.383" />
-  <path d="M4.5 10H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-.5" />
-  <path d="M4.5 14H4a2 2 0 0 0-2 2v4a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-4a2 2 0 0 0-2-2h-.5" />
-  <path d="M6 18h.01" />
-  <path d="M6 6h.01" />
-  <path d="m9.228 10.852-.923-.383" />
-  <path d="m9.228 13.148-.923.383" />
-    </svg>
+    <span className={className} aria-hidden="true" style={{
+      display: 'inline-block', width: 18, height: 18,
+      backgroundColor: 'currentColor',
+      maskImage: image, WebkitMaskImage: image,
+      maskSize: 'contain', WebkitMaskSize: 'contain',
+      maskRepeat: 'no-repeat', WebkitMaskRepeat: 'no-repeat',
+      maskPosition: 'center', WebkitMaskPosition: 'center',
+    }} />
   )
 }
 
