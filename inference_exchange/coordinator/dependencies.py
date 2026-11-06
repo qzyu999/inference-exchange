@@ -50,15 +50,24 @@ TRACE_OWNER_KEY = "_consumer_id"
 
 
 def _add_trace(trace: dict, consumer_id: str | None = None):
+    if _store is not None:
+        try:
+            _store.save_request_outcome(trace, consumer_id)
+        except Exception:
+            logger.warning("Request outcome could not be saved")
+        return
     trace[TRACE_OWNER_KEY] = consumer_id
     _request_traces.append(trace)
     if len(_request_traces) > MAX_TRACES:
         _request_traces.pop(0)
 
-def _complete_trace(request_id: str, consumer_id: str, served_model: str | None, latency_ms: int):
+def _complete_trace(request_id: str, consumer_id: str, served_model: str | None, latency_ms: int, provider_country=None, caller_country=None):
     """Amend the original match decision, keeping request history unambiguous."""
+    if _store is not None:
+        _store.amend_request_outcome(request_id, consumer_id=consumer_id, status="completed", served_model=served_model, latency_ms=latency_ms, provider_country=provider_country, caller_country=caller_country)
+        return
     for trace in reversed(_request_traces):
-        if trace.get("request_id") == request_id[:8] and trace.get(TRACE_OWNER_KEY) == consumer_id:
+        if trace.get("request_id") in (request_id, request_id[:8]) and trace.get(TRACE_OWNER_KEY) == consumer_id:
             if trace.get("status") in ("matched", "matched_from_queue"):
                 trace.update(status="completed", served_model=served_model, latency_ms=latency_ms)
             return
@@ -66,6 +75,8 @@ def _complete_trace(request_id: str, consumer_id: str, served_model: str | None,
 
 def traces_for(consumer_id: str | None, limit: int = 30) -> list[dict]:
     """Recent traces, newest first. consumer_id=None returns all traces (admin view)."""
+    if _store is not None:
+        return _store.request_outcomes(consumer_id, limit)
     out = []
     for t in reversed(_request_traces):
         if consumer_id is not None and t.get(TRACE_OWNER_KEY) != consumer_id:
@@ -194,3 +205,13 @@ def set_price_collector(collector):
 
 def get_price_collector():
     return _price_collector
+
+
+async def outcome_cleanup_loop():
+    import asyncio
+    while True:
+        await asyncio.sleep(60)
+        try:
+            get_store().request_outcomes(None, 1)
+        except Exception:
+            logger.warning("Request outcome retention failed")

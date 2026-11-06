@@ -27,6 +27,10 @@ export async function post<T>(path: string, body: unknown): Promise<T> {
 export interface CountryRoute { provider_country: string; caller_country: string; count_band: string }
 export interface CountryActivity { enabled: boolean; period: string | null; routes: CountryRoute[] }
 
+export interface RecentActivity { scope: string; enabled: boolean; retention_days: number; limit: number; requests: { request_id: string; timestamp: number; provider_country: string | null; caller_country: string | null }[] }
+export interface Usage { scope: string; period: string; cost_micro: number; requests: number; tokens: number; models: { served_model: string | null; requests: number; cost_micro: number; tokens: number }[] }
+export interface Signups { total_accounts: number; created_today: number; created_last_30_days: number; since: string; through: string; countries: { country: string; accounts: number }[]; daily: { date: string; accounts: number }[] }
+
 export interface HealthResponse {
   status: string
   providers: number
@@ -124,6 +128,7 @@ export interface DepthLevel {
 }
 
 export interface Transaction {
+  full_request_id?: string
   request_id: string
   model: string
   tokens: number
@@ -208,7 +213,11 @@ export const api = {
   depth: () => get<{ asks: DepthLevel[]; total_capacity: number; available_capacity: number }>('/v1/exchange/depth'),
   balance: () => get<Balance>('/v1/exchange/balance'),
   history: () => get<{ transactions: Transaction[] }>('/v1/exchange/history'),
+  usage: () => get<Usage>('/v1/exchange/usage'),
+  recentActivity: () => get<RecentActivity>('/v1/exchange/activity/recent'),
+  signups: () => get<Signups>('/v1/admin/signups'),
   countryActivity: () => get<CountryActivity>('/v1/exchange/country-activity'),
+  trace: (id: string) => get<{ trace: Trace }>(`/v1/exchange/traces/${encodeURIComponent(id)}`),
   traces: () => get<{ traces: Trace[] }>('/v1/exchange/traces'),
   reputation: () => get<{ reputation: ReputationEntry[] }>('/v1/exchange/reputation'),
   tps: () => get<{ tps_stats: TPSEntry[] }>('/v1/exchange/tps'),

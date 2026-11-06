@@ -246,6 +246,8 @@ def create_app() -> FastAPI:
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
+        from .dependencies import outcome_cleanup_loop
+        outcome_task = asyncio.create_task(outcome_cleanup_loop())
         country_task = asyncio.create_task(country_cleanup_loop())
         # Start attestation challenge background task
         task = asyncio.create_task(attestation_challenge_loop(hub))
@@ -259,6 +261,11 @@ def create_app() -> FastAPI:
 
         yield
 
+        outcome_task.cancel()
+        try:
+            await outcome_task
+        except asyncio.CancelledError:
+            pass
         country_task.cancel()
         try:
             await country_task

@@ -1,12 +1,13 @@
 """SQLite persistence layer — survives restarts.
 
 Stores: accounts, API keys, billing transactions, provider history.
-Everything else (live WebSocket connections, in-flight requests) is
-inherently ephemeral and stays in-memory.
+Recorded request outcomes use a bounded operational table.
+Live WebSocket connections and in-flight execution stay in memory.
 
 DB location: ~/.inference-exchange/exchange.db
 """
 
+import json
 import hashlib
 import hmac
 import logging
@@ -27,7 +28,23 @@ DB_DIR = Path.home() / ".inference-exchange"
 DB_PATH = DB_DIR / "exchange.db"
 DEFAULT_CONSUMER_ID = "default-consumer"
 
+TRACE_RETENTION_SECONDS = 7 * 86400
+TRACE_MAX_ROWS = 10000
+
 SCHEMA = """
+CREATE TABLE IF NOT EXISTS request_outcomes (
+    request_id TEXT PRIMARY KEY,
+    consumer_id TEXT,
+    timestamp REAL NOT NULL,
+    status TEXT NOT NULL,
+    payload TEXT NOT NULL,
+    provider_country TEXT,
+    caller_country TEXT
+);
+CREATE INDEX IF NOT EXISTS outcomes_time ON request_outcomes(timestamp DESC, request_id DESC);
+CREATE INDEX IF NOT EXISTS outcomes_owner_time ON request_outcomes(consumer_id, timestamp DESC, request_id DESC);
+CREATE INDEX IF NOT EXISTS outcomes_status_time ON request_outcomes(status, timestamp DESC, request_id DESC);
+
 CREATE TABLE IF NOT EXISTS accounts (
     account_id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
@@ -236,6 +253,7 @@ class Store:
 
         # Migrations for existing databases
         self._migrate()
+        self.interrupt_request_outcomes()
 
         logger.info(f"Store initialized: {db_path}")
 
@@ -285,6 +303,8 @@ class Store:
 
         # GitHub OAuth identity + server-side session revocation (#69)
         user_columns = {row[1] for row in self._conn.execute("PRAGMA table_info(users)").fetchall()}
+        if "signup_country" not in user_columns:
+            self._conn.execute("ALTER TABLE users ADD COLUMN signup_country TEXT")
         if "github_id" not in user_columns:
             self._conn.execute("ALTER TABLE users ADD COLUMN github_id TEXT")
         if "session_version" not in user_columns:
@@ -640,6 +660,104 @@ class Store:
             "total_tokens": row["total_tokens"],
             "accounts": self._conn.execute("SELECT COUNT(*) FROM accounts").fetchone()[0],
         }
+
+    # --- Operational history. This is separate from the immutable money ledger. ---
+
+    def _prune_outcomes(self):
+        self._conn.execute("DELETE FROM request_outcomes WHERE timestamp < ?", (time.time() - TRACE_RETENTION_SECONDS,))
+        self._conn.execute("""DELETE FROM request_outcomes WHERE request_id IN
+            (SELECT request_id FROM request_outcomes ORDER BY timestamp DESC, request_id DESC LIMIT -1 OFFSET ?)""", (TRACE_MAX_ROWS,))
+
+    @serialized_write
+    def save_request_outcome(self, trace: dict, consumer_id: str | None):
+        self._conn.execute("""INSERT INTO request_outcomes(request_id, consumer_id, timestamp, status, payload)
+            VALUES (?, ?, ?, ?, ?) ON CONFLICT(request_id) DO NOTHING""",
+            (trace["request_id"], consumer_id, trace.get("timestamp", time.time()), trace.get("status", "unknown"), json.dumps(trace)))
+        self._prune_outcomes()
+
+    @serialized_write
+    def amend_request_outcome(self, request_id: str, *, consumer_id: str | None = None,
+                              status: str, served_model=None, latency_ms=None,
+                              provider_country=None, caller_country=None):
+        row = self._conn.execute("SELECT * FROM request_outcomes WHERE request_id = ?", (request_id,)).fetchone()
+        if not row or (consumer_id is not None and row["consumer_id"] != consumer_id):
+            return
+        # A duplicate error or callback must not overwrite a confirmed completion.
+        if row["status"] not in ("matched", "matched_from_queue"):
+            return
+        trace = json.loads(row["payload"])
+        trace.update(status=status)
+        if served_model is not None:
+            trace["served_model"] = served_model
+        if latency_ms is not None:
+            trace["latency_ms"] = latency_ms
+        from .country_activity import COUNTRIES
+        source = provider_country if provider_country in COUNTRIES and caller_country in COUNTRIES else None
+        target = caller_country if source else None
+        self._conn.execute("""UPDATE request_outcomes SET status=?, payload=?, provider_country=?, caller_country=?
+            WHERE request_id=?""", (status, json.dumps(trace), source, target, request_id))
+        self._prune_outcomes()
+
+    @serialized_write
+    def interrupt_request_outcomes(self):
+        rows = self._conn.execute("SELECT request_id, payload FROM request_outcomes WHERE status IN ('matched', 'matched_from_queue')").fetchall()
+        for row in rows:
+            trace = json.loads(row["payload"])
+            trace.update(status="interrupted", reason="Coordinator restarted before completion was confirmed.")
+            self._conn.execute("UPDATE request_outcomes SET status='interrupted', payload=? WHERE request_id=?", (json.dumps(trace), row["request_id"]))
+        self._prune_outcomes()
+
+    @serialized_write
+    def request_outcomes(self, consumer_id: str | None, limit: int = 30, *, completed: bool = False):
+        self._prune_outcomes()
+        clauses, params = [], []
+        if consumer_id is not None:
+            clauses.append("consumer_id = ?")
+            params.append(consumer_id)
+        if completed:
+            clauses.append("status = 'completed'")
+        where = " WHERE " + " AND ".join(clauses) if clauses else ""
+        rows = self._conn.execute("SELECT * FROM request_outcomes" + where + " ORDER BY timestamp DESC, request_id DESC LIMIT ?", (*params, min(max(limit, 1), 100))).fetchall()
+        if completed:
+            return [{"request_id": r["request_id"], "timestamp": r["timestamp"], "provider_country": r["provider_country"], "caller_country": r["caller_country"]} for r in rows]
+        return [{k: v for k, v in json.loads(r["payload"]).items() if k != "_consumer_id"} for r in rows]
+
+    @serialized_write
+    def request_outcome(self, request_id: str, consumer_id: str | None):
+        self._prune_outcomes()
+        row = self._conn.execute("SELECT consumer_id, payload FROM request_outcomes WHERE request_id=?", (request_id,)).fetchone()
+        if not row or (consumer_id is not None and row["consumer_id"] != consumer_id):
+            return None
+        return {k: v for k, v in json.loads(row["payload"]).items() if k != "_consumer_id"}
+
+    @serialized_read
+    def consumer_usage(self, consumer_id: str):
+        rows = self._conn.execute("""SELECT served_model, COUNT(*) AS requests,
+            SUM(cost_micro) AS cost_micro, SUM(input_tokens + output_tokens) AS tokens
+            FROM transactions WHERE consumer_id=? GROUP BY served_model ORDER BY cost_micro DESC""", (consumer_id,)).fetchall()
+        models = [dict(row) for row in rows]
+        return {"scope": "your_account", "period": "all_time", "cost_micro": sum(r["cost_micro"] for r in models),
+                "requests": sum(r["requests"] for r in models), "tokens": sum(r["tokens"] for r in models), "models": models}
+
+    @serialized_read
+    def signup_analytics(self):
+        # Existing accounts, not humans or visits. Deleted accounts are excluded.
+        from datetime import datetime, timezone
+        today = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+        since = today.timestamp() - 29 * 86400
+        rows = self._conn.execute("SELECT created_at, signup_country FROM users").fetchall()
+        countries, daily = {}, {}
+        for row in rows:
+            country = row["signup_country"] or "unknown"
+            countries[country] = countries.get(country, 0) + 1
+            if since <= row["created_at"] < today.timestamp() + 86400:
+                day = datetime.fromtimestamp(row["created_at"], timezone.utc).date().isoformat()
+                daily[day] = daily.get(day, 0) + 1
+        return {"total_accounts": len(rows), "created_today": daily.get(today.date().isoformat(), 0),
+                "created_last_30_days": sum(daily.values()), "since": datetime.fromtimestamp(since, timezone.utc).date().isoformat(),
+                "through": today.date().isoformat(), "countries": [{"country": k, "accounts": v} for k, v in sorted(countries.items())],
+                "daily": [{"date": datetime.fromtimestamp(since + i * 86400, timezone.utc).date().isoformat(),
+                           "accounts": daily.get(datetime.fromtimestamp(since + i * 86400, timezone.utc).date().isoformat(), 0)} for i in range(30)]}
 
     # --- Reference price persistence (#84) ---
 
@@ -1143,7 +1261,7 @@ class Store:
     # --- User accounts ---
 
     @serialized_write
-    def create_user(self, email: str, password: str, name: str = "") -> dict:
+    def create_user(self, email: str, password: str, name: str = "", signup_country: str | None = None) -> dict:
         """Create a user with email/password. Returns user dict.
 
         Also creates a billing account and a default API key for the user.
@@ -1159,8 +1277,8 @@ class Store:
 
         try:
             self._conn.execute(
-                "INSERT INTO users (user_id, email, password_hash, name, created_at) VALUES (?, ?, ?, ?, ?)",
-                (user_id, email.lower().strip(), password_hash, name or email.split("@")[0], time.time()),
+                "INSERT INTO users (user_id, email, password_hash, name, created_at, signup_country) VALUES (?, ?, ?, ?, ?, ?)",
+                (user_id, email.lower().strip(), password_hash, name or email.split("@")[0], time.time(), signup_country),
             )
         except sqlite3.IntegrityError:
             raise ValueError(f"Email already registered: {email}")
@@ -1223,7 +1341,7 @@ class Store:
         }
 
     @serialized_write
-    def upsert_github_user(self, github_id: str, login: str, email: str, name: str) -> tuple[dict, bool]:
+    def upsert_github_user(self, github_id: str, login: str, email: str, name: str, signup_country: str | None = None) -> tuple[dict, bool]:
         """Find or create the user for a GitHub identity. Returns (user, created)."""
         row = self._conn.execute("SELECT * FROM users WHERE github_id = ?", (github_id,)).fetchone()
         now = time.time()
@@ -1237,8 +1355,8 @@ class Store:
         name = name or login
         try:
             self._conn.execute(
-                "INSERT INTO users (user_id, email, password_hash, name, created_at, last_login_at, github_id) VALUES (?, ?, '', ?, ?, ?, ?)",
-                (user_id, email, name, now, now, github_id),
+                "INSERT INTO users (user_id, email, password_hash, name, created_at, last_login_at, github_id, signup_country) VALUES (?, ?, '', ?, ?, ?, ?, ?)",
+                (user_id, email, name, now, now, github_id, signup_country),
             )
         except sqlite3.IntegrityError:
             raise ValueError(f"Email already registered with a password account: {email}")
@@ -1279,6 +1397,7 @@ class Store:
             ).fetchone():
                 raise ProviderNodesExist()
             conn.execute("DELETE FROM api_keys WHERE consumer_id = ?", (user_id,))
+            conn.execute("DELETE FROM request_outcomes WHERE consumer_id = ?", (user_id,))
             conn.execute("DELETE FROM users WHERE user_id = ?", (user_id,))
             conn.execute("DELETE FROM accounts WHERE account_id = ?", (user_id,) )
 

@@ -178,7 +178,10 @@ def _make_billing_callback(
             country_activity.record(provider_country, caller_country, consumer_id, request_id)
         except Exception:
             logger.warning("Country activity skipped")
-        _complete_trace(request_id, consumer_id, served_model, latency_ms)
+        try:
+            _complete_trace(request_id, consumer_id, served_model, latency_ms, provider_country, caller_country)
+        except Exception:
+            logger.warning("Request outcome completion could not be saved")
 
         logger.info(
             f"[{request_id[:8]}] Billed via callback: "
@@ -301,7 +304,7 @@ async def _route_and_dispatch(request: ChatCompletionRequest, consumer_id: str):
         )
         if no_match:
             _add_trace({
-                "request_id": str(uuid.uuid4())[:8],
+                "request_id": str(uuid.uuid4()),
                 "timestamp": time.time(),
                 "model": request.model,
                 "requested_model": request.model,
@@ -338,7 +341,7 @@ async def _route_and_dispatch(request: ChatCompletionRequest, consumer_id: str):
             )
         except asyncio.QueueFull:
             _add_trace({
-                "request_id": request_id[:8],
+                "request_id": request_id,
                 "timestamp": time.time(),
                 "model": request.model,
                 "requested_model": request.model,
@@ -357,7 +360,7 @@ async def _route_and_dispatch(request: ChatCompletionRequest, consumer_id: str):
             )
         except asyncio.TimeoutError:
             _add_trace({
-                "request_id": request_id[:8],
+                "request_id": request_id,
                 "timestamp": time.time(),
                 "model": request.model,
                 "requested_model": request.model,
@@ -427,7 +430,7 @@ async def _route_and_dispatch(request: ChatCompletionRequest, consumer_id: str):
         scoring_details.sort(key=lambda x: x["score"], reverse=True)
 
         _add_trace({
-            "request_id": request_id[:8],
+            "request_id": request_id,
             "timestamp": time.time(),
             "model": request.model,
             "requested_model": request.model,
@@ -574,7 +577,7 @@ async def _route_and_dispatch(request: ChatCompletionRequest, consumer_id: str):
 
     # Log the full decision trace
     _add_trace({
-        "request_id": request_id[:8],
+        "request_id": request_id,
         "timestamp": time.time(),
         "model": request.model,
         "requested_model": request.model,

@@ -1,3 +1,4 @@
+import { SWRConfig } from 'swr'
 import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react'
 
 interface User {
@@ -122,7 +123,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <Ctx.Provider value={{ user, loading, login, signup, logout, refresh }}>
-      {children}
+      <SWRConfig key={`${user?.user_id || 'anonymous'}:${user?.is_admin === true}`} value={{ provider: () => new Map() }}>
+        {children}
+      </SWRConfig>
     </Ctx.Provider>
   )
 }

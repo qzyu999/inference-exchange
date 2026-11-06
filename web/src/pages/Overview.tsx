@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import useSWR from 'swr'
+import { useAuth } from '../lib/auth'
 import { NetworkGlobe } from '../components/NetworkGlobe'
 import { Link } from 'react-router-dom'
 import { api } from '../lib/api'
@@ -8,10 +9,11 @@ import { formatUsd } from '../lib/money.js'
 import { UI, APP_TRUST_COLORS as TRUST_COLORS } from '../lib/theme'
 
 export function Overview() {
+  const { user } = useAuth()
   const { data: stats } = useSWR('stats', api.stats, { refreshInterval: 5000 })
   const { data: provData } = useSWR('providers', api.providers, { refreshInterval: 5000 })
   const { data: repData } = useSWR('reputation', api.reputation, { refreshInterval: 10000 })
-  const { data: traceData } = useSWR('traces', api.traces, { refreshInterval: 5000 })
+  const { data: traceData, error: traceError } = useSWR(user ? ['traces', user.user_id, user.is_admin] : null, api.traces, { refreshInterval: 5000 })
   const { data: health } = useSWR('health', api.health, { refreshInterval: 10000 })
 
   const providers = provData?.providers || []
@@ -27,9 +29,9 @@ export function Overview() {
   // A match is not necessarily a completed response; do not infer a success rate.
   const routedTraces = traces.filter((t: any) => ['completed', 'matched', 'matched_from_queue'].includes(t.status))
 
-  // Recent activity (last 10 traces)
+  // Recent activity (latest 30 traces)
   // The API returns newest first. Preserve that order when taking the window.
-  const recentTraces = traces.slice(0, 10)
+  const recentTraces = traces
   const outcomes = traces.map(t => requestOutcome(t.status))
   const outcomeCounts = [
     { label: 'Completed', group: 'completed', color: UI.success },
@@ -63,7 +65,7 @@ export function Overview() {
           { label: 'Providers online', value: stats?.providers_online ?? providers.length, color: UI.text },
           { label: 'Models advertised', value: stats?.models_available ?? health?.models?.length ?? 0, color: UI.text },
           { label: 'Recent routed traces', value: traces.length > 0 ? String(routedTraces.length) : '—', color: UI.text },
-          { label: 'Volume (simulated)', value: stats?.total_volume_usd != null ? `$${stats.total_volume_usd >= 1 ? stats.total_volume_usd.toFixed(2) : stats.total_volume_usd.toFixed(4)}` : '—', color: UI.accent },
+          { label: 'Exchange spend · all time (simulated)', value: stats ? formatUsd(stats.total_volume_usd) : '—', color: UI.accent },
         ].map(s => (
           <div key={s.label} className="bg-ui-surface rounded-2xl border border-ui-border px-5 py-4">
             <div className="text-2xl font-bold tracking-tight" style={{ color: s.color }}>{s.value}</div>
@@ -82,8 +84,8 @@ export function Overview() {
           <h2 className="text-lg font-bold mb-4" style={{ color: UI.text }}>Request outcomes</h2>
 
           <p className="text-xs text-ui-muted mb-3">
-            Showing {recentTraces.length} of {traces.length} recent requests, newest first.
-            Counts cover all {traces.length}. Updates automatically; earlier attempts remain in history.
+            {user?.is_admin ? 'Exchange' : 'Your account'} · latest {traces.length} recorded requests, newest first.
+            Retained for up to 7 days, with a 10,000-request exchange-wide limit. Counts cover this list.
           </p>
           <div className="flex flex-wrap gap-x-5 gap-y-2 mb-4">
             {outcomeCounts.filter(item => item.count > 0).map(item => (
@@ -107,7 +109,7 @@ export function Overview() {
                         <span style={{ color: UI[outcome.tone] }}>{outcome.label}</span>
                       </div>
                       <div className="flex flex-wrap gap-x-3 gap-y-1 mt-1 text-ui-muted">
-                        <span className="font-mono">{t.request_id}</span>
+                        <span className="font-mono">{t.request_id.slice(0, 8)}</span>
                         <time dateTime={new Date(t.timestamp * 1000).toISOString()}>
                           {new Date(t.timestamp * 1000).toLocaleString()}
                         </time>
@@ -119,7 +121,7 @@ export function Overview() {
               })}
             </ol>
           ) : (
-            <div className="text-xs text-center py-8 text-ui-muted">No request traces yet.</div>
+            <div className="text-xs text-center py-8 text-ui-muted">{traceError ? 'Request history unavailable. Try again later.' : !user ? 'Sign in to see your request history.' : !traceData ? 'Loading request history…' : 'No recorded requests in this window.'}</div>
           )}
 
           {/* Fleet capacity */}
