@@ -110,26 +110,26 @@ for (const name of ['ink', 'primary', 'secondary', 'link']) {
 // edge, inspired by pigment inlaid into carved stone. No flying grains,
 // sweeping rainbow, shifting text, animation loops or layout changes.
 assert.match(landing, /function StoneCTA\(/)
-assert.match(landing, /<Link\s+to=\{to\}\s+tabIndex=\{tabIndex\}/)
+assert.match(landing, /<Link\s+to=\{landingActionHref\(to, Boolean\(user\)\)\}\s+tabIndex=\{tabIndex\}/)
 assert.equal((landing.match(/<StoneCTA to=/g) || []).length, 6)
 for (const [route, label, tone] of [
-  ['/chat', 'Start chatting', 'light'],
-  ['/provide', 'Become a provider', 'outline'],
-  ['/exchange', 'Go to Exchange', 'quiet'],
+  ['/keys', 'Use the API', 'light'],
+  ['/provide', 'Provide compute', 'outline'],
+  ['/exchange', 'Explore the exchange', 'quiet'],
 ]) {
   assert.ok(landing.includes('<StoneCTA to="' + route + '" tone="' + tone + '">' + label + '</StoneCTA>'),
     'missing opening mineral CTA ' + label)
 }
 const finalSlide = landing.slice(landing.indexOf('{/* One actual product screen'))
-assert.match(finalSlide, /<StoneCTA to="\/chat" tone="light"[\s\S]*?Start chatting\s*<\/StoneCTA>/)
-assert.match(finalSlide, /<StoneCTA to="\/provide" tone="outline"[\s\S]*?Become a provider\s*<\/StoneCTA>/)
-assert.match(finalSlide, /<StoneCTA to="\/exchange" tone="quiet"[\s\S]*?Go to Exchange\s*<\/StoneCTA>/)
+assert.match(finalSlide, /<StoneCTA to="\/keys" tone="light"[\s\S]*?Use the API\s*<\/StoneCTA>/)
+assert.match(finalSlide, /<StoneCTA to="\/provide" tone="outline"[\s\S]*?Provide compute\s*<\/StoneCTA>/)
+assert.match(finalSlide, /<StoneCTA to="\/exchange" tone="quiet"[\s\S]*?Explore the exchange\s*<\/StoneCTA>/)
 assert.equal((finalSlide.match(/<StoneCTA to=/g) || []).length, 3)
 assert.match(finalSlide, /tabIndex=\{productOpacity > 0\.95 \? undefined : -1\}/)
 assert.match(styles, /\.hero-stone-cta \{/)
 assert.match(styles, /\.hero-stone-cta--light \{\s*color: #292B2A;\s*background: #D8D1BE;/)
 assert.match(styles, /\.hero-stone-cta--outline \{[^}]*color: #F8EAD5;\s*background: rgba\(14, 16, 24, 0\.58\);/,
-  'provider CTA should use the same readable charcoal surface as Go to Exchange')
+  'provider CTA should use the same readable charcoal surface as Explore the exchange')
 assert.match(styles, /\.hero-stone-cta--quiet \{\s*color: #F8EAD5;\s*background: rgba\(14, 16, 24, 0\.58\);/)
 const inlay = styles.match(/\.hero-stone-cta::after \{([^}]+)\}/)?.[1]
 assert.ok(inlay, 'static mineral inlay must exist')
@@ -286,7 +286,7 @@ assert.doesNotMatch(nav, /background: '#0E1018'/)
 assert.doesNotMatch(nav, /background: 'linear-gradient\(95deg, #102D6D/)
 
 // Preserve real routes, chapter semantics and reduced-motion controls.
-for (const route of ['/chat', '/provide', '/exchange']) {
+for (const route of ['/keys', '/provide', '/exchange']) {
   assert.ok(landing.includes(`to="${route}"`), `missing hero CTA ${route}`)
 }
 assert.match(rail, /export const STORY_CHAPTERS = \[/)

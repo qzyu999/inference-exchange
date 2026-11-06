@@ -1,7 +1,7 @@
 // Run: node web/src/lib/nav.test.mjs  (#107, AUTH-018)
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
-import { LANDING_LINKS, getLandingGroups, getLandingAccountLinks, nextBrandCompact, authState, githubLoginHref, loginHref, safeNextPath } from './nav.js'
+import { LANDING_LINKS, getLandingGroups, getLandingAccountLinks, nextBrandCompact, landingActionHref, authState, githubLoginHref, loginHref, safeNextPath } from './nav.js'
 
 // Open-redirect cases must fall back
 const unsafe = [
@@ -90,6 +90,14 @@ assert.match(landingNav, /event\.pointerType !== 'mouse'/)
 assert.match(navStyles, /prefers-reduced-motion:reduce/)
 assert.match(landingNav, /aria-label="Inference Exchange home"/)
 assert.match(landingNav, /passive: true/)
+
+// Both landing action groups share these destinations through authentication.
+for (const destination of ['/keys', '/provide']) {
+  assert.equal(landingActionHref(destination, false), loginHref(destination))
+  assert.equal(landingActionHref(destination, true), destination)
+}
+assert.equal(landingActionHref('/exchange', false), '/exchange')
+assert.equal(landingActionHref('/exchange', true), '/exchange')
 
 // The python and JS validators must agree: the same cases are in tests/test_oauth_return_path.py
 console.log(`nav helpers: ${unsafe.length + safe.length} return-path cases ok`)

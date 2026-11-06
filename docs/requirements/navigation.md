@@ -27,3 +27,13 @@ MUST: The connection has no play or pause button. The moving marker stays circul
 - Principle: P2, P8
 - Status: implemented
 - Verified by: web/src/lib/landscape-geometry.test.mjs
+
+### NAV-003: Give consumers and providers distinct landing actions
+
+MUST: The opening and final landing button groups use the same actions. Use the API leads to `/keys`. Provide compute leads to `/provide`. Explore the exchange leads to `/exchange`.
+
+MUST: Signed-out visitors go through sign-in for `/keys` and `/provide`. The sign-in URL preserves the intended destination. Signed-in visitors go directly to that destination. Exchange discovery does not require sign-in.
+
+- Principle: P6, P8
+- Status: implemented
+- Verified by: web/src/lib/nav.test.mjs, web/src/lib/hero-editorial.test.mjs

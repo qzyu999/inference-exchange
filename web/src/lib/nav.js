@@ -82,3 +82,10 @@ export function nextBrandCompact(scrollY, compact) {
   if (scrollY < 24) return false
   return compact
 }
+
+/** Keep setup destinations through sign-in; exchange discovery stays public. */
+export function landingActionHref(destination, signedIn) {
+  return !signedIn && (destination === '/keys' || destination === '/provide')
+    ? loginHref(destination)
+    : destination
+}
