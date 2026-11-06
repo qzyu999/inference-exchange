@@ -181,10 +181,10 @@ function EditorialStory({
               opacity: visible ? 1 : 0,
               visibility: visible ? 'visible' : 'hidden',
               transition: 'opacity 420ms ease, visibility 420ms',
-              pointerEvents: visible && exitProgress < 0.95 ? 'auto' : 'none',
+              pointerEvents: 'none',
             }}
           >
-            <div className="relative mx-auto w-full max-w-2xl text-center">
+            <div className="relative mx-auto w-full max-w-2xl text-center" style={{ pointerEvents: visible && exitProgress < 0.95 ? 'auto' : 'none' }}>
               {index === 0 ? (
                 <h1
                   id={'landing-chapter-title-' + index}

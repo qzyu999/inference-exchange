@@ -237,7 +237,6 @@ export function LandscapeVideo({ progress, reducedMotion, onAvailabilityChange, 
   return (
     <div
       className="pointer-events-none absolute inset-0 overflow-hidden"
-      aria-hidden="true"
       style={{ backgroundColor: '#292F35', opacity: 1 - fade, isolation: 'isolate' }}
     >
       {useAmbientEdges && (
@@ -268,8 +267,8 @@ export function LandscapeVideo({ progress, reducedMotion, onAvailabilityChange, 
           data-hero-edges={edges}
           data-landscape-frame="true"
         >
-          <LandscapeBridge geometry={geometry} visible={showBridge && (ready || posterReady)} reducedMotion={reducedMotion} />
-          <video
+          <LandscapeBridge geometry={geometry} visible={showBridge && (ready || posterReady) && fade < 0.85} reducedMotion={reducedMotion} />
+          <video aria-hidden="true"
             ref={videoRef}
             key={manifest}
             className="absolute inset-0 h-full w-full"
