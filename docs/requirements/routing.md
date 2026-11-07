@@ -4,9 +4,11 @@
 
 MUST NOT: The system sends a request to a provider below the minimum trust level of the request.
 
+MUST: Accept L0, L1, L2, and L3 as aliases for open, contained, hardened, and confidential in the `ocip_min_confidence` JSON body field. Ignore case and surrounding whitespace. Reject unknown values, including L4. If the field is absent, use hardened.
+
 - Principle: P1
 - Status: implemented
-- Verified by: tests/test_matching.py::TestGreedyStrategy::test_min_confidence_filter
+- Verified by: tests/test_matching.py::TestGreedyStrategy::test_min_confidence_filter, tests/test_fail_fast_routing.py
 
 ### ROUTE-002: Obey the price ceiling
 

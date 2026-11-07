@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
-import { JOURNEYS, feedbackHref, resolveStartJourney, sdkExample } from './getting-started.js'
+import { JOURNEYS, feedbackHref, resolveStartJourney, sdkExample, OCIP_MINIMUMS } from './getting-started.js'
 import { PROVIDER_COMMANDS } from './provider-start-commands.js'
 const read = path => readFileSync(new URL(path, import.meta.url), 'utf8')
 const page = read('../pages/GettingStarted.tsx')
@@ -57,7 +57,11 @@ for (const model of ['Qwen2.5 0.5B Instruct', 'a"b\nc']) {
   assert.match(code, /"ocip_min_confidence": "open"/)
   assert.doesNotMatch(code, /sk-ie-|pt-ie-/)
 }
-assert.match(page, /allowOpen && model/)
+for (const { value } of OCIP_MINIMUMS) {
+  assert.ok(sdkExample('example-model', value).includes('"ocip_min_confidence": ' + JSON.stringify(value)))
+}
+assert.match(page, /minimum !== 'open' \|\| allowOpen/)
+assert.match(page, /canShowExample && model/)
 assert.match(page, /The coordinator and provider can read/)
 assert.match(page, /models\?\.data.find/)
 assert.match(page, /\['myKeys', user.user_id\]/)

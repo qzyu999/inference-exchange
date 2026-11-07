@@ -9,4 +9,6 @@ export interface StartJourney { id: 'ocip' | 'api' | 'provider'; name: string; s
 export const JOURNEYS: StartJourney[]
 export function feedbackHref(journey: StartJourney, step: StartStep): string
 export function resolveStartJourney(id?: string): string | undefined
-export function sdkExample(model: string): string
+export type OcipMinimum = 'open' | 'contained' | 'hardened' | 'confidential'
+export const OCIP_MINIMUMS: ReadonlyArray<{ value: OcipMinimum; label: string }>
+export function sdkExample(model: string, minimum?: OcipMinimum): string

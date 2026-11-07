@@ -248,7 +248,14 @@ export function resolveStartJourney(id) {
   if (id === 'both') return ''
   return id
 }
-export function sdkExample(model) {
+export const OCIP_MINIMUMS = [
+  { value: 'open', label: 'L0 / Open' },
+  { value: 'contained', label: 'L1 / Contained' },
+  { value: 'hardened', label: 'L2 / Hardened' },
+  { value: 'confidential', label: 'L3 / Confidential' },
+]
+
+export function sdkExample(model, minimum = 'open') {
   return `import os
 from openai import OpenAI
 
@@ -259,7 +266,7 @@ client = OpenAI(
 response = client.chat.completions.create(
     model=${JSON.stringify(model)},
     messages=[{"role": "user", "content": "Say hello."}],
-    extra_body={"ocip_min_confidence": "open"},
+    extra_body={"ocip_min_confidence": ${JSON.stringify(minimum)}},
 )
 print(response.choices[0].message.content)
 `

@@ -10,6 +10,7 @@ import { UI } from '../lib/theme'
 // Keep the routing explanations identical across languages and response modes.
 const OCIP_NOTES = [
   'ocip_min_confidence sets a minimum. Routing never falls back below it.',
+  'You can also use L0, L1, L2, or L3. Names and aliases ignore case and outer spaces.',
   'open (L0): No execution isolation required. The coordinator and provider can read your data.',
   'contained (L1): Requires a sandbox or container. The host admin can still read its data.',
   'hardened (L2): Requires stronger OS or VM isolation. This is the API default if omitted.',
