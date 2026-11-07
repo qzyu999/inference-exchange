@@ -17,7 +17,7 @@ const SDK_COMMANDS: Record<Platform, string> = {
 const KEY_INPUT: Record<Platform, string> = {
   mac: 'read -rs IE_API_KEY && export IE_API_KEY',
   linux: 'read -rs IE_API_KEY && export IE_API_KEY',
-  windows: 'set /p IE_API_KEY=Paste your IE API key (visible input): ',
+  windows: 'set /p IE_API_KEY=Paste your Inference Exchange API key (visible input): ',
 }
 
 function CodeBlock({ code, label = 'Copy commands' }: { code: string; label?: string }) {

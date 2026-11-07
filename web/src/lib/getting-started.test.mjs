@@ -38,7 +38,7 @@ for (const step of learning.steps) {
   assert.equal(step.to, undefined, 'no sign-in gate or credential action')
   assert.ok(step.reference.startsWith('/docs/') || step.reference.startsWith('https://github.com/qzyu999/ocip/'))
 }
-assert.match(learning.steps.at(-1).description, /must not silently lower/)
+assert.match(learning.steps.at(-1).description, /will not silently lower/)
 assert.match(page, /journey.id === 'ocip' \? .*to="\/start\/api".*to="\/start\/provider"/)
 // Keep provider commands tied to the already-reviewed preview, including the
 // pinned agent version and verified model download. No new installer recipe.

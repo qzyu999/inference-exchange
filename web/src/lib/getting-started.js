@@ -79,7 +79,7 @@ export const JOURNEYS = [
     {
       "id": "minimum",
       "title": "You choose your minimum.",
-      "description": "IE routes to a matching provider or rejects the request. It must not silently lower your requirement.",
+      "description": "Inference Exchange routes to a matching provider or rejects the request. It will not silently lower your requirement.",
       "takeaway": "No match means your requirement stays in place.",
       "help": "A no-compatible-provider outcome can mean no provider meets your minimum. Lower it only if you accept the weaker protection.",
       "label": "Your choice",
@@ -222,7 +222,7 @@ export const JOURNEYS = [
 
 export function feedbackHref(journey, step) {
   // Build only from authored, nonsecret text. User notes are entered in GitHub
-  // after navigating, never transported through IE or a prefilled GET URL.
+  // after navigating, never transported through Inference Exchange or a prefilled GET URL.
   const title = 'Getting Started: ' + journey.name + ' / ' + step.title
   const body = [
     '### Getting Started step feedback',
