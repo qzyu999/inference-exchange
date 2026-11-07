@@ -62,6 +62,7 @@ jobs:
       - run: node src/lib/provider-setup-guide.test.mjs
       - run: node src/lib/privacy-claims.test.mjs
       - run: node src/lib/alpha-ui.test.mjs
+      - run: node src/lib/fallback-examples.test.mjs
       - run: node src/lib/chat-models.test.mjs
       - run: node src/lib/model-search.test.mjs
       - run: node src/lib/exchange-filter-recovery.test.mjs

@@ -103,9 +103,11 @@ MUST: The standard `openai` Python package can list models and send streaming an
 
 MUST: The API keys page offers streaming and non-streaming examples for Python and server-side JavaScript or TypeScript. Each example explains the four accepted OCIP minimum values and explicitly selects Open for alpha testing. Keep keys in the local or server environment.
 
+MUST: Offer an alternate OpenRouter fallback example in each language and response mode. Keep the OpenRouter key in the user's local or server environment. Retry directly with OpenRouter only after HTTP 503 with code `model_not_available`, and only for Open (L0). Explain that this example permits a different free model and sends the prompt to OpenRouter. Propagate other errors. Do not restart an interrupted stream.
+
 - Principle: P8
 - Status: implemented
-- Verified by: tests/test_mock_provider_e2e.py::test_python_sdk_guide_examples, web/src/lib/alpha-ui.test.mjs
+- Verified by: tests/test_mock_provider_e2e.py::test_python_sdk_guide_examples, web/src/lib/alpha-ui.test.mjs, web/src/lib/fallback-examples.test.mjs
 
 
 ### ROUTE-013: Require an explicit model ID for new public chat requests
