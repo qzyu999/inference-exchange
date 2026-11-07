@@ -29,7 +29,7 @@ for (const journey of JOURNEYS) {
 // Learning stays short, public, and separate from credential/setup operations.
 const learning = JOURNEYS[0]
 assert.equal(learning.id, 'ocip')
-assert.deepEqual(learning.steps.map(step => step.id), ['protocol', 'open', 'contained', 'hardened', 'confidential', 'fully-confidential', 'workloads', 'evidence', 'minimum', 'alpha'])
+assert.deepEqual(learning.steps.map(step => step.id), ['protocol', 'open', 'contained', 'hardened', 'confidential', 'fully-confidential', 'workloads', 'minimum'])
 for (const step of learning.steps) {
   assert.ok(step.description.split(/\s+/).length <= 30, 'one short explanation per screen')
   assert.ok(step.takeaway && step.takeaway.split(/\s+/).length <= 16, 'a short takeaway')
@@ -38,9 +38,8 @@ for (const step of learning.steps) {
   assert.equal(step.to, undefined, 'no sign-in gate or credential action')
   assert.ok(step.reference.startsWith('/docs/') || step.reference.startsWith('https://github.com/qzyu999/ocip/'))
 }
-assert.match(learning.steps.find(step => step.id === 'evidence').description, /claim.*Verification needs evidence/)
-assert.match(learning.steps.find(step => step.id === 'minimum').description, /must not silently lower/)
-assert.match(learning.steps.find(step => step.id === 'alpha').description, /preview uses Open/)
+assert.match(learning.steps.at(-1).description, /must not silently lower/)
+assert.match(page, /journey.id === 'ocip' \? .*to="\/start\/api".*to="\/start\/provider"/)
 // Keep provider commands tied to the already-reviewed preview, including the
 // pinned agent version and verified model download. No new installer recipe.
 const guide = read('../../../docs/guides/provider-l0-apple-silicon-preview.md')

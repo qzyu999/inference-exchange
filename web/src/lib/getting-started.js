@@ -77,16 +77,6 @@ export const JOURNEYS = [
       "expected": "If sensitive data enters accelerator memory, look for L4."
     },
     {
-      "id": "evidence",
-      "title": "Claimed is not verified.",
-      "description": "A provider can claim a level. Verification needs evidence for the actual hardware and configuration.",
-      "takeaway": "A label alone is not proof.",
-      "help": "Look for verified evidence and its limits. Being online, owning an Apple Silicon Mac, or reporting a level does not establish confidentiality.",
-      "label": "Check the evidence",
-      "reference": "/docs/security/threat-model",
-      "expected": "A label alone is not proof."
-    },
-    {
       "id": "minimum",
       "title": "You choose your minimum.",
       "description": "IE routes to a matching provider or rejects the request. It must not silently lower your requirement.",
@@ -95,16 +85,6 @@ export const JOURNEYS = [
       "label": "Your choice",
       "reference": "/docs/requirements/routing",
       "expected": "No match means your requirement stays in place."
-    },
-    {
-      "id": "alpha",
-      "title": "Know what you are testing.",
-      "description": "The Apple Silicon preview uses Open inference. Start with a nonsensitive test message.",
-      "takeaway": "The protocol describes more than this preview provides.",
-      "help": "The API setup asks for explicit consent before showing an Open example. Treat protocol levels and available verified protection as separate things.",
-      "label": "The alpha today",
-      "reference": "/docs/guides/provider-l0-apple-silicon-preview",
-      "expected": "The protocol describes more than this preview provides."
     }
   ]
 },
