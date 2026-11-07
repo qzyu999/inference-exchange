@@ -84,12 +84,14 @@ Send these fields in `extra_body`. The OpenAI SDK sends them to the server uncha
 
 | Field | Default | Function |
 |---|---|---|
-| `ocip_min_confidence` | `hardened` | The minimum trust level of the provider: `open`, `contained`, `hardened`, or `confidential`. |
+| `ocip_min_confidence` | `hardened` | The minimum trust level of the provider: `open` (L0), `contained` (L1), `hardened` (L2), or `confidential` (L3). |
 | `ocip_preference` | `balanced` | How to select a provider: `cheapest`, `fastest`, `most_secure`, or `balanced`. |
 | `ocip_max_price` | none | The maximum price, in USD per million output tokens. |
 | `ocip_session_id` | none | Send related requests to the same provider, if it is available. |
 
 ### Trust levels
+
+Send `ocip_min_confidence` in the JSON request body. In Python, pass it in `extra_body`. The API accepts `L0`, `L1`, `L2`, and `L3` as aliases for the corresponding names. It ignores case and surrounding whitespace. Unknown values, including `L4`, return HTTP 400.
 
 The default minimum trust level is `hardened`. In the alpha, most providers are `open`. A provider claims its trust level. The coordinator does not verify `open`, `contained`, or `hardened` claims yet. For more information, see [Status](../status.md).
 

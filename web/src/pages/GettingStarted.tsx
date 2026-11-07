@@ -4,7 +4,7 @@ import useSWR from 'swr'
 import { useAuth } from '../lib/auth'
 import { api } from '../lib/api'
 import { loginHref } from '../lib/nav.js'
-import { JOURNEYS, feedbackHref, resolveStartJourney, sdkExample } from '../lib/getting-started.js'
+import { JOURNEYS, feedbackHref, resolveStartJourney, sdkExample, OCIP_MINIMUMS, type OcipMinimum } from '../lib/getting-started.js'
 import { PROVIDER_COMMANDS } from '../lib/provider-start-commands.js'
 import './getting-started.css'
 
@@ -55,6 +55,7 @@ export function GettingStarted() {
   const { user, loading: authLoading } = useAuth()
   const [platform, setPlatform] = useState<Platform>(() => /Mac/i.test(navigator.platform) ? 'mac' : /Win/i.test(navigator.platform) ? 'windows' : 'linux')
   const [selectedModel, setSelectedModel] = useState('')
+  const [minimum, setMinimum] = useState<OcipMinimum>('open')
   const [allowOpen, setAllowOpen] = useState(false)
   const stepHeading = useRef<HTMLHeadingElement>(null)
   const [finished, setFinished] = useState(false)
@@ -64,6 +65,7 @@ export function GettingStarted() {
   const matchingIndex = journey?.steps.findIndex(item => item.id === requestedStep) ?? -1
   const stepIndex = matchingIndex >= 0 ? matchingIndex : 0
   const step = journey?.steps[stepIndex]
+  const canShowExample = minimum !== 'open' || allowOpen
   const needModels = journey?.id === 'api' && ['find-model', 'request'].includes(step?.id || '')
   const { data: models, error: modelError, isLoading: modelLoading } = useSWR(needModels ? 'models' : null, api.models, { refreshInterval: 15000 })
   const { data: keys, error: keysError } = useSWR(step?.check === 'keys' && user ? ['myKeys', user.user_id] : null, api.myKeys)
@@ -123,13 +125,24 @@ export function GettingStarted() {
       {step.check === 'nodes' && <p className="ie-setup-status" role="status">{!user ? 'Sign in to check your Mac.' : nodeError ? 'Could not check your connection.' : !nodes ? 'Checking your connection…' : online.length ? 'Connected: ' + online.map(node => node.name + (node.models.length ? ' · ' + node.models.join(', ') : ' · no models listed')).join('; ') : 'No connected providers yet. Keep the agent running while you check.'}</p>}
       {step.command === 'request' && <>
         {modelPicker}
-        <label className="ie-setup-consent"><input type="checkbox" checked={allowOpen} onChange={event => setAllowOpen(event.target.checked)} /><span>Allow Open inference for this test. The coordinator and provider can read the message and response. Use a nonsensitive message.</span></label>
-        {allowOpen && model && <>
+        <div className="ie-setup-field">
+          <label htmlFor="setup-minimum">Minimum OCIP level</label>
+          <select id="setup-minimum" value={minimum} onChange={event => {
+            setMinimum(event.target.value as OcipMinimum)
+            setAllowOpen(false)
+            setFinished(false)
+          }}>
+            {OCIP_MINIMUMS.map(level => <option key={level.value} value={level.value}>{level.label}</option>)}
+          </select>
+          <p className="ie-setup-note">The request fails if no provider for your model meets this minimum. Use a nonsensitive message for this test.</p>
+        </div>
+        {minimum === 'open' && <label className="ie-setup-consent"><input type="checkbox" checked={allowOpen} onChange={event => setAllowOpen(event.target.checked)} /><span>Allow Open inference for this test. The coordinator and provider can read the message and response. Use a nonsensitive message.</span></label>}
+        {canShowExample && model && <>
           <h3>1. Set your API key</h3><p>Run this separately in the terminal you set up earlier. Paste your API key when prompted.</p>
           <CodeBlock code={KEY_INPUT[platform]} label="Copy key prompt" />
           <p className="ie-setup-note">{platform === 'windows' ? 'Windows CMD shows the key as you paste it. Use a private terminal.' : 'Your key stays hidden while you paste it.'}</p>
           <h3>2. Run the example</h3><p>Save this as <code>hello_ie.py</code>.</p>
-          <CodeBlock code={sdkExample(model)} label="Copy Python example" />
+          <CodeBlock code={sdkExample(model, minimum)} label="Copy Python example" />
           <CodeBlock code="python hello_ie.py" label="Copy run command" />
           <p className="ie-setup-note">A model response in your terminal means the request worked.</p>
         </>}
@@ -137,7 +150,7 @@ export function GettingStarted() {
       <div className="ie-setup-actions">
         {actionHref && !(step.check === 'auth' && user) && <Link className="ie-setup-primary" to={actionHref} target={step.to === '/login' ? undefined : '_blank'} rel="noopener noreferrer">{step.action}{step.to !== '/login' && ' ↗'}</Link>}
         {next ? <Link className={actionHref && !(step.check === 'auth' && user) ? 'ie-setup-secondary' : 'ie-setup-primary'} to={href(next.id)} aria-disabled={!canContinue} onClick={event => { if (!canContinue) event.preventDefault() }}>Continue →</Link>
-          : journey.id === 'ocip' ? <><Link className="ie-setup-primary" to="/start/api">Use the API →</Link><Link className="ie-setup-secondary" to="/start/provider">Provide compute →</Link></> : journey.id === 'api' ? <button className="ie-setup-primary" disabled={!allowOpen || !model} onClick={() => setFinished(true)}>I got a response</button> : <Link className="ie-setup-secondary" to="/exchange">Explore the exchange →</Link>}
+          : journey.id === 'ocip' ? <><Link className="ie-setup-primary" to="/start/api">Use the API →</Link><Link className="ie-setup-secondary" to="/start/provider">Provide compute →</Link></> : journey.id === 'api' ? <button className="ie-setup-primary" disabled={!canShowExample || !model} onClick={() => setFinished(true)}>I got a response</button> : <Link className="ie-setup-secondary" to="/exchange">Explore the exchange →</Link>}
       </div>
       {finished && <div className="ie-setup-notice" role="status">You marked your first request complete. <Link to="/billing">View your usage</Link> or <Link to="/start/provider">provide compute</Link>.</div>}
       <details className="ie-setup-help"><summary>{journey.id === 'ocip' ? 'Learn more' : 'Need help?'}</summary><p>{step.help}</p>

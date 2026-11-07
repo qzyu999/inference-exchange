@@ -8,6 +8,7 @@ from fastapi.testclient import TestClient
 from inference_exchange.coordinator import dependencies
 from inference_exchange.coordinator.main import create_app
 from inference_exchange.coordinator.provider_hub import ProviderHub
+from inference_exchange.coordinator.routes_inference import ChatCompletionRequest
 from inference_exchange.shared.protocol import ProviderCapabilities, RegisterMessage, TrustLevel
 
 
@@ -70,7 +71,24 @@ def client(monkeypatch):
 CHAT = {"model": "qwen", "messages": [{"role": "user", "content": "hi"}], "stream": False}
 
 
+@pytest.mark.parametrize(
+    ("alias", "name"),
+    [(" L0 ", "open"), ("l1", "contained"), ("l2", "hardened"), ("L3", "confidential")],
+)
+def test_minimum_level_normalizes_alias_and_name(alias, name):
+    for value in (alias, f" {name.upper()} "):
+        request = ChatCompletionRequest(**CHAT, ocip_min_confidence=value)
+        assert request.ocip_min_confidence == name
+        assert request.validate_inputs() is None
+
+
 class TestEndpoint:
+    @pytest.mark.parametrize("invalid", ["L4", "L0/open", "", "typo"])
+    def test_unknown_minimum_returns_openai_shaped_400(self, client, invalid):
+        response = client.post("/v1/chat/completions", json={**CHAT, "ocip_min_confidence": invalid})
+        assert response.status_code == 400
+        assert response.json()["error"]["code"] == "invalid_request"
+
     def test_hardened_named_model_with_open_provider_fails_fast(self, client):
         hub = dependencies.get_hub()
         hub.QUEUE_TIMEOUT_SECONDS = 5.0  # a queued request would take this long
@@ -90,10 +108,13 @@ class TestEndpoint:
         assert time.monotonic() - start < 1.0
         assert r.json()["error"]["code"] == "no_provider_available"
 
-    def test_trust_is_not_downgraded(self, client):
+    @pytest.mark.parametrize("minimum", ["hardened", " L2 "])
+    def test_trust_is_not_downgraded(self, client, minimum):
         hub = dependencies.get_hub()
         pid = _add_provider(hub)
-        client.post("/v1/chat/completions", json={**CHAT, "ocip_min_confidence": "hardened"})
+        response = client.post("/v1/chat/completions", json={**CHAT, "ocip_min_confidence": minimum})
+        assert response.status_code == 503
+        assert response.json()["error"]["code"] == "no_compatible_provider"
         assert hub._providers[pid].active_requests == 0
 
 

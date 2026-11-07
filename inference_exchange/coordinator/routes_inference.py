@@ -8,7 +8,7 @@ import uuid
 
 from fastapi import APIRouter, Request
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 from inference_exchange.shared.crypto import encrypt_json
 from inference_exchange.shared.errors import (
@@ -56,6 +56,14 @@ class ChatMessage(BaseModel):
     content: str
 
 
+OCIP_LEVEL_ALIASES = {
+    "l0": "open",
+    "l1": "contained",
+    "l2": "hardened",
+    "l3": "confidential",
+}
+
+
 class ChatCompletionRequest(BaseModel):
     model: str | None = None
     messages: list[ChatMessage]
@@ -70,6 +78,12 @@ class ChatCompletionRequest(BaseModel):
     ocip_session_id: str | None = None
     ocip_consumer_public_key: str | None = None
 
+    @field_validator("ocip_min_confidence")
+    @classmethod
+    def normalize_min_confidence(cls, value: str) -> str:
+        normalized = value.strip().lower()
+        return OCIP_LEVEL_ALIASES.get(normalized, normalized)
+
     def validate_model(self) -> str | None:
         """Reject routing aliases before matching or billing."""
         if self.model is None or not self.model.strip():
@@ -83,8 +97,8 @@ class ChatCompletionRequest(BaseModel):
     def validate_inputs(self) -> str | None:
         """Return error message if invalid, None if OK."""
         # ROUTE-001 / P1: unknown trust labels must not silently become "open".
-        if self.ocip_min_confidence not in ("open", "contained", "hardened", "confidential"):
-            return "ocip_min_confidence must be one of: open, contained, hardened, confidential"
+        if self.ocip_min_confidence not in OCIP_LEVEL_ALIASES.values():
+            return "ocip_min_confidence must be open (L0), contained (L1), hardened (L2), or confidential (L3)"
         if not self.messages:
             return "Messages cannot be empty"
         if len(self.messages) > 100:

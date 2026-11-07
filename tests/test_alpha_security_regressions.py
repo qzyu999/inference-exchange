@@ -18,7 +18,7 @@ def prod_client(monkeypatch, tmp_path):
     return TestClient(create_app(), base_url="https://testserver")
 
 
-@pytest.mark.parametrize("trust", ["Hardened", "hardened ", "unknown", ""])
+@pytest.mark.parametrize("trust", ["L4", "L0/open", "unknown", ""])
 def test_unknown_minimum_trust_returns_400(prod_client, trust):
     response = prod_client.post("/v1/chat/completions", json={
         "model": "test-model",
