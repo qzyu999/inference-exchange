@@ -1,3 +1,4 @@
+import { HomeIcon } from './HomeIcon'
 import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { useAuth } from '../lib/auth'
@@ -144,7 +145,7 @@ export function LandingNav({ brandAxisOffset = 0 }: { brandAxisOffset?: number }
   const account = state === 'loading'
     ? <span className="ie-public-nav-loading hero-mani-nav" aria-live="polite">Checking sign-in…</span>
     : state === 'signed-out'
-      ? <Link to={loginHref(location.pathname + location.search)} onClick={closeMenus} className={`ie-public-nav-account hero-mani-nav ${FOCUS}`}>Sign in</Link>
+      ? <Link to={loginHref('/home')} onClick={closeMenus} className={`ie-public-nav-account hero-mani-nav ${FOCUS}`}>Sign in</Link>
       : <div className="ie-public-nav-group ie-public-nav-account-group">
           <button type="button" ref={node => { triggerRefs.current.account = node }}
             aria-expanded={activeMenu === 'account'} aria-controls="landing-account-menu"
@@ -180,6 +181,7 @@ export function LandingNav({ brandAxisOffset = 0 }: { brandAxisOffset?: number }
         </Link>
         <div className="ie-public-nav-right">
           <ul className="ie-public-nav-desktop">{groups.filter(group => group.side === 'right').map(group => groupMenu(group))}</ul>
+          {state === 'signed-in' && <Link to="/home" onClick={closeMenus} aria-label="Home" className={`ie-public-nav-account ie-public-nav-home hero-mani-nav ${FOCUS}`}><HomeIcon /><span>Home</span></Link>}
           {account}
           <Link to="/chat" onClick={closeMenus} className={`ie-public-nav-try ${FOCUS}`} style={{ background: '#F2E6D0', color: C.blueBlack }}>Try inference</Link>
         </div>

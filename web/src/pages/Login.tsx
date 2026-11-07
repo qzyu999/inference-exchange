@@ -29,7 +29,7 @@ export function Login() {
   const navigate = useNavigate()
   const [params] = useSearchParams()
   const oauthError = OAUTH_ERRORS[params.get('error') || '']
-  const next = safeNextPath(params.get('next'))
+  const next = safeNextPath(params.get('next'), '/home')
   const { data: authConfig } = useSWR('authConfig', api.authConfig)
   const passwordEnabled = authConfig?.password ?? false
   const githubEnabled = authConfig?.github ?? false
@@ -88,7 +88,7 @@ export function Login() {
             className="w-full py-2.5 rounded-xl text-sm font-medium border transition-colors"
             style={{ color: UI.muted, borderColor: UI.border }}
           >
-            Go to Chat
+            Continue
           </button>
         </div>
       </div>

@@ -76,3 +76,15 @@ MUST: Keep drafting available during a trust mismatch when a model is ready. Sen
 - Principle: P1, P3, P8
 - Status: implemented
 - Verified by: web/src/lib/alpha-ui.test.mjs, web/src/lib/chat-model-picker.test.mjs
+
+### NAV-007: Give each account a product home
+
+MUST: `/home` is the first sidebar destination. Use the Untitled UI home-03 icon. Keep the public landing page at `/`. A signed-in public-header visitor can reach Home without opening a dropdown. Generic sign-in from the landing page and sign-in without a return path lead to Home. Explicit same-site destinations survive sign-in. The logo continues to lead to the landing page.
+
+MUST: Home shows only the current account's credit balance, all-time billed usage, recent billed requests, and owned provider status and simulated earnings. Label the scope and simulated amounts. Show the newest five ledger entries first. Do not describe them as all request outcomes. Use owner-scoped endpoints for administrators too. Scope caches by account identity. Do not fetch personal data before sign-in. Show loading and error states instead of invented zero values.
+
+MUST: Home offers model discovery, API keys, first-request guidance, billing, and provider setup. Show a compact setup prompt when no provider exists. Show provider totals when machines exist. Keep Network overview separate and link to it. Home uses the existing appearance tokens and works on narrow screens. Navigation does not create keys, enroll providers, or send inference requests.
+
+- Principle: P2, P6, P7, P8
+- Status: implemented
+- Verified by: web/src/lib/home.test.mjs

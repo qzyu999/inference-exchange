@@ -21,3 +21,8 @@
 @media(max-width:1439px){.ie-public-nav-try{display:none}}
 @media(max-width:767px){.ie-public-nav-row{padding:0 10px;gap:5px}.ie-public-nav-brand{--brand-icon-size:34px;--brand-gap:7px;font-size:13.5px}.ie-public-nav-brand .ie-public-nav-wordmark{letter-spacing:.025em}.ie-public-nav-word{display:block}.ie-public-nav-right{gap:0}.ie-public-nav-try{display:none}.ie-public-nav-account{font-size:12px;padding:7px;border:0;gap:3px}.ie-public-nav-loading{font-size:10px;max-width:52px}.ie-public-nav-account-dropdown{position:fixed;top:74px;right:10px;left:auto;width:min(280px,calc(100vw - 20px))}}
 @media(prefers-reduced-motion:reduce){.ie-public-nav *{transition:none!important;animation:none!important}}
+
+@media(max-width:767px){.ie-public-nav-right{gap:6px}}
+
+.ie-public-nav-home svg{display:none}
+@media(max-width:767px){.ie-public-nav-home svg{display:block}.ie-public-nav-home span{display:none}.ie-public-nav-home{min-width:32px}}

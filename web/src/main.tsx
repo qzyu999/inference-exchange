@@ -4,6 +4,7 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import './index.css'
 import { AuthProvider } from './lib/auth'
 import { Layout } from './components/Layout'
+import { Home } from './pages/Home'
 import { Overview } from './pages/Overview'
 import { Landing } from './pages/Landing'
 import { Exchange } from './pages/Exchange'
@@ -35,6 +36,7 @@ createRoot(document.getElementById('root')!).render(
             <Route path="/news" element={<News />} />
             <Route path="/news/:slug" element={<NewsPost />} />
             <Route path="/about" element={<About />} />
+            <Route path="/home" element={<Home />} />
             <Route path="/overview" element={<Overview />} />
             <Route path="/start" element={<GettingStarted />} />
             <Route path="/start/:journey" element={<GettingStarted />} />

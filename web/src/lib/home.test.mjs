@@ -1,0 +1,36 @@
+import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
+import { recentBilledRequests, providerHomeSummary } from './home.js'
+import { safeNextPath, loginHref, githubLoginHref } from './nav.js'
+const read = path => readFileSync(new URL(path, import.meta.url), 'utf8')
+const rows = [1, 6, 3, 5, 2, 4].map(n => ({ request_id: String(n), timestamp: n }))
+assert.deepEqual(recentBilledRequests(rows).map(row => row.request_id), ['6', '5', '4', '3', '2'])
+assert.deepEqual(rows.map(row => row.timestamp), [1, 6, 3, 5, 2, 4])
+assert.deepEqual(recentBilledRequests([]), [])
+assert.deepEqual(providerHomeSummary([]), { total: 0, available: 0, offline: 0 })
+assert.deepEqual(providerHomeSummary([{status:'online'}, {status:'busy'}, {status:'offline'}]), {total:3, available:2, offline:1})
+assert.equal(safeNextPath(null, '/home'), '/home')
+assert.equal(safeNextPath('//evil.example', '/home'), '/home')
+for (const path of ['/home', '/keys', '/provide']) {
+ assert.equal(safeNextPath(path, '/home'), path)
+ assert.equal(githubLoginHref(path), `/v1/auth/github/login?next=${encodeURIComponent(path)}`)
+ assert.equal(loginHref(path), `/login?next=${encodeURIComponent(path)}`)
+}
+const home = read('../pages/Home.tsx')
+for (const key of ['account', 'keys', 'history', 'providers', 'earnings']) assert.ok(home.includes(`user ? ['home/${key}', user.user_id] : null`))
+for (const api of ['me', 'history', 'ownedProviderNodes', 'ownedProviderEarnings']) assert.ok(home.includes(`api.${api}`))
+assert.doesNotMatch(home, /api\.(traces|recentActivity|networkActivity|stats|providers)\b/)
+for (const route of ['/keys','/models','/start/api','/provide','/dashboard','/billing','/overview']) assert.ok(home.includes(`'${route}'`) || home.includes(`"${route}"`))
+assert.match(home, /if \(!user\) return/)
+assert.match(home, /All amounts are simulated/)
+assert.match(home, /Failed and unbilled attempts are not included/)
+const layout = read('../components/Layout.tsx')
+assert.match(layout, /const PRIMARY_NAV = \[\s*\{ path: '\/home', label: 'Home', icon: HomeIcon \}/)
+assert.match(read('../main.tsx'), /path="\/home" element=\{<Home \/>\}/)
+assert.match(read('../pages/Login.tsx'), /safeNextPath\(params.get\('next'\), '\/home'\)/)
+const nav = read('../components/LandingNav.tsx')
+assert.match(nav, /state === 'signed-in' && <Link to="\/home"/)
+assert.match(nav, /aria-label="Home"/)
+assert.match(read('../components/HomeIcon.tsx'), /m9 21v-7.4/)
+assert.match(nav, /loginHref\('\/home'\)/)
+console.log('Home: account scope, ordering, navigation, and sign-in paths OK')
