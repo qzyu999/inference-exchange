@@ -1,3 +1,4 @@
+import { HomeIcon } from './HomeIcon'
 import { useEffect, useState } from 'react'
 import { Link, Outlet, useLocation } from 'react-router-dom'
 import { useCoordinatorStatus, useWebSocket } from '../lib/useWebSocket'
@@ -12,6 +13,7 @@ import { MineralAurora, NetworkHeartbeat, useNetworkPulses } from './MineralAuro
 export { TRUST_COLORS }
 
 const PRIMARY_NAV = [
+  { path: '/home', label: 'Home', icon: HomeIcon },
   { path: '/start', label: 'Getting Started', icon: StartIcon },
   { path: '/overview', label: 'Overview', icon: OverviewIcon },
   { path: '/chat', label: 'Chat', icon: ChatIcon },
@@ -473,6 +475,7 @@ export function Layout() {
 // ─── Page titles ─────────────────────────────────────────────
 
 const PAGE_META: Record<string, { title: string; subtitle: string }> = {
+  '/home': { title: 'Home', subtitle: 'Your account, activity, and next steps.' },
   '/start': { title: 'Getting Started', subtitle: 'Use the API, provide compute, or understand OCIP.' },
   '/overview': { title: 'Network', subtitle: 'Operational transparency for the exchange.' },
   '/chat': { title: 'Chat', subtitle: 'Familiar entry point first. Exchange mechanics stay one click away.' },
