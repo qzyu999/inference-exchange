@@ -8,63 +8,73 @@ export const JOURNEYS = [
   "steps": [
     {
       "id": "protocol",
-      "title": "A shared rulebook.",
-      "description": "OCIP defines how your app, the exchange, and a provider communicate.",
-      "takeaway": "One protocol connects different machines.",
-      "help": "OCIP is a protocol. Inference Exchange is one implementation. It handles model discovery, routing, and billing.",
+      "title": "Why OCIP exists",
+      "description": "OCIP is an open-source protocol for developers to agree on how to use encryption and isolation for AI inference on consumer hardware.",
+      "takeaway": "Know what each hardware setup protects before choosing a workload.",
+      "help": "Different hardware and software configurations offer different levels of protection. OCIP defines those levels so developers can reason about who can read prompts and responses.",
       "label": "The protocol",
       "reference": "https://github.com/qzyu999/ocip/blob/main/spec/01-overview.md",
-      "expected": "One protocol connects different machines."
+      "expected": "Know what each hardware setup protects before choosing a workload."
     },
     {
       "id": "open",
-      "title": "Open means your message can be read.",
-      "description": "The coordinator and provider can read your message and response.",
-      "takeaway": "Use nonsensitive messages with Open.",
-      "help": "An encrypted connection protects data in transit. It does not stop the machines processing your request from reading it.",
+      "title": "L0 · Open",
+      "description": "Inference runs as-is on the provider’s hardware. The host can read plaintext prompts and responses.",
+      "takeaway": "Use Open for nonsensitive workloads and tests.",
+      "help": "TLS can protect prompts and responses in transit. It does not prevent the coordinator or provider from reading them during Open inference.",
       "label": "L0 · Open",
       "reference": "https://github.com/qzyu999/ocip/blob/main/spec/02-confidence-levels.md",
-      "expected": "Use nonsensitive messages with Open."
+      "expected": "Use Open for nonsensitive workloads and tests."
     },
     {
       "id": "contained",
-      "title": "Contained adds a sandbox.",
-      "description": "A container or sandbox separates the inference software. The host administrator can still access its data.",
-      "takeaway": "A sandbox is not protection from the host owner.",
-      "help": "Containers help isolate software. They do not make the machine owner unable to inspect prompts or memory.",
+      "title": "L1 · Contained",
+      "description": "A sandbox or container isolates the inference software. An administrator with root access on the host can still read plaintext prompts and responses.",
+      "takeaway": "Containment protects against accidental exposure to other processes.",
+      "help": "A verified container image helps identify the software being run. A host administrator can still deliberately inspect its memory.",
       "label": "L1 · Contained",
       "reference": "https://github.com/qzyu999/ocip/blob/main/spec/02-confidence-levels.md",
-      "expected": "A sandbox is not protection from the host owner."
+      "expected": "Containment protects against accidental exposure to other processes."
     },
     {
       "id": "hardened",
-      "title": "Hardened adds stronger isolation.",
-      "description": "Operating-system or virtual-machine protections aim to restrict access to inference memory.",
-      "takeaway": "The exact setup and evidence matter.",
-      "help": "Hardening is not one universal guarantee. Read the threat model for the actual platform and configuration.",
+      "title": "L2 · Hardened",
+      "description": "Defense in depth protects the inference software stack. OS or VM isolation blocks the host from reading inference memory with standard tools, even with root access.",
+      "takeaway": "Verify the hardened setup with signed attestation.",
+      "help": "A kernel zero-day, hypervisor escape, or direct hardware attack can defeat these protections. The attestation must come from a trusted anchor and cover OS integrity, the measured binary, and the guest measurement when a VM is used.",
       "label": "L2 · Hardened",
       "reference": "https://github.com/qzyu999/ocip/blob/main/spec/02-confidence-levels.md",
-      "expected": "The exact setup and evidence matter."
+      "expected": "Verify the hardened setup with signed attestation."
     },
     {
       "id": "confidential",
-      "title": "Confidential protects CPU memory.",
-      "description": "This level calls for hardware-backed protection of CPU memory. Accelerator memory needs separate protection.",
-      "takeaway": "Protecting the CPU does not automatically protect the GPU.",
-      "help": "A trusted execution environment has a specific threat model. Transport encryption alone does not meet this level.",
+      "title": "L3 · Confidential",
+      "description": "A hardware-backed Trusted Execution Environment (TEE) encrypts CPU memory. The host operator sees ciphertext when inspecting protected memory, even with full control of the host OS.",
+      "takeaway": "CPU protection does not extend to GPU or NPU memory.",
+      "help": "Verify hardware attestation for the actual workload and send data to the attested environment. The guarantee applies to protected CPU memory within the TEE’s threat model.",
       "label": "L3 · Confidential",
       "reference": "https://github.com/qzyu999/ocip/blob/main/spec/02-confidence-levels.md",
-      "expected": "Protecting the CPU does not automatically protect the GPU."
+      "expected": "CPU protection does not extend to GPU or NPU memory."
     },
     {
       "id": "fully-confidential",
-      "title": "Cover the whole inference path.",
-      "description": "The highest level calls for protected CPU and accelerator memory, with evidence covering both.",
-      "takeaway": "Check every part of the path.",
-      "help": "These are protocol requirements, not a claim that this alpha offers verified hardware confidentiality. Timing and traffic volume can still be visible.",
+      "title": "L4 · Fully Confidential",
+      "description": "Trusted Execution Environments protect both CPU and GPU or NPU memory. Both parts of the inference path require hardware attestation.",
+      "takeaway": "Today this calls for data-center-class inference hardware.",
+      "help": "CPU and accelerator protection must cover the path from prompt processing to output. Timing and traffic volume can still be visible.",
       "label": "L4 · Fully confidential",
       "reference": "https://github.com/qzyu999/ocip/blob/main/spec/02-confidence-levels.md",
-      "expected": "Check every part of the path."
+      "expected": "Today this calls for data-center-class inference hardware."
+    },
+    {
+      "id": "workloads",
+      "title": "Choose a level for your workload",
+      "description": "We recommend L2 for most workloads where the main risk is an opportunistic operator. For sensitive data, start with L3 or higher.",
+      "takeaway": "If sensitive data enters accelerator memory, look for L4.",
+      "help": "Check the actual hardware, configuration, and verified evidence before sending sensitive data. This guidance describes protocol levels. The current Apple Silicon preview uses Open.",
+      "label": "Choose a level",
+      "reference": "https://github.com/qzyu999/ocip/blob/main/spec/02-confidence-levels.md",
+      "expected": "If sensitive data enters accelerator memory, look for L4."
     },
     {
       "id": "evidence",
