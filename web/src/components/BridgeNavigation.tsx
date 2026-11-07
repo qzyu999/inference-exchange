@@ -1,3 +1,4 @@
+import { ChatIcon, OfferComputeIcon } from './RoleNavIcons'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Link, useLocation } from 'react-router-dom'
@@ -87,10 +88,11 @@ export function BridgeNavigation({ visible }: { visible: boolean }) {
           else if (active === item.id) close()
           else open(item.id, event.detail === 0)
         }}>
-        {item.id === 'use-ai'
-          ? <svg aria-hidden="true" viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="12" rx="1"/><path d="M1 20h22M9 15v5m6-5v5"/></svg>
-          : <svg aria-hidden="true" viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14" rx="2"/><rect x="9" y="9" width="6" height="6"/><path d="M8 1v4m8-4v4M8 19v4m8-4v4M1 8h4m-4 8h4m14-8h4m-4 8h4"/></svg>}
-        {item.label}<svg aria-hidden="true" className="ie-bridge-chevron" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg>
+        {item.id === 'use-ai' ? <ChatIcon /> : <OfferComputeIcon />}
+        {item.label}
+        <svg aria-hidden="true" className="ie-nav-chevron ie-bridge-chevron" viewBox="0 0 24 24">
+          <path d="m6 9 6 6 6-6" />
+        </svg>
       </button>
     </div>)}
     {visible && group && createPortal(<ul ref={panel} id={'bridge-' + group.id + '-links'}
