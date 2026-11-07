@@ -29,7 +29,7 @@ for (const journey of JOURNEYS) {
 // Learning stays short, public, and separate from credential/setup operations.
 const learning = JOURNEYS[0]
 assert.equal(learning.id, 'ocip')
-assert.deepEqual(learning.steps.map(step => step.id), ['protocol', 'open', 'contained', 'hardened', 'confidential', 'fully-confidential', 'evidence', 'minimum', 'alpha'])
+assert.deepEqual(learning.steps.map(step => step.id), ['protocol', 'open', 'contained', 'hardened', 'confidential', 'fully-confidential', 'workloads', 'evidence', 'minimum', 'alpha'])
 for (const step of learning.steps) {
   assert.ok(step.description.split(/\s+/).length <= 30, 'one short explanation per screen')
   assert.ok(step.takeaway && step.takeaway.split(/\s+/).length <= 16, 'a short takeaway')
