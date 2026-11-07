@@ -5,6 +5,7 @@ import { api, post } from '../lib/api'
 import { useAuth } from '../lib/auth'
 import { loginHref } from '../lib/nav.js'
 import { createUserKey } from '../lib/key-creation.js'
+import { pythonFallbackExample, nodeFallbackExample } from '../lib/fallback-examples.js'
 import { UI } from '../lib/theme'
 
 // Keep the routing explanations identical across languages and response modes.
@@ -104,11 +105,14 @@ export function Keys() {
   const [copied, setCopied] = useState(false)
   const [language, setLanguage] = useState<'python' | 'node'>('python')
   const [quickstartMode, setQuickstartMode] = useState<'single' | 'stream'>('single')
+  const [fallback, setFallback] = useState(false)
   const [quickstartCopyStatus, setQuickstartCopyStatus] = useState('')
   const python = language === 'python'
   const filename = python ? 'hello_ie.py' : 'hello_ie.mjs'
   const examples = python ? { single: SDK_NONSTREAM, stream: SDK_STREAM } : { single: NODE_NONSTREAM, stream: NODE_STREAM }
-  const quickstartCode = examples[quickstartMode]
+  const quickstartCode = fallback
+    ? (python ? pythonFallbackExample : nodeFallbackExample)(quickstartMode === 'stream', OCIP_NOTES)
+    : examples[quickstartMode]
 
   async function copyQuickstart() {
     try {
@@ -275,7 +279,7 @@ export function Keys() {
       <section className="bg-ui-surface rounded-2xl border border-ui-border p-5 space-y-3">
         <h2 className="text-sm font-semibold" style={{ color: UI.text }}>Run your first API request</h2>
         <p className="text-xs" style={{ color: UI.body }}>
-          No repository checkout is needed. Credits are simulated, not real money.
+          No repository checkout is needed. Inference Exchange alpha credits are simulated.
           At L0/Open, the coordinator and provider can read prompts and responses.
           Use only nonsensitive test prompts.
         </p>
@@ -287,12 +291,32 @@ export function Keys() {
             onClick={() => { setLanguage('node'); setQuickstartCopyStatus('') }}
             className="rounded-lg border border-ui-border px-3 py-1.5 text-xs aria-pressed:bg-ui-action aria-pressed:text-ui-on-action">JavaScript / TypeScript (Node.js)</button>
         </div>
+        <div role="group" aria-label="Example routing" className="flex flex-wrap gap-2">
+          <button type="button" aria-pressed={!fallback}
+            onClick={() => { setFallback(false); setQuickstartCopyStatus('') }}
+            className="rounded-lg border border-ui-border px-3 py-1.5 text-xs aria-pressed:bg-ui-action aria-pressed:text-ui-on-action">Inference Exchange</button>
+          <button type="button" aria-pressed={fallback}
+            onClick={() => { setFallback(true); setQuickstartCopyStatus('') }}
+            className="rounded-lg border border-ui-border px-3 py-1.5 text-xs aria-pressed:bg-ui-action aria-pressed:text-ui-on-action">OpenRouter fallback</button>
+        </div>
+        {fallback && <div className="space-y-2 text-xs text-ui-body">
+          <p>Try Inference Exchange first. If it returns 503 / model_not_available, your script sends the prompt directly to OpenRouter.
+            Your OpenRouter key stays in your local or server environment.</p>
+          <p>This example allows Open (L0) and a different model from openrouter/free. OpenRouter providers have their own data policies.
+            Free models have rate limits. Paid OpenRouter models use your OpenRouter credits.</p>
+          <p>Fallback stops if you select a higher OCIP minimum. This example does not request a specific quantization.</p>
+          <a href="https://openrouter.ai/settings/keys" target="_blank" rel="noopener noreferrer" className="underline text-ui-accent">Create an OpenRouter key</a>
+        </div>}
         {!python && <p className="text-xs text-ui-body">
-          Use Node.js 22 or newer. For React, call IE from your server and keep IE_API_KEY there.
+          Use Node.js 22 or newer. For React, run this example on your server and keep the API keys there.
         </p>}
         <div className="space-y-1 text-xs" style={{ color: UI.text }}>
           <div>1. Install the SDK: <code className="font-mono">{python ? 'pip install openai' : 'npm install openai'}</code></div>
           <div>2. In your own terminal: <code className="font-mono">export IE_API_KEY="sk-ie-..."</code></div>
+          {fallback && <div className="space-y-1">
+            <div>Also set <code className="font-mono">export OPENROUTER_API_KEY="sk-or-..."</code></div>
+            <div>Set your requested Inference Exchange model: <code className="font-mono">export IE_MODEL="your-model-id"</code></div>
+          </div>}
           <div>3. Save the example as <code>{filename}</code>. Run <code>{python ? 'python hello_ie.py' : 'node hello_ie.mjs'}</code>.</div>
         </div>
         <div className="flex flex-wrap items-center justify-between gap-2">
@@ -314,8 +338,9 @@ export function Keys() {
           <code>{quickstartCode}</code>
         </pre>
         <p className="text-xs" style={{ color: UI.muted }}>
-          The example selects the first model advertised by the exchange.
-          If no models are online, it stops with a clear error. Your API key is only shown once.
+          {fallback
+            ? 'The example requests IE_MODEL first. Only 503 / model_not_available triggers fallback. Other errors and interrupted streams stop the request.'
+            : 'The example selects the first model advertised by the exchange. If no models are online, it stops with a clear error. Your API key is only shown once.'}
         </p>
       </section>
     </div>
