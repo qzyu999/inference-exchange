@@ -320,20 +320,25 @@ export function Keys() {
           <div>3. Save the example as <code>{filename}</code>. Run <code>{python ? 'python hello_ie.py' : 'node hello_ie.mjs'}</code>.</div>
         </div>
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="flex gap-2">
-            <button type="button" aria-pressed={quickstartMode === 'single'}
+          <div role="group" aria-label="Response mode" className="flex flex-wrap gap-2">
+            <button type="button" aria-controls="quickstart-code" aria-describedby="quickstart-mode-description" aria-pressed={quickstartMode === 'single'}
               onClick={() => { setQuickstartMode('single'); setQuickstartCopyStatus('') }}
-              className="rounded-lg border px-3 py-1.5 text-xs">Non-streaming</button>
-            <button type="button" aria-pressed={quickstartMode === 'stream'}
+              className="cursor-pointer rounded-lg border border-ui-border px-3 py-1.5 text-xs transition-colors hover:border-ui-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ui-warning aria-pressed:bg-ui-action aria-pressed:text-ui-on-action">Non-streaming</button>
+            <button type="button" aria-controls="quickstart-code" aria-describedby="quickstart-mode-description" aria-pressed={quickstartMode === 'stream'}
               onClick={() => { setQuickstartMode('stream'); setQuickstartCopyStatus('') }}
-              className="rounded-lg border px-3 py-1.5 text-xs">Streaming</button>
+              className="cursor-pointer rounded-lg border border-ui-border px-3 py-1.5 text-xs transition-colors hover:border-ui-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ui-warning aria-pressed:bg-ui-action aria-pressed:text-ui-on-action">Streaming</button>
           </div>
           <button type="button" onClick={() => void copyQuickstart()}
             className="rounded-lg px-3 py-1.5 text-xs text-ui-on-action"
             style={{ background: UI.action }}>{python ? 'Copy Python code' : 'Copy Node.js code'}</button>
         </div>
+        <p id="quickstart-mode-description" aria-live="polite" className="text-xs text-ui-body">
+          {quickstartMode === 'stream'
+            ? 'Streaming example — print each part of the response as it arrives.'
+            : 'Non-streaming example — wait for the full response, then print it.'}
+        </p>
         {quickstartCopyStatus && <p role="status" className="text-xs text-ui-body">{quickstartCopyStatus}</p>}
-        <pre className="rounded-xl p-4 font-mono text-xs overflow-x-auto whitespace-pre"
+        <pre id="quickstart-code" className="rounded-xl p-4 font-mono text-xs overflow-x-auto whitespace-pre"
           style={{ background: UI.action, color: UI.codeText }}>
           <code>{quickstartCode}</code>
         </pre>
