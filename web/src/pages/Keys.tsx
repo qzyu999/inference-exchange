@@ -7,9 +7,91 @@ import { loginHref } from '../lib/nav.js'
 import { createUserKey } from '../lib/key-creation.js'
 import { UI } from '../lib/theme'
 
-// Public alpha quick start. The key is supplied locally, never embedded in the page.
-const SDK_NONSTREAM = "import os\nfrom openai import OpenAI\n\nclient = OpenAI(\n    api_key=os.environ[\"IE_API_KEY\"],\n    base_url=\"https://alpha.inferenceex.com/v1\",\n)\nmodels = client.models.list().data\nif not models:\n    raise RuntimeError(\"No IE models are online\")\nmodel = models[0].id\n\nresult = client.chat.completions.create(\n    model=model,\n    messages=[{\"role\": \"user\", \"content\": \"Say hello.\"}],\n    extra_body={\"ocip_min_confidence\": \"open\"},\n)\nprint(result.choices[0].message.content)\n"
-const SDK_STREAM = "import os\nfrom openai import OpenAI\n\nclient = OpenAI(\n    api_key=os.environ[\"IE_API_KEY\"],\n    base_url=\"https://alpha.inferenceex.com/v1\",\n)\nmodels = client.models.list().data\nif not models:\n    raise RuntimeError(\"No IE models are online\")\nmodel = models[0].id\n\nresponse = client.chat.completions.create(\n    model=model,\n    messages=[{\"role\": \"user\", \"content\": \"Count to five.\"}],\n    stream=True,\n    extra_body={\"ocip_min_confidence\": \"open\"},\n)\nfor chunk in response:\n    if chunk.choices and chunk.choices[0].delta.content:\n        print(chunk.choices[0].delta.content, end=\"\", flush=True)\nprint()\n"
+// Keep the routing explanations identical across languages and response modes.
+const OCIP_NOTES = [
+  'ocip_min_confidence sets a minimum. Routing never falls back below it.',
+  'open (L0): No execution isolation required. The coordinator and provider can read your data.',
+  'contained (L1): Requires a sandbox or container. The host admin can still read its data.',
+  'hardened (L2): Requires stronger OS or VM isolation. This is the API default if omitted.',
+  'confidential (L3): Requires hardware-backed CPU memory protection. GPU memory is separate.',
+  'This example allows Open for the private alpha. Use only nonsensitive prompts.',
+]
+
+const PYTHON_SETUP = `import os
+from openai import OpenAI
+
+client = OpenAI(
+    api_key=os.environ["IE_API_KEY"],
+    base_url="https://alpha.inferenceex.com/v1",
+)
+models = client.models.list().data
+if not models:
+    raise RuntimeError("No IE models are online")
+model = models[0].id
+
+${OCIP_NOTES.map(note => '# ' + note).join('\n')}
+`
+
+const SDK_NONSTREAM = `${PYTHON_SETUP}
+result = client.chat.completions.create(
+    model=model,
+    messages=[{"role": "user", "content": "Say hello."}],
+    extra_body={"ocip_min_confidence": "open"},
+)
+print(result.choices[0].message.content)
+`
+
+const SDK_STREAM = `${PYTHON_SETUP}
+response = client.chat.completions.create(
+    model=model,
+    messages=[{"role": "user", "content": "Count to five."}],
+    stream=True,
+    extra_body={"ocip_min_confidence": "open"},
+)
+for chunk in response:
+    if chunk.choices and chunk.choices[0].delta.content:
+        print(chunk.choices[0].delta.content, end="", flush=True)
+print()
+`
+
+const NODE_SETUP = `import OpenAI from "openai";
+
+const apiKey = process.env.IE_API_KEY;
+if (!apiKey) throw new Error("Set IE_API_KEY in your terminal first");
+
+const client = new OpenAI({
+  apiKey,
+  baseURL: "https://alpha.inferenceex.com/v1",
+});
+const { data: models } = await client.models.list();
+const model = models[0]?.id;
+if (!model) throw new Error("No IE models are online");
+
+${OCIP_NOTES.map(note => '// ' + note).join('\n')}
+const routing = { ocip_min_confidence: "open" };
+`
+
+const NODE_NONSTREAM = `${NODE_SETUP}
+const result = await client.chat.completions.create({
+  model,
+  messages: [{ role: "user", content: "Say hello." }],
+  ...routing,
+});
+console.log(result.choices[0].message.content);
+`
+
+const NODE_STREAM = `${NODE_SETUP}
+const stream = await client.chat.completions.create({
+  model,
+  messages: [{ role: "user", content: "Count to five." }],
+  stream: true,
+  ...routing,
+});
+for await (const chunk of stream) {
+  process.stdout.write(chunk.choices[0]?.delta?.content ?? "");
+}
+process.stdout.write("\\n");
+`
 
 export function Keys() {
   const { user } = useAuth()
@@ -19,14 +101,18 @@ export function Keys() {
   const [newKeyName, setNewKeyName] = useState('')
   const [createdKey, setCreatedKey] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
+  const [language, setLanguage] = useState<'python' | 'node'>('python')
   const [quickstartMode, setQuickstartMode] = useState<'single' | 'stream'>('single')
   const [quickstartCopyStatus, setQuickstartCopyStatus] = useState('')
-  const quickstartCode = quickstartMode === 'single' ? SDK_NONSTREAM : SDK_STREAM
+  const python = language === 'python'
+  const filename = python ? 'hello_ie.py' : 'hello_ie.mjs'
+  const examples = python ? { single: SDK_NONSTREAM, stream: SDK_STREAM } : { single: NODE_NONSTREAM, stream: NODE_STREAM }
+  const quickstartCode = examples[quickstartMode]
 
   async function copyQuickstart() {
     try {
       await navigator.clipboard.writeText(quickstartCode)
-      setQuickstartCopyStatus('Code copied. Save it as hello_ie.py.')
+      setQuickstartCopyStatus(`Code copied. Save it as ${filename}.`)
     } catch {
       setQuickstartCopyStatus('Copy unavailable. Select the code below and copy it manually.')
     }
@@ -192,10 +278,21 @@ export function Keys() {
           At L0/Open, the coordinator and provider can read prompts and responses.
           Use only nonsensitive test prompts.
         </p>
+        <div role="group" aria-label="Example language" className="flex flex-wrap gap-2">
+          <button type="button" aria-pressed={python}
+            onClick={() => { setLanguage('python'); setQuickstartCopyStatus('') }}
+            className="rounded-lg border border-ui-border px-3 py-1.5 text-xs aria-pressed:bg-ui-action aria-pressed:text-ui-on-action">Python</button>
+          <button type="button" aria-pressed={!python}
+            onClick={() => { setLanguage('node'); setQuickstartCopyStatus('') }}
+            className="rounded-lg border border-ui-border px-3 py-1.5 text-xs aria-pressed:bg-ui-action aria-pressed:text-ui-on-action">JavaScript / TypeScript (Node.js)</button>
+        </div>
+        {!python && <p className="text-xs text-ui-body">
+          Use Node.js 22 or newer. For React, call IE from your server and keep IE_API_KEY there.
+        </p>}
         <div className="space-y-1 text-xs" style={{ color: UI.text }}>
-          <div>1. Install the SDK: <code className="font-mono">pip install openai</code></div>
+          <div>1. Install the SDK: <code className="font-mono">{python ? 'pip install openai' : 'npm install openai'}</code></div>
           <div>2. In your own terminal: <code className="font-mono">export IE_API_KEY="sk-ie-..."</code></div>
-          <div>3. Save the example as <code>hello_ie.py</code>. Run <code>python hello_ie.py</code>.</div>
+          <div>3. Save the example as <code>{filename}</code>. Run <code>{python ? 'python hello_ie.py' : 'node hello_ie.mjs'}</code>.</div>
         </div>
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex gap-2">
@@ -208,7 +305,7 @@ export function Keys() {
           </div>
           <button type="button" onClick={() => void copyQuickstart()}
             className="rounded-lg px-3 py-1.5 text-xs text-ui-on-action"
-            style={{ background: UI.action }}>Copy Python code</button>
+            style={{ background: UI.action }}>{python ? 'Copy Python code' : 'Copy Node.js code'}</button>
         </div>
         {quickstartCopyStatus && <p role="status" className="text-xs text-ui-body">{quickstartCopyStatus}</p>}
         <pre className="rounded-xl p-4 font-mono text-xs overflow-x-auto whitespace-pre"

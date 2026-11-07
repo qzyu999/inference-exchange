@@ -29,6 +29,13 @@ assert.match(keys, /ocip_min_confidence/)
 assert.match(keys, /SDK_NONSTREAM/)
 assert.match(keys, /SDK_STREAM/)
 assert.match(keys, /Copy Python code/)
+assert.match(keys, /Copy Node\.js code/)
+assert.match(keys, /NODE_NONSTREAM/)
+assert.match(keys, /NODE_STREAM/)
+for (const [level, value] of ['open', 'contained', 'hardened', 'confidential'].entries()) {
+  assert.ok(keys.includes(`${value} (L${level}):`))
+}
+assert.doesNotMatch(keys, /dangerouslyAllowBrowser|VITE_IE_API_KEY/)
 assert.doesNotMatch(keys, /curl \/v1\/chat\/completions/)
 
 assert.doesNotMatch(overview, /Math\.random|v0\.1\.0|'verified' : 'unavailable'/)
