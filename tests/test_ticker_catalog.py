@@ -49,3 +49,87 @@ def test_savings_all_dimensions_stale_and_free():
     assert savings('0.6', '0.5', fresh=True, comparable=True) == -20
     for ie, other, fresh, comparable in [(None,'1',True,True),('1','0',True,True),('1','2',False,True),('1','2',True,False)]:
         assert savings(ie, other, fresh=fresh, comparable=comparable) is None
+
+@pytest.mark.asyncio
+async def test_sync_pins_commit_and_rejects_mixed_publication(tmp_path):
+    import httpx
+    raw = json.dumps(snapshot(2)).encode()
+    calls = []
+    generation = 2
+    def handler(request):
+        calls.append(str(request.url))
+        if '/commits/' in str(request.url): return httpx.Response(200,json={'sha':'a'*40})
+        if str(request.url).endswith('manifest.json'):
+            return httpx.Response(200,json={'schema_version':1,'generation':generation,'sha256':hashlib.sha256(raw).hexdigest()})
+        return httpx.Response(200,content=raw)
+    cache = SnapshotCache(tmp_path/'cache.json')
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        await cache.sync(client,'owner/repo')
+        assert cache.data['generation'] == 2
+        assert all('/'+'a'*40+'/' in u for u in calls[1:])
+        generation = 3
+        with pytest.raises(ValueError, match='Mixed'): await cache.sync(client,'owner/repo')
+        assert cache.data['generation'] == 2
+
+
+def test_ie_filter_keeps_external_offers_and_does_not_fuzzy_match(tmp_path):
+    from types import SimpleNamespace as S
+    cache = SnapshotCache(tmp_path/'cache.json')
+    cache.install(json.dumps(snapshot()).encode(),None,now=2000)
+    provider = S(provider_id='p1',name='Local',model_identity={'quantization':'Q4'},
+        model_capabilities=S(context_length=4096),capabilities=S(models=['Model One'],
+        price_per_mtok_input=0,price_per_mtok_cache=0,price_per_mtok_output=0.1,trust_level=S(value='open')))
+    result = cache.catalog([provider],ie_only=True,now=2000)
+    assert result['total'] == 1
+    assert len(result['models'][0]['offers']) == 2
+    assert result['models'][0]['ie_count'] == 1
+    provider.capabilities.models=['Model One v2']
+    assert cache.catalog([provider],ie_only=True,now=2000)['models'][0]['id'] == 'ie/Model One v2'
+    assert cache.catalog([],now=100000)['models'][0]['offers'][0]['stale']
+    assert cache.history('missing')['offers'] == []
+
+@pytest.mark.parametrize('data', [[], None, {'schema_version':1,'generation':1,'generated_at':1,'models':[None]}])
+def test_invalid_shapes_are_rejected_without_startup_failure(tmp_path, data):
+    with pytest.raises(ValueError): validate_snapshot(data)
+    path = tmp_path/'cache.json'; path.write_text(json.dumps(data))
+    assert SnapshotCache(path).data['generation'] == 0
+
+
+def test_unknown_fields_cannot_impersonate_ie(tmp_path):
+    data = snapshot()
+    data['models'][0]['offers'][0]['ie'] = True
+    data['models'][0]['offers'][0]['secret'] = 'not-public'
+    cache = SnapshotCache(tmp_path/'cache.json')
+    cache.install(json.dumps(data).encode(), None, now=2000)
+    offer = cache.catalog([], now=2000)['models'][0]['offers'][0]
+    assert 'ie' not in offer and 'secret' not in offer
+
+
+@pytest.mark.asyncio
+async def test_manifest_requires_digest(tmp_path):
+    import httpx
+    def handler(request):
+        if '/commits/' in str(request.url): return httpx.Response(200,json={'sha':'a'*40})
+        return httpx.Response(200,json={'schema_version':1,'generation':2,'sha256':None})
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        with pytest.raises(ValueError): await SnapshotCache(tmp_path/'cache.json').sync(client,'owner/repo')
+
+
+def test_catalog_and_history_routes_are_read_only_and_bounded(tmp_path, monkeypatch):
+    from fastapi.testclient import TestClient
+    from inference_exchange.coordinator.main import create_app
+    monkeypatch.setenv('IE_PRICE_COLLECTOR','0')
+    app = create_app()
+    cache = SnapshotCache(tmp_path/'cache.json')
+    cache.install(json.dumps(snapshot()).encode(),None,now=2000)
+    app.state.ticker_cache = cache
+    client = TestClient(app)
+    response = client.get('/v1/exchange/catalog?limit=99999&offset=-1&q=Model')
+    assert response.status_code == 200
+    data = response.json()
+    assert data['total'] == 1
+    assert 'history' not in data['models'][0]['offers'][0]
+    assert client.get('/v1/exchange/catalog?ie_only=true').json()['models'] == []
+    history = client.get('/v1/exchange/catalog/history?model=qwen/model-1').json()
+    assert history['offers'][0]['points'][0]['at'] == 1000
+    assert client.post('/v1/exchange/catalog',json={}).status_code == 405

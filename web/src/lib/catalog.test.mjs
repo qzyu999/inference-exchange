@@ -1,0 +1,15 @@
+import assert from 'node:assert/strict'
+import { savingsLabel, formatRate, eligible } from './catalog.js'
+assert.equal(formatRate('0'), 'Free')
+assert.equal(formatRate(null), 'Not published')
+assert.equal(savingsLabel('0.05','0.20'), '75% lower')
+assert.equal(savingsLabel('0.01','0.05'), '80% lower')
+assert.equal(savingsLabel('0.15','0.60'), '75% lower')
+assert.equal(savingsLabel('0.6','0.5'), '20% higher')
+assert.equal(savingsLabel('0','0'), 'Same price')
+assert.equal(savingsLabel('1','0'), 'External offer is free')
+assert.equal(savingsLabel(null,'1'), 'Not comparable')
+assert.equal(eligible({quantization:'Q4_K_M',context_length:4096},{quantization:'FP16',context_length:4096,comparable:true}),false)
+assert.equal(eligible({quantization:'FP16',context_length:4096},{quantization:'FP16',context_length:4096,comparable:true,stale:true}),false)
+assert.equal(eligible({quantization:'FP16',context_length:4096},{quantization:'FP16',context_length:4096,comparable:true}),true)
+console.log('Catalog savings tests passed')
