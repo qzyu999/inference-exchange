@@ -735,3 +735,16 @@ async def get_network_activity():
     from .dependencies import get_store
     from .country_activity import enabled
     return get_store().public_network_activity(geography_enabled=enabled())
+
+
+@router.get("/v1/exchange/catalog")
+async def catalog(request: Request, q: str = "", ie_only: bool = False, offset: int = 0, limit: int = 100):
+    """Public advertised prices and live IE offers. No account data."""
+    return request.app.state.ticker_cache.catalog(
+        get_hub()._providers.values(), query=q[:200], ie_only=ie_only,
+        offset=max(0, offset), limit=max(1, min(limit, 100)))
+
+
+@router.get("/v1/exchange/catalog/history")
+async def catalog_history(request: Request, model: str = ""):
+    return request.app.state.ticker_cache.history(model)

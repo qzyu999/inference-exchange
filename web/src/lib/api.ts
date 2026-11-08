@@ -5,7 +5,7 @@
 
 const BASE = import.meta.env.VITE_API_BASE || ''
 
-async function get<T>(path: string): Promise<T> {
+export async function get<T>(path: string): Promise<T> {
   const r = await fetch(`${BASE}${path}`, { credentials: 'include' })
   if (!r.ok) throw new Error(`${r.status}: ${await r.text()}`)
   return r.json()

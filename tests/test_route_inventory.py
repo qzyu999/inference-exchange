@@ -17,6 +17,8 @@ OPS = "ops"              # not for the internet; 404 without a configured token
 PROVIDER = "provider"    # IE provider token (PROV-002, PROV-011)
 
 ROUTES = {
+    ("GET", "/v1/exchange/catalog"): PUBLIC,
+    ("GET", "/v1/exchange/catalog/history"): PUBLIC,
     ("GET", "/health"): PUBLIC,
     ("GET", "/readiness"): PUBLIC,
     ("GET", "/metrics"): OPS,

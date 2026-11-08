@@ -244,9 +244,16 @@ def create_app() -> FastAPI:
     price_collector = PriceCollector(store=store)
     set_price_collector(price_collector)
 
+    from .ticker_catalog import SnapshotCache
+    from pathlib import Path
+    ticker_repo = os.environ.get("IE_TICKER_REPOSITORY", "")
+    ticker_cache = SnapshotCache(Path(os.environ.get("IE_TICKER_CACHE_PATH", "~/.inference-exchange/ticker-cache.json")).expanduser())
+
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         from .dependencies import outcome_cleanup_loop
+        app.state.ticker_cache = ticker_cache
+        ticker_task = asyncio.create_task(ticker_cache.run(ticker_repo)) if ticker_repo else None
         outcome_task = asyncio.create_task(outcome_cleanup_loop())
         country_task = asyncio.create_task(country_cleanup_loop())
         # Start attestation challenge background task
@@ -255,12 +262,18 @@ def create_app() -> FastAPI:
 
         # Start reference price collector (IE_PRICE_COLLECTOR=0 disables outbound fetches, e.g. tests/CI)
         price_task = None
-        if os.environ.get("IE_PRICE_COLLECTOR", "1") != "0":
+        if not ticker_repo and os.environ.get("IE_PRICE_COLLECTOR", "1") != "0":
             price_task = price_collector.start()
             logger.info("Price collector started (interval=30m)")
 
         yield
 
+        if ticker_task:
+            ticker_task.cancel()
+            try:
+                await ticker_task
+            except asyncio.CancelledError:
+                pass
         outcome_task.cancel()
         try:
             await outcome_task
@@ -356,6 +369,7 @@ def create_app() -> FastAPI:
         )
 
     app.middleware("http")(metrics_middleware)
+    app.state.ticker_cache = ticker_cache
     app.include_router(metrics_router)
 
     # Mount consumer API routers
