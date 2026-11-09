@@ -29,6 +29,7 @@ interface MarketProvider {
   context_length: number; format: string; original_model: string
   publishedRates?: { input: string | null; cache: string | null; output: string | null }
   identity_source?: string; identity_trust?: string; artifact_verification?: string
+  reported_quantization?: string | null
 }
 
 interface MarketModel {
@@ -67,6 +68,7 @@ interface OfferRow {
   publishedRates?: { input: string | null; cache: string | null; output: string | null }
   identitySource?: string; identityTrust?: string; artifactVerification?: string
   quoteKind?: 'catalog' | 'endpoint'
+  reportedQuantization?: string | null
 }
 
 // ─── Helpers ─────────────────────────────────────────────────
@@ -512,6 +514,7 @@ export function Exchange() {
           priceInput: p.price_input, priceCache: p.price_cache, priceOutput: p.price_output,
           quality: activeUnified?.codingIndex || null, tps: p.tps > 0 ? p.tps : null,
           trust: p.trust, encrypted: p.encrypted, quantization: p.quantization,
+          reportedQuantization: p.reported_quantization,
           publishedRates: p.publishedRates,
           quoteKind: 'endpoint',
           identitySource: p.identity_source, identityTrust: p.identity_trust,
@@ -530,6 +533,7 @@ export function Exchange() {
           priceOutput: p.price_output || 0,
           quality: p.intelligence_index || p.coding_index || null,
           tps: null, displayName: p.display_name, quantization: p.quantization,
+          reportedQuantization: p.reported_quantization,
           sourceUrl: p.source_url, observedAt: p.observed_at, sourceType: p.source_type,
           publishedRates: p.publishedRates,
           quoteKind: p.quote_kind || 'endpoint',
@@ -751,7 +755,8 @@ export function Exchange() {
                         {tc && <span style={{ fontSize: 7, fontWeight: 600, padding: '1px 4px', borderRadius: 3, background: tc.bg, color: tc.text }}>{tc.label}</span>}
                         {r.encrypted && <span style={{ fontSize: 7, fontWeight: 600, padding: '1px 4px', borderRadius: 3, background: UI.infoSurface, color: UI.info }}>E2E</span>}
                         {cachePct > 0 && <span style={{ fontSize: 7, fontWeight: 600, padding: '1px 4px', borderRadius: 3, background: UI.purpleSurface, color: UI.purple }}>-{cachePct}% cache</span>}
-                        {r.quantization && <span>{r.quantization}</span>}
+                        {r.quantization ? <span>{r.quantization}</span>
+                          : r.reportedQuantization ? <span>Reported quantization: {r.reportedQuantization}</span> : null}
                         {r.quoteKind === 'catalog' && <span>Catalog quote</span>}
                         {r.isIE && <span>{identityLabel(r.identitySource, r.identityTrust)}</span>}
                         {r.isIE && <span>{r.artifactVerification === 'verified' ? 'Artifact hash verified' : 'Artifact unverified'}</span>}

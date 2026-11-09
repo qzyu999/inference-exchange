@@ -15,6 +15,7 @@ import httpx
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from .comparison_identity import configured_catalog, provider_identity
 from .model_facets import facets_from_identity, public_facets
+from inference_exchange.shared.model_quantization import normalize_quantization
 
 log = logging.getLogger(__name__)
 MAX_BYTES = 64 * 1024 * 1024
@@ -61,7 +62,7 @@ class _Offer(_Record):
     cache_read: str | None = None
     output: str | None = None
     cache_write: str | None = None
-    quantization: str | None = None
+    quantization: str | None = Field(default=None, max_length=100)
     context_length: int | None = Field(default=None, ge=0)
     comparable: bool = False
     conditions: str = ""
@@ -131,6 +132,8 @@ def validate_snapshot(data, now=None):
                 raise ValueError('Ambiguous alias')
             aliases.add(alias.casefold())
         for offer in model['offers']:
+            offer["reported_quantization"] = offer["quantization"]
+            offer["quantization"] = normalize_quantization(offer["quantization"])
             if offer['id'] in offer_ids:
                 raise ValueError('Duplicate offer')
             offer_ids.add(offer['id'])
@@ -264,6 +267,7 @@ class SnapshotCache:
                     'cache_read': str(p.capabilities.price_per_mtok_cache) if p.capabilities.price_per_mtok_cache > 0 else None,
                     'output': str(p.capabilities.price_per_mtok_output),
                     'quantization': identity.get('quantization'),
+                    'reported_quantization': identity.get('reported_quantization'),
                     'identity_source': resolution.identity_source,
                     'identity_trust': resolution.identity_trust,
                     'artifact_verification': 'verified' if applies and getattr(p, 'model_verified', False) else 'unverified',

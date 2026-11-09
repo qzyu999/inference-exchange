@@ -14,6 +14,7 @@ interface MarketProvider {
   load: number; encrypted: boolean; verified: boolean; slots: string
   context_length: number; format: string; original_model: string
   identity_source?: string; identity_trust?: string; artifact_verification?: string
+  reported_quantization?: string | null
 }
 
 interface MarketModel {
@@ -261,7 +262,7 @@ function ModelDetail({ m }: { m: MarketModel }) {
                     <span className="text-[7px]" style={{ color: UI.muted }}>{p.verified ? 'Hash verified' : 'Artifact unverified'}</span>
                   </div>
                 </div>
-                <div className="col-span-1 text-[10px] font-mono" style={{ color: UI.accent }}>{p.quantization || '—'}</div>
+                <div className="col-span-1 text-[10px] font-mono" style={{ color: UI.accent }}>{p.quantization || (p.reported_quantization ? 'Reported: ' + p.reported_quantization : '—')}</div>
                 <div className="col-span-1 text-right text-xs" style={{ color: UI.info }}>{formatPrice(p.price_input)}</div>
                 <div className="col-span-1 text-right text-xs" style={{ color: p.price_cache > 0 ? UI.info : UI.muted }}>
                   {p.price_cache > 0 ? `${formatPrice(p.price_cache)}` : '—'}

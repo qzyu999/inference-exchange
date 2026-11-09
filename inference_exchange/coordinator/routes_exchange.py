@@ -375,6 +375,7 @@ async def get_market_data(request: Request):
                 "hardware": provider.capabilities.hardware,
                 "slots": f"{provider.active_requests}/{provider.capabilities.max_concurrent}",
                 "quantization": offer.get("quantization") or "", "context_length": caps.context_length,
+                "reported_quantization": offer.get("reported_quantization"),
                 "format": caps.model_format, "verified": offer["artifact_verification"] == "verified",
                 "artifact_verification": offer["artifact_verification"],
                 "identity_source": offer["identity_source"], "identity_trust": offer["identity_trust"],

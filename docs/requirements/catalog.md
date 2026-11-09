@@ -73,3 +73,19 @@ Keep distinct serving offers visible.
 - Status: implemented
 - Verified by: tests/test_ticker_catalog.py::test_quote_kinds_are_validated_and_catalog_rows_do_not_count_providers, tests/test_reference_pricing.py::test_catalog_quote_never_qualifies_for_headline_savings, web/src/lib/catalog.test.mjs, tests/test_quote_contracts.py
 - Issue: #279
+
+### CATALOG-006: Structured model metadata and quantization labels
+
+MUST: Keep conversion sources separate from base-model lineage.
+Do not resolve comparison identity from lineage.
+Preserve bounded structured source and display metadata.
+Use one shared quantization map.
+Use the GGUF file-type enum for file-type labels.
+Keep missing, invalid, and removed file types unknown.
+Normalize legacy quantization spellings without changing artifact verification.
+Preserve reported quantization labels separately from normalized labels.
+
+- Principle: P2, P3, P8, P9
+- Status: implemented
+- Verified by: tests/test_model_identity.py, tests/test_model_quantization.py, tests/test_ticker_catalog.py::test_quantization_normalization_keeps_unknown_reports_visible
+- Issue: #279

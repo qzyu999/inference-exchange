@@ -1,25 +1,9 @@
 """One exact comparison resolver for catalog, market, and reference prices."""
 import os
-import re
 from dataclasses import dataclass
-from urllib.parse import quote, urlsplit
-
-def hf_repo_from_url(value):
-    """Accept an explicit repository URL, without deriving a repo from a name."""
-    if not isinstance(value, str):
-        return None
-    try:
-        url = urlsplit(value)
-        port = url.port
-    except ValueError:
-        return None
-    parts = url.path.strip("/").split("/")
-    if (url.scheme != "https" or url.hostname != "huggingface.co" or port is not None
-            or url.username or url.password or url.query or url.fragment or len(parts) != 2
-            or any(not re.fullmatch(r"[a-zA-Z0-9_.-]+", part) for part in parts)
-            or any(part in (".", "..") for part in parts)):
-        return None
-    return "/".join(parts)
+from urllib.parse import quote
+from inference_exchange.shared.model_sources import hf_repo_from_url, clean_gguf_identity
+from inference_exchange.shared.model_quantization import normalize_quantization
 
 @dataclass(frozen=True)
 class Resolution:
@@ -134,12 +118,10 @@ def clean_identity(identity):
     result = {key: value for key, value in identity.items()
               if key in ("name", "repo_id", "quantization", "architecture")
               and isinstance(value, str) and len(value) <= 512}
-    metadata = identity.get("gguf", {})
-    if isinstance(metadata, dict):
-        result["gguf"] = {key: value for key, value in metadata.items()
-                         if key in ("basename", "version", "size_label", "finetune",
-                                    "conversion_source_repository", "conversion_source_url")
-                         and isinstance(value, str) and len(value) <= 512}
+    result["gguf"] = clean_gguf_identity(identity.get("gguf"))
+    reported = result.get("quantization")
+    result["reported_quantization"] = reported
+    result["quantization"] = normalize_quantization(reported)
     return result
 
 

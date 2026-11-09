@@ -120,7 +120,7 @@ class TestGetModelIdentity:
         Path(path).unlink()
 
     def test_quantization_mapping(self):
-        for ftype, expected in [(2, "Q4_0"), (7, "Q5_1"), (17, "Q5_K_M"), (18, "Q6_K")]:
+        for ftype, expected in [(2, "Q4_0"), (7, "Q8_0"), (8, "Q5_0"), (9, "Q5_1"), (17, "Q5_K_M"), (18, "Q6_K")]:
             path = _make_gguf_file(file_type=ftype)
             identity = get_model_identity(path)
             assert identity["quantization"] == expected
@@ -145,3 +145,77 @@ class TestGetModelIdentity:
         identity = get_model_identity(path)
         assert identity["repo_id"] == ""
         Path(path).unlink()
+
+
+def test_structured_gguf_fields_keep_variant_source_and_lineage_separate(tmp_path):
+    from inference_exchange.coordinator.comparison_identity import ExactCatalog
+    from inference_exchange.coordinator.model_facets import facets_from_identity
+    path = tmp_path / "model.gguf"
+    metadata = {
+        "general.name": (8, "Local"),
+        "general.basename": (8, "Example"),
+        "general.version": (8, "2.1"),
+        "general.size_label": (8, "30B-A3B"),
+        "general.finetune": (8, "Instruct-Coder"),
+        "general.source.huggingface.repository": (8, "org/instruct"),
+        "general.base_model.count": (4, 1),
+        "general.base_model.0.name": (8, "Base ancestor"),
+        "general.base_model.0.repo_url": (8, "https://huggingface.co/org/base"),
+        "general.file_type": (4, 15),
+    }
+    with path.open("wb") as stream:
+        _write_gguf_header(stream, metadata)
+    identity = get_model_identity(str(path))
+    assert identity["repo_id"] == "org/instruct"
+    assert identity["gguf"]["base_models"][0]["repo_url"] == "https://huggingface.co/org/base"
+    facets = facets_from_identity(identity)
+    assert facets.display_name == "Example 2.1 30B-A3B Instruct-Coder"
+    assert facets.total_parameters == 30_000_000_000
+    assert facets.active_parameters == 3_000_000_000
+    assert facets.variant_tags == frozenset({"instruct", "coder"})
+    assert facets.family is None
+    resolver = ExactCatalog([
+        {"id": "catalog/base", "source_ids": [{"source": "huggingface", "model_id": "org/base"}]},
+        {"id": "catalog/instruct", "source_ids": [{"source": "huggingface", "model_id": "org/instruct"}]},
+    ])
+    resolution = resolver.local_resolution("p", "Local", identity)
+    assert resolution.comparison_id == "catalog/instruct"
+    assert resolution.identity_trust == "reported"
+    assert "verified" not in identity
+    assert identity["file_hash"] == compute_file_hash(str(path))
+    identity["repo_id"] = ""
+    identity["gguf"]["conversion_source_repository"] = None
+    assert resolver.local("p", "Local", identity).startswith("ie/")
+
+
+def test_source_url_and_metadata_limits_never_use_base_repository(tmp_path):
+    path = tmp_path / "model.gguf"
+    metadata = {
+        "general.source.url": (8, "https://huggingface.co/org/instruct"),
+        "general.basename": (8, "x" * 513),
+        "general.version": (4, 7),
+        "general.base_model.count": (4, 20),
+        "general.base_model.0.repo_url": (8, "https://huggingface.co/org/base"),
+    }
+    with path.open("wb") as stream:
+        _write_gguf_header(stream, metadata)
+    identity = get_model_identity(str(path))
+    assert identity["repo_id"] == "org/instruct"
+    assert identity["gguf"]["basename"] is None
+    assert identity["gguf"]["version"] is None
+    assert len(identity["gguf"]["base_models"]) == 16
+    assert identity["quantization"] is None
+
+
+def test_unsupported_source_urls_cannot_supply_a_repository():
+    from inference_exchange.shared.model_sources import hf_repo_from_url, hf_repo_id
+    for value in (
+        "http://huggingface.co/org/model", "https://example.com/org/model",
+        "https://user:password@huggingface.co/org/model",
+        "https://huggingface.co/org/model/resolve/main/file.gguf",
+        "https://huggingface.co/org/model?redirect=other",
+        "https://huggingface.co:invalid/org/model",
+    ):
+        assert hf_repo_from_url(value) is None
+    assert hf_repo_id("../model") is None
+    assert hf_repo_from_url("https://huggingface.co/org/model") == "org/model"

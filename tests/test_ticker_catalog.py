@@ -183,3 +183,15 @@ def test_quote_kinds_are_validated_and_catalog_rows_do_not_count_providers(tmp_p
     with pytest.raises(ValueError):
         cache.install(json.dumps(invalid).encode(), None, now=2000)
     assert cache.data["generation"] == 1
+
+
+def test_quantization_normalization_keeps_unknown_reports_visible():
+    data = snapshot()
+    data["models"][0]["offers"][0]["quantization"] = "F16"
+    offer = validate_snapshot(data, now=2000)["models"][0]["offers"][0]
+    assert offer["quantization"] == "FP16"
+    assert offer["reported_quantization"] == "F16"
+    data["models"][0]["offers"][0]["quantization"] = "unrecognized"
+    offer = validate_snapshot(data, now=2000)["models"][0]["offers"][0]
+    assert offer["quantization"] is None
+    assert offer["reported_quantization"] == "unrecognized"

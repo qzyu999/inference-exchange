@@ -2,6 +2,8 @@
 import re
 from dataclasses import asdict, dataclass
 from decimal import Decimal
+from inference_exchange.shared.model_quantization import normalize_quantization
+from inference_exchange.shared.model_sources import clean_gguf_identity
 
 @dataclass(frozen=True)
 class Facets:
@@ -29,13 +31,13 @@ def parse_facets(name, *, quantization=None):
             total = int(Decimal(token[:-1]) * 1_000_000_000)
     total = total if total is None or total <= 9_007_199_254_740_991 else None
     active = active if active is None or active <= 9_007_199_254_740_991 else None
-    return Facets(None, None, total, active, None, quantization, label)
+    return Facets(None, None, total, active, None, normalize_quantization(quantization), label)
 
 def facets_from_identity(identity, *, catalog_model=None, family_labels=(), enriched_display=True):
     """Source labels determine display. Name parsing supplies numeric facets only."""
     catalog_model = catalog_model or {}
     parsed = parse_facets(identity.get("name", ""), quantization=identity.get("quantization"))
-    metadata = identity.get("gguf", {})
+    metadata = clean_gguf_identity(identity.get("gguf"))
     sizes = parse_facets(metadata["size_label"]) if metadata.get("size_label") else parsed
     finetune = metadata.get("finetune")
     tags = (frozenset(re.split(r"[-_/ ]+", finetune.lower())) - {""}

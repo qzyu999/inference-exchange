@@ -14,6 +14,8 @@ import hashlib
 import logging
 import struct
 from pathlib import Path
+from inference_exchange.shared.model_quantization import quantization_from_file_type
+from inference_exchange.shared.model_sources import gguf_identity_fields, hf_repo_id, hf_repo_from_url
 
 logger = logging.getLogger(__name__)
 
@@ -178,14 +180,8 @@ def get_model_identity(filepath: str) -> dict:
     architecture = metadata.get("general.architecture", "unknown")
 
     # Determine quantization from file_type
-    file_type = metadata.get("general.file_type", 0)
-    quant_map = {
-        0: "F32", 1: "F16", 2: "Q4_0", 3: "Q4_1", 6: "Q5_0",
-        7: "Q5_1", 8: "Q8_0", 9: "Q8_1", 10: "Q2_K", 11: "Q3_K_S",
-        12: "Q3_K_M", 13: "Q3_K_L", 14: "Q4_K_S", 15: "Q4_K_M",
-        16: "Q5_K_S", 17: "Q5_K_M", 18: "Q6_K", 19: "Q8_K",
-    }
-    quantization = quant_map.get(file_type, f"type_{file_type}")
+    file_type = metadata.get("general.file_type")
+    quantization = quantization_from_file_type(file_type)
 
     # Context length
     ctx_key = f"{architecture}.context_length"
@@ -206,6 +202,8 @@ def get_model_identity(filepath: str) -> dict:
         "block_count": block_count,
         "embedding_length": embed_length,
         "repo_id": _extract_repo_id(metadata, filepath),
+        "file_type": file_type if type(file_type) is int else None,
+        "gguf": gguf_identity_fields(metadata),
     }
 
     logger.info(
@@ -224,7 +222,10 @@ def _extract_repo_id(metadata: dict, filepath: str) -> str:
     2. HuggingFace cache path: ~/.cache/huggingface/hub/models--org--name/...
     """
     # Source 1: GGUF metadata
-    repo = metadata.get("general.source.huggingface.repository", "")
+    repo = hf_repo_id(metadata.get("general.source.huggingface.repository"))
+    if repo:
+        return repo
+    repo = hf_repo_from_url(metadata.get("general.source.url"))
     if repo:
         return repo
 
@@ -237,7 +238,7 @@ def _extract_repo_id(metadata: dict, filepath: str) -> str:
                 # models--meta-llama--Llama-3.1-8B-Instruct → meta-llama/Llama-3.1-8B-Instruct
                 segments = part.split("--", 2)
                 if len(segments) >= 3:
-                    return f"{segments[1]}/{segments[2]}"
+                    return hf_repo_id(f"{segments[1]}/{segments[2]}") or ""
     except Exception:
         pass
 

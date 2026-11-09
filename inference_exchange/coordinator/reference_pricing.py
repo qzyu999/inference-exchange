@@ -2,6 +2,7 @@
 import time
 
 from .ticker_catalog import FRESH_SECONDS
+from inference_exchange.shared.model_quantization import normalize_quantization
 
 
 def get_reference_prices(comparison_id, *, resolver=None):
@@ -15,7 +16,7 @@ def get_reference_prices(comparison_id, *, resolver=None):
             "input": float(o["input"]) if o.get("input") is not None else 0,
             "output": float(o["output"]) if o.get("output") is not None else 0,
             "cache": float(o["cache_read"]) if o.get("cache_read") is not None else 0,
-            "comparison_type": "same_model", "quantization": o.get("quantization"),
+            "comparison_type": "same_model", "quantization": normalize_quantization(o.get("quantization")),
             "context_length": o.get("context_length"),
             "comparable": o.get("comparable", False) and o.get("quote_kind", "endpoint") == "endpoint",
             "fresh": time.time() - o["observed_at"] <= FRESH_SECONDS,
@@ -25,7 +26,7 @@ def get_reference_prices(comparison_id, *, resolver=None):
     return [{
         "provider": e.source, "model": e.display_name,
         "input": e.input_per_mtok, "output": e.output_per_mtok, "cache": e.cache_per_mtok,
-        "comparison_type": "same_model", "quantization": e.quantization,
+        "comparison_type": "same_model", "quantization": normalize_quantization(e.quantization),
         "context_length": e.context_length, "comparable": e.quote_kind == "endpoint",
         "fresh": time.time() - e.fetched_at <= FRESH_SECONDS,
     } for e in (collector.get_all_current() if collector else [])
@@ -35,6 +36,7 @@ def get_reference_prices(comparison_id, *, resolver=None):
 def compute_savings(exchange_price, comparison_id, exchange_input=0, exchange_cache=0,
                     *, resolver=None, quantization=None, context_length=None):
     comparisons = []
+    quantization = normalize_quantization(quantization)
     for ref in get_reference_prices(comparison_id, resolver=resolver):
         eligible = bool(ref["fresh"] and ref["comparable"] and quantization and ref["quantization"]
                         and quantization.casefold() == ref["quantization"].casefold()
