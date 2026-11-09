@@ -672,8 +672,8 @@ async def get_reference_price_history(family_key: str = "", days: int = 30):
         src = r["source"]
         # Keep latest entry per day per source
         daily[date][src] = {
-            "input": round(r["input_per_mtok"], 4),
-            "output": round(r["output_per_mtok"], 4),
+            "input": round(r["input_per_mtok"], 6),
+            "output": round(r["output_per_mtok"], 6),
         }
 
     history = [

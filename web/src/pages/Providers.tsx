@@ -3,6 +3,7 @@ import useSWR from 'swr'
 import { Link } from 'react-router-dom'
 import { api, Provider, ReputationEntry, TPSEntry } from '../lib/api'
 import { UI, APP_TRUST_COLORS as TRUST_COLORS } from '../lib/theme'
+import { formatPrice } from '../lib/price.js'
 
 function formatUptime(seconds: number): string {
   if (seconds < 60) return `${seconds}s`
@@ -32,17 +33,17 @@ function ProviderEvidence({ p, reputation, tps }: { p: Provider; reputation?: Re
           <div className="space-y-1.5">
             <div className="flex justify-between">
               <span style={{ color: UI.info }}>Input</span>
-              <span className="font-semibold" style={{ color: UI.text }}>${p.price_input.toFixed(2)}</span>
+              <span className="font-semibold" style={{ color: UI.text }}>{formatPrice(p.price_input)}</span>
             </div>
             <div className="flex justify-between">
               <span style={{ color: UI.info }}>Cache</span>
               <span className="font-semibold" style={{ color: (p.price_cache || 0) > 0 ? UI.text : UI.muted }}>
-                {(p.price_cache || 0) > 0 ? `$${(p.price_cache || 0).toFixed(2)}` : '—'}
+                {(p.price_cache || 0) > 0 ? `${formatPrice((p.price_cache || 0))}` : '—'}
               </span>
             </div>
             <div className="flex justify-between">
               <span style={{ color: UI.accent }}>Output</span>
-              <span className="font-semibold" style={{ color: UI.text }}>${p.price_output.toFixed(2)}</span>
+              <span className="font-semibold" style={{ color: UI.text }}>{formatPrice(p.price_output)}</span>
             </div>
           </div>
         </div>
@@ -192,7 +193,7 @@ export function Providers() {
             { label: 'providers online', value: providers.length, color: UI.success },
             { label: 'Hardened+', value: hardenedCount, color: UI.accent },
             { label: 'models live', value: modelCount, color: UI.text },
-            { label: 'lowest output', value: cheapestOut > 0 ? `$${cheapestOut.toFixed(2)}` : '—', color: UI.accent },
+            { label: 'lowest output', value: cheapestOut > 0 ? `${formatPrice(cheapestOut)}` : '—', color: UI.accent },
           ].map(s => (
             <div key={s.label} className="bg-ui-surface rounded-2xl border border-ui-border px-5 py-4">
               <div className="text-2xl font-bold tracking-tight" style={{ color: s.color }}>{s.value}</div>
@@ -266,11 +267,11 @@ export function Providers() {
                 </div>
 
                 {/* Three-tier pricing */}
-                <div className="col-span-1 text-right text-xs" style={{ color: UI.info }}>${p.price_input.toFixed(2)}</div>
+                <div className="col-span-1 text-right text-xs" style={{ color: UI.info }}>{formatPrice(p.price_input)}</div>
                 <div className="col-span-1 text-right text-xs" style={{ color: (p.price_cache || 0) > 0 ? UI.info : UI.muted }}>
-                  {(p.price_cache || 0) > 0 ? `$${(p.price_cache || 0).toFixed(2)}` : '—'}
+                  {(p.price_cache || 0) > 0 ? `${formatPrice((p.price_cache || 0))}` : '—'}
                 </div>
-                <div className="col-span-1 text-right text-sm font-semibold" style={{ color: UI.accent }}>${p.price_output.toFixed(2)}</div>
+                <div className="col-span-1 text-right text-sm font-semibold" style={{ color: UI.accent }}>{formatPrice(p.price_output)}</div>
 
                 {/* Speed */}
                 <div className="col-span-1 text-right text-sm" style={{ color: UI.info }}>

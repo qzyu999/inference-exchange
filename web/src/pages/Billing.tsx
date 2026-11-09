@@ -3,6 +3,7 @@ import { useAuth } from '../lib/auth'
 import { Link } from 'react-router-dom'
 import { api } from '../lib/api'
 import { formatUsd, formatUsdPrecise, microToUsd, sumMicro } from '../lib/money.js'
+import { formatPrice } from '../lib/price.js'
 import { requestedModelLabel, servedModelLabel } from '../lib/model-attribution.js'
 import { UI } from '../lib/theme'
 
@@ -143,7 +144,7 @@ export function Billing() {
             <div>
               <div className="text-xs" style={{ color: UI.muted }}>Input</div>
               <div className="text-xl font-bold mt-0.5" style={{ color: UI.text }}>
-                ${cheapestPricing ? (cheapestPricing as any).input?.toFixed(2) || '0.08' : '0.08'} / M
+                {formatPrice((cheapestPricing as any)?.input ?? 0.08)} / M
               </div>
             </div>
             <div>
@@ -155,7 +156,7 @@ export function Billing() {
             <div>
               <div className="text-xs" style={{ color: UI.muted }}>Output</div>
               <div className="text-xl font-bold mt-0.5" style={{ color: UI.text }}>
-                ${cheapestPricing ? (cheapestPricing as any).output?.toFixed(2) || '0.15' : '0.15'} / M
+                {formatPrice((cheapestPricing as any)?.output ?? 0.15)} / M
               </div>
             </div>
 

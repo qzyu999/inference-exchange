@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import useSWR from 'swr'
 import { api } from '../lib/api'
 import { UI, APP_TRUST_COLORS as TRUST_COLORS } from '../lib/theme'
+import { formatPrice } from '../lib/price.js'
 
 // ─── Types ───────────────────────────────────────────────────
 
@@ -115,17 +116,17 @@ function ModelCard({ m, isSelected, onSelect }: { m: MarketModel; isSelected: bo
           <div className="flex items-center gap-4 mt-3">
             <div className="flex items-center gap-1.5">
               <span className="text-[9px] uppercase font-medium" style={{ color: UI.info }}>in</span>
-              <span className="text-sm font-bold" style={{ color: UI.text }}>${cheapest.price_input.toFixed(2)}</span>
+              <span className="text-sm font-bold" style={{ color: UI.text }}>{formatPrice(cheapest.price_input)}</span>
             </div>
             <div className="flex items-center gap-1.5">
               <span className="text-[9px] uppercase font-medium" style={{ color: UI.info }}>cache</span>
               <span className="text-sm font-bold" style={{ color: cheapest.price_cache > 0 ? UI.text : UI.muted }}>
-                {cheapest.price_cache > 0 ? `$${cheapest.price_cache.toFixed(2)}` : '—'}
+                {cheapest.price_cache > 0 ? `${formatPrice(cheapest.price_cache)}` : '—'}
               </span>
             </div>
             <div className="flex items-center gap-1.5">
               <span className="text-[9px] uppercase font-medium" style={{ color: UI.accent }}>out</span>
-              <span className="text-sm font-bold" style={{ color: UI.text }}>${cheapest.price_output.toFixed(2)}</span>
+              <span className="text-sm font-bold" style={{ color: UI.text }}>{formatPrice(cheapest.price_output)}</span>
             </div>
             <span className="text-[9px]" style={{ color: UI.muted }}>$/Mtok</span>
           </div>
@@ -208,7 +209,7 @@ function ModelDetail({ m }: { m: MarketModel }) {
                     {provs.length} provider{provs.length !== 1 ? 's' : ''}
                   </div>
                   <div className="text-sm font-semibold mt-1.5" style={{ color: UI.accent }}>
-                    {minP === maxP ? `$${minP.toFixed(2)}` : `$${minP.toFixed(2)}–$${maxP.toFixed(2)}`}
+                    {minP === maxP ? `${formatPrice(minP)}` : `${formatPrice(minP)}–${formatPrice(maxP)}`}
                   </div>
                   {bestSpeed > 0 && (
                     <div className="text-xs mt-0.5" style={{ color: UI.info }}>
@@ -258,11 +259,11 @@ function ModelDetail({ m }: { m: MarketModel }) {
                   </div>
                 </div>
                 <div className="col-span-1 text-[10px] font-mono" style={{ color: UI.accent }}>{p.quantization || '—'}</div>
-                <div className="col-span-1 text-right text-xs" style={{ color: UI.info }}>${p.price_input.toFixed(2)}</div>
+                <div className="col-span-1 text-right text-xs" style={{ color: UI.info }}>{formatPrice(p.price_input)}</div>
                 <div className="col-span-1 text-right text-xs" style={{ color: p.price_cache > 0 ? UI.info : UI.muted }}>
-                  {p.price_cache > 0 ? `$${p.price_cache.toFixed(2)}` : '—'}
+                  {p.price_cache > 0 ? `${formatPrice(p.price_cache)}` : '—'}
                 </div>
-                <div className="col-span-1 text-right text-xs font-semibold" style={{ color: UI.accent }}>${p.price_output.toFixed(2)}</div>
+                <div className="col-span-1 text-right text-xs font-semibold" style={{ color: UI.accent }}>{formatPrice(p.price_output)}</div>
                 <div className="col-span-1 text-right text-xs" style={{ color: UI.info }}>
                   {p.tps > 0 ? `${p.tps.toFixed(0)}` : '—'}
                 </div>
@@ -357,9 +358,9 @@ function ModelDetail({ m }: { m: MarketModel }) {
                   {({ openai: 'OpenAI', anthropic: 'Anthropic', google: 'Google', deepseek: 'DeepSeek', together: 'Together AI', openrouter: 'OpenRouter', groq: 'Groq', fireworks: 'Fireworks' } as Record<string, string>)[r.provider] || r.provider}
                 </span>
                 <span className="flex-1 truncate" style={{ color: UI.muted }}>{r.model}</span>
-                <span style={{ color: UI.info }}>${r.price_input.toFixed(2)}</span>
-                <span style={{ color: UI.info }}>{r.price_cache > 0 ? `$${r.price_cache.toFixed(2)}` : '—'}</span>
-                <span className="font-semibold" style={{ color: UI.accent }}>${r.price_output.toFixed(2)}</span>
+                <span style={{ color: UI.info }}>{formatPrice(r.price_input)}</span>
+                <span style={{ color: UI.info }}>{r.price_cache > 0 ? `${formatPrice(r.price_cache)}` : '—'}</span>
+                <span className="font-semibold" style={{ color: UI.accent }}>{formatPrice(r.price_output)}</span>
                 {r.cheaper && (
                   <span className="text-[9px] font-medium px-1.5 py-0.5 rounded-full" style={{ background: UI.successSurface, color: UI.success }}>
                     {r.diff_pct}% more

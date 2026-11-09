@@ -3,6 +3,7 @@ import { api, type CatalogModel, type CatalogPage } from '../lib/api'
 import { useState, useMemo, useRef, useEffect } from 'react'
 import { UI, APP_TRUST_COLORS as TRUST_COLORS } from '../lib/theme'
 import { ModelSearch, type ModelSearchItem } from '../components/ModelSearch'
+import { formatPrice, priceKey } from '../lib/price.js'
 
 // ─── Constants ───────────────────────────────────────────────
 
@@ -79,9 +80,7 @@ function parseSize(s: string): number | null {
 
 function fmtPrice(p: number): string {
   if (p <= 0) return '—'
-  if (p < 0.1) return `$${p.toFixed(3)}`
-  if (p < 1) return `$${p.toFixed(2)}`
-  return `$${p.toFixed(2)}`
+  return formatPrice(p)
 }
 
 // ─── Interactive Price Chart ─────────────────────────────────
@@ -165,7 +164,7 @@ function PriceChart({ offerRows, modelName }: { offerRows: OfferRow[]; modelName
       ctx.font = '9px SF Mono,Menlo,monospace'
       ctx.textAlign = 'left'
       for (const f of [0, 0.25, 0.5, 0.75, 1]) {
-        ctx.fillText('$' + (yMax * f).toFixed(2), W - PAD.r + 4, yC(yMax * f) + 3)
+        ctx.fillText(formatPrice(yMax * f), W - PAD.r + 4, yC(yMax * f) + 3)
       }
 
       // Lines
@@ -231,7 +230,7 @@ function PriceChart({ offerRows, modelName }: { offerRows: OfferRow[]; modelName
       const da = 29 - day
       setTooltip({
         x: px + 10, y: py - 24,
-        text: `${bp.name}  $${bv.toFixed(2)}/Mtok ${TIER_META[tier].label.toLowerCase()}${da > 0 ? ` · ${da}d ago` : ' · today'}`,
+        text: `${bp.name}  ${formatPrice(bv)}/Mtok ${TIER_META[tier].label.toLowerCase()}${da > 0 ? ` · ${da}d ago` : ' · today'}`,
         color: bp.color,
       })
     } else {
@@ -496,7 +495,7 @@ export function Exchange() {
         m.ctx !== '—' ? m.ctx + ' context' : '',
         m.providerCount + (m.source === 'ref' ? ' reference offers' : ' IE providers'),
       ].filter(Boolean).join(' · '),
-      priceLabel: m.price > 0 ? (m.price < 1 ? '$' + m.price.toFixed(2) : '$' + m.price.toFixed(0)) : undefined,
+      priceLabel: m.price > 0 ? formatPrice(m.price) : undefined,
       badges: [
         { label: m.source === 'ref' ? 'Reference only' : m.source === 'both' ? 'IE + reference' : 'On IE',
           color: m.source === 'ref' ? UI.purple : UI.success, background: m.source === 'ref' ? UI.purpleSurface : UI.successSurface },
@@ -568,7 +567,8 @@ export function Exchange() {
       for (const r of offerRows) {
         const v = r[key]
         if (!v || v <= 0) continue
-        const k = v.toFixed(3)
+        // Full 6-decimal key. A 3-decimal key merged $0.0015 and $0.0018 into one level.
+        const k = priceKey(v)
         if (!levels[k]) levels[k] = { price: v, providers: [] }
         levels[k].providers.push({ name: r.isIE ? 'Inference Exchange' : r.name, isIE: r.isIE })
       }
@@ -824,11 +824,11 @@ export function Exchange() {
                   {/* Row 2: in / cache / out rates ($/Mtok) */}
                   <div style={{ display: 'flex', gap: 8, marginTop: 3, marginLeft: 9, fontSize: 9, fontFamily: 'SF Mono,Menlo,Consolas,monospace' }}>
                     <span><span style={{ color: UI.info }}>in </span>
-                      <span style={{ color: UI.body }}>{t.selected_price_input > 0 ? `$${t.selected_price_input.toFixed(2)}` : '—'}</span></span>
+                      <span style={{ color: UI.body }}>{t.selected_price_input > 0 ? `${formatPrice(t.selected_price_input)}` : '—'}</span></span>
                     <span><span style={{ color: UI.info }}>cache </span>
-                      <span style={{ color: UI.body }}>{t.selected_price_cache > 0 ? `$${t.selected_price_cache.toFixed(2)}` : '—'}</span></span>
+                      <span style={{ color: UI.body }}>{t.selected_price_cache > 0 ? `${formatPrice(t.selected_price_cache)}` : '—'}</span></span>
                     <span><span style={{ color: UI.accent }}>out </span>
-                      <span style={{ color: UI.accent, fontWeight: 600 }}>{t.selected_price != null ? `$${t.selected_price.toFixed(2)}` : '—'}</span></span>
+                      <span style={{ color: UI.accent, fontWeight: 600 }}>{t.selected_price != null ? `${formatPrice(t.selected_price)}` : '—'}</span></span>
                     <span style={{ color: UI.muted, marginLeft: 'auto' }}>/Mtok</span>
                   </div>
                   {/* Row 3: trust + tokens */}
@@ -952,8 +952,8 @@ function DOMColumn({ label, unit, color, levels, emptyMsg, offerRows }: {
         <div style={{ fontSize: 10, color: UI.muted, padding: '12px 0', textAlign: 'center' }}>{emptyMsg}</div>
         {ieCache && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 0' }}>
-            <span style={{ fontFamily: 'SF Mono,Menlo,Consolas,monospace', fontSize: 9, width: 36, textAlign: 'right', color: UI.success, fontWeight: 600 }}>
-              ${ieCache.priceCache.toFixed(2)}
+            <span style={{ fontFamily: 'SF Mono,Menlo,Consolas,monospace', fontSize: 9, minWidth: 36, textAlign: 'right', color: UI.success, fontWeight: 600 }}>
+              {formatPrice(ieCache.priceCache)}
             </span>
             <div style={{ flex: 1, height: 14, background: UI.surfaceMuted, borderRadius: 3, overflow: 'hidden' }}>
               <div style={{ height: '100%', width: '100%', background: UI.success, borderRadius: 3 }} />
@@ -983,10 +983,11 @@ function DOMColumn({ label, unit, color, levels, emptyMsg, offerRows }: {
         return (
           <div key={level.price} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '3px 0' }}>
             <span style={{
-              fontFamily: 'SF Mono,Menlo,Consolas,monospace', fontSize: 9, width: 36,
+              // minWidth keeps the original column for 2-decimal prices and grows for up to 6 decimals.
+              fontFamily: 'SF Mono,Menlo,Consolas,monospace', fontSize: 9, minWidth: 36,
               textAlign: 'right', flexShrink: 0, color: priceColor, fontWeight: isBest ? 700 : 400,
             }}>
-              ${level.price.toFixed(2)}
+              {formatPrice(level.price)}
             </span>
             <div style={{ flex: 1, height: 14, background: UI.surfaceMuted, borderRadius: 3, overflow: 'hidden' }}>
               <div style={{

@@ -11,6 +11,7 @@ import { LandingNav } from '../components/LandingNav'
 import { MineralFlowField } from '../components/MineralFlowField'
 import { LandscapeVideo } from '../components/LandscapeVideo'
 import { ScrollChapterRail, STORY_CHAPTERS } from '../components/ScrollChapterRail'
+import { formatPrice } from '../lib/price.js'
 
 const NAV_HEIGHT = 56
 const LAST_CHAPTER = STORY_CHAPTERS.length - 1
@@ -272,8 +273,8 @@ function LiveExchangeCard() {
           const minPrice = prices.length ? Math.min(...prices) : m.cheapest_output
           const maxPrice = prices.length ? Math.max(...prices) : m.cheapest_output
           const priceRange = minPrice === maxPrice
-            ? `$${minPrice.toFixed(2)}`
-            : `$${minPrice.toFixed(2)}–$${maxPrice.toFixed(2)}`
+            ? `${formatPrice(minPrice)}`
+            : `${formatPrice(minPrice)}–${formatPrice(maxPrice)}`
 
           return (
             <div key={m.model} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4">

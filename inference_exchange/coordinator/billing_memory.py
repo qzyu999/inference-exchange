@@ -10,6 +10,8 @@ import logging
 import time
 from dataclasses import dataclass, field
 
+from inference_exchange.shared.money import cost_micro
+
 logger = logging.getLogger(__name__)
 
 MICRO_PER_DOLLAR = 1_000_000
@@ -87,9 +89,7 @@ class BillingLedger:
         self, input_tokens: int, output_tokens: int, price_per_mtok_input: float, price_per_mtok_output: float
     ) -> int:
         """Calculate cost in micro-USD given token counts and per-million-token prices."""
-        input_cost = (input_tokens / 1_000_000) * price_per_mtok_input * MICRO_PER_DOLLAR
-        output_cost = (output_tokens / 1_000_000) * price_per_mtok_output * MICRO_PER_DOLLAR
-        return int(input_cost + output_cost)
+        return cost_micro(input_tokens, price_per_mtok_input) + cost_micro(output_tokens, price_per_mtok_output)
 
     def charge_request(
         self,

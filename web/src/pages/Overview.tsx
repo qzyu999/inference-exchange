@@ -7,6 +7,7 @@ import { api } from '../lib/api'
 import { requestOutcome } from '../lib/request-outcomes.js'
 import { formatUsd } from '../lib/money.js'
 import { UI, APP_TRUST_COLORS as TRUST_COLORS } from '../lib/theme'
+import { formatPrice } from '../lib/price.js'
 
 export function Overview() {
   const { user } = useAuth()
@@ -283,7 +284,7 @@ export function Overview() {
                   </div>
                   <div className="flex items-center gap-4 text-xs">
                     <span style={{ color: UI.info }}>{p.measured_tps > 0 ? `${p.measured_tps.toFixed(0)} tok/s` : '—'}</span>
-                    <span style={{ color: UI.accent }}>${p.price_output.toFixed(2)}/M</span>
+                    <span style={{ color: UI.accent }}>{formatPrice(p.price_output)}/M</span>
                     <span style={{ color: UI.muted }}>{p.active_requests}/{p.max_concurrent}</span>
                   </div>
                 </div>

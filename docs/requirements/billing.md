@@ -117,3 +117,18 @@ MUST NOT: Provider ownership be inferred automatically from a display name, IP a
 - Status: implemented
 - Verified by: tests/test_legacy_provider_consolidation.py::test_rehearsal_backs_up_wal_and_never_mutates_source, tests/test_legacy_provider_consolidation.py::test_explicit_apply_remaps_exact_history_and_ignores_starting_grants, tests/test_legacy_provider_consolidation.py::test_repeat_does_not_double_credit_and_fails_closed, tests/test_legacy_provider_consolidation.py::test_live_drift_after_backup_aborts_before_any_migration, tests/test_legacy_provider_consolidation.py::test_failed_transaction_rolls_back_all_archive_and_money
 - Issue: #136
+
+### BILL-013: Price precision is six decimal places
+
+MUST: A token price in USD per million tokens has at most 6 decimal places. The smallest price step is $0.000001. The coordinator rejects a provider registration with a more precise price.
+
+MUST: The system calculates each charge tier as tokens multiplied by the price, in exact decimal arithmetic. It rounds the result down to an integer micro-USD.
+
+MUST: The UI shows each price with at least 2 and at most 6 decimal places. It shows a nonzero price with enough digits that it does not look like zero. All price displays use the same formatter (`web/src/lib/price.js`).
+
+Note: Reference prices from external sources can have more digits. The system rounds them to 6 decimal places for display and comparison. It does not bill them.
+
+- Principle: P7
+- Status: implemented
+- Verified by: tests/test_price_precision.py::test_price_precision_limit, tests/test_price_precision.py::test_cost_is_exact_and_rounds_down, tests/test_price_precision.py::test_cost_matches_integer_reference_for_random_prices, tests/test_price_precision.py::test_store_charge_uses_exact_arithmetic, tests/test_provider_registration_validation.py::test_too_precise_price_rejected, web/src/lib/price.test.mjs
+- Issue: #275

@@ -111,6 +111,24 @@ def test_invalid_prices_rejected(alpha, bad, field):
     reject(client, token, msg)
 
 
+@pytest.mark.parametrize("bad", [0.0000001, 0.0833333333333333])
+def test_too_precise_price_rejected(alpha, bad):
+    """BILL-013: at most 6 decimal places."""
+    client, _, token = alpha
+    msg = registration()
+    msg["capabilities"]["price_per_mtok_output"] = bad
+    reject(client, token, msg)
+
+
+def test_six_decimal_price_admitted(alpha):
+    client, _, token = alpha
+    msg = registration()
+    msg["capabilities"]["price_per_mtok_output"] = 0.000001
+    with ws_for(client, token) as ws:
+        ws.send_json(msg)
+        assert ws.receive_json()["type"] == "registered"
+
+
 @pytest.mark.parametrize("value", [0, -1, 17, 1_000_000, "2", True, 1.5])
 def test_invalid_slots_rejected(alpha, value):
     client, _, token = alpha
