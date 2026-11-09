@@ -279,4 +279,4 @@ class SnapshotCache:
 
     def history(self, model):
         m = next((m for m in self.data['models'] if m['id'] == model), None)
-        return {'model': model, 'offers': [{'id': o['id'], 'name': o['provider'] + ' via ' + o['route'], 'points': o.get('history', [])} for o in m['offers']] if m else []}
+        return {'model': model, 'generation': self.data['generation'], 'offers': [{'id': o['id'], 'name': o['provider'] + ' via ' + o['route'], 'points': o.get('history', [])} for o in m['offers']] if m else []}

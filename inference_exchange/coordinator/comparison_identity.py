@@ -73,6 +73,22 @@ class ExactCatalog:
     def external(self, namespace, raw_id):
         return self.source(namespace, raw_id) or source_key(namespace, raw_id)
 
+    def history_group(self, source, model_id):
+        exact = self.source(source, model_id)
+        return ("catalog", exact) if exact else ("source", source, model_id)
+
+    def history_sources(self, sources, *, model=None, raw_source=None, legacy_sources=None):
+        if raw_source is not None:
+            return [raw_source]
+        if legacy_sources is not None:
+            groups = {self.history_group(*raw) for raw in legacy_sources}
+            if len(groups) > 1:
+                raise AmbiguousHistory(sorted(groups))
+            target = next(iter(groups), None)
+        else:
+            target = ("catalog", model)
+        return [raw for raw in sources if self.history_group(*raw) == target]
+
     def local_resolution(self, provider, name, identity=None, *, provider_repo=None):
         identity = identity or {}
         if self.allow_repository_reports:
@@ -104,6 +120,12 @@ class ExactCatalog:
 def source_key(namespace, raw_id):
     """Stable unresolved source listing. No model-name parsing."""
     return "source/" + quote(namespace, safe="") + "/" + quote(raw_id, safe="")
+
+
+class AmbiguousHistory(ValueError):
+    def __init__(self, choices):
+        self.choices = choices
+        super().__init__("Select an exact catalog model or raw source ID")
 
 
 def clean_identity(identity):

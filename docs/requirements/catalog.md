@@ -42,3 +42,19 @@ MUST: Read the manifest and payload from one immutable Git commit. Validate chec
 - Status: implemented
 - Verified by: tests/test_ticker_catalog.py, tests/test_route_inventory.py
 - Issue: #269
+
+### CATALOG-004: Raw-source comparison history
+
+MUST: Keep historical observations under their raw source IDs.
+Use the exact comparison resolver for historical groups.
+Return the current catalog generation with history.
+Reject a legacy key that selects multiple model identities.
+Preserve a separate series for each raw source and model.
+Keep observations accessible after a facet parser change.
+Keep history reads within the retention period.
+Do not rewrite observations during index migration.
+
+- Principle: P2, P3, P8, P9
+- Status: implemented
+- Verified by: tests/test_reference_price_history.py, tests/test_store_read_consistency.py
+- Issue: #279

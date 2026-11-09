@@ -185,6 +185,7 @@ CREATE TABLE IF NOT EXISTS account_actions (
 
 CREATE INDEX IF NOT EXISTS idx_ref_family_key ON reference_prices(family_key, fetched_at);
 CREATE INDEX IF NOT EXISTS idx_ref_source ON reference_prices(source, fetched_at);
+CREATE INDEX IF NOT EXISTS idx_ref_source_model_time ON reference_prices(source, model_id, fetched_at);
 """
 
 MICRO_PER_DOLLAR = 1_000_000
@@ -638,6 +639,37 @@ class Store:
             (family_key, cutoff),
         ).fetchall()
         return [dict(row) for row in rows]
+
+    @serialized_read
+    def exact_reference_price_history(self, resolver, cutoff, *, model=None, raw_source=None, legacy_key=None):
+        """Resolve raw sources and read their observations under one Store lock."""
+        sources = [tuple(row) for row in self._conn.execute(
+            "SELECT DISTINCT source, model_id FROM reference_prices WHERE fetched_at > ?",
+            (cutoff,),
+        )]
+        legacy_sources = None
+        if legacy_key is not None:
+            legacy_sources = [tuple(row) for row in self._conn.execute(
+                """SELECT DISTINCT source, model_id FROM reference_prices
+                   WHERE family_key = ? AND fetched_at > ?""", (legacy_key, cutoff),
+            )]
+        selected = resolver.history_sources(sources, model=model, raw_source=raw_source,
+                                            legacy_sources=legacy_sources)
+        result = []
+        # Keep statements below SQLite's portable 999-parameter limit.
+        for start in range(0, len(selected), 400):
+            chunk = selected[start:start + 400]
+            predicates = " OR ".join("(source = ? AND model_id = ?)" for _ in chunk)
+            params = [cutoff, *(value for raw in chunk for value in raw)]
+            rows = self._conn.execute(
+                """SELECT source, model_id, display_name, input_per_mtok,
+                          output_per_mtok, cache_per_mtok, fetched_at
+                   FROM reference_prices WHERE fetched_at > ? AND (""" + predicates + ")",
+                params,
+            )
+            result.extend(dict(row) for row in rows)
+        result.sort(key=lambda row: row["fetched_at"])
+        return result
 
     @serialized_write
     def reset_dev_balance(self, consumer_id: str) -> None:

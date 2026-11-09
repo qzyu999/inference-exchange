@@ -528,51 +528,32 @@ async def get_reference_prices(request: Request, model: str = "", source: str = 
 
 
 @router.get("/v1/exchange/reference-prices/history")
-async def get_reference_price_history(family_key: str = "", days: int = 30):
-    """Historical reference prices from SQLite for trend charts.
-
-    Returns daily price snapshots grouped by source.
-
-    Query params:
-    - family_key: model family (e.g. "llama-8b-instruct"). Required.
-    - days: how many days of history (default 30, max 90)
-    """
+async def get_reference_price_history(request: Request, family_key: str = "", days: int = 30,
+                                      model: str = "", source: str = "", model_id: str = ""):
+    """Historical quotes by one exact catalog model or one raw source identity."""
+    from fastapi import HTTPException
     from .dependencies import get_store
-
-    if not family_key:
-        return {"error": "family_key parameter required", "hint": "e.g. ?family_key=llama-8b-instruct"}
-
-    days = min(days, 90)
-    store = get_store()
-    cutoff = time.time() - (days * 86400)
-
-    rows = store.list_reference_price_history(family_key, cutoff)
-
-    # Group by date and source — one price per source per day (latest that day)
-    from collections import defaultdict
-    daily: dict[str, dict[str, dict]] = defaultdict(dict)
-
-    for row in rows:
-        r = dict(row)
-        date = time.strftime("%Y-%m-%d", time.gmtime(r["fetched_at"]))
-        src = r["source"]
-        # Keep latest entry per day per source
-        daily[date][src] = {
-            "input": round(r["input_per_mtok"], 6),
-            "output": round(r["output_per_mtok"], 6),
-        }
-
-    history = [
-        {"date": date, "prices": prices}
-        for date, prices in sorted(daily.items())
-    ]
-
-    return {
-        "family_key": family_key,
-        "days": days,
-        "data_points": len(history),
-        "history": history,
-    }
+    from .comparison_identity import AmbiguousHistory
+    from .reference_history import history_response
+    selectors = int(bool(model)) + int(bool(source or model_id)) + int(bool(family_key))
+    if selectors != 1 or (bool(source) != bool(model_id)):
+        raise HTTPException(400, detail="Select model, source and model_id, or family_key")
+    if len(model) > 500 or len(source) > 100 or len(model_id) > 1000 or len(family_key) > 1000:
+        raise HTTPException(400, detail="History selector is too long")
+    resolver = request.app.state.ticker_cache.resolver()
+    if model and model not in resolver.ids:
+        raise HTTPException(404, detail="Catalog model not found")
+    days = max(1, min(days, 90))
+    try:
+        rows = get_store().exact_reference_price_history(
+            resolver, time.time() - days * 86400, model=model or None,
+            raw_source=(source, model_id) if source else None, legacy_key=family_key or None)
+    except AmbiguousHistory as exc:
+        choices = [{"model": group[1]} if group[0] == "catalog"
+                   else {"source": group[1], "model_id": group[2]} for group in exc.choices]
+        raise HTTPException(409, detail={"error": str(exc), "choices": choices}) from exc
+    return {"model": model or None, "source": source or None, "model_id": model_id or None,
+            "family_key": family_key, **history_response(rows, generation=resolver.generation, days=days)}
 
 
 @router.get("/v1/exchange/country-activity")
