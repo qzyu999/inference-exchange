@@ -1,112 +1,1074 @@
-import { useEffect, useState } from 'react'
 import useSWR from 'swr'
-import { Link } from 'react-router-dom'
-import { get } from '../lib/api'
-import { eligible, formatRate, savingsLabel } from '../lib/catalog.js'
-import { ModelSearch } from '../components/ModelSearch'
-import { UI } from '../lib/theme'
+import { api, type CatalogModel, type CatalogPage } from '../lib/api'
+import { useState, useMemo, useRef, useEffect } from 'react'
+import { UI, APP_TRUST_COLORS as TRUST_COLORS } from '../lib/theme'
+import { ModelSearch, type ModelSearchItem } from '../components/ModelSearch'
 
-type Rate = 'input' | 'cache_read' | 'output'
-type Offer = { id: string; provider: string; route: string; ie?: boolean; stale?: boolean; comparable?: boolean;
-  input: string | null; cache_read: string | null; output: string | null; observed_at: number;
-  quantization?: string; context_length?: number; source_url: string; trust?: string }
-type Model = { id: string; name: string; ie_count: number; offers: Offer[] }
-type Catalog = { models: Model[]; total: number; generation: number; generated_at: number; sync_error: string | null }
-type History = { offers: { id: string; name: string; points: ({ at: number } & Record<Rate, string | null>)[] }[] }
-const rates: [Rate, string][] = [['input', 'Input'], ['cache_read', 'Cache read'], ['output', 'Output']]
-const control = 'max-w-full rounded-lg border border-ui-border bg-ui-surface px-3 py-2 text-sm'
+// ─── Constants ───────────────────────────────────────────────
+
+const PROVIDER_NAMES: Record<string, string> = {
+  openai: 'OpenAI', anthropic: 'Anthropic', google: 'Google', deepseek: 'DeepSeek',
+  deepinfra: 'DeepInfra', groq: 'Groq', fireworks: 'Fireworks AI',
+  together: 'Together AI', openrouter: 'OpenRouter', alibaba: 'Alibaba Cloud',
+  'inference-exchange': 'Inference Exchange', nousresearch: 'NousResearch', mistral: 'Mistral',
+  'z.ai': 'Z.ai', microsoft: 'Microsoft',
+}
+function providerName(s: string): string {
+  return PROVIDER_NAMES[s] || s.charAt(0).toUpperCase() + s.slice(1)
+}
+
+// ─── Types ───────────────────────────────────────────────────
+
+interface MarketProvider {
+  id: string; name: string; price_output: number; price_input: number; price_cache: number
+  tps: number; trust: string; hardware: string; quantization: string
+  load: number; encrypted: boolean; verified: boolean; slots: string
+  context_length: number; format: string; original_model: string
+}
+
+interface MarketModel {
+  model: string; family: string; size: string; canonical_id: string
+  provider_count: number; cheapest_output: number; fastest_tps: number; max_trust: string
+  capabilities: {
+    context_length: number; supports_vision: boolean; supports_tool_calling: boolean
+    architecture: string; model_type: string
+  }
+  providers: MarketProvider[]
+  reference_prices: Array<{
+    provider: string; model: string
+    price_input: number; price_cache: number; price_output: number
+    diff_pct: number; cheaper: boolean; comparison_type?: string
+  }>
+}
+
+// Unified model for the command palette
+interface UnifiedModel {
+  key: string; name: string; vendor: string; family: string; params: string
+  price: number; quality: number | null; codingIndex: number | null
+  cache: boolean; open: boolean; ctx: string; providerCount: number
+  source: 'ie' | 'ref' | 'both'
+}
+
+// Unified provider row for the offer table
+interface OfferRow {
+  name: string; source: string; isIE: boolean
+  priceInput: number; priceCache: number; priceOutput: number
+  quality: number | null; tps: number | null
+  trust?: string; encrypted?: boolean; quantization?: string
+  displayName?: string
+}
+
+// ─── Helpers ─────────────────────────────────────────────────
+
+function formatCtx(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(n % 1_000_000 === 0 ? 0 : 1)}M`
+  if (n >= 1024) return `${Math.round(n / 1024)}k`
+  return `${n}`
+}
+
+function cacheDiscount(input: number, cache: number): number {
+  if (input <= 0 || cache <= 0) return 0
+  return Math.round((1 - cache / input) * 100)
+}
+
+function parseSize(s: string): number | null {
+  if (!s || s === '—') return null
+  const m = s.match(/([\d.]+)\s*B/i)
+  return m ? parseFloat(m[1]) : null
+}
+
+function fmtPrice(p: number): string {
+  if (p <= 0) return '—'
+  if (p < 0.1) return `$${p.toFixed(3)}`
+  if (p < 1) return `$${p.toFixed(2)}`
+  return `$${p.toFixed(2)}`
+}
+
+// ─── Interactive Price Chart ─────────────────────────────────
+
+const CHART_COLORS = [UI.chart1, UI.chart2, UI.chart3, UI.chart4, UI.chart5, UI.chart6, UI.chart7, UI.chart8, UI.chart9]
+
+type PriceTier = 'output' | 'input' | 'cache'
+const TIER_META: Record<PriceTier, { label: string; color: string; key: keyof OfferRow }> = {
+  output: { label: 'Output', color: UI.accent, key: 'priceOutput' },
+  input: { label: 'Input', color: UI.info, key: 'priceInput' },
+  cache: { label: 'Cache', color: UI.info, key: 'priceCache' },
+}
+
+function PriceChart({ offerRows, modelName }: { offerRows: OfferRow[]; modelName: string }) {
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
+  const [tier, setTier] = useState<PriceTier>('output')
+  const [hiddenIdx, setHiddenIdx] = useState<Set<number>>(new Set())
+  const [tooltip, setTooltip] = useState<{ x: number; y: number; text: string; color: string } | null>(null)
+
+  const tierKey = TIER_META[tier].key
+  const providers = useMemo(() =>
+    offerRows.filter(r => {
+      const v = r[tierKey] as number
+      return v > 0
+    }).map((r, i) => ({
+      name: r.name,
+      price: r[tierKey] as number,
+      color: r.isIE ? UI.accent : CHART_COLORS[i % CHART_COLORS.length],
+      isIE: r.isIE,
+      // Flat line for 30 days (current price). IE starts at day 15.
+      prices: r.isIE
+        ? [...Array(15).fill(null), ...Array(15).fill(r[tierKey] as number)]
+        : Array(30).fill(r[tierKey] as number),
+    })),
+  [offerRows, tierKey])
+
+  const yMax = useMemo(() => {
+    const vals = providers.map(p => p.price)
+    return vals.length ? Math.max(...vals) * 1.15 : 1
+  }, [providers])
+
+  // Draw
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas || providers.length === 0) return
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+
+    // Canvas needs resolved colors; CSS variables are resolved by the DOM only.
+    const paint = (color: string) => color.startsWith('var(')
+      ? getComputedStyle(canvas).getPropertyValue(color.slice(4, -1)).trim()
+      : color
+    const draw = () => {
+      // DPR-aware sizing to prevent text distortion
+      const dpr = window.devicePixelRatio || 1
+      const rect = canvas.getBoundingClientRect()
+      canvas.width = rect.width * dpr
+      canvas.height = rect.height * dpr
+      ctx.scale(dpr, dpr)
+
+      const W = rect.width, H = rect.height
+      const PAD = { t: 8, r: 40, b: 14, l: 4 }
+      const pW = W - PAD.l - PAD.r, pH = H - PAD.t - PAD.b
+
+      const yC = (v: number) => PAD.t + pH * (1 - v / yMax)
+      const xC = (i: number) => PAD.l + (i / 29) * pW
+
+      ctx.clearRect(0, 0, W, H)
+
+      // Grid
+      ctx.strokeStyle = paint(UI.border)
+      ctx.lineWidth = 0.5
+      for (const f of [0.25, 0.5, 0.75, 1]) {
+        const y = yC(yMax * f)
+        ctx.beginPath(); ctx.moveTo(PAD.l, y); ctx.lineTo(W - PAD.r, y); ctx.stroke()
+      }
+
+      // Y labels
+      ctx.fillStyle = paint(UI.muted)
+      ctx.font = '9px SF Mono,Menlo,monospace'
+      ctx.textAlign = 'left'
+      for (const f of [0, 0.25, 0.5, 0.75, 1]) {
+        ctx.fillText('$' + (yMax * f).toFixed(2), W - PAD.r + 4, yC(yMax * f) + 3)
+      }
+
+      // Lines
+      providers.forEach((p, pi) => {
+        if (hiddenIdx.has(pi)) return
+        ctx.strokeStyle = paint(p.color)
+        ctx.lineWidth = p.isIE ? 3 : 1.5
+        ctx.setLineDash(p.isIE ? [] : [6, 4])
+        ctx.beginPath()
+        let started = false
+        p.prices.forEach((v: number | null, i: number) => {
+          if (v === null) return
+          const x = xC(i), y = yC(v)
+          if (!started) { ctx.moveTo(x, y); started = true } else ctx.lineTo(x, y)
+        })
+        ctx.stroke()
+        ctx.setLineDash([])
+
+        // Entry dot for IE
+        if (p.prices[0] === null) {
+          const fi = p.prices.findIndex((v: number | null) => v !== null)
+          if (fi >= 0) {
+            ctx.fillStyle = paint(p.color)
+            ctx.beginPath(); ctx.arc(xC(fi), yC(p.prices[fi]!), 4, 0, Math.PI * 2); ctx.fill()
+          }
+        }
+      })
+    }
+    draw()
+    const shell = canvas.closest('[data-appearance]')
+    const observer = new MutationObserver(draw)
+    if (shell) observer.observe(shell, { attributes: true, attributeFilter: ['data-appearance'] })
+    return () => observer.disconnect()
+  }, [providers, yMax, hiddenIdx, tier])
+
+  // Hover
+  const handleMove = (e: React.MouseEvent) => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const rect = canvas.getBoundingClientRect()
+    const W = rect.width, H = rect.height
+    const PAD = { t: 8, r: 40, b: 14, l: 4 }
+    const pW = W - PAD.l - PAD.r, pH = H - PAD.t - PAD.b
+    const mx = e.clientX - rect.left
+    const my = e.clientY - rect.top
+    const day = Math.round((mx - PAD.l) / pW * 29)
+    if (day < 0 || day > 29) { setTooltip(null); return }
+
+    const yC = (v: number) => PAD.t + pH * (1 - v / yMax)
+    let bestIdx = -1
+    let bestDist = Infinity
+    providers.forEach((p, pi) => {
+      if (hiddenIdx.has(pi) || p.prices[day] === null) return
+      const d = Math.abs(my - yC(p.prices[day] as number))
+      if (d < bestDist) { bestDist = d; bestIdx = pi }
+    })
+
+    if (bestIdx >= 0 && bestDist < 25) {
+      const bp = providers[bestIdx]
+      const bv = bp.prices[day] as number
+      const px = e.clientX - rect.left
+      const py = e.clientY - rect.top
+      const da = 29 - day
+      setTooltip({
+        x: px + 10, y: py - 24,
+        text: `${bp.name}  $${bv.toFixed(2)}/Mtok ${TIER_META[tier].label.toLowerCase()}${da > 0 ? ` · ${da}d ago` : ' · today'}`,
+        color: bp.color,
+      })
+    } else {
+      setTooltip(null)
+    }
+  }
+
+  const toggleProvider = (idx: number) => {
+    setHiddenIdx(prev => {
+      const next = new Set(prev)
+      next.has(idx) ? next.delete(idx) : next.add(idx)
+      return next
+    })
+  }
+
+  return (
+    <div style={{ background: UI.surface, borderRadius: 12, border: "1px solid var(--ui-border)", padding: 14, paddingBottom: 8, overflow: 'hidden' }}>
+      <h4 style={{ fontSize: 8, textTransform: 'uppercase', letterSpacing: '.06em', color: UI.muted, marginBottom: 8, fontWeight: 600 }}>
+        {modelName} — provider prices (30d)
+      </h4>
+
+      {/* Tier tabs */}
+      <div style={{ display: 'flex', gap: 4, marginBottom: 8 }}>
+        {(['input', 'cache', 'output'] as PriceTier[]).map(t => (
+          <span key={t} onClick={() => setTier(t)} style={{
+            fontSize: 9, fontWeight: 600, padding: '3px 8px', borderRadius: 5, cursor: 'pointer',
+            background: tier === t ? UI.selected : UI.surfaceMuted,
+            color: tier === t ? UI.selectedText : UI.muted,
+            border: `1px solid ${tier === t ? TIER_META[t].color : UI.border}`,
+          }}>
+            {TIER_META[t].label}
+          </span>
+        ))}
+      </div>
+
+      {providers.length > 0 ? (
+        <div ref={containerRef} style={{ position: 'relative' }}>
+          <canvas ref={canvasRef}
+            style={{ width: '100%', height: 160, borderRadius: 8, background: UI.surfaceMuted, cursor: 'crosshair', display: 'block' }}
+            onMouseMove={handleMove}
+            onMouseLeave={() => setTooltip(null)}
+          />
+          {tooltip && (
+            <div style={{
+              position: 'absolute', left: tooltip.x, top: tooltip.y,
+              background: UI.codeSurface, color: UI.onAction, fontSize: 10, padding: '4px 8px',
+              borderRadius: 5, whiteSpace: 'nowrap', pointerEvents: 'none', zIndex: 10,
+              borderLeft: `3px solid ${tooltip.color}`,
+            }}>
+              {tooltip.text}
+            </div>
+          )}
+
+          {/* Legend */}
+          <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', marginTop: 6 }}>
+            {providers.map((p, i) => (
+              <span key={i} onClick={() => toggleProvider(i)} style={{
+                fontSize: 9, fontWeight: 600, padding: '2px 6px', borderRadius: 4,
+                cursor: 'pointer', userSelect: 'none',
+                border: `1px solid ${p.color}`, color: p.color, background: `color-mix(in srgb, ${p.color} 7%, transparent)`,
+                opacity: hiddenIdx.has(i) ? 0.3 : 1, transition: 'opacity .15s',
+              }}>
+                {p.name}
+              </span>
+            ))}
+          </div>
+
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 8, color: UI.muted, marginTop: 2 }}>
+            <span>30d ago</span><span>Today</span>
+          </div>
+          <div style={{ fontSize: 8, color: UI.muted, marginTop: 4 }}>
+            Hover for details. Click legend to toggle. Historical data fills in as the coordinator collects snapshots.
+          </div>
+        </div>
+      ) : (
+        <div style={{ fontSize: 11, color: UI.muted, padding: '12px 0', textAlign: 'center' }}>
+          No {TIER_META[tier].label.toLowerCase()} pricing data for this tier
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── Main ────────────────────────────────────────────────────
 
 export function Exchange() {
-  const [query, setQuery] = useState('')
-  const [search, setSearch] = useState('')
-  const [ieOnly, setIeOnly] = useState(false)
-  const [offset, setOffset] = useState(0)
-  const [selected, setSelected] = useState('')
-  const [ieId, setIeId] = useState('')
-  const [competitorId, setCompetitorId] = useState('')
-  const [sort, setSort] = useState<Rate>('output')
-  const [tier, setTier] = useState<Rate>('output')
-  useEffect(() => { const id = setTimeout(() => { setSearch(query); setOffset(0) }, 250); return () => clearTimeout(id) }, [query])
-  const url = `/v1/exchange/catalog?q=${encodeURIComponent(search)}&ie_only=${ieOnly}&offset=${offset}&limit=100`
-  const { data, error, isLoading } = useSWR<Catalog>(url, get, { refreshInterval: 10000 })
-  const model = data?.models.find(m => m.id === selected) ?? data?.models[0]
-  const { data: history } = useSWR<History>(model ? `/v1/exchange/catalog/history?model=${encodeURIComponent(model.id)}` : null, get, { refreshInterval: 600000 })
-  const ies = model?.offers.filter(o => o.ie) ?? []
-  const external = model?.offers.filter(o => !o.ie) ?? []
-  const ie = ies.find(o => o.id === ieId) ?? ies[0]
-  const competitor = external.find(o => o.id === competitorId) ?? external[0]
-  const comparable = eligible(ie, competitor)
-  const offers = [...(model?.offers ?? [])].sort((a,b) => (a[sort] == null ? Infinity : Number(a[sort])) - (b[sort] == null ? Infinity : Number(b[sort])))
-  function clearFilters() { setQuery(''); setSearch(''); setIeOnly(false); setOffset(0) }
-  const points = history?.offers.find(o => o.id === competitor?.id)?.points ?? []
-  const values = points.map(p => p[tier] == null ? null : Number(p[tier]))
-  const max = Math.max(0.000001, ...values.filter((v): v is number => v !== null))
-  const first = points[0]?.at ?? 0
-  const last = points[points.length - 1]?.at ?? first
-  const x = (at: number) => 20 + ((at - first) / Math.max(1, last-first)) * 740
-  const y = (v: number) => 160 - v/max*130
-  return <div className="mx-auto w-full min-w-0 max-w-6xl space-y-6 p-4 sm:p-6" style={{ color: UI.text }}>
-    <header><h1 className="text-2xl font-semibold">Exchange</h1><p style={{ color: UI.muted }}>Compare advertised inference prices. All rates are USD per million tokens.</p></header>
-    <section className="flex flex-wrap gap-3" aria-label="Catalog filters">
-      <input className={`${control} min-w-56 flex-1`} aria-label="Search all models" placeholder="Search models" value={query} onChange={e => setQuery(e.target.value)} />
-      <div className="flex flex-wrap gap-2" role="group" aria-label="Model availability">
-        <button className={control} aria-pressed={!ieOnly} style={{ background: !ieOnly ? UI.infoSurface : UI.surface }} onClick={() => { setIeOnly(false); setOffset(0) }}>All models</button>
-        <button className={control} aria-pressed={ieOnly} style={{ background: ieOnly ? UI.infoSurface : UI.surface }} onClick={() => { setIeOnly(true); setOffset(0) }}>Available on Inference Exchange</button>
-      </div>
-      <button className={control} onClick={clearFilters}>Clear filters</button>
-    </section>
-    {error && <p role="alert">Could not load the catalog. Retrying automatically.</p>}
-    {isLoading && <p role="status">Loading models…</p>}
-    {data && <>
-      {!data.generation && <p role="status">External price data has not synchronized yet. Live IE offers remain available.</p>}
-      {data.sync_error && <p role="status">Price synchronization is delayed. Last recorded observations remain visible.</p>}
-      <div className="flex flex-wrap items-center gap-3">
-        <ModelSearch className="min-w-64 flex-1" items={data.models.map(m => ({ key: m.id, name: m.name,
-          subtitle: m.ie_count ? `${m.ie_count} IE providers online` : 'External offers', keywords: m.id }))}
-          value={model?.id ?? ''} selectedName={model?.name} label="Choose a model from these results"
-          placeholder="Filter this page" emptyMessage="No models match these filters"
-          onChange={key => { setSelected(key); setIeId(''); setCompetitorId('') }} />
-        <button className={control} disabled={!offset} onClick={() => setOffset(Math.max(0,offset-100))}>Previous</button>
-        <button className={control} disabled={offset+100 >= data.total} onClick={() => setOffset(offset+100)}>Next</button>
-        <span>{data.total} matching models</span>
-      </div>
-    </>}
-    {model && <>
-      <header><h2 className="text-xl font-semibold">{model.name}</h2><p style={{ color: UI.muted }}>{model.id} · {model.ie_count ? `${model.ie_count} IE providers online` : 'No IE provider online for this model'}</p></header>
-      <section className="rounded-xl border border-ui-border p-4 space-y-4">
-        <div className="flex flex-wrap gap-4">
-          {ies.length > 0 && <label className="flex min-w-0 max-w-full flex-col gap-1">IE offer <select className={control} value={ie?.id} onChange={e => setIeId(e.target.value)}>{ies.map(o => <option key={o.id} value={o.id}>{o.provider}</option>)}</select></label>}
-          {external.length > 0 && <label className="flex min-w-0 max-w-full flex-col gap-1">Compare with <select className={control} value={competitor?.id} onChange={e => setCompetitorId(e.target.value)}>{external.map(o => <option key={o.id} value={o.id}>{o.provider} via {o.route} · {o.quantization || 'Precision undisclosed'}</option>)}</select></label>}
+  const { data: marketData } = useSWR('market', api.market, { refreshInterval: 5000 })
+  const { data: stats } = useSWR('stats', api.stats, { refreshInterval: 5000 })
+  const { data: traceData } = useSWR('traces', api.traces, { refreshInterval: 5000 })
+  const { data: refData } = useSWR('refPrices', () => api.referencePrices(), { refreshInterval: 30000 })
+  const { data: catalog } = useSWR('catalog', fetchCatalog, { refreshInterval: 60000 })
+
+  const models = (marketData?.models || []) as MarketModel[]
+  const traces = traceData?.traces || []
+
+  const useCatalog = Boolean(catalog?.generation)
+  // #269: once the published catalog has data, it replaces the legacy
+  // reference prices. Same shape, so the page renders exactly as before.
+  const refFamilies: Array<{ family_key: string; display_name: string; prices: any[]; provider_count: number }> = useMemo(() =>
+    useCatalog ? catalogFamilies(catalog!.models, models)
+      : (refData?.models || []).filter((f: any) => f.prices?.length > 0),
+  [useCatalog, catalog, refData, models])
+
+  // ─── Build unified model list ────────────────────────────
+  const unifiedModels = useMemo(() => {
+    const result: UnifiedModel[] = []
+    const seen = new Set<string>()
+
+    // IE models first
+    for (const m of models) {
+      const caps = m.capabilities
+      seen.add(m.canonical_id)
+      result.push({
+        key: m.canonical_id || m.model, name: m.model, vendor: m.family || '',
+        family: m.family || 'Other', params: m.size || '—',
+        price: m.cheapest_output, quality: null, codingIndex: null,
+        cache: m.providers.some(p => p.price_cache > 0),
+        open: true, // IE providers run open-weight models
+        ctx: caps?.context_length > 0 ? formatCtx(caps.context_length) : '—',
+        providerCount: m.provider_count, source: 'ie',
+      })
+    }
+
+    // Reference families not covered by IE
+    for (const f of refFamilies) {
+      if (seen.has(f.family_key)) {
+        // Merge: mark existing as 'both'
+        const existing = result.find(r => r.key === f.family_key)
+        if (existing) {
+          existing.source = 'both'
+          existing.providerCount = Math.max(existing.providerCount, f.prices.length)
+          // Pull benchmark data from reference
+          const withQuality = f.prices.find((p: any) => p.intelligence_index > 0)
+          if (withQuality) {
+            existing.quality = withQuality.intelligence_index
+            existing.codingIndex = withQuality.coding_index || null
+          }
+          const withCache = f.prices.find((p: any) => p.price_cache_read > 0)
+          if (withCache && !existing.cache) existing.cache = true
+        }
+        continue
+      }
+      seen.add(f.family_key)
+      const cheapest = Math.min(...f.prices.map((p: any) => p.price_output).filter((v: number) => v > 0))
+      const withQuality = f.prices.find((p: any) => p.intelligence_index > 0)
+      const hasCache = f.prices.some((p: any) => p.price_cache_read > 0)
+      const first = f.prices[0]
+      const isOpen = first?.open_weight ?? !['anthropic', 'openai', 'google'].includes(first?.source)
+      result.push({
+        key: f.family_key, name: f.display_name, vendor: first?.source || '',
+        family: guessFamily(f.display_name),
+        params: first?.params || '—', price: cheapest === Infinity ? 0 : cheapest,
+        quality: withQuality?.intelligence_index || null,
+        codingIndex: withQuality?.coding_index || null,
+        cache: hasCache, open: isOpen,
+        ctx: first?.context_length ? formatCtx(first.context_length) : '—',
+        providerCount: f.prices.length, source: 'ref',
+      })
+    }
+
+    return result
+  }, [models, refFamilies])
+
+  // ─── State ───────────────────────────────────────────────
+  const [selectedKey, setSelectedKey] = useState('')
+  const [filterOpen, setFilterOpen] = useState<boolean | null>(null) // null=all, true=open, false=prop
+  const [filterCache, setFilterCache] = useState(false)
+  const [filterBenchmarked, setFilterBenchmarked] = useState(false)
+  const [filterSize, setFilterSize] = useState<string | null>(null)
+  const [filterPriceCap, setFilterPriceCap] = useState<number | null>(null)
+  const [filterFamily, setFilterFamily] = useState<string | null>(null)
+  const filtersActive = filterOpen !== null || filterCache || filterBenchmarked ||
+    filterSize !== null || filterPriceCap !== null || filterFamily !== null
+
+  function clearFilters() {
+    setFilterOpen(null)
+    setFilterCache(false)
+    setFilterBenchmarked(false)
+    setFilterSize(null)
+    setFilterPriceCap(null)
+    setFilterFamily(null)
+  }
+  const [sortCol, setSortCol] = useState<'output' | 'input' | 'cache' | 'quality' | 'tps'>('output')
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
+  // Resolve active model
+  const activeKey = selectedKey || (unifiedModels.length > 0 ? unifiedModels[0].key : '')
+  const activeUnified = unifiedModels.find(m => m.key === activeKey)
+  const activeIEModel = models.find(m => (m.canonical_id || m.model) === activeKey)
+  // Find matching reference family:
+  // 1. Exact key match
+  // 2. Check if any ref family key is a substring of the active key or vice versa
+  // 3. Fuzzy match on display name
+  const activeRefFamily = (() => {
+    if (!activeKey) return null
+    // Exact match
+    const exact = refFamilies.find(f => f.family_key === activeKey)
+    if (exact) return exact
+    // The catalog uses exact aliases only. Unmapped models stay separate (CATALOG-001).
+    if (useCatalog) return null
+    // Key substring match (e.g. "llama-3.1-70b" matches "llama-3.1-70b-instruct")
+    const keyLower = activeKey.toLowerCase()
+    const keyMatch = refFamilies.find(f => {
+      const fk = f.family_key.toLowerCase()
+      return fk.includes(keyLower) || keyLower.includes(fk)
+    })
+    if (keyMatch) return keyMatch
+    // Name fuzzy match
+    if (activeUnified) {
+      const uName = activeUnified.name.toLowerCase().replace(/[^a-z0-9]/g, '')
+      const nameMatch = refFamilies.find(f => {
+        const fName = f.display_name.toLowerCase().replace(/[^a-z0-9]/g, '')
+        return uName.includes(fName) || fName.includes(uName)
+      })
+      if (nameMatch) return nameMatch
+    }
+    return null
+  })()
+
+  // ─── Filtered model list for palette ─────────────────────
+  const families = useMemo(() => [...new Set(unifiedModels.map(m => m.family))].sort(), [unifiedModels])
+
+  const filteredModels = useMemo(() => {
+    return unifiedModels.filter(m => {
+      if (filterOpen === true && !m.open) return false
+      if (filterOpen === false && m.open) return false
+      if (filterCache && !m.cache) return false
+      if (filterBenchmarked && !m.quality) return false
+      if (filterSize) {
+        const s = parseSize(m.params)
+        if (filterSize === '<7B' && (s === null || s >= 7)) return false
+        if (filterSize === '7-30B' && (s === null || s < 7 || s >= 30)) return false
+        if (filterSize === '30-100B' && (s === null || s < 30 || s >= 100)) return false
+        if (filterSize === '100B+' && (s === null || s < 100)) return false
+      }
+      if (filterPriceCap && m.price > filterPriceCap) return false
+      if (filterFamily && m.family !== filterFamily) return false
+      return true
+    })
+  }, [unifiedModels, filterOpen, filterCache, filterBenchmarked, filterSize, filterPriceCap, filterFamily])
+
+  const groupedModels = useMemo(() => {
+    const groups: Record<string, UnifiedModel[]> = {}
+    for (const m of filteredModels) {
+      if (!groups[m.family]) groups[m.family] = []
+      groups[m.family].push(m)
+    }
+    // Sort families by cheapest price within
+    return Object.entries(groups)
+      .sort(([, a], [, b]) => Math.min(...a.map(x => x.price || 999)) - Math.min(...b.map(x => x.price || 999)))
+      .map(([fam, ms]) => ({ family: fam, models: ms.sort((a, b) => (a.price || 999) - (b.price || 999)) }))
+  }, [filteredModels])
+
+  // Preserve Exchange's wider discovery inventory and rich filters.
+  // Both pages use exactly the same popup, search logic and keyboard handling.
+  const searchItems = useMemo<ModelSearchItem[]>(() =>
+    groupedModels.flatMap(group => group.models.map(m => ({
+      key: m.key, name: m.name, group: group.family,
+      keywords: m.vendor + ' ' + m.family + ' ' + m.params,
+      subtitle: [
+        m.vendor || 'Unknown family',
+        m.params !== '—' ? m.params : '',
+        m.ctx !== '—' ? m.ctx + ' context' : '',
+        m.providerCount + (m.source === 'ref' ? ' reference offers' : ' IE providers'),
+      ].filter(Boolean).join(' · '),
+      priceLabel: m.price > 0 ? (m.price < 1 ? '$' + m.price.toFixed(2) : '$' + m.price.toFixed(0)) : undefined,
+      badges: [
+        { label: m.source === 'ref' ? 'Reference only' : m.source === 'both' ? 'IE + reference' : 'On IE',
+          color: m.source === 'ref' ? UI.purple : UI.success, background: m.source === 'ref' ? UI.purpleSurface : UI.successSurface },
+        ...(m.cache ? [{ label: 'Cache', color: UI.info, background: UI.infoSurface }] : []),
+        ...(m.quality != null ? [{ label: '★ ' + m.quality, color: UI.info, background: UI.infoSurface }] : []),
+      ],
+    }))), [groupedModels])
+
+  // ─── Build offer rows for selected model ─────────────────
+  const offerRows = useMemo((): OfferRow[] => {
+    const rows: OfferRow[] = []
+    // IE providers
+    if (activeIEModel) {
+      for (const p of activeIEModel.providers) {
+        rows.push({
+          name: 'Inference Exchange', source: 'ie', isIE: true,
+          priceInput: p.price_input, priceCache: p.price_cache, priceOutput: p.price_output,
+          quality: activeUnified?.codingIndex || null, tps: p.tps > 0 ? p.tps : null,
+          trust: p.trust, encrypted: p.encrypted, quantization: p.quantization,
+        })
+      }
+    }
+    // Reference prices
+    if (activeRefFamily) {
+      for (const p of activeRefFamily.prices) {
+        // Skip IE entries from reference (already in IE list)
+        if (p.source === 'inference-exchange') continue
+        rows.push({
+          name: providerName(p.source), source: p.source, isIE: false,
+          priceInput: p.price_input || 0, priceCache: p.price_cache_read || 0,
+          priceOutput: p.price_output || 0,
+          quality: p.intelligence_index || p.coding_index || null,
+          tps: null, displayName: p.display_name,
+        })
+      }
+    }
+    return rows
+  }, [activeIEModel, activeRefFamily, activeUnified])
+
+  // Sorted offer rows
+  const sortedOffers = useMemo(() => {
+    const sorted = [...offerRows]
+    sorted.sort((a, b) => {
+      let va: number, vb: number
+      switch (sortCol) {
+        case 'input': va = a.priceInput || 999; vb = b.priceInput || 999; break
+        case 'cache': va = a.priceCache || 999; vb = b.priceCache || 999; break
+        case 'quality': va = a.quality || 0; vb = b.quality || 0; break
+        case 'tps': va = a.tps || 0; vb = b.tps || 0; break
+        default: va = a.priceOutput || 999; vb = b.priceOutput || 999
+      }
+      return sortDir === 'asc' ? va - vb : vb - va
+    })
+    return sorted
+  }, [offerRows, sortCol, sortDir])
+
+  // ─── Header stats ────────────────────────────────────────
+  const outputPrices = offerRows.map(r => r.priceOutput).filter(p => p > 0)
+  const bestPrice = outputPrices.length ? Math.min(...outputPrices) : 0
+  const worstPrice = outputPrices.length ? Math.max(...outputPrices) : 0
+  const spreadPct = bestPrice > 0 && worstPrice > bestPrice ? Math.round((worstPrice / bestPrice - 1) * 100) : 0
+  const caps = activeIEModel?.capabilities
+
+  // ─── DOM (Depth of Market) data ──────────────────────────
+  const domData = useMemo(() => {
+    type Level = { price: number; providers: { name: string; isIE: boolean }[] }
+    function buildLevels(key: 'priceInput' | 'priceCache' | 'priceOutput'): Level[] {
+      const levels: Record<string, Level> = {}
+      for (const r of offerRows) {
+        const v = r[key]
+        if (!v || v <= 0) continue
+        const k = v.toFixed(3)
+        if (!levels[k]) levels[k] = { price: v, providers: [] }
+        levels[k].providers.push({ name: r.isIE ? 'Inference Exchange' : r.name, isIE: r.isIE })
+      }
+      return Object.values(levels).sort((a, b) => b.price - a.price) // expensive at top
+    }
+    return {
+      input: buildLevels('priceInput'),
+      cache: buildLevels('priceCache'),
+      output: buildLevels('priceOutput'),
+    }
+  }, [offerRows])
+
+  // ─── Recent fills ────────────────────────────────────────
+  const recentFills = useMemo(() =>
+    [...traces]
+      .filter((t: any) => ['completed', 'matched', 'matched_from_queue'].includes(t.status))
+      .reverse()
+      .slice(0, 5),
+  [traces])
+
+  // Sort toggle
+  function toggleSort(col: typeof sortCol) {
+    if (sortCol === col) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
+    else { setSortCol(col); setSortDir('asc') }
+  }
+  const arrow = (col: typeof sortCol) => sortCol === col ? (sortDir === 'asc' ? ' ▵' : ' ▿') : ''
+
+  // Empty state
+  if (marketData && models.length === 0 && refFamilies.length === 0) {
+    return (
+      <div style={{ maxWidth: 500, margin: '60px auto', textAlign: 'center' }}>
+        <img src="/logo-icon.svg" alt="IE" style={{ width: 48, height: 48, margin: '0 auto 20px', opacity: 0.2 }} />
+        <h2 style={{ fontSize: 18, fontWeight: 700, color: UI.text, marginBottom: 8 }}>The exchange is quiet</h2>
+        <p style={{ fontSize: 13, color: UI.muted, marginBottom: 24 }}>No providers connected and no reference data loaded.</p>
+        <div style={{ background: UI.action, color: UI.onAction, borderRadius: 10, padding: 16, fontFamily: 'SF Mono,Menlo,Consolas,monospace', fontSize: 12, textAlign: 'left' }}>
+          <div><span style={{ color: UI.body }}>$</span> pip install ie-provider</div>
+          <div><span style={{ color: UI.body }}>$</span> ie-provider start</div>
         </div>
-        {ie && competitor ? <>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">{rates.map(([key,label]) => <div key={key} className="rounded-lg p-3" style={{ background: UI.surfaceMuted }}>
-            <div>{label}</div><strong className="text-lg">{comparable ? savingsLabel(ie[key],competitor[key]) : 'Not comparable'}</strong>
-            <p className="text-sm">IE {formatRate(ie[key])} · External {formatRate(competitor[key])}</p>
-          </div>)}</div>
-          {!comparable && <p className="text-sm" style={{ color: UI.muted }}>Savings require a fresh endpoint quote with matching disclosed quantization and context. Rates remain visible for comparison.</p>}
-        </> : <p>No same-model IE/external comparison is available.</p>}
-      </section>
-      <div className="overflow-x-auto rounded-xl border border-ui-border">
-        <table className="w-full text-left text-sm"><caption className="p-3 text-left">Advertised offers · select a price column to sort</caption><thead><tr>
-          <th className="p-3">Provider / route</th>{rates.map(([key,label]) => <th key={key} className="p-3" aria-sort={sort === key ? 'ascending' : 'none'}><button onClick={() => setSort(key)}>{label}{sort === key ? ' ↑' : ''}</button></th>)}<th className="p-3">Configuration</th><th className="p-3">Observed</th>
-        </tr></thead><tbody>{offers.map(o => <tr key={o.id} className="border-t border-ui-border" style={{ background: o.ie ? UI.successSurface : UI.surface }}>
-          <td className="p-3"><strong>{o.provider}</strong><div>{o.route}</div>{o.ie ? <Link to="/keys">Use IE API</Link> : <a href={o.source_url} target="_blank" rel="noreferrer">Source ↗</a>}</td>
-          {rates.map(([key]) => <td key={key} className="p-3 whitespace-nowrap">{formatRate(o[key])}</td>)}
-          <td className="p-3">{o.quantization || 'Precision undisclosed'}<div>{o.context_length ? `${o.context_length.toLocaleString()} context` : 'Context undisclosed'}</div>{o.trust && <div>Claimed OCIP: {o.trust}</div>}</td>
-          <td className="p-3">{o.ie ? 'Live IE offer' : new Date(o.observed_at*1000).toLocaleString()}{o.stale && <strong className="block">Stale</strong>}</td>
-        </tr>)}</tbody></table>
       </div>
-      <section className="rounded-xl border border-ui-border p-4">
-        <div className="flex flex-wrap justify-between gap-3"><h3 className="font-semibold">Observed advertised prices</h3><label>Token type <select className={control} value={tier} onChange={e => setTier(e.target.value as Rate)}>{rates.map(([key,label]) => <option key={key} value={key}>{label}</option>)}</select></label></div>
-        <p className="text-sm" style={{ color: UI.muted }}>{competitor ? `${competitor.provider} via ${competitor.route}` : 'Select an external offer'} · Last observation per UTC day. Dots show actual observations; gaps are not filled.</p>
-        {points.length ? <><svg viewBox="0 0 780 190" role="img" aria-label={`${tier} observed prices`} className="w-full max-h-64">
-          <text x="20" y="18" fill={UI.muted} fontSize="12">{formatRate(String(max))} /Mtok</text>
-          <line x1="20" y1="160" x2="760" y2="160" stroke={UI.border} />
-          {points.map((p,i) => values[i] !== null && <circle key={p.at} cx={x(p.at)} cy={y(values[i]!)} r="4" fill={UI.accent}><title>{new Date(p.at*1000).toISOString()} {formatRate(p[tier])}</title></circle>)}
-          <text x="20" y="185" fill={UI.muted} fontSize="12">{new Date(first*1000).toLocaleDateString()}</text><text x="760" y="185" textAnchor="end" fill={UI.muted} fontSize="12">{new Date(last*1000).toLocaleDateString()}</text>
-        </svg><details><summary>View recorded values</summary><ul>{points.map(p => <li key={p.at}>{new Date(p.at*1000).toLocaleString()} — {formatRate(p[tier])}</li>)}</ul></details></> : <p className="py-8">No recorded history for this offer yet.</p>}
-      </section>
-      <p className="text-sm" style={{ color: UI.muted }}>External listings are price references. They do not establish IE availability or OCIP verification. <Link to="/keys">Python and JavaScript examples, including optional OpenRouter fallback</Link>. The existing free-model fallback can select a different model.</p>
-    </>}
-  </div>
+    )
+  }
+
+  return (
+    <div style={{ maxWidth: 1100, margin: '0 auto' }}>
+      {/* ── 1. Live status strip ── */}
+      <div className="spot" style={{
+        display: 'flex', alignItems: 'center', gap: 12, padding: '8px 12px',
+        background: UI.surface, borderRadius: 10, border: "1px solid var(--ui-border)",
+        marginBottom: 16, fontSize: 11, color: UI.muted, flexWrap: 'wrap',
+      }}>
+        <span style={{ width: 5, height: 5, borderRadius: '50%', background: UI.success, animation: 'pulse 2s infinite' }} />
+        <span style={{ color: UI.success }}>Live</span>
+        <span style={{ color: UI.muted }}>|</span>
+        {stats && <>
+          <span>{stats.providers_online} providers online</span>
+          <span style={{ color: UI.muted }}>|</span>
+          <span>{stats.models_available} models</span>
+          <span style={{ color: UI.muted }}>|</span>
+          <span style={{ color: UI.accent }}>{stats.total_requests.toLocaleString()} fills / 24h</span>
+        </>}
+        <span style={{ flex: 1 }} />
+        <span style={{ fontSize: 9, color: UI.muted }}>Updated live</span>
+      </div>
+
+      {/* ── 2. Model Selector — Shared Search (same component as Chat) ── */}
+      <ModelSearch
+        items={searchItems}
+        value={activeKey}
+        selectedName={activeUnified?.name}
+        onChange={setSelectedKey}
+        label="Search exchange models"
+        placeholder="Search models (qwen, llama 70b, deepseek, claude)"
+        selectedLabel="Select a model to compare"
+        emptyMessage="No discoverable models"
+        className="w-full mb-4"
+        filters={
+          <>
+            {/* Filter bar */}
+            <div style={{ padding: '6px 12px', borderBottom: "1px solid var(--ui-border)", display: 'flex', gap: 4, flexWrap: 'wrap', alignItems: 'center' }}>
+              <span style={{ fontSize: 8, textTransform: 'uppercase', letterSpacing: '.06em', color: UI.muted, marginRight: 2 }}>Filter</span>
+              <Chip label="Open-weight" active={filterOpen === true} color={UI.success} bg={UI.successSurface}
+                onClick={() => setFilterOpen(filterOpen === true ? null : true)} />
+              <Chip label="Proprietary" active={filterOpen === false} color={UI.purple} bg={UI.purpleSurface}
+                onClick={() => setFilterOpen(filterOpen === false ? null : false)} />
+              <Sep />
+              <Chip label="Cache discount" active={filterCache} color={UI.info} bg={UI.infoSurface}
+                onClick={() => setFilterCache(!filterCache)} />
+              <Chip label="Benchmarked" active={filterBenchmarked} color={UI.info} bg={UI.infoSurface}
+                onClick={() => setFilterBenchmarked(!filterBenchmarked)} />
+              <Sep />
+              <span style={{ fontSize: 8, color: UI.muted }}>Size:</span>
+              {['<7B', '7-30B', '30-100B', '100B+'].map(r => (
+                <Chip key={r} label={r} active={filterSize === r} color={UI.accent} bg={UI.warningSurface}
+                  onClick={() => setFilterSize(filterSize === r ? null : r)} />
+              ))}
+              <Sep />
+              <span style={{ fontSize: 8, color: UI.muted }}>Max $:</span>
+              {[1, 5, 15].map(cap => (
+                <Chip key={cap} label={`$${cap}`} active={filterPriceCap === cap} color={UI.danger} bg={UI.dangerSurface}
+                  onClick={() => setFilterPriceCap(filterPriceCap === cap ? null : cap)} />
+              ))}
+              <Sep />
+              <select value={filterFamily || ''} onChange={e => setFilterFamily(e.target.value || null)}
+                style={{ fontSize: 9, border: "1px solid var(--ui-border)", borderRadius: 5, padding: '2px 4px', color: UI.muted, background: UI.surfaceMuted, cursor: 'pointer', outline: 'none' }}>
+                <option value="">All families</option>
+                {families.map(f => <option key={f}>{f}</option>)}
+              </select>
+              <button type="button" onClick={clearFilters} disabled={!filtersActive}
+                className="rounded border border-ui-border bg-ui-surface px-2 py-1 text-[10px] font-semibold disabled:opacity-40"
+                style={{ color: UI.text }}>
+                Clear filters
+              </button>
+            </div>
+
+          </>
+        }
+      />
+
+      {/* ── 3. Header ── */}
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 14, marginBottom: 4, flexWrap: 'wrap' }}>
+        <h1 style={{ fontSize: 20, fontWeight: 700 }}>{activeUnified?.name || 'Select a model'}</h1>
+        {bestPrice > 0 && (
+          <span style={{ fontSize: 11, color: UI.muted }}>
+            Best <b style={{ fontFamily: 'SF Mono,Menlo,Consolas,monospace', color: UI.success }}>{fmtPrice(bestPrice)}</b> /Mtok out
+          </span>
+        )}
+        {spreadPct > 0 && (
+          <span style={{ fontSize: 11, color: UI.muted }}>
+            Spread <b style={{ fontFamily: 'SF Mono,Menlo,Consolas,monospace', color: UI.warning }}>
+              {fmtPrice(bestPrice)} — {fmtPrice(worstPrice)}</b> ({spreadPct}%)
+          </span>
+        )}
+        <span style={{ fontSize: 11, color: UI.muted }}><b>{offerRows.length}</b> providers</span>
+      </div>
+      <div style={{ display: 'flex', gap: 4, marginBottom: 16, flexWrap: 'wrap' }}>
+        {activeUnified?.open && <CapBadge bg={UI.successSurface} color={UI.success}>open-weight</CapBadge>}
+        {!activeUnified?.open && activeUnified && <CapBadge bg={UI.purpleSurface} color={UI.purple}>proprietary</CapBadge>}
+        {caps && caps.context_length > 0 && <CapBadge bg={UI.successSurface} color={UI.success}>{formatCtx(caps.context_length)} ctx</CapBadge>}
+        {caps?.supports_tool_calling && <CapBadge bg={UI.successSurface} color={UI.success}>tools</CapBadge>}
+        {caps?.supports_vision && <CapBadge bg={UI.purpleSurface} color={UI.purple}>vision</CapBadge>}
+        {activeUnified?.codingIndex != null && (
+          <CapBadge bg={UI.infoSurface} color={UI.info}>Code: {activeUnified.codingIndex}</CapBadge>
+        )}
+        {activeUnified?.quality != null && (
+          <CapBadge bg={UI.infoSurface} color={UI.info}>Intelligence: {activeUnified.quality}</CapBadge>
+        )}
+      </div>
+
+      {/* ── 4. Main Grid ── */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginBottom: 16 }}>
+        {/* ── Sortable offer table (full width) ── */}
+        <div style={{ background: UI.surface, borderRadius: 12, border: "1px solid var(--ui-border)", overflow: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr>
+                <Th align="left" style={{ width: 170 }}>Provider</Th>
+                <Th onClick={() => toggleSort('input')}>Input{arrow('input')}</Th>
+                <Th onClick={() => toggleSort('cache')}>Cache{arrow('cache')}</Th>
+                <Th onClick={() => toggleSort('output')}>Output{arrow('output')}</Th>
+                <Th onClick={() => toggleSort('quality')}>Quality{arrow('quality')}</Th>
+                <Th onClick={() => toggleSort('tps')}>TPS{arrow('tps')}</Th>
+              </tr>
+            </thead>
+            <tbody>
+              {sortedOffers.length > 0 ? sortedOffers.map((r, i) => {
+                const isBest = r.priceOutput > 0 && r.priceOutput === bestPrice
+                const cachePct = r.priceInput > 0 && r.priceCache > 0 ? cacheDiscount(r.priceInput, r.priceCache) : 0
+                const tc = r.trust ? (TRUST_COLORS[r.trust] || TRUST_COLORS.open) : null
+                return (
+                  <tr key={i} style={{ background: r.isIE ? UI.warningSurface : 'transparent' }}
+                    onMouseEnter={e => { if (!r.isIE) (e.currentTarget as HTMLElement).style.background = UI.hover }}
+                    onMouseLeave={e => { if (!r.isIE) (e.currentTarget as HTMLElement).style.background = '' }}>
+                    <td style={{ padding: '9px 10px', borderBottom: "1px solid var(--ui-border)", textAlign: 'left', borderLeft: r.isIE ? `3px solid ${UI.focus}` : '3px solid transparent' }}>
+                      <div style={{ fontWeight: 600, fontSize: 12, color: r.isIE ? UI.accent : UI.text }}>{r.name}</div>
+                      <div style={{ fontSize: 9, color: UI.muted, marginTop: 1, display: 'flex', gap: 3, flexWrap: 'wrap', alignItems: 'center' }}>
+                        {tc && <span style={{ fontSize: 7, fontWeight: 600, padding: '1px 4px', borderRadius: 3, background: tc.bg, color: tc.text }}>{tc.label}</span>}
+                        {r.encrypted && <span style={{ fontSize: 7, fontWeight: 600, padding: '1px 4px', borderRadius: 3, background: UI.infoSurface, color: UI.info }}>E2E</span>}
+                        {cachePct > 0 && <span style={{ fontSize: 7, fontWeight: 600, padding: '1px 4px', borderRadius: 3, background: UI.purpleSurface, color: UI.purple }}>-{cachePct}% cache</span>}
+                        {r.quantization && <span>{r.quantization}</span>}
+                        {r.displayName && !r.isIE && <span>{r.displayName}</span>}
+                      </div>
+                    </td>
+                    <Td mono color={UI.info}>{fmtPrice(r.priceInput)}</Td>
+                    <Td mono color={r.priceCache > 0 ? UI.info : UI.muted}>{r.priceCache > 0 ? fmtPrice(r.priceCache) : '—'}</Td>
+                    <Td mono color={UI.accent} bold={isBest} highlight={isBest}>{fmtPrice(r.priceOutput)}</Td>
+                    <Td mono color={r.quality ? UI.info : UI.muted}>{r.quality ? r.quality.toFixed(1) : '—'}</Td>
+                    <Td mono color={r.tps ? UI.info : UI.muted}>{r.tps ? Math.round(r.tps).toString() : '—'}</Td>
+                  </tr>
+                )
+              }) : (
+                <tr><td colSpan={6} style={{ padding: '40px 10px', textAlign: 'center', color: UI.muted, fontSize: 13 }}>
+                  {activeUnified ? 'No provider data available for this model.' : 'Select a model above.'}
+                </td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {/* ── Below table: [DOM + Chart stacked] left | [Fills] right ── */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 280px', gap: 14 }}>
+          {/* Left: DOM stacked on chart */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            {/* 3-column DOM */}
+            <div style={{ background: UI.surface, borderRadius: 12, border: "1px solid var(--ui-border)", padding: 14, overflow: 'hidden' }}>
+              <h4 style={{ fontSize: 8, textTransform: 'uppercase', letterSpacing: '.06em', color: UI.muted, marginBottom: 10, fontWeight: 600 }}>
+                Depth of market — three-tier pricing
+              </h4>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, minWidth: 0 }}>
+                <DOMColumn label="Input" unit="$/Mtok" color={UI.info} levels={domData.input} />
+                <DOMColumn label="Cache read" unit="$/Mtok" color={UI.info} levels={domData.cache} emptyMsg="Only IE publishes cache pricing" offerRows={offerRows} />
+                <DOMColumn label="Output" unit="$/Mtok" color={UI.accent} levels={domData.output} />
+              </div>
+              <div style={{ fontSize: 8, color: UI.muted, marginTop: 8 }}>
+                Cheapest at bottom (best ask). Bars = relative supply at each price level.
+              </div>
+              {offerRows.length > 0 && (
+                <div style={{ fontSize: 8, color: UI.muted, marginTop: 6, paddingTop: 6, borderTop: "1px solid var(--ui-border)" }}>
+                  <b style={{ color: UI.body }}>Abbreviations: </b>
+                  {[...new Set(offerRows.map(r => r.name))]
+                    .map(n => `${providerAbbr(n)} = ${n}`)
+                    .join(' · ')}
+                </div>
+              )}
+            </div>
+
+            {/* Interactive price chart */}
+            <PriceChart offerRows={offerRows} modelName={activeUnified?.name || 'Model'} />
+          </div>
+
+          {/* Right: Recent fills with in/cache/out details */}
+          <div style={{ background: UI.surface, borderRadius: 12, border: "1px solid var(--ui-border)", padding: 14, overflow: 'hidden' }}>
+            <h4 style={{ fontSize: 8, textTransform: 'uppercase', letterSpacing: '.06em', color: UI.muted, marginBottom: 10, fontWeight: 600 }}>
+              Recent fills
+            </h4>
+            {recentFills.length > 0 ? recentFills.map((t: any) => {
+              const ok = ['completed', 'matched', 'matched_from_queue'].includes(t.status)
+              const time = new Date(t.timestamp * 1000).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+              return (
+                <div key={t.request_id} style={{
+                  padding: '6px 0', borderBottom: "1px solid var(--ui-border)", fontSize: 10,
+                }}>
+                  {/* Row 1: status, time, model, price */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                    <div style={{ width: 4, height: 4, borderRadius: '50%', background: ok ? UI.success : UI.danger, flexShrink: 0 }} />
+                    <div style={{ fontFamily: 'SF Mono,Menlo,Consolas,monospace', color: UI.muted, width: 52, flexShrink: 0 }}>{time}</div>
+                    <div style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 500 }}>
+                      <span style={{ color: UI.accent }}>Inference Exchange</span>
+                      {t.selected_provider && (
+                        <span style={{ color: UI.muted, fontWeight: 400 }}> · {t.selected_provider}</span>
+                      )}
+                    </div>
+                  </div>
+                  {/* Row 2: in / cache / out rates ($/Mtok) */}
+                  <div style={{ display: 'flex', gap: 8, marginTop: 3, marginLeft: 9, fontSize: 9, fontFamily: 'SF Mono,Menlo,Consolas,monospace' }}>
+                    <span><span style={{ color: UI.info }}>in </span>
+                      <span style={{ color: UI.body }}>{t.selected_price_input > 0 ? `$${t.selected_price_input.toFixed(2)}` : '—'}</span></span>
+                    <span><span style={{ color: UI.info }}>cache </span>
+                      <span style={{ color: UI.body }}>{t.selected_price_cache > 0 ? `$${t.selected_price_cache.toFixed(2)}` : '—'}</span></span>
+                    <span><span style={{ color: UI.accent }}>out </span>
+                      <span style={{ color: UI.accent, fontWeight: 600 }}>{t.selected_price != null ? `$${t.selected_price.toFixed(2)}` : '—'}</span></span>
+                    <span style={{ color: UI.muted, marginLeft: 'auto' }}>/Mtok</span>
+                  </div>
+                  {/* Row 3: trust + tokens */}
+                  <div style={{ display: 'flex', gap: 4, marginTop: 2, marginLeft: 9, fontSize: 9, color: UI.muted }}>
+                    {t.selected_trust && (
+                      <span style={{
+                        fontSize: 8, fontWeight: 600, padding: '1px 4px', borderRadius: 3,
+                        background: (TRUST_COLORS[t.selected_trust] || TRUST_COLORS.open).bg,
+                        color: (TRUST_COLORS[t.selected_trust] || TRUST_COLORS.open).text,
+                      }}>
+                        {(TRUST_COLORS[t.selected_trust] || TRUST_COLORS.open).label}
+                      </span>
+                    )}
+                    {t.encrypted && <span style={{ fontSize: 8, fontWeight: 600, padding: '1px 4px', borderRadius: 3, background: UI.infoSurface, color: UI.info }}>E2E</span>}
+                    {t.input_tokens > 0 && <span>{t.input_tokens} in</span>}
+                    {t.output_tokens > 0 && <span>{t.output_tokens} out</span>}
+                  </div>
+                </div>
+              )
+            }) : (
+              <div style={{ fontSize: 11, color: UI.muted, padding: '12px 0', textAlign: 'center' }}>No recent fills</div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* ── 5. Footer ── */}
+      <div style={{ fontSize: 9, color: UI.muted, marginTop: 8 }}>
+        Prices $/Mtok. Data: OpenRouter API + IE static reference prices + IE provider network.
+        Quality = Artificial Analysis intelligence/coding index. TPS = observed tokens/sec for IE providers.
+      </div>
+
+      {/* Pulse animation */}
+      <style>{`@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}`}</style>
+    </div>
+  )
+}
+
+// ─── Small Components ────────────────────────────────────────
+
+function Chip({ label, active, color, bg, onClick }: {
+  label: string; active: boolean; color: string; bg: string; onClick: () => void
+}) {
+  return (
+    <span onClick={e => { e.stopPropagation(); onClick() }}
+      style={{
+        fontSize: 9, fontWeight: 600, padding: '2px 7px', borderRadius: 5, cursor: 'pointer',
+        userSelect: 'none', transition: 'all .12s',
+        background: active ? bg : UI.surfaceMuted, color: active ? color : UI.muted,
+        border: `1px solid ${active ? color + '44' : 'transparent'}`,
+      }}>
+      {label}
+    </span>
+  )
+}
+
+function Sep() {
+  return <span style={{ width: 1, height: 14, background: UI.track, margin: '0 2px' }} />
+}
+
+function CapBadge({ bg, color, children }: { bg: string; color: string; children: React.ReactNode }) {
+  return (
+    <span style={{ fontSize: 8, fontWeight: 600, padding: '2px 6px', borderRadius: 4, background: bg, color }}>
+      {children}
+    </span>
+  )
+}
+
+function Th({ children, align, style, onClick }: {
+  children: React.ReactNode; align?: string; style?: React.CSSProperties; onClick?: () => void
+}) {
+  return (
+    <th onClick={onClick} style={{
+      fontSize: 8, textTransform: 'uppercase', letterSpacing: '.06em', color: UI.muted,
+      padding: '8px 10px', textAlign: (align as any) || 'right', borderBottom: "1px solid var(--ui-border)",
+      fontWeight: 600, cursor: onClick ? 'pointer' : 'default', userSelect: 'none', whiteSpace: 'nowrap',
+      ...style,
+    }}>
+      {children}
+    </th>
+  )
+}
+
+function Td({ children, mono, color, bold, highlight }: {
+  children: React.ReactNode; mono?: boolean; color?: string; bold?: boolean; highlight?: boolean
+}) {
+  return (
+    <td style={{
+      padding: '9px 10px', borderBottom: "1px solid var(--ui-border)", textAlign: 'right', fontSize: 12,
+      whiteSpace: 'nowrap',
+      fontFamily: mono ? 'SF Mono,Menlo,Consolas,monospace' : undefined,
+      color: color || UI.text, fontWeight: bold ? 700 : 400,
+      background: highlight ? UI.successSurface : undefined,
+    }}>
+      {children}
+    </td>
+  )
+}
+
+// ─── DOM Column ──────────────────────────────────────────────
+
+function DOMColumn({ label, unit, color, levels, emptyMsg, offerRows }: {
+  label: string; unit: string; color: string
+  levels: Array<{ price: number; providers: { name: string; isIE: boolean }[] }>
+  emptyMsg?: string; offerRows?: OfferRow[]
+}) {
+  const maxProviders = Math.max(1, ...levels.map(l => l.providers.length))
+
+  // If no levels and we have an empty message (cache column)
+  if (levels.length === 0 && emptyMsg) {
+    // Check if any IE provider has cache pricing
+    const ieCache = offerRows?.find(r => r.isIE && r.priceCache > 0)
+    return (
+      <div>
+        <div style={{
+          fontSize: 9, textTransform: 'uppercase', letterSpacing: '.05em', fontWeight: 700,
+          padding: '4px 0 6px', textAlign: 'center', borderBottom: `2px solid ${color}`, color,
+        }}>
+          {label} {unit}
+        </div>
+        <div style={{ fontSize: 10, color: UI.muted, padding: '12px 0', textAlign: 'center' }}>{emptyMsg}</div>
+        {ieCache && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 0' }}>
+            <span style={{ fontFamily: 'SF Mono,Menlo,Consolas,monospace', fontSize: 9, width: 36, textAlign: 'right', color: UI.success, fontWeight: 600 }}>
+              ${ieCache.priceCache.toFixed(2)}
+            </span>
+            <div style={{ flex: 1, height: 14, background: UI.surfaceMuted, borderRadius: 3, overflow: 'hidden' }}>
+              <div style={{ height: '100%', width: '100%', background: UI.success, borderRadius: 3 }} />
+            </div>
+            <span title="Inference Exchange" style={{ fontSize: 8, color: UI.accent, fontWeight: 600 }}>1 IE</span>
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  return (
+    <div>
+      <div style={{
+        fontSize: 9, textTransform: 'uppercase', letterSpacing: '.05em', fontWeight: 700,
+        padding: '4px 0 6px', textAlign: 'center', borderBottom: `2px solid ${color}`, color,
+      }}>
+        {label} {unit}
+      </div>
+      {levels.map((level, i) => {
+        const isBest = i === levels.length - 1 // cheapest at bottom
+        const barW = Math.max(20, (level.providers.length / maxProviders) * 100)
+        const priceColor = isBest ? UI.success : (i === 0 ? UI.danger : UI.muted)
+        const hasIE = level.providers.some(p => p.isIE)
+        const names = level.providers.map(p => providerAbbr(p.name)).join(', ')
+        const fullNames = level.providers.map(p => p.name).join(', ')
+        return (
+          <div key={level.price} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '3px 0' }}>
+            <span style={{
+              fontFamily: 'SF Mono,Menlo,Consolas,monospace', fontSize: 9, width: 36,
+              textAlign: 'right', flexShrink: 0, color: priceColor, fontWeight: isBest ? 700 : 400,
+            }}>
+              ${level.price.toFixed(2)}
+            </span>
+            <div style={{ flex: 1, height: 14, background: UI.surfaceMuted, borderRadius: 3, overflow: 'hidden' }}>
+              <div style={{
+                height: '100%', width: `${barW}%`, borderRadius: 3,
+                background: isBest ? UI.success : (hasIE ? UI.accent : color),
+              }} />
+            </div>
+            <span title={fullNames} style={{
+              fontSize: 8, color: hasIE ? UI.accent : UI.muted, width: 80, flexShrink: 0,
+              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+            }}>
+              {level.providers.length} {names}
+            </span>
+          </div>
+        )
+      })}
+      {levels.length === 0 && (
+        <div style={{ fontSize: 10, color: UI.muted, padding: '12px 0', textAlign: 'center' }}>No data</div>
+      )}
+    </div>
+  )
+}
+
+// ─── Published catalog (#269) ─
+
+// The catalog API pages at 100 models. The page needs the full list for its search.
+async function fetchCatalog(): Promise<CatalogPage> {
+  const first = await api.catalogPage(0)
+  const all = [...first.models]
+  for (let offset = 100; offset < first.total && offset < 20000; offset += 100) {
+    all.push(...(await api.catalogPage(offset)).models)
+  }
+  return { ...first, models: all }
+}
+
+const rate = (v: string | null) => v == null ? 0 : Number(v) || 0
+
+// Map catalog models to the legacy reference-price family shape.
+// IE offers come from /market as before, so they are left out here.
+// The coordinator joins IE offers to catalog models by exact alias only
+// (CATALOG-001). Reuse that join so a mapped model keeps its /market key.
+function catalogFamilies(list: CatalogModel[], market: MarketModel[]) {
+  const marketKey = new Map<string, string>()
+  for (const m of market) for (const p of m.providers) marketKey.set('ie/' + p.id + '/' + p.original_model, m.canonical_id || m.model)
+  return list.map(m => {
+    const key = m.offers.map(o => o.ie ? marketKey.get(o.id) : undefined).find(Boolean) || m.id
+    const prices = m.offers.filter(o => !o.ie).map(o => ({
+      source: o.provider,
+      display_name: o.route === o.provider ? '' : 'via ' + o.route + (o.stale ? ' · stale' : ''),
+      price_input: rate(o.input), price_output: rate(o.output), price_cache_read: rate(o.cache_read),
+      context_length: o.context_length || 0, quantization: o.quantization || null,
+      // Catalog IDs start with the vendor (e.g. "openai/..."). Same heuristic as before.
+      open_weight: !['anthropic', 'openai', 'google'].includes(m.id.split('/')[0]),
+    }))
+    return { family_key: key, display_name: m.name, prices, provider_count: prices.length }
+  }).filter(f => f.prices.length > 0)
+}
+
+// ─── Utility ─────────────────────────────────────────────────
+
+const PROVIDER_ABBR: Record<string, string> = {
+  'Inference Exchange': 'IE', OpenRouter: 'OR', DeepInfra: 'DI', 'Fireworks AI': 'FW',
+  'Together AI': 'TG', Groq: 'GQ', OpenAI: 'OAI', Anthropic: 'ANT', Google: 'GG',
+  DeepSeek: 'DS', NousResearch: 'NR', Mistral: 'MI', 'Alibaba Cloud': 'AL', Microsoft: 'MS',
+}
+
+function providerAbbr(name: string): string {
+  return PROVIDER_ABBR[name] || name.replace(/[^A-Za-z]/g, '').slice(0, 2).toUpperCase()
+}
+
+function guessFamily(name: string): string {
+  const lower = name.toLowerCase()
+  if (lower.includes('llama')) return 'Llama'
+  if (lower.includes('qwen')) return 'Qwen'
+  if (lower.includes('deepseek')) return 'DeepSeek'
+  if (lower.includes('claude')) return 'Claude'
+  if (lower.includes('gpt')) return 'GPT'
+  if (lower.includes('gemini')) return 'Gemini'
+  if (lower.includes('gemma')) return 'Gemma'
+  if (lower.includes('mistral')) return 'Mistral'
+  if (lower.includes('phi')) return 'Phi'
+  if (lower.includes('hermes')) return 'Llama'
+  if (lower.includes('glm')) return 'GLM'
+  return 'Other'
 }

@@ -1,11 +1,17 @@
-// Empty search must leave the controls available for recovery.
+// Regression #194: Exchange filters may give zero hits, without trapping the menu.
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
-const source = readFileSync(new URL('../pages/Exchange.tsx', import.meta.url), 'utf8')
-assert.match(source, /function clearFilters\(\)/)
-assert.match(source, /setIeOnly\(false\)/)
-assert.match(source, /onClick=\{clearFilters\}/)
-assert.match(source, /No models match these filters/)
-assert.match(source, /Available on Inference Exchange/)
-assert.match(source, /aria-pressed=\{ieOnly\}/)
-console.log('Exchange empty filter recovery passed')
+const read = path => readFileSync(new URL(path, import.meta.url), 'utf8')
+const exchange = read('../pages/Exchange.tsx')
+const picker = read('../components/ModelSearch.tsx')
+assert.match(exchange, /function clearFilters\(\)/)
+for (const reset of [
+  'setFilterOpen(null)', 'setFilterCache(false)', 'setFilterBenchmarked(false)',
+  'setFilterSize(null)', 'setFilterPriceCap(null)', 'setFilterFamily(null)',
+]) assert.ok(exchange.includes(reset), 'Missing reset: ' + reset)
+assert.match(exchange, /onClick=\{clearFilters\}/)
+assert.match(exchange, /selectedName=\{activeUnified\?\.name\}/)
+assert.match(picker, /hasFilters: Boolean\(filters\)/)
+assert.match(picker, /Selected model hidden by filters/)
+assert.match(picker, /Change or clear the filters above/)
+console.log('#194 Exchange filter empty-result recovery contract passed')
