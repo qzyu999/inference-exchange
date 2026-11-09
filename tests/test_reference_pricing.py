@@ -34,3 +34,16 @@ def test_headline_requires_fresh_matching_quantization_and_context(monkeypatch):
                            quantization="FP16", context_length=8192)["comparisons"][0]["diff_pct"] is None
     monkeypatch.setattr("inference_exchange.coordinator.reference_pricing.time.time", lambda: 100000)
     assert compute_savings(0.15, model["id"], **args)["comparisons"][0]["diff_pct"] is None
+
+
+def test_catalog_quote_never_qualifies_for_headline_savings(monkeypatch):
+    resolver = ExactCatalog([{"id": "catalog/model", "name": "Checkpoint", "offers": [{
+        "id": "catalog/quote", "provider": "Named provider", "route": "Different route",
+        "quote_kind": "catalog", "input": "0.2", "cache_read": "0.05", "output": "0.6",
+        "quantization": "FP16", "context_length": 4096, "comparable": True, "observed_at": 1000,
+    }]}])
+    monkeypatch.setattr("inference_exchange.coordinator.reference_pricing.time.time", lambda: 1001)
+    result = compute_savings(0.15, "catalog/model", 0.05, 0.01, resolver=resolver,
+                             quantization="FP16", context_length=4096)
+    assert result["comparisons"][0]["diff_pct"] is None
+    assert not result["comparisons"][0]["cheaper"]

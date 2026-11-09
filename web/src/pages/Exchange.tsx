@@ -5,7 +5,7 @@ import { UI, APP_TRUST_COLORS as TRUST_COLORS } from '../lib/theme'
 import { ModelSearch, type ModelSearchItem } from '../components/ModelSearch'
 import { formatPrice, priceKey } from '../lib/price.js'
 import { parametersInBillions, paramsLabel } from '../lib/model-size.js'
-import { catalogFamilies, formatRate, identityLabel } from '../lib/catalog.js'
+import { catalogFamilies, formatRate, identityLabel, endpointRows } from '../lib/catalog.js'
 
 // ─── Constants ───────────────────────────────────────────────
 
@@ -66,6 +66,7 @@ interface OfferRow {
   sourceUrl?: string; observedAt?: number; sourceType?: string
   publishedRates?: { input: string | null; cache: string | null; output: string | null }
   identitySource?: string; identityTrust?: string; artifactVerification?: string
+  quoteKind?: 'catalog' | 'endpoint'
 }
 
 // ─── Helpers ─────────────────────────────────────────────────
@@ -106,7 +107,7 @@ function PriceChart({ offerRows, modelName }: { offerRows: OfferRow[]; modelName
 
   const tierKey = TIER_META[tier].key
   const providers = useMemo(() =>
-    offerRows.filter(r => {
+    endpointRows(offerRows).filter(r => {
       const v = r[tierKey] as number
       return v > 0
     }).map((r, i) => ({
@@ -341,7 +342,7 @@ export function Exchange() {
       const local = f.marketModel
       const ie = f.ieProviders || []
       const first = f.prices[0]
-      const outputs = [...ie.map(p => p.price_output), ...f.prices.map(p => p.price_output)]
+      const outputs = [...ie.map(p => p.price_output), ...f.prices.filter(p => p.quote_kind !== 'catalog').map(p => p.price_output)]
       const context = local?.capabilities.context_length || first?.context_length || 0
       return {
         key: f.family_key, name: f.display_name, vendor: local?.family || first?.source || '',
@@ -380,8 +381,8 @@ export function Exchange() {
         // Merge: mark existing as 'both'
         const existing = result.find(r => r.key === f.family_key)
         if (existing) {
-          existing.source = 'both'
-          existing.providerCount = Math.max(existing.providerCount, f.prices.length)
+          existing.source = f.prices.some((p: any) => p.source !== 'inference-exchange') ? 'both' : 'ie'
+          existing.providerCount = f.provider_count
           // Pull benchmark data from reference
           const withQuality = f.prices.find((p: any) => p.intelligence_index > 0)
           if (withQuality) {
@@ -409,7 +410,7 @@ export function Exchange() {
         codingIndex: withQuality?.coding_index || null,
         cache: hasCache, open: isOpen,
         ctx: first?.context_length ? formatCtx(first.context_length) : '—',
-        providerCount: f.prices.length, source: 'ref',
+        providerCount: f.provider_count, source: 'ref',
       })
     }
 
@@ -512,6 +513,7 @@ export function Exchange() {
           quality: activeUnified?.codingIndex || null, tps: p.tps > 0 ? p.tps : null,
           trust: p.trust, encrypted: p.encrypted, quantization: p.quantization,
           publishedRates: p.publishedRates,
+          quoteKind: 'endpoint',
           identitySource: p.identity_source, identityTrust: p.identity_trust,
           artifactVerification: p.artifact_verification,
         })
@@ -530,6 +532,7 @@ export function Exchange() {
           tps: null, displayName: p.display_name, quantization: p.quantization,
           sourceUrl: p.source_url, observedAt: p.observed_at, sourceType: p.source_type,
           publishedRates: p.publishedRates,
+          quoteKind: p.quote_kind || 'endpoint',
         })
       }
     }
@@ -554,7 +557,7 @@ export function Exchange() {
   }, [offerRows, sortCol, sortDir])
 
   // ─── Header stats ────────────────────────────────────────
-  const outputPrices = offerRows.map(r => r.priceOutput).filter(p => p > 0)
+  const outputPrices = endpointRows(offerRows).map(r => r.priceOutput).filter(p => p > 0)
   const bestPrice = outputPrices.length ? Math.min(...outputPrices) : 0
   const worstPrice = outputPrices.length ? Math.max(...outputPrices) : 0
   const spreadPct = bestPrice > 0 && worstPrice > bestPrice ? Math.round((worstPrice / bestPrice - 1) * 100) : 0
@@ -565,7 +568,7 @@ export function Exchange() {
     type Level = { price: number; providers: { name: string; isIE: boolean }[] }
     function buildLevels(key: 'priceInput' | 'priceCache' | 'priceOutput'): Level[] {
       const levels: Record<string, Level> = {}
-      for (const r of offerRows) {
+      for (const r of endpointRows(offerRows)) {
         const v = r[key]
         if (!v || v <= 0) continue
         // Full 6-decimal key. A 3-decimal key merged $0.0015 and $0.0018 into one level.
@@ -735,7 +738,7 @@ export function Exchange() {
             </thead>
             <tbody>
               {sortedOffers.length > 0 ? sortedOffers.map((r, i) => {
-                const isBest = r.priceOutput > 0 && r.priceOutput === bestPrice
+                const isBest = r.quoteKind !== 'catalog' && r.priceOutput > 0 && r.priceOutput === bestPrice
                 const cachePct = r.priceInput > 0 && r.priceCache > 0 ? cacheDiscount(r.priceInput, r.priceCache) : 0
                 const tc = r.trust ? (TRUST_COLORS[r.trust] || TRUST_COLORS.open) : null
                 return (
@@ -749,6 +752,7 @@ export function Exchange() {
                         {r.encrypted && <span style={{ fontSize: 7, fontWeight: 600, padding: '1px 4px', borderRadius: 3, background: UI.infoSurface, color: UI.info }}>E2E</span>}
                         {cachePct > 0 && <span style={{ fontSize: 7, fontWeight: 600, padding: '1px 4px', borderRadius: 3, background: UI.purpleSurface, color: UI.purple }}>-{cachePct}% cache</span>}
                         {r.quantization && <span>{r.quantization}</span>}
+                        {r.quoteKind === 'catalog' && <span>Catalog quote</span>}
                         {r.isIE && <span>{identityLabel(r.identitySource, r.identityTrust)}</span>}
                         {r.isIE && <span>{r.artifactVerification === 'verified' ? 'Artifact hash verified' : 'Artifact unverified'}</span>}
                         {r.displayName && <span>{r.displayName}</span>}

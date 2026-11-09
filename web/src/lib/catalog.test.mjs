@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { savingsLabel, formatRate, eligible, catalogFamilies, identityLabel } from './catalog.js'
+import { savingsLabel, formatRate, eligible, catalogFamilies, identityLabel, endpointRows } from './catalog.js'
 assert.equal(formatRate('0'), 'Free')
 assert.equal(formatRate(null), 'Not published')
 assert.equal(savingsLabel('0.05','0.20'), '75% lower')
@@ -47,4 +47,21 @@ assert.equal(provenance.source_type, 'api')
 assert.match(provenance.source_url, /^https:\/\/openrouter.ai\//)
 assert.equal(identityLabel('provider_repository', 'reported'), 'Reported by provider · repository')
 assert.equal(identityLabel('reviewed_alias', 'reviewed'), 'Reviewed alias')
+const quoteRows = [
+  { quoteKind: 'catalog', provider: 'Cloudflare', route: 'Different', priceOutput: 0.01 },
+  { quoteKind: 'endpoint', provider: 'OpenRouter', route: 'OpenRouter', priceOutput: 0.1 },
+]
+assert.deepEqual(endpointRows(quoteRows), [quoteRows[1]])
+assert.equal(eligible({quantization:'FP16',context_length:4096},
+  {quantization:'FP16',context_length:4096,comparable:true,quote_kind:'catalog'}), false)
+const mixed = catalogFamilies([{
+  id: 'model', name: 'Model', offers: [
+    { id: 'catalog', provider: 'Catalog', route: 'Route', quote_kind: 'catalog' },
+    { id: 'one', provider: 'Cloudflare', route: 'OpenRouter', quote_kind: 'endpoint' },
+    { id: 'two', provider: 'Cloudflare', route: 'Direct', quote_kind: 'endpoint' },
+  ],
+}], [])[0]
+assert.equal(mixed.provider_count, 1)
+assert.equal(mixed.prices.length, 3)
+assert.equal(mixed.prices[0].quote_kind, 'catalog')
 console.log('Catalog savings tests passed')

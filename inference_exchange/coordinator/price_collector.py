@@ -75,6 +75,7 @@ class PriceEntry:
     web_search_price: float = 0
     reasoning_per_mtok: float = 0  # internal reasoning/thinking token price
     fetched_at: float = field(default_factory=time.time)
+    quote_kind: str = "endpoint"
 
 
 # ─── Fetchers ─────────────────────────────────────────────────
@@ -118,6 +119,7 @@ class OpenRouterFetcher(PriceFetcher):
             info = parse_facets(model_id)
             entries.append(PriceEntry(
                 source="openrouter",
+                quote_kind="catalog",
                 model_id=model_id,
                 display_name=m.get("name", model_id),
                 family=info.family or "",

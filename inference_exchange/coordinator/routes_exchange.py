@@ -369,7 +369,7 @@ async def get_market_data(request: Request):
             rows.append({
                 "id": provider.provider_id, "name": provider.name,
                 "price_output": float(offer["output"]), "price_input": float(offer["input"]),
-                "price_cache": float(offer["cache_read"]), "tps": provider.capabilities.measured_tps,
+                "price_cache": float(offer["cache_read"] or 0), "tps": provider.capabilities.measured_tps,
                 "trust": provider.capabilities.trust_level.value,
                 "encrypted": bool(provider.encryption_public_key), "load": round(provider.load_factor, 2),
                 "hardware": provider.capabilities.hardware,
@@ -391,7 +391,7 @@ async def get_market_data(request: Request):
                 "variant_tags": model.get("variant_tags"), "release": model.get("release"),
                 "capabilities": capabilities or {"context_length": 0, "supports_vision": False,
                     "supports_tool_calling": False, "architecture": "", "model_type": ""},
-                "providers": rows, "provider_count": len(rows), "cheapest_output": cheapest["price_output"],
+                "providers": rows, "provider_count": len({p["id"] for p in rows}), "cheapest_output": cheapest["price_output"],
                 "fastest_tps": max(p["tps"] for p in rows),
                 "max_trust": max((p["trust"] for p in rows), key=lambda t: trust_order.index(t)),
                 "reference_prices": compute_savings(cheapest["price_output"], model["id"],
@@ -501,6 +501,7 @@ async def get_reference_prices(request: Request, model: str = "", source: str = 
             "price_output": entry.output_per_mtok, "price_cache_read": entry.cache_per_mtok,
             "price_cache_write": entry.cache_write_per_mtok, "context_length": entry.context_length,
             "comparison_type": "same_model" if catalog_model else "unmapped",
+            "quote_kind": entry.quote_kind,
             "quantization": entry.quantization or None, "intelligence_index": entry.intelligence_index,
             "coding_index": entry.coding_index})
     if not source or source == "inference-exchange":
@@ -510,17 +511,19 @@ async def get_reference_prices(request: Request, model: str = "", source: str = 
                 "family": local["family"], "total_parameters": local["total_parameters"], "prices": []})
             for provider in local["providers"]:
                 group["prices"].append({"source": "inference-exchange", "model_id": provider["original_model"],
-                    "display_name": local["model"], "price_input": provider["price_input"],
+                    "display_name": local["model"], "provider_id": provider["id"], "price_input": provider["price_input"],
                     "price_output": provider["price_output"], "price_cache_read": provider["price_cache"],
                     "context_length": provider["context_length"], "quantization": provider["quantization"],
                     "comparison_type": "same_model", "identity_source": provider["identity_source"],
+                    "quote_kind": "endpoint",
                     "identity_trust": provider["identity_trust"]})
     result = []
     for group in groups.values():
         if model.casefold() not in (group["family_key"] + " " + group["display_name"] + " " + (group.get("family") or "")).casefold():
             continue
         group["prices"].sort(key=lambda p: p["price_output"])
-        group["provider_count"] = len(group["prices"])
+        group["provider_count"] = len({(p["source"], p.get("provider_id", p["source"]))
+                                       for p in group["prices"] if p.get("quote_kind", "endpoint") == "endpoint"})
         result.append(group)
     result.sort(key=lambda m: -m["provider_count"])
     return {"models": result, "sources": sorted({p["source"] for m in result for p in m["prices"]}),

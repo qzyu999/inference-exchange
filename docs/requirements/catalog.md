@@ -58,3 +58,18 @@ Do not rewrite observations during index migration.
 - Status: implemented
 - Verified by: tests/test_reference_price_history.py, tests/test_store_read_consistency.py
 - Issue: #279
+
+### CATALOG-005: Declared quote kinds
+
+MUST: Declare each quote as a catalog quote or an endpoint quote.
+Show catalog quotes as catalog quotes.
+Exclude catalog quotes from provider counts and endpoint depth.
+Exclude catalog quotes from headline savings.
+Preserve source, rates, route, observation time, quantization, and history.
+Do not infer quote kind from provider or route labels.
+Keep distinct serving offers visible.
+
+- Principle: P2, P3, P8, P9
+- Status: implemented
+- Verified by: tests/test_ticker_catalog.py::test_quote_kinds_are_validated_and_catalog_rows_do_not_count_providers, tests/test_reference_pricing.py::test_catalog_quote_never_qualifies_for_headline_savings, web/src/lib/catalog.test.mjs, tests/test_quote_contracts.py
+- Issue: #279

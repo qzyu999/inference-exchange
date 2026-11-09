@@ -9,6 +9,7 @@ import tempfile
 import time
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
+from typing import Literal
 
 import httpx
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
@@ -54,6 +55,7 @@ class _Offer(_Record):
     route: str = Field(min_length=1, max_length=100)
     source_url: str = Field(max_length=2000)
     source_type: str = "api"
+    quote_kind: Literal["catalog", "endpoint"] = "endpoint"
     observed_at: int | float
     input: str | None = None
     cache_read: str | None = None
@@ -257,8 +259,9 @@ class SnapshotCache:
                     'provider_id': p.provider_id, 'original_model': name,
                     'display_name': facets.display_name,
                     'route': 'Inference Exchange', 'ie': True, 'observed_at': now,
+                    'quote_kind': 'endpoint',
                     'input': str(p.capabilities.price_per_mtok_input),
-                    'cache_read': str(p.capabilities.price_per_mtok_cache),
+                    'cache_read': str(p.capabilities.price_per_mtok_cache) if p.capabilities.price_per_mtok_cache > 0 else None,
                     'output': str(p.capabilities.price_per_mtok_output),
                     'quantization': identity.get('quantization'),
                     'identity_source': resolution.identity_source,
@@ -272,6 +275,10 @@ class SnapshotCache:
             if query.casefold() not in (m['id'] + ' ' + m['name'] + ' ' + (m.get('family') or '')).casefold(): continue
             for o in m['offers']:
                 o['stale'] = now - o['observed_at'] > FRESH_SECONDS
+            m["provider_count"] = len({
+                ("ie", o["provider_id"]) if o.get("ie") else ("external", o["provider"])
+                for o in m["offers"] if o.get("quote_kind", "endpoint") == "endpoint"
+            })
             result.append(m)
         result.sort(key=lambda m: m['name'].casefold())
         return {'generation': self.data['generation'], 'generated_at': self.data['generated_at'],

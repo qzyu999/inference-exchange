@@ -158,3 +158,28 @@ def test_catalog_and_history_routes_are_read_only_and_bounded(tmp_path, monkeypa
     history = client.get('/v1/exchange/catalog/history?model=qwen/model-1').json()
     assert history['offers'][0]['points'][0]['at'] == 1000
     assert client.post('/v1/exchange/catalog',json={}).status_code == 405
+
+
+def test_quote_kinds_are_validated_and_catalog_rows_do_not_count_providers(tmp_path):
+    from test_comparison_identity import make_provider
+    data = snapshot()
+    offer = data["models"][0]["offers"][0]
+    assert validate_snapshot(data, now=2000)["models"][0]["offers"][0]["quote_kind"] == "endpoint"
+    offer.update(quote_kind="catalog", provider="A named label", route="A different route")
+    endpoint = {**deepcopy(offer), "id": "endpoint/one", "provider": "Cloudflare", "quote_kind": "endpoint"}
+    second = {**deepcopy(endpoint), "id": "endpoint/two"}
+    data["models"][0]["offers"].extend([endpoint, second])
+    cache = SnapshotCache(tmp_path / "cache.json")
+    cache.install(json.dumps(data).encode(), None, now=2000)
+    provider = make_provider(models=["Model One"])
+    result = cache.catalog([provider], now=2000)["models"][0]
+    assert result["provider_count"] == 2  # One named external provider and one IE provider.
+    assert len(result["offers"]) == 4
+    assert result["offers"][0]["quote_kind"] == "catalog"
+    assert result["offers"][0]["source_url"] == offer["source_url"]
+    assert result["offers"][-1]["quote_kind"] == "endpoint"
+    invalid = snapshot(2)
+    invalid["models"][0]["offers"][0]["quote_kind"] = "guessed"
+    with pytest.raises(ValueError):
+        cache.install(json.dumps(invalid).encode(), None, now=2000)
+    assert cache.data["generation"] == 1

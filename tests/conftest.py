@@ -5,6 +5,7 @@ import pytest
 def _isolated_db(tmp_path, monkeypatch):
     """Keep tests off the real ~/.inference-exchange/exchange.db."""
     monkeypatch.setenv("IE_DB_PATH", str(tmp_path / "exchange.db"))
+    monkeypatch.setenv("IE_TICKER_CACHE_PATH", str(tmp_path / "ticker-cache.json"))
     monkeypatch.setenv("IE_PRICE_COLLECTOR", "0")
 
 
