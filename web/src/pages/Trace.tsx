@@ -7,6 +7,7 @@ import { requestOutcome } from '../lib/request-outcomes.js'
 import { formatUsdPrecise, microToUsd } from '../lib/money.js'
 import { requestedModelLabel, servedModelLabel } from '../lib/model-attribution.js'
 import { UI, APP_TRUST_COLORS as TRUST_COLORS } from '../lib/theme'
+import { formatPrice } from '../lib/price.js'
 
 const OUTCOME_SURFACES = {
   success: UI.successSurface,
@@ -169,7 +170,7 @@ export function Trace() {
         {/* 01 MATCH */}
         <TraceStep
           number="01" label="MATCH" value={provider}
-          detail={`Chosen for ${trustLabel}${price != null ? ` · $${price.toFixed(2)}/M` : ''}${selectedTps > 0 ? ` · ${selectedTps.toFixed(0)} tok/s` : ''}`}
+          detail={`Chosen for ${trustLabel}${price != null ? ` · ${formatPrice(price)}/M` : ''}${selectedTps > 0 ? ` · ${selectedTps.toFixed(0)} tok/s` : ''}`}
           dot="green"
           expanded={expandedStep === '01'} onToggle={() => toggle('01')}
         >
@@ -181,7 +182,7 @@ export function Trace() {
                 <div className="flex items-center gap-4 flex-wrap">
                   <span><span className="font-semibold" style={{ color: UI.text }}>{selectedScoring.name}</span></span>
                   <span>score: <span className="font-semibold" style={{ color: UI.accent }}>{selectedScore.toFixed(3)}</span></span>
-                  <span>price: <span style={{ color: UI.accent }}>${selectedScoring.price?.toFixed(2)}/M</span></span>
+                  <span>price: <span style={{ color: UI.accent }}>{formatPrice(selectedScoring.price)}/M</span></span>
                   <span>trust: <span className="font-medium px-1.5 py-0.5 rounded-full text-[9px]" style={{ background: tc.bg, color: tc.text }}>{trustLabel}</span></span>
                   <span>speed: <span style={{ color: UI.info }}>{selectedTps.toFixed(0)} tok/s</span></span>
                   <span>load: <span style={{ color: selectedLoad > 0.8 ? UI.danger : UI.success }}>{(selectedLoad * 100).toFixed(0)}%</span></span>
@@ -202,7 +203,7 @@ export function Trace() {
                       <div key={i} className="flex items-center gap-3 py-1 border-b border-ui-border last:border-0">
                         <span className="w-24 truncate" style={{ color: UI.text }}>{s.name}</span>
                         <span>score: <span className="font-medium">{s.score?.toFixed(3)}</span></span>
-                        <span style={{ color: UI.accent }}>${s.price?.toFixed(2)}</span>
+                        <span style={{ color: UI.accent }}>{formatPrice(s.price)}</span>
                         <span style={{ color: UI.info }}>{s.tps?.toFixed(0)} t/s</span>
                         <span className="text-[9px] px-1.5 py-0.5 rounded-full" style={{ background: stc.bg, color: stc.text }}>
                           {TRUST_COLORS[s.trust]?.label || s.trust}
@@ -326,7 +327,7 @@ export function Trace() {
               </>
             ) : (
               <>
-                {price != null && <div>Output rate: ${price.toFixed(2)} / M tokens</div>}
+                {price != null && <div>Output rate: {formatPrice(price)} / M tokens</div>}
                 {trace.cost_usd != null && <div>Total cost: {formatUsdPrecise(trace.cost_usd)}</div>}
                 <div>Provider revenue: {trace.cost_usd != null ? `≈${formatUsdPrecise(trace.cost_usd * 0.9)}` : '—'} (90%)</div>
                 <div>Platform fee: {trace.cost_usd != null ? `≈${formatUsdPrecise(trace.cost_usd * 0.1)}` : '—'} (10%)</div>
@@ -387,7 +388,7 @@ export function Trace() {
                     </span>
                   )}
                   {t.selected_price != null && (
-                    <span className="text-xs font-semibold" style={{ color: UI.accent }}>${t.selected_price.toFixed(2)}</span>
+                    <span className="text-xs font-semibold" style={{ color: UI.accent }}>{formatPrice(t.selected_price)}</span>
                   )}
                 </Link>
               )

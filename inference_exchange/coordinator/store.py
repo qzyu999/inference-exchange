@@ -21,6 +21,7 @@ from functools import wraps
 from pathlib import Path
 
 from inference_exchange.config import MODELS_DIR, is_production
+from inference_exchange.shared.money import cost_micro
 
 logger = logging.getLogger(__name__)
 
@@ -528,9 +529,11 @@ class Store:
         """
         cache_rate = price_per_mtok_cache if price_per_mtok_cache > 0 else price_per_mtok_input
         fresh_input = max(0, input_tokens - cached_tokens)
-        input_cost = int((fresh_input / 1_000_000) * price_per_mtok_input * MICRO_PER_DOLLAR)
-        cache_cost = int((cached_tokens / 1_000_000) * cache_rate * MICRO_PER_DOLLAR)
-        output_cost = int((output_tokens / 1_000_000) * price_per_mtok_output * MICRO_PER_DOLLAR)
+        # BILL-013: exact decimal arithmetic. Float math under-charged by
+        # 1 micro-USD, for example 300 tokens at $0.05/Mtok.
+        input_cost = cost_micro(fresh_input, price_per_mtok_input)
+        cache_cost = cost_micro(cached_tokens, cache_rate)
+        output_cost = cost_micro(output_tokens, price_per_mtok_output)
         total_cost = max(input_cost + cache_cost + output_cost, MIN_CHARGE_MICRO)  # BILL-004
 
         platform_fee = total_cost * self.PLATFORM_FEE_PERCENT // 100

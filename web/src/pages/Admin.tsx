@@ -7,6 +7,7 @@ import { api } from '../lib/api'
 import { OperatorControlsPanel } from '../components/OperatorControlsPanel'
 import { loadAdminState } from '../lib/admin-controls.js'
 import { formatUsd, formatUsdPrecise } from '../lib/money.js'
+import { formatPrice } from '../lib/price.js'
 
 function JsonView({ data }: { data: unknown }) {
   return (
@@ -197,7 +198,7 @@ function AdminConsoleContent() {
                     <tbody>{t.scoring.map((s: any, i: number) => (
                       <tr key={i} className={s.selected ? 'text-ui-text font-medium' : 'text-ui-muted'}>
                         <td className="py-1">{s.name.slice(0, 12)}</td>
-                        <td className="py-1 text-right">${s.price.toFixed(2)}</td>
+                        <td className="py-1 text-right">{formatPrice(s.price)}</td>
                         <td className="py-1">{s.trust}</td>
                         <td className="py-1 text-right">{(s.load * 100).toFixed(0)}%</td>
                         <td className="py-1 text-right font-mono">{s.score.toFixed(3)}</td>

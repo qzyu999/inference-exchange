@@ -4,6 +4,7 @@ import { useAuth } from '../lib/auth'
 import { api } from '../lib/api'
 import { loginHref } from '../lib/nav.js'
 import { formatUsdPrecise, microToUsd } from '../lib/money.js'
+import { formatPrice } from '../lib/price.js'
 import { UI } from '../lib/theme'
 
 /**
@@ -108,7 +109,7 @@ export function ProviderDashboard() {
                         <div><dt className="text-xs text-ui-muted">Trust</dt>
                           <dd>Claimed: {node.claimed_trust_level || 'Not reported'} · Verified: {node.verified_trust_level || 'Not verified'}</dd></div>
                         <div><dt className="text-xs text-ui-muted">Output ask</dt>
-                          <dd>{typeof node.price_output_per_mtok === 'number' ? '$' + node.price_output_per_mtok.toString() + ' / 1M tokens' : 'Not currently advertised'}</dd></div>
+                          <dd>{typeof node.price_output_per_mtok === 'number' ? formatPrice(node.price_output_per_mtok) + ' / 1M tokens' : 'Not currently advertised'}</dd></div>
                         <div><dt className="text-xs text-ui-muted">Earned (simulated)</dt>
                           <dd>{credited ? formatUsdPrecise(microToUsd(credited.earned_micro)) : 'Unavailable'}</dd></div>
                         <div><dt className="text-xs text-ui-muted">Requests served</dt>

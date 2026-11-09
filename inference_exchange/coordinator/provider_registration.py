@@ -14,6 +14,7 @@ from collections import deque
 from pydantic import ValidationError
 
 from inference_exchange.config import is_production
+from inference_exchange.shared.money import has_price_precision
 from inference_exchange.shared.protocol import ProviderCapabilities, RegisterMessage
 
 MAX_REGISTRATION_BYTES = 64 * 1024
@@ -122,7 +123,11 @@ def parse_provider_registration(raw: str) -> RegisterMessage:
     for field in ("price_per_mtok_input", "price_per_mtok_output", "price_per_mtok_cache"):
         defaults = {"price_per_mtok_input": 0.05, "price_per_mtok_output": 0.20,
                     "price_per_mtok_cache": 0}
-        _bounded_number(caps.get(field, defaults[field]), 100)
+        value = caps.get(field, defaults[field])
+        _bounded_number(value, 100)
+        # BILL-013: at most 6 decimal places, so a charge is exact in micro-USD.
+        if not has_price_precision(value):
+            _reject()
     _bounded_number(caps.get("measured_tps", 0), 10_000)
     _bounded_number(caps.get("memory_gb", 0), 1_024)
     for field in ("supports_vision", "supports_tool_calling"):

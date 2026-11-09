@@ -81,9 +81,9 @@ def get_reference_prices(model_name: str) -> list[dict]:
                     refs.append({
                         "provider": entry.source,
                         "model": entry.display_name,
-                        "input": round(entry.input_per_mtok, 4),
-                        "output": round(entry.output_per_mtok, 4),
-                        "cache": round(entry.cache_per_mtok, 4),
+                        "input": round(entry.input_per_mtok, 6),
+                        "output": round(entry.output_per_mtok, 6),
+                        "cache": round(entry.cache_per_mtok, 6),
                         "comparison_type": "same_model" if entry.family else "alternative",
                     })
 
@@ -97,9 +97,9 @@ def get_reference_prices(model_name: str) -> list[dict]:
                     refs.append({
                         "provider": entry.source,
                         "model": entry.display_name,
-                        "input": round(entry.input_per_mtok, 4),
-                        "output": round(entry.output_per_mtok, 4),
-                        "cache": round(entry.cache_per_mtok, 4),
+                        "input": round(entry.input_per_mtok, 6),
+                        "output": round(entry.output_per_mtok, 6),
+                        "cache": round(entry.cache_per_mtok, 6),
                         "comparison_type": "alternative",
                     })
 
@@ -121,8 +121,8 @@ def get_reference_prices(model_name: str) -> list[dict]:
             refs.append({
                 "provider": "OpenRouter",
                 "model": data["name"],
-                "input": round(data["input"], 4),
-                "output": round(data["output"], 4),
+                "input": round(data["input"], 6),
+                "output": round(data["output"], 6),
             })
         if len(refs) >= 3:
             break
@@ -160,9 +160,9 @@ def compute_savings(exchange_price: float, model_name: str,
         entry = {
             "provider": ref["provider"],
             "model": ref["model"],
-            "price_input": round(ref_input, 4),
-            "price_cache": round(ref_cache, 4),
-            "price_output": round(ref_output, 4),
+            "price_input": round(ref_input, 6),
+            "price_cache": round(ref_cache, 6),
+            "price_output": round(ref_output, 6),
             "diff_pct": out_diff,
             "diff_input_pct": in_diff,
             "diff_cache_pct": cache_diff,

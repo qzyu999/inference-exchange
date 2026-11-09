@@ -121,17 +121,17 @@ class OpenRouterFetcher(PriceFetcher):
                 display_name=m.get("name", model_id),
                 family=info["family"],
                 family_key=info["canonical_id"],
-                input_per_mtok=round(prompt_price * 1_000_000, 4),
-                output_per_mtok=round(completion_price * 1_000_000, 4),
-                cache_per_mtok=round(cache_read * 1_000_000, 4),
-                cache_write_per_mtok=round(cache_write * 1_000_000, 4),
+                input_per_mtok=round(prompt_price * 1_000_000, 6),
+                output_per_mtok=round(completion_price * 1_000_000, 6),
+                cache_per_mtok=round(cache_read * 1_000_000, 6),
+                cache_write_per_mtok=round(cache_write * 1_000_000, 6),
                 context_length=m.get("context_length", 0),
                 intelligence_index=aa.get("intelligence_index") if aa else None,
                 coding_index=aa.get("coding_index") if aa else None,
                 agentic_index=aa.get("agentic_index") if aa else None,
-                image_per_mtok=round(image_price * 1_000_000, 4),
+                image_per_mtok=round(image_price * 1_000_000, 6),
                 web_search_price=web_search,
-                reasoning_per_mtok=round(reasoning * 1_000_000, 4),
+                reasoning_per_mtok=round(reasoning * 1_000_000, 6),
             ))
         return entries
 
@@ -200,8 +200,8 @@ class TogetherFetcher(PriceFetcher):
                     display_name=m.get("display_name", m.get("name", model_id)),
                     family=info["family"],
                     family_key=info["canonical_id"],
-                    input_per_mtok=round(input_price * 1_000_000, 4),
-                    output_per_mtok=round(output_price * 1_000_000, 4),
+                    input_per_mtok=round(input_price * 1_000_000, 6),
+                    output_per_mtok=round(output_price * 1_000_000, 6),
                     context_length=m.get("context_length", m.get("context_window", 0)),
                 ))
 
