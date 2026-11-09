@@ -69,7 +69,8 @@ with sync_playwright() as p:
     page.goto(base_url)
     # Original layout: live strip, depth of market, and recent fills remain.
     expect(page.get_by_text('Depth of market', exact=False)).to_be_visible()
-    expect(page.get_by_text('Recent fills', exact=False)).to_be_visible()
+    # Exact match: the empty state "No recent fills" also contains this text.
+    expect(page.get_by_text('Recent fills', exact=True)).to_be_visible()
     # The IE model joins its catalog competitor through the exact IE offer ID.
     expect(page.get_by_role('heading', name='Example model', exact=True)).to_be_visible()
     expect(page.get_by_role('cell').filter(has_text='Example competitor')).to_be_visible()
