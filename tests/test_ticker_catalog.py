@@ -84,9 +84,34 @@ def test_ie_filter_keeps_external_offers_and_does_not_fuzzy_match(tmp_path):
     assert len(result['models'][0]['offers']) == 2
     assert result['models'][0]['ie_count'] == 1
     provider.capabilities.models=['Model One v2']
-    assert cache.catalog([provider],ie_only=True,now=2000)['models'][0]['id'] == 'ie/Model One v2'
+    assert cache.catalog([provider],ie_only=True,now=2000)['models'][0]['id'] == 'ie/p1/Model%20One%20v2'
     assert cache.catalog([],now=100000)['models'][0]['offers'][0]['stale']
     assert cache.history('missing')['offers'] == []
+
+
+def test_llama_alias_groups_offers_without_verifying_artifacts(tmp_path):
+    from types import SimpleNamespace as S
+    data = snapshot()
+    model = data['models'][0]
+    model.update(id='meta-llama/llama-3.2-1b-instruct', name='Llama 3.2 1B Instruct',
+                 aliases=['Llama 3.2 1B Instruct'])
+    model['offers'][0].update(provider='Cloudflare', quantization='FP16')
+    cache = SnapshotCache(tmp_path/'cache.json')
+    cache.install(json.dumps(data).encode(), None, now=2000)
+    identity = {'name': 'Llama 3.2 1B Instruct', 'quantization': 'Q4_K_M', 'file_hash': 'claimed-hash'}
+    provider = S(provider_id='p1', name='Local', model_identity=identity,
+        model_capabilities=S(context_length=4096), capabilities=S(
+        models=['Llama 3.2 1B Instruct', 'Qwen2.5 0.5B Instruct'],
+        price_per_mtok_input=0, price_per_mtok_cache=0, price_per_mtok_output=0.1,
+        trust_level=S(value='open')))
+    models = {m['id']: m for m in cache.catalog([provider], now=2000)['models']}
+    llama = models['meta-llama/llama-3.2-1b-instruct']
+    assert [(o['provider'], o['route'], o['quantization']) for o in llama['offers']] == [
+        ('Cloudflare', 'OpenRouter', 'FP16'), ('Local', 'Inference Exchange', 'Q4_K_M')]
+    assert models['ie/p1/Qwen2.5%200.5B%20Instruct']['ie_count'] == 1
+    assert len(models['ie/p1/Qwen2.5%200.5B%20Instruct']['offers']) == 1
+    assert provider.model_identity == identity
+    assert not any(o.get('verified') or o.get('file_hash') for o in llama['offers'])
 
 @pytest.mark.parametrize('data', [[], None, {'schema_version':1,'generation':1,'generated_at':1,'models':[None]}])
 def test_invalid_shapes_are_rejected_without_startup_failure(tmp_path, data):

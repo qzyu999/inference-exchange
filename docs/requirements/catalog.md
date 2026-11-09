@@ -4,10 +4,35 @@
 
 MUST: Show the published external catalog and live admitted, non-quarantined IE offers. Filter models by IE availability without removing external comparison offers. Join source IDs through explicit exact aliases. Keep unmapped models separate. Keep routes distinct. Preserve zero and unknown rates. Show stale observations and reject them from headline savings. Require matching known quantization and context for headline percentages. Show input, cache-read, and output separately.
 
+An exact comparison alias must not verify an artifact hash.
+An exact comparison alias must not establish runtime identity.
+An exact comparison alias must not make different quantizations equivalent.
+
 - Principle: P2, P3, P5, P8
 - Status: implemented
 - Verified by: tests/test_ticker_catalog.py, web/src/lib/catalog.test.mjs, web/src/lib/exchange-filter-recovery.test.mjs
 - Issue: #269
+
+### CATALOG-003: Exact comparison identity and source labels
+
+MUST: Use a catalog model ID as the comparison identity.
+Resolve local models through exact source IDs or reviewed aliases.
+Use the same resolver for offers and reference prices.
+Do not join models through parsed name facets.
+Keep each unmapped local model in a separate provider-qualified IE entry.
+Keep facets typed and unknown values distinct.
+Use source labels for display.
+Build reviewed family labels from family fields in the published catalog.
+Refresh those labels with each catalog generation.
+Normalize family labels for search.
+Permit reported repositories to select comparison rows for browsing.
+Label reported identities and reviewed aliases separately.
+Show artifact verification as a separate state.
+
+- Principle: P2, P3, P8, P9
+- Status: implemented
+- Verified by: tests/test_comparison_identity.py, tests/test_model_facets.py, tests/test_reference_pricing.py, web/src/lib/catalog.test.mjs, web/src/lib/model-size.test.mjs
+- Issue: #279
 
 ### CATALOG-002: Durable versioned market data synchronization
 

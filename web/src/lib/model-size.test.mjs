@@ -1,7 +1,7 @@
 // Run: node web/src/lib/model-size.test.mjs  (#277)
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
-import { parseParams, paramsLabel } from './model-size.js'
+import { parseParams, paramsLabel, parametersInBillions } from './model-size.js'
 
 const cases = [
   // Catalog display names and IDs
@@ -28,10 +28,13 @@ for (const [name, want] of cases) assert.equal(parseParams(name), want, name)
 assert.equal(parseParams('Venice: Uncensored', 'cognitivecomputations/dolphin-mistral-24b-venice-edition'), 24)
 assert.equal(paramsLabel('LiquidAI: LFM3-1.7B'), '1.7B')
 assert.equal(paramsLabel('Claude'), null)
+assert.equal(parametersInBillions(30e9, 'Qwen 3B'), 30)
+assert.equal(parametersInBillions(0, '7B'), 0)
+assert.equal(parametersInBillions(null, 'Qwen 30B A3B'), 30)
 
 // Source contract: reference and catalog models get a size from the name (#277).
 const exchange = readFileSync(new URL('../pages/Exchange.tsx', import.meta.url), 'utf8')
 assert.match(exchange, /paramsLabel\(f\.display_name, f\.family_key\)/)
-assert.match(exchange, /parseParams\(m\.params\)/)
+assert.match(exchange, /parametersInBillions\(m\.totalParameters, m\.params\)/)
 
 console.log(`model size: ${cases.length} cases + source contract ok`)

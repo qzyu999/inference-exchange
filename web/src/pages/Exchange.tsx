@@ -1,10 +1,11 @@
 import useSWR from 'swr'
-import { api, type CatalogModel, type CatalogPage } from '../lib/api'
+import { api, type CatalogPage } from '../lib/api'
 import { useState, useMemo, useRef, useEffect } from 'react'
 import { UI, APP_TRUST_COLORS as TRUST_COLORS } from '../lib/theme'
 import { ModelSearch, type ModelSearchItem } from '../components/ModelSearch'
 import { formatPrice, priceKey } from '../lib/price.js'
-import { parseParams, paramsLabel } from '../lib/model-size.js'
+import { parametersInBillions, paramsLabel } from '../lib/model-size.js'
+import { catalogFamilies, formatRate, identityLabel } from '../lib/catalog.js'
 
 // ─── Constants ───────────────────────────────────────────────
 
@@ -26,11 +27,14 @@ interface MarketProvider {
   tps: number; trust: string; hardware: string; quantization: string
   load: number; encrypted: boolean; verified: boolean; slots: string
   context_length: number; format: string; original_model: string
+  publishedRates?: { input: string | null; cache: string | null; output: string | null }
+  identity_source?: string; identity_trust?: string; artifact_verification?: string
 }
 
 interface MarketModel {
   model: string; family: string; size: string; canonical_id: string
   provider_count: number; cheapest_output: number; fastest_tps: number; max_trust: string
+  total_parameters?: number | null
   capabilities: {
     context_length: number; supports_vision: boolean; supports_tool_calling: boolean
     architecture: string; model_type: string
@@ -46,6 +50,7 @@ interface MarketModel {
 // Unified model for the command palette
 interface UnifiedModel {
   key: string; name: string; vendor: string; family: string; params: string
+  totalParameters?: number | null
   price: number; quality: number | null; codingIndex: number | null
   cache: boolean; open: boolean; ctx: string; providerCount: number
   source: 'ie' | 'ref' | 'both'
@@ -58,6 +63,9 @@ interface OfferRow {
   quality: number | null; tps: number | null
   trust?: string; encrypted?: boolean; quantization?: string
   displayName?: string
+  sourceUrl?: string; observedAt?: number; sourceType?: string
+  publishedRates?: { input: string | null; cache: string | null; output: string | null }
+  identitySource?: string; identityTrust?: string; artifactVerification?: string
 }
 
 // ─── Helpers ─────────────────────────────────────────────────
@@ -321,16 +329,32 @@ export function Exchange() {
   const models = (marketData?.models || []) as MarketModel[]
   const traces = traceData?.traces || []
 
-  const useCatalog = Boolean(catalog?.generation)
-  // #269: once the published catalog has data, it replaces the legacy
-  // reference prices. Same shape, so the page renders exactly as before.
-  const refFamilies: Array<{ family_key: string; display_name: string; prices: any[]; provider_count: number }> = useMemo(() =>
+  const useCatalog = Boolean(catalog)
+  const refFamilies: Array<{ family_key: string; display_name: string; prices: any[]; provider_count: number; marketModel?: MarketModel; ieProviders?: MarketProvider[]; family?: string | null; total_parameters?: number | null }> = useMemo(() =>
     useCatalog ? catalogFamilies(catalog!.models, models)
       : (refData?.models || []).filter((f: any) => f.prices?.length > 0),
   [useCatalog, catalog, refData, models])
 
   // ─── Build unified model list ────────────────────────────
   const unifiedModels = useMemo(() => {
+    if (useCatalog) return refFamilies.map(f => {
+      const local = f.marketModel
+      const ie = f.ieProviders || []
+      const first = f.prices[0]
+      const outputs = [...ie.map(p => p.price_output), ...f.prices.map(p => p.price_output)]
+      const context = local?.capabilities.context_length || first?.context_length || 0
+      return {
+        key: f.family_key, name: f.display_name, vendor: local?.family || first?.source || '',
+        family: f.family || local?.family || 'Other',
+        totalParameters: f.total_parameters,
+        params: local?.size || paramsLabel(f.display_name, f.family_key) || '—',
+        price: outputs.length ? Math.min(...outputs) : 0, quality: null, codingIndex: null,
+        cache: ie.some(p => p.price_cache > 0) || f.prices.some(p => p.price_cache_read > 0),
+        open: ie.length > 0 || Boolean(first?.open_weight),
+        ctx: context > 0 ? formatCtx(context) : '—', providerCount: f.provider_count,
+        source: ie.length ? (f.prices.length ? 'both' : 'ie') : 'ref',
+      } as UnifiedModel
+    })
     const result: UnifiedModel[] = []
     const seen = new Set<string>()
 
@@ -341,6 +365,7 @@ export function Exchange() {
       result.push({
         key: m.canonical_id || m.model, name: m.model, vendor: m.family || '',
         family: m.family || 'Other', params: m.size || paramsLabel(m.model, m.canonical_id) || '—',
+        totalParameters: m.total_parameters,
         price: m.cheapest_output, quality: null, codingIndex: null,
         cache: m.providers.some(p => p.price_cache > 0),
         open: true, // IE providers run open-weight models
@@ -376,7 +401,7 @@ export function Exchange() {
       const isOpen = first?.open_weight ?? !['anthropic', 'openai', 'google'].includes(first?.source)
       result.push({
         key: f.family_key, name: f.display_name, vendor: first?.source || '',
-        family: guessFamily(f.display_name),
+        family: f.family || 'Other', totalParameters: f.total_parameters,
         // Reference and catalog feeds carry no size field. Read it from the name (#277).
         params: first?.params || paramsLabel(f.display_name, f.family_key) || '—',
         price: cheapest === Infinity ? 0 : cheapest,
@@ -389,7 +414,7 @@ export function Exchange() {
     }
 
     return result
-  }, [models, refFamilies])
+  }, [models, refFamilies, useCatalog])
 
   // ─── State ───────────────────────────────────────────────
   const [selectedKey, setSelectedKey] = useState('')
@@ -415,36 +440,10 @@ export function Exchange() {
   // Resolve active model
   const activeKey = selectedKey || (unifiedModels.length > 0 ? unifiedModels[0].key : '')
   const activeUnified = unifiedModels.find(m => m.key === activeKey)
-  const activeIEModel = models.find(m => (m.canonical_id || m.model) === activeKey)
-  // Find matching reference family:
-  // 1. Exact key match
-  // 2. Check if any ref family key is a substring of the active key or vice versa
-  // 3. Fuzzy match on display name
-  const activeRefFamily = (() => {
-    if (!activeKey) return null
-    // Exact match
-    const exact = refFamilies.find(f => f.family_key === activeKey)
-    if (exact) return exact
-    // The catalog uses exact aliases only. Unmapped models stay separate (CATALOG-001).
-    if (useCatalog) return null
-    // Key substring match (e.g. "llama-3.1-70b" matches "llama-3.1-70b-instruct")
-    const keyLower = activeKey.toLowerCase()
-    const keyMatch = refFamilies.find(f => {
-      const fk = f.family_key.toLowerCase()
-      return fk.includes(keyLower) || keyLower.includes(fk)
-    })
-    if (keyMatch) return keyMatch
-    // Name fuzzy match
-    if (activeUnified) {
-      const uName = activeUnified.name.toLowerCase().replace(/[^a-z0-9]/g, '')
-      const nameMatch = refFamilies.find(f => {
-        const fName = f.display_name.toLowerCase().replace(/[^a-z0-9]/g, '')
-        return uName.includes(fName) || fName.includes(uName)
-      })
-      if (nameMatch) return nameMatch
-    }
-    return null
-  })()
+  const activeRefFamily = refFamilies.find(f => f.family_key === activeKey)
+  const activeIEModel = useCatalog
+    ? (activeRefFamily?.marketModel ? { ...activeRefFamily.marketModel, providers: activeRefFamily.ieProviders || [] } : undefined)
+    : models.find(m => (m.canonical_id || m.model) === activeKey)
 
   // ─── Filtered model list for palette ─────────────────────
   const families = useMemo(() => [...new Set(unifiedModels.map(m => m.family))].sort(), [unifiedModels])
@@ -456,7 +455,7 @@ export function Exchange() {
       if (filterCache && !m.cache) return false
       if (filterBenchmarked && !m.quality) return false
       if (filterSize) {
-        const s = parseParams(m.params)
+        const s = parametersInBillions(m.totalParameters, m.params)
         if (filterSize === '<7B' && (s === null || s >= 7)) return false
         if (filterSize === '7-30B' && (s === null || s < 7 || s >= 30)) return false
         if (filterSize === '30-100B' && (s === null || s < 30 || s >= 100)) return false
@@ -490,7 +489,7 @@ export function Exchange() {
         m.vendor || 'Unknown family',
         m.params !== '—' ? m.params : '',
         m.ctx !== '—' ? m.ctx + ' context' : '',
-        m.providerCount + (m.source === 'ref' ? ' reference offers' : ' IE providers'),
+        m.providerCount + ' providers',
       ].filter(Boolean).join(' · '),
       priceLabel: m.price > 0 ? formatPrice(m.price) : undefined,
       badges: [
@@ -508,10 +507,13 @@ export function Exchange() {
     if (activeIEModel) {
       for (const p of activeIEModel.providers) {
         rows.push({
-          name: 'Inference Exchange', source: 'ie', isIE: true,
+          name: p.name, source: 'ie', isIE: true, displayName: 'via Inference Exchange',
           priceInput: p.price_input, priceCache: p.price_cache, priceOutput: p.price_output,
           quality: activeUnified?.codingIndex || null, tps: p.tps > 0 ? p.tps : null,
           trust: p.trust, encrypted: p.encrypted, quantization: p.quantization,
+          publishedRates: p.publishedRates,
+          identitySource: p.identity_source, identityTrust: p.identity_trust,
+          artifactVerification: p.artifact_verification,
         })
       }
     }
@@ -525,7 +527,9 @@ export function Exchange() {
           priceInput: p.price_input || 0, priceCache: p.price_cache_read || 0,
           priceOutput: p.price_output || 0,
           quality: p.intelligence_index || p.coding_index || null,
-          tps: null, displayName: p.display_name,
+          tps: null, displayName: p.display_name, quantization: p.quantization,
+          sourceUrl: p.source_url, observedAt: p.observed_at, sourceType: p.source_type,
+          publishedRates: p.publishedRates,
         })
       }
     }
@@ -745,12 +749,17 @@ export function Exchange() {
                         {r.encrypted && <span style={{ fontSize: 7, fontWeight: 600, padding: '1px 4px', borderRadius: 3, background: UI.infoSurface, color: UI.info }}>E2E</span>}
                         {cachePct > 0 && <span style={{ fontSize: 7, fontWeight: 600, padding: '1px 4px', borderRadius: 3, background: UI.purpleSurface, color: UI.purple }}>-{cachePct}% cache</span>}
                         {r.quantization && <span>{r.quantization}</span>}
-                        {r.displayName && !r.isIE && <span>{r.displayName}</span>}
+                        {r.isIE && <span>{identityLabel(r.identitySource, r.identityTrust)}</span>}
+                        {r.isIE && <span>{r.artifactVerification === 'verified' ? 'Artifact hash verified' : 'Artifact unverified'}</span>}
+                        {r.displayName && <span>{r.displayName}</span>}
+                        {r.sourceUrl && <a href={r.sourceUrl} target="_blank" rel="noopener noreferrer"
+                          title={`${r.sourceType || 'api'} · observed ${new Date((r.observedAt || 0) * 1000).toLocaleString()}`}
+                          style={{ color: UI.muted }}>Source</a>}
                       </div>
                     </td>
-                    <Td mono color={UI.info}>{fmtPrice(r.priceInput)}</Td>
-                    <Td mono color={r.priceCache > 0 ? UI.info : UI.muted}>{r.priceCache > 0 ? fmtPrice(r.priceCache) : '—'}</Td>
-                    <Td mono color={UI.accent} bold={isBest} highlight={isBest}>{fmtPrice(r.priceOutput)}</Td>
+                    <Td mono color={UI.info}>{r.publishedRates ? formatRate(r.publishedRates.input) : fmtPrice(r.priceInput)}</Td>
+                    <Td mono color={r.priceCache > 0 ? UI.info : UI.muted}>{r.publishedRates ? formatRate(r.publishedRates.cache) : r.priceCache > 0 ? fmtPrice(r.priceCache) : '—'}</Td>
+                    <Td mono color={UI.accent} bold={isBest} highlight={isBest}>{r.publishedRates ? formatRate(r.publishedRates.output) : fmtPrice(r.priceOutput)}</Td>
                     <Td mono color={r.quality ? UI.info : UI.muted}>{r.quality ? r.quality.toFixed(1) : '—'}</Td>
                     <Td mono color={r.tps ? UI.info : UI.muted}>{r.tps ? Math.round(r.tps).toString() : '—'}</Td>
                   </tr>
@@ -1020,29 +1029,6 @@ async function fetchCatalog(): Promise<CatalogPage> {
   return { ...first, models: all }
 }
 
-const rate = (v: string | null) => v == null ? 0 : Number(v) || 0
-
-// Map catalog models to the legacy reference-price family shape.
-// IE offers come from /market as before, so they are left out here.
-// The coordinator joins IE offers to catalog models by exact alias only
-// (CATALOG-001). Reuse that join so a mapped model keeps its /market key.
-function catalogFamilies(list: CatalogModel[], market: MarketModel[]) {
-  const marketKey = new Map<string, string>()
-  for (const m of market) for (const p of m.providers) marketKey.set('ie/' + p.id + '/' + p.original_model, m.canonical_id || m.model)
-  return list.map(m => {
-    const key = m.offers.map(o => o.ie ? marketKey.get(o.id) : undefined).find(Boolean) || m.id
-    const prices = m.offers.filter(o => !o.ie).map(o => ({
-      source: o.provider,
-      display_name: o.route === o.provider ? '' : 'via ' + o.route + (o.stale ? ' · stale' : ''),
-      price_input: rate(o.input), price_output: rate(o.output), price_cache_read: rate(o.cache_read),
-      context_length: o.context_length || 0, quantization: o.quantization || null,
-      // Catalog IDs start with the vendor (e.g. "openai/..."). Same heuristic as before.
-      open_weight: !['anthropic', 'openai', 'google'].includes(m.id.split('/')[0]),
-    }))
-    return { family_key: key, display_name: m.name, prices, provider_count: prices.length }
-  }).filter(f => f.prices.length > 0)
-}
-
 // ─── Utility ─────────────────────────────────────────────────
 
 const PROVIDER_ABBR: Record<string, string> = {
@@ -1053,20 +1039,4 @@ const PROVIDER_ABBR: Record<string, string> = {
 
 function providerAbbr(name: string): string {
   return PROVIDER_ABBR[name] || name.replace(/[^A-Za-z]/g, '').slice(0, 2).toUpperCase()
-}
-
-function guessFamily(name: string): string {
-  const lower = name.toLowerCase()
-  if (lower.includes('llama')) return 'Llama'
-  if (lower.includes('qwen')) return 'Qwen'
-  if (lower.includes('deepseek')) return 'DeepSeek'
-  if (lower.includes('claude')) return 'Claude'
-  if (lower.includes('gpt')) return 'GPT'
-  if (lower.includes('gemini')) return 'Gemini'
-  if (lower.includes('gemma')) return 'Gemma'
-  if (lower.includes('mistral')) return 'Mistral'
-  if (lower.includes('phi')) return 'Phi'
-  if (lower.includes('hermes')) return 'Llama'
-  if (lower.includes('glm')) return 'GLM'
-  return 'Other'
 }

@@ -4,6 +4,7 @@ import useSWR from 'swr'
 import { api } from '../lib/api'
 import { UI, APP_TRUST_COLORS as TRUST_COLORS } from '../lib/theme'
 import { formatPrice } from '../lib/price.js'
+import { identityLabel } from '../lib/catalog.js'
 
 // ─── Types ───────────────────────────────────────────────────
 
@@ -12,6 +13,7 @@ interface MarketProvider {
   tps: number; trust: string; hardware: string; quantization: string
   load: number; encrypted: boolean; verified: boolean; slots: string
   context_length: number; format: string; original_model: string
+  identity_source?: string; identity_trust?: string; artifact_verification?: string
 }
 
 interface MarketModel {
@@ -253,9 +255,10 @@ function ModelDetail({ m }: { m: MarketModel }) {
               >
                 <div className="col-span-2 min-w-0">
                   <div className="text-xs font-semibold truncate" style={{ color: UI.text }}>{p.name}</div>
+                  <div className="text-[9px]" style={{ color: UI.muted }}>{identityLabel(p.identity_source, p.identity_trust)}</div>
                   <div className="flex items-center gap-1 mt-0.5">
                     {p.encrypted && <span className="text-[7px] px-1 rounded" style={{ background: UI.infoSurface, color: UI.info }}>Key</span>}
-                    {p.verified && <span className="text-[7px] px-1 rounded" style={{ background: UI.successSurface, color: UI.success }}>✓</span>}
+                    <span className="text-[7px]" style={{ color: UI.muted }}>{p.verified ? 'Hash verified' : 'Artifact unverified'}</span>
                   </div>
                 </div>
                 <div className="col-span-1 text-[10px] font-mono" style={{ color: UI.accent }}>{p.quantization || '—'}</div>

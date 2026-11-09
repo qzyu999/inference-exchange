@@ -17,7 +17,8 @@ from dataclasses import dataclass, field
 
 import httpx
 
-from .model_catalog import parse_model_info
+from .model_facets import parse_facets
+from .comparison_identity import source_key
 
 logger = logging.getLogger(__name__)
 
@@ -114,13 +115,13 @@ class OpenRouterFetcher(PriceFetcher):
             reasoning = float(pricing.get("internal_reasoning", "0") or "0")
             benchmarks = m.get("benchmarks", {})
             aa = benchmarks.get("artificial_analysis", {}) if benchmarks else {}
-            info = parse_model_info(model_id)
+            info = parse_facets(model_id)
             entries.append(PriceEntry(
                 source="openrouter",
                 model_id=model_id,
                 display_name=m.get("name", model_id),
-                family=info["family"],
-                family_key=info["canonical_id"],
+                family=info.family or "",
+                family_key=source_key("openrouter", model_id),
                 input_per_mtok=round(prompt_price * 1_000_000, 6),
                 output_per_mtok=round(completion_price * 1_000_000, 6),
                 cache_per_mtok=round(cache_read * 1_000_000, 6),
@@ -193,13 +194,13 @@ class TogetherFetcher(PriceFetcher):
                 if input_price <= 0 and output_price <= 0:
                     continue
 
-                info = parse_model_info(model_id)
+                info = parse_facets(model_id)
                 entries.append(PriceEntry(
                     source=self.source,
                     model_id=model_id,
                     display_name=m.get("display_name", m.get("name", model_id)),
-                    family=info["family"],
-                    family_key=info["canonical_id"],
+                    family=info.family or "",
+                    family_key=source_key(self.source, model_id),
                     input_per_mtok=round(input_price * 1_000_000, 6),
                     output_per_mtok=round(output_price * 1_000_000, 6),
                     context_length=m.get("context_length", m.get("context_window", 0)),
@@ -330,13 +331,13 @@ class DirectAPIFetcher(PriceFetcher):
     async def fetch(self) -> list[PriceEntry]:
         entries = []
         for p in self.PRICES:
-            info = parse_model_info(p["model_id"])
+            info = parse_facets(p["model_id"])
             entries.append(PriceEntry(
                 source=p["source"],
                 model_id=p["model_id"],
                 display_name=p["display_name"],
-                family=info["family"],
-                family_key=info["canonical_id"],
+                family=info.family or "",
+                family_key=source_key(p["source"], p["model_id"]),
                 input_per_mtok=p["input"],
                 output_per_mtok=p["output"],
                 cache_per_mtok=p.get("cache", 0),

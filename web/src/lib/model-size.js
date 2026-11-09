@@ -24,3 +24,9 @@ export function paramsLabel(...names) {
   const n = parseParams(...names)
   return n == null ? null : `${Number(n.toFixed(2))}B`
 }
+
+/** Prefer a typed parameter count over a name label. Result uses billions. */
+export function parametersInBillions(total, ...names) {
+  return typeof total === 'number' && Number.isFinite(total) && total >= 0
+    ? total / 1e9 : parseParams(...names)
+}

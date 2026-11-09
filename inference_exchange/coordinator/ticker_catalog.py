@@ -12,6 +12,8 @@ from pathlib import Path
 
 import httpx
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
+from .comparison_identity import configured_catalog, provider_identity
+from .model_facets import facets_from_identity, public_facets
 
 log = logging.getLogger(__name__)
 MAX_BYTES = 64 * 1024 * 1024
@@ -64,10 +66,21 @@ class _Offer(_Record):
     history: list[_Point] = Field(default_factory=list, max_length=90)
 
 
+class _SourceID(_Record):
+    source: str = Field(min_length=1, max_length=100, pattern=r"^[a-z][a-z0-9_.-]*$")
+    model_id: str = Field(min_length=1, max_length=1000)
+
+
 class _Model(_Record):
     id: str = Field(min_length=1, max_length=500)
     name: str = Field(min_length=1, max_length=500)
     aliases: list[str] = Field(default_factory=list, max_length=100)
+    source_ids: list[_SourceID] = Field(default_factory=list, max_length=100)
+    family: str | None = Field(default=None, max_length=100)
+    release: str | None = Field(default=None, max_length=100)
+    total_parameters: int | None = Field(default=None, ge=0, le=9_007_199_254_740_991)
+    active_parameters: int | None = Field(default=None, ge=0, le=9_007_199_254_740_991)
+    variant_tags: list[str] | None = Field(default=None, max_length=100)
     offers: list[_Offer] = Field(max_length=256)
 
 
@@ -92,9 +105,25 @@ def validate_snapshot(data, now=None):
             raise ValueError('Invalid timestamp')
 
     stamp(data['generated_at'])
+    configured_catalog(data)  # Reject ambiguous namespaced exact mappings.
     aliases = set()
+    source_ids = set()
     offer_ids = set()
     for model in data['models']:
+        if model["family"] is not None and not model["family"].strip():
+            raise ValueError("Empty family")
+        for source in model["source_ids"]:
+            key = (source["source"], source["model_id"].casefold())
+            if key in source_ids:
+                raise ValueError("Duplicate source ID")
+            source_ids.add(key)
+        if model["variant_tags"] is not None:
+            if any(not isinstance(tag, str) or not 0 < len(tag) <= 100 for tag in model["variant_tags"]):
+                raise ValueError("Invalid variant tag")
+            model["variant_tags"] = sorted(set(model["variant_tags"]))
+        if (model["active_parameters"] is not None and model["total_parameters"] is not None
+                and model["active_parameters"] > model["total_parameters"]):
+            raise ValueError("Active parameters exceed total")
         for alias in [model['id'], *model['aliases']]:
             if not alias or alias.casefold() in aliases:
                 raise ValueError('Ambiguous alias')
@@ -197,30 +226,50 @@ class SnapshotCache:
                 log.warning('Ticker synchronization failed: %s', self.error)
             await asyncio.sleep(600)
 
+    def resolver(self):
+        return configured_catalog(self.data)
+
     def catalog(self, providers, *, query='', ie_only=False, offset=0, limit=100, now=None):
         now = now or time.time()
-        models = {m['id']: {**m, 'offers': [{k:v for k,v in o.items() if k != 'history'} for o in m['offers']], 'ie_count': 0} for m in self.data['models']}
-        aliases = {a.casefold(): m['id'] for m in self.data['models'] for a in [m['id'], *m.get('aliases', [])]}
+        resolver = self.resolver()
+        enriched = os.getenv("IE_ENRICHED_MODEL_DISPLAY", "1") != "0"
+        models = {}
+        for m in self.data["models"]:
+            facets = facets_from_identity({"name": m["name"]}, catalog_model=m,
+                                         family_labels=resolver.family_labels)
+            models[m["id"]] = {**m, **public_facets(facets), "name": facets.display_name,
+                              "offers": [{k: v for k, v in o.items() if k != "history"} for o in m["offers"]],
+                              "ie_count": 0}
         for p in providers:
             if not getattr(p, 'admitted', True) or getattr(p, 'quarantined', False): continue
             for name in p.capabilities.models:
                 if name == 'default': continue
-                key = aliases.get(name.casefold(), 'ie/' + name)
-                m = models.setdefault(key, {'id': key, 'name': name, 'offers': [], 'ie_count': 0})
+                identity, repo, applies = provider_identity(p, name)
+                resolution = resolver.local_resolution(p.provider_id, name, identity, provider_repo=repo)
+                key = resolution.comparison_id
+                facets = facets_from_identity({**identity, "name": name},
+                    catalog_model=resolver.models.get(key), family_labels=resolver.family_labels,
+                    enriched_display=enriched)
+                m = models.setdefault(key, {'id': key, 'name': facets.display_name,
+                    **public_facets(facets), 'offers': [], 'ie_count': 0})
                 m['ie_count'] += 1
-                identity = p.model_identity or {}
                 m['offers'].append({'id': 'ie/' + p.provider_id + '/' + name, 'provider': p.name,
+                    'provider_id': p.provider_id, 'original_model': name,
+                    'display_name': facets.display_name,
                     'route': 'Inference Exchange', 'ie': True, 'observed_at': now,
                     'input': str(p.capabilities.price_per_mtok_input),
                     'cache_read': str(p.capabilities.price_per_mtok_cache),
                     'output': str(p.capabilities.price_per_mtok_output),
                     'quantization': identity.get('quantization'),
+                    'identity_source': resolution.identity_source,
+                    'identity_trust': resolution.identity_trust,
+                    'artifact_verification': 'verified' if applies and getattr(p, 'model_verified', False) else 'unverified',
                     'context_length': p.model_capabilities.context_length,
                     'trust': p.capabilities.trust_level.value, 'source_url': '/keys'})
         result = []
         for m in models.values():
             if ie_only and not m['ie_count']: continue
-            if query.casefold() not in (m['id'] + ' ' + m['name']).casefold(): continue
+            if query.casefold() not in (m['id'] + ' ' + m['name'] + ' ' + (m.get('family') or '')).casefold(): continue
             for o in m['offers']:
                 o['stale'] = now - o['observed_at'] > FRESH_SECONDS
             result.append(m)

@@ -346,117 +346,61 @@ async def search_models(q: str = ""):
 
 
 @router.get("/v1/exchange/market")
-async def get_market_data():
-    """Model-centric market view with structured model info and reference pricing."""
+async def get_market_data(request: Request):
+    """Live market grouped by the same exact identity as the published catalog."""
     from .reference_pricing import compute_savings
-    from .model_catalog import parse_model_info
-
     hub = get_hub()
-
-    # Group providers by canonical model ID (family + size + variant)
-    model_data: dict[str, dict] = {}
-    for p in hub._providers.values():
-        for model_name in p.capabilities.models:
-            if model_name == "default":
-                continue
-            # Parse model info from the registered name
-            info = parse_model_info(model_name)
-            key = info["canonical_id"]
-
-            if key not in model_data:
-                model_data[key] = {
-                    "model": info["display_name"],
-                    "family": info["family_display"] or info["family"],
-                    "size": info["size"],
-                    "variant": info["variant"],
-                    "canonical_id": key,
-                    "capabilities": None,  # filled from first provider's resolved caps
-                    "providers": [],
-                    "cheapest_output": float("inf"),
-                    "fastest_tps": 0,
-                    "max_trust": "open",
-                }
-            md = model_data[key]
-            price = p.capabilities.price_per_mtok_output
-
-            # Use resolved model capabilities (format-agnostic)
-            caps = p.model_capabilities
-            quant = info.get("quantization", "")
-            if not quant and p.model_identity:
-                quant = p.model_identity.get("quantization", "")
-
-            # Set model-level capabilities from the first provider we see
-            if md["capabilities"] is None and caps.context_length > 0:
-                md["capabilities"] = {
-                    "context_length": caps.context_length,
-                    "supports_vision": caps.supports_vision,
-                    "supports_tool_calling": caps.supports_tool_calling,
-                    "architecture": caps.architecture,
-                    "model_type": caps.model_type,
-                }
-
-            md["providers"].append({
-                "id": p.provider_id,
-                "name": p.name,
-                "price_output": price,
-                "price_input": p.capabilities.price_per_mtok_input,
-                "price_cache": p.capabilities.price_per_mtok_cache,
-                "tps": p.capabilities.measured_tps,
-                "trust": p.capabilities.trust_level.value,
-                "encrypted": bool(p.encryption_public_key),
-                "load": round(p.load_factor, 2),
-                "hardware": p.capabilities.hardware,
-                "slots": f"{p.active_requests}/{p.capabilities.max_concurrent}",
-                "quantization": quant,
-                "context_length": caps.context_length,
-                "format": caps.model_format,
-                "verified": getattr(p, 'model_verified', False),
-                "original_model": model_name,
-            })
-            if price < md["cheapest_output"]:
-                md["cheapest_output"] = price
-            if p.capabilities.measured_tps > md["fastest_tps"]:
-                md["fastest_tps"] = p.capabilities.measured_tps
-            trust_order = ["open", "contained", "hardened", "confidential"]
-            curr = trust_order.index(md["max_trust"]) if md["max_trust"] in trust_order else 0
-            prov = trust_order.index(p.capabilities.trust_level.value) if p.capabilities.trust_level.value in trust_order else 0
-            if prov > curr:
-                md["max_trust"] = p.capabilities.trust_level.value
-
-    # Add reference pricing comparison
+    cache = request.app.state.ticker_cache
+    resolver = cache.resolver()
+    providers = hub._providers
+    view = cache.catalog(providers.values(), ie_only=True, limit=20000)
     result = []
-    for key, data in model_data.items():
-        # Find cheapest input and cache prices across providers
-        input_prices = [p["price_input"] for p in data["providers"] if p["price_input"] > 0]
-        cache_prices = [p["price_cache"] for p in data["providers"] if p["price_cache"] > 0]
-        cheapest_input = min(input_prices) if input_prices else 0
-        cheapest_cache = min(cache_prices) if cache_prices else 0
-
-        savings = compute_savings(
-            data["cheapest_output"], data["model"],
-            exchange_input=cheapest_input, exchange_cache=cheapest_cache,
-        )
-        data["reference_prices"] = savings["comparisons"]
-        data["provider_count"] = len(data["providers"])
-        data["providers"].sort(key=lambda x: x["price_output"])
-        # Default model-level capabilities if none resolved
-        if data["capabilities"] is None:
-            data["capabilities"] = {
-                "context_length": 0,
-                "supports_vision": False,
-                "supports_tool_calling": False,
-                "architecture": "",
-                "model_type": "",
-            }
+    for model in view["models"]:
+        rows = []
+        capabilities = None
+        for offer in model["offers"]:
+            if not offer.get("ie"):
+                continue
+            provider = providers[offer["provider_id"]]
+            caps = provider.model_capabilities
+            if capabilities is None and caps.context_length > 0:
+                capabilities = {key: getattr(caps, key) for key in
+                    ("context_length", "supports_vision", "supports_tool_calling", "architecture", "model_type")}
+            rows.append({
+                "id": provider.provider_id, "name": provider.name,
+                "price_output": float(offer["output"]), "price_input": float(offer["input"]),
+                "price_cache": float(offer["cache_read"]), "tps": provider.capabilities.measured_tps,
+                "trust": provider.capabilities.trust_level.value,
+                "encrypted": bool(provider.encryption_public_key), "load": round(provider.load_factor, 2),
+                "hardware": provider.capabilities.hardware,
+                "slots": f"{provider.active_requests}/{provider.capabilities.max_concurrent}",
+                "quantization": offer.get("quantization") or "", "context_length": caps.context_length,
+                "format": caps.model_format, "verified": offer["artifact_verification"] == "verified",
+                "artifact_verification": offer["artifact_verification"],
+                "identity_source": offer["identity_source"], "identity_trust": offer["identity_trust"],
+                "original_model": offer["original_model"],
+            })
+        rows.sort(key=lambda p: p["price_output"])
+        cheapest = rows[0]
+        trust_order = ["open", "contained", "hardened", "confidential"]
+        count = model.get("total_parameters")
+        data = {"model": model["name"], "family": model.get("family") or "",
+                "size": f"{count / 1_000_000_000:g}B" if count is not None else "",
+                "variant": " ".join(model.get("variant_tags") or []), "canonical_id": model["id"],
+                "total_parameters": count, "active_parameters": model.get("active_parameters"),
+                "variant_tags": model.get("variant_tags"), "release": model.get("release"),
+                "capabilities": capabilities or {"context_length": 0, "supports_vision": False,
+                    "supports_tool_calling": False, "architecture": "", "model_type": ""},
+                "providers": rows, "provider_count": len(rows), "cheapest_output": cheapest["price_output"],
+                "fastest_tps": max(p["tps"] for p in rows),
+                "max_trust": max((p["trust"] for p in rows), key=lambda t: trust_order.index(t)),
+                "reference_prices": compute_savings(cheapest["price_output"], model["id"],
+                    cheapest["price_input"], cheapest["price_cache"], resolver=resolver,
+                    quantization=cheapest["quantization"], context_length=cheapest["context_length"])["comparisons"]}
         result.append(data)
-
-    result.sort(key=lambda x: -x["provider_count"])
-
-    return {
-        "models": result,
-        "total_providers": hub.provider_count,
-        "total_models": len(result),
-    }
+    result.sort(key=lambda m: -m["provider_count"])
+    return {"models": result, "total_providers": len({p["id"] for m in result for p in m["providers"]}),
+            "total_models": len(result)}
 
 
 @router.get("/v1/exchange/provider-earnings")
@@ -536,109 +480,51 @@ async def get_telemetry():
 
 
 @router.get("/v1/exchange/reference-prices")
-async def get_reference_prices(model: str = "", source: str = ""):
-    """Current reference prices from all external sources, grouped by model family.
-
-    Includes IE's own exchange prices for comparison. Separates same-model
-    comparisons (open-weight providers) from alternative-model comparisons
-    (closed-source APIs like OpenAI, Anthropic, Google).
-
-    Query params:
-    - model: filter by model family (e.g. "llama", "qwen")
-    - source: filter by source (e.g. "openrouter", "together", "openai")
-    """
-    from .model_catalog import parse_model_info
-
+async def get_reference_prices(request: Request, model: str = "", source: str = ""):
+    """Current quotes grouped only by exact catalog or unresolved raw source IDs."""
+    from .model_facets import facets_from_identity, public_facets
+    cache = request.app.state.ticker_cache
+    resolver = cache.resolver()
     collector = get_price_collector()
-    hub = get_hub()
-
-    # Get all cached reference prices
-    all_prices = collector.get_all_current() if collector else []
-
-    # Filter by source if requested
-    if source:
-        all_prices = [p for p in all_prices if p.source == source]
-
-    # Filter by model family if requested
-    if model:
-        model_lower = model.lower()
-        all_prices = [p for p in all_prices if model_lower in p.family_key or model_lower in p.family]
-
-    # Group by family_key
-    families: dict[str, dict] = {}
-    for entry in all_prices:
-        key = entry.family_key
-        if key not in families:
-            families[key] = {
-                "family_key": key,
-                "display_name": entry.display_name,
-                "prices": [],
-            }
-        families[key]["prices"].append({
-            "source": entry.source,
-            "model_id": entry.model_id,
-            "display_name": entry.display_name,
-            "price_input": entry.input_per_mtok,
-            "price_output": entry.output_per_mtok,
-            "price_cache_read": entry.cache_per_mtok,
-            "price_cache_write": entry.cache_write_per_mtok,
-            "context_length": entry.context_length,
-            "comparison_type": "same_model" if entry.family else "alternative",
-            "quantization": entry.quantization or None,
-            "intelligence_index": entry.intelligence_index,
-            "coding_index": entry.coding_index,
-            "agentic_index": entry.agentic_index,
-            "reasoning_price": entry.reasoning_per_mtok if entry.reasoning_per_mtok > 0 else None,
-            "web_search_price": entry.web_search_price if entry.web_search_price > 0 else None,
-        })
-
-    # Inject IE exchange prices for each family
-    for p in hub._providers.values():
-        for model_name in p.capabilities.models:
-            info = parse_model_info(model_name)
-            key = info["canonical_id"]
-            if model and model.lower() not in key and model.lower() not in info["family"]:
-                continue
-            if key not in families:
-                families[key] = {
-                    "family_key": key,
-                    "display_name": info["display_name"],
-                    "prices": [],
-                }
-            families[key]["prices"].append({
-                "source": "inference-exchange",
-                "model_id": model_name,
-                "display_name": info["display_name"],
-                "price_input": p.capabilities.price_per_mtok_input,
-                "price_output": p.capabilities.price_per_mtok_output,
-                "context_length": info.get("context_length", 0),
-                "comparison_type": "same_model",
-                "trust_level": p.capabilities.trust_level.value,
-                "encrypted": bool(p.encryption_public_key),
-                "quantization": info.get("quantization") or None,
-            })
-
-    # Sort prices within each family by output price
-    for family in families.values():
-        family["prices"].sort(key=lambda x: x["price_output"])
-        # Compute IE savings vs cheapest non-IE alternative
-        ie_prices = [p for p in family["prices"] if p["source"] == "inference-exchange"]
-        alt_prices = [p for p in family["prices"] if p["source"] != "inference-exchange"]
-        if ie_prices and alt_prices:
-            ie_cheapest = min(p["price_output"] for p in ie_prices)
-            alt_cheapest = min(p["price_output"] for p in alt_prices)
-            if alt_cheapest > 0:
-                family["ie_savings_vs_cheapest_alt_pct"] = round((1 - ie_cheapest / alt_cheapest) * 100)
-            family["cheapest_source"] = "inference-exchange" if ie_cheapest <= alt_cheapest else alt_prices[0]["source"]
-        family["provider_count"] = len(family["prices"])
-
-    result = sorted(families.values(), key=lambda x: -x["provider_count"])
-
-    return {
-        "models": result,
-        "sources": list(set(p.source for p in (collector.get_all_current() if collector else []))) + ["inference-exchange"],
-        "last_updated": collector.get_sources_metadata() if collector else {},
-    }
+    groups = {}
+    for entry in collector.get_all_current() if collector else []:
+        if source and source != entry.source:
+            continue
+        key = resolver.external(entry.source, entry.model_id)
+        catalog_model = resolver.models.get(key)
+        facets = facets_from_identity({"name": entry.display_name}, catalog_model=catalog_model,
+                                     family_labels=resolver.family_labels)
+        group = groups.setdefault(key, {"family_key": key, "display_name": facets.display_name,
+                                       **public_facets(facets), "prices": []})
+        group["prices"].append({"source": entry.source, "model_id": entry.model_id,
+            "display_name": entry.display_name, "price_input": entry.input_per_mtok,
+            "price_output": entry.output_per_mtok, "price_cache_read": entry.cache_per_mtok,
+            "price_cache_write": entry.cache_write_per_mtok, "context_length": entry.context_length,
+            "comparison_type": "same_model" if catalog_model else "unmapped",
+            "quantization": entry.quantization or None, "intelligence_index": entry.intelligence_index,
+            "coding_index": entry.coding_index})
+    if not source or source == "inference-exchange":
+        for local in (await get_market_data(request))["models"]:
+            key = local["canonical_id"]
+            group = groups.setdefault(key, {"family_key": key, "display_name": local["model"],
+                "family": local["family"], "total_parameters": local["total_parameters"], "prices": []})
+            for provider in local["providers"]:
+                group["prices"].append({"source": "inference-exchange", "model_id": provider["original_model"],
+                    "display_name": local["model"], "price_input": provider["price_input"],
+                    "price_output": provider["price_output"], "price_cache_read": provider["price_cache"],
+                    "context_length": provider["context_length"], "quantization": provider["quantization"],
+                    "comparison_type": "same_model", "identity_source": provider["identity_source"],
+                    "identity_trust": provider["identity_trust"]})
+    result = []
+    for group in groups.values():
+        if model.casefold() not in (group["family_key"] + " " + group["display_name"] + " " + (group.get("family") or "")).casefold():
+            continue
+        group["prices"].sort(key=lambda p: p["price_output"])
+        group["provider_count"] = len(group["prices"])
+        result.append(group)
+    result.sort(key=lambda m: -m["provider_count"])
+    return {"models": result, "sources": sorted({p["source"] for m in result for p in m["prices"]}),
+            "last_updated": collector.get_sources_metadata() if collector else {}}
 
 
 @router.get("/v1/exchange/reference-prices/history")
