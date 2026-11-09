@@ -4,6 +4,7 @@ import { useState, useMemo, useRef, useEffect } from 'react'
 import { UI, APP_TRUST_COLORS as TRUST_COLORS } from '../lib/theme'
 import { ModelSearch, type ModelSearchItem } from '../components/ModelSearch'
 import { formatPrice, priceKey } from '../lib/price.js'
+import { parseParams, paramsLabel } from '../lib/model-size.js'
 
 // ─── Constants ───────────────────────────────────────────────
 
@@ -70,12 +71,6 @@ function formatCtx(n: number): string {
 function cacheDiscount(input: number, cache: number): number {
   if (input <= 0 || cache <= 0) return 0
   return Math.round((1 - cache / input) * 100)
-}
-
-function parseSize(s: string): number | null {
-  if (!s || s === '—') return null
-  const m = s.match(/([\d.]+)\s*B/i)
-  return m ? parseFloat(m[1]) : null
 }
 
 function fmtPrice(p: number): string {
@@ -345,7 +340,7 @@ export function Exchange() {
       seen.add(m.canonical_id)
       result.push({
         key: m.canonical_id || m.model, name: m.model, vendor: m.family || '',
-        family: m.family || 'Other', params: m.size || '—',
+        family: m.family || 'Other', params: m.size || paramsLabel(m.model, m.canonical_id) || '—',
         price: m.cheapest_output, quality: null, codingIndex: null,
         cache: m.providers.some(p => p.price_cache > 0),
         open: true, // IE providers run open-weight models
@@ -382,7 +377,9 @@ export function Exchange() {
       result.push({
         key: f.family_key, name: f.display_name, vendor: first?.source || '',
         family: guessFamily(f.display_name),
-        params: first?.params || '—', price: cheapest === Infinity ? 0 : cheapest,
+        // Reference and catalog feeds carry no size field. Read it from the name (#277).
+        params: first?.params || paramsLabel(f.display_name, f.family_key) || '—',
+        price: cheapest === Infinity ? 0 : cheapest,
         quality: withQuality?.intelligence_index || null,
         codingIndex: withQuality?.coding_index || null,
         cache: hasCache, open: isOpen,
@@ -459,7 +456,7 @@ export function Exchange() {
       if (filterCache && !m.cache) return false
       if (filterBenchmarked && !m.quality) return false
       if (filterSize) {
-        const s = parseSize(m.params)
+        const s = parseParams(m.params)
         if (filterSize === '<7B' && (s === null || s >= 7)) return false
         if (filterSize === '7-30B' && (s === null || s < 7 || s >= 30)) return false
         if (filterSize === '30-100B' && (s === null || s < 30 || s >= 100)) return false
