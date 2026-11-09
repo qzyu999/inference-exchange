@@ -34,6 +34,10 @@ export interface RecentActivity { scope: string; enabled: boolean; retention_day
 export interface Usage { scope: string; period: string; cost_micro: number; requests: number; tokens: number; models: { served_model: string | null; requests: number; cost_micro: number; tokens: number }[] }
 export interface Signups { total_accounts: number; created_today: number; created_last_30_days: number; since: string; through: string; countries: { country: string; accounts: number }[]; daily: { date: string; accounts: number }[] }
 
+export interface CatalogOffer { id: string; provider: string; route: string; ie?: boolean; stale?: boolean; input: string | null; cache_read: string | null; output: string | null; observed_at: number; quantization?: string | null; context_length?: number | null; source_url: string }
+export interface CatalogModel { id: string; name: string; ie_count: number; offers: CatalogOffer[] }
+export interface CatalogPage { models: CatalogModel[]; total: number; generation: number; generated_at: number; sync_error: string | null }
+
 export interface HealthResponse {
   status: string
   providers: number
@@ -231,6 +235,7 @@ export const api = {
   adminState: () => get<any>('/v1/admin/state'),
   recentEvents: () => get<{ events: Array<{ type: string; timestamp: number; [key: string]: any }> }>('/v1/exchange/events/recent'),
   market: () => get<{ models: any[]; total_providers: number; total_models: number }>('/v1/exchange/market'),
+  catalogPage: (offset: number) => get<CatalogPage>(`/v1/exchange/catalog?offset=${offset}&limit=100`),
   referencePrices: (model?: string) => get<{ models: any[]; sources: string[]; last_updated: Record<string, string> }>(`/v1/exchange/reference-prices${model ? `?model=${encodeURIComponent(model)}` : ''}`),
   authConfig: () => get<{ github: boolean; password: boolean }>('/v1/auth/config'),
   revokeKey: async (keyId: string) => {
