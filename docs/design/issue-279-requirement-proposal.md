@@ -1,9 +1,11 @@
 # Model comparison identity and rollout
 
 Issue: #279.
-The four implementation phases are complete.
+The coordinator phases are on main.
+The ticker work and alpha verification are pending.
 [The catalog requirements](../requirements/catalog.md) define the required behavior.
 Production tests verify each phase.
+Use the [owner alpha checklist](../guides/issue-279-alpha-checklist.md) after publication and deployment.
 
 ## Exact comparison identity
 
