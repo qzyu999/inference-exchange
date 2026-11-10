@@ -68,6 +68,21 @@ class TestInferencePause:
 
 
 class TestSignupSwitch:
+    def test_startup_value_replaces_runtime_toggle(self, env):
+        env.setenv("IE_SIGNUP_DISABLED", "0")
+        create_app()
+        assert not get_controls().signup_disabled
+        get_controls().update(ADMIN, signup_disabled=True)
+        create_app()
+        assert not get_controls().signup_disabled
+
+        env.setenv("IE_SIGNUP_DISABLED", "1")
+        create_app()
+        assert get_controls().signup_disabled
+        get_controls().update(ADMIN, signup_disabled=False)
+        create_app()
+        assert get_controls().signup_disabled
+
     def test_signup_disabled_blocks_new_accounts_only(self, clients):
         admin, user, _ = clients
         admin.post("/v1/admin/controls", json={"signup_disabled": True})

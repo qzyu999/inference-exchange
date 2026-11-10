@@ -54,7 +54,7 @@ export function OperatorControlsPanel({
         <h2 className="text-lg font-bold text-ui-text">Operator safety controls</h2>
         <p className="text-xs text-ui-warning mt-1">
           Runtime changes reset to configured environment values after coordinator restart.
-          Keep IE_SIGNUP_DISABLED=1 until the alpha release gates pass.
+          Set IE_SIGNUP_DISABLED in the coordinator startup environment to keep a signup policy after restart.
         </p>
       </div>
 
@@ -101,7 +101,7 @@ export function OperatorControlsPanel({
             </button>
             <button className={actionStyle} disabled={disabled} onClick={() => {
               const next = !data.signup_disabled
-              if (!next && !window.confirm('ENABLE PUBLIC GITHUB SIGNUP? Only proceed after all P0 alpha gates pass.')) return
+              if (!next && !window.confirm('Enable GitHub account signup? New users permitted by the current access policies can create accounts.')) return
               execute(next ? 'Disable signup' : 'Enable signup',
                 () => updateOperatorControls({ signup_disabled: next }))
             }}>
