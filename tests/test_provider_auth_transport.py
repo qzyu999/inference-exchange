@@ -1,14 +1,17 @@
 """PROV-011 (#125): provider credentials stay out of URLs and logs."""
 
 import asyncio
+import json
 import logging
 import threading
+import time
 
 import pytest
 from fastapi.testclient import TestClient
 from starlette.websockets import WebSocketDisconnect
 
 from inference_exchange.config import ProviderConfig
+from inference_exchange.coordinator.dependencies import get_hub
 from inference_exchange.coordinator.main import create_app
 from inference_exchange.coordinator.store import Store
 from inference_exchange.provider.agent import ProviderAgent
@@ -66,6 +69,68 @@ class TestHeaderAuth:
                 ws.send_json(_register())
                 ws.receive_text()
         assert exc.value.code == 4003
+
+
+@pytest.mark.parametrize("shared_credential", [True, False])
+def test_market_counts_live_connections_and_keeps_prices(
+    prod_client, caplog, shared_credential,
+):
+    now = time.time()
+    prod_client.app.state.ticker_cache.install(json.dumps({
+        "schema_version": 1, "generation": 1, "generated_at": now,
+        "models": [{"id": "catalog/test-model", "name": "Test model",
+                    "aliases": ["test-model"], "offers": []}],
+    }).encode(), None, now=now)
+    store = Store()
+    first_token = store.create_provider_token("first")
+    second_token = first_token if shared_credential else store.create_provider_token("second")
+    token_ids = {row["token_id"] for row in store.list_provider_tokens()}
+
+    def register(ws, input_price, output_price):
+        message = _register()
+        message["capabilities"]["price_per_mtok_input"] = input_price
+        message["capabilities"]["price_per_mtok_output"] = output_price
+        ws.send_json(message)
+        return ws.receive_json()["provider_id"]
+
+    def market():
+        response = prod_client.get("/v1/exchange/market")
+        assert response.status_code == 200
+        return response.json()
+
+    with caplog.at_level(logging.INFO):
+        with prod_client.websocket_connect(
+            "/ws/provider", headers={"Authorization": f"Bearer {first_token}"}
+        ) as first:
+            first_id = register(first, 0.02, 0.15)
+            with prod_client.websocket_connect(
+                "/ws/provider", headers={"Authorization": f"Bearer {second_token}"}
+            ) as second:
+                second_id = register(second, 0.04, 0.12)
+                live = get_hub()._providers
+                assert first_id != second_id
+                if shared_credential:
+                    assert live[first_id].token_id == live[second_id].token_id
+                else:
+                    assert live[first_id].token_id != live[second_id].token_id
+                assert {live[first_id].token_id, live[second_id].token_id} == token_ids
+                result = market()
+                assert result["total_providers"] == 2
+                model = result["models"][0]
+                assert model["provider_count"] == 2
+                assert {(p["id"], p["price_input"], p["price_output"])
+                        for p in model["providers"]} == {
+                    (first_id, 0.02, 0.15), (second_id, 0.04, 0.12),
+                }
+                assert "token_id" not in json.dumps(result)
+                assert first_token not in json.dumps(result)
+                assert second_token not in json.dumps(result)
+
+            assert market()["models"][0]["provider_count"] == 1
+            assert market()["models"][0]["providers"][0]["id"] == first_id
+    assert all(token_id in caplog.text for token_id in token_ids)
+    assert first_token not in caplog.text
+    assert second_token not in caplog.text
 
 
 class TestUrlFallback:

@@ -54,7 +54,6 @@ function Pill({ children, bg, color }: { children: React.ReactNode; bg: string; 
 function ModelCard({ m, isSelected, onSelect }: { m: MarketModel; isSelected: boolean; onSelect: () => void }) {
   const caps = m.capabilities || {} as MarketModel['capabilities']
   const verifiedCount = m.providers.filter(p => p.verified).length
-  const encryptedCount = m.providers.filter(p => p.encrypted).length
   const formats = [...new Set(m.providers.map(p => p.format).filter(Boolean))]
   const quants = [...new Set(m.providers.map(p => p.quantization).filter(Boolean))]
   const trustLevels = [...new Set(m.providers.map(p => p.trust))]
@@ -138,15 +137,12 @@ function ModelCard({ m, isSelected, onSelect }: { m: MarketModel; isSelected: bo
         {/* Row 4: Stats row */}
         <div className="flex items-center gap-3 mt-3 flex-wrap">
           <span className="text-xs" style={{ color: UI.muted }}>
-            <span className="font-semibold" style={{ color: UI.text }}>{m.provider_count}</span> provider{m.provider_count !== 1 ? 's' : ''}
+            <span className="font-semibold" style={{ color: UI.text }}>{m.provider_count}</span> live IE provider{m.provider_count !== 1 ? 's' : ''}
           </span>
           {speedMax > 0 && (
             <span className="text-xs" style={{ color: UI.info }}>
               {speedMin === speedMax ? `${speedMax.toFixed(0)}` : `${speedMin.toFixed(0)}–${speedMax.toFixed(0)}`} tok/s
             </span>
-          )}
-          {encryptedCount > 0 && (
-            <span className="text-xs" style={{ color: UI.info }}>{encryptedCount} provider keys</span>
           )}
           {verifiedCount > 0 && (
             <span className="text-xs" style={{ color: UI.success }}>{verifiedCount} verified</span>
@@ -177,7 +173,7 @@ function ModelDetail({ m }: { m: MarketModel }) {
         </div>
         <h2 className="text-lg font-bold" style={{ color: UI.text }}>{m.model}</h2>
         <div className="flex items-center gap-4 mt-2 text-xs" style={{ color: UI.muted }}>
-          <span>{m.provider_count} provider{m.provider_count !== 1 ? 's' : ''}</span>
+          <span>{m.provider_count} live IE provider{m.provider_count !== 1 ? 's' : ''}</span>
           <span>{quants.length} quantization{quants.length !== 1 ? 's' : ''}</span>
           <span>{trustLevels.length} trust level{trustLevels.length !== 1 ? 's' : ''}</span>
           {caps.context_length > 0 && <span>{formatCtx(caps.context_length)} context</span>}
@@ -258,7 +254,7 @@ function ModelDetail({ m }: { m: MarketModel }) {
                   <div className="text-xs font-semibold truncate" style={{ color: UI.text }}>{p.name}</div>
                   <div className="text-[9px]" style={{ color: UI.muted }}>{identityLabel(p.identity_source, p.identity_trust)}</div>
                   <div className="flex items-center gap-1 mt-0.5">
-                    {p.encrypted && <span className="text-[7px] px-1 rounded" style={{ background: UI.infoSurface, color: UI.info }}>Key</span>}
+                    {p.encrypted && <span className="text-[7px] px-1 rounded" style={{ background: UI.infoSurface, color: UI.info }}>Encryption key</span>}
                     <span className="text-[7px]" style={{ color: UI.muted }}>{p.verified ? 'Hash verified' : 'Artifact unverified'}</span>
                   </div>
                 </div>
@@ -323,7 +319,7 @@ function ModelDetail({ m }: { m: MarketModel }) {
                       </div>
                       <div className="flex items-center gap-1.5 mt-0.5">
                         <span className="w-1.5 h-1.5 rounded-full" style={{ background: p.encrypted ? UI.info : UI.track }} />
-                        <span>{p.encrypted ? 'Provider encryption key advertised' : 'No provider key advertised'}</span>
+                        <span>{p.encrypted ? 'Provider encryption key advertised' : 'No provider encryption key advertised'}</span>
                       </div>
                       <div className="flex items-center gap-1.5 mt-0.5">
                         <span className="w-1.5 h-1.5 rounded-full" style={{ background: p.verified ? UI.success : UI.track }} />
@@ -463,7 +459,6 @@ export function Models() {
 
   // Fleet summary
   const totalVerified = allModels.reduce((s, m) => s + m.providers.filter(p => p.verified).length, 0)
-  const totalEncrypted = allModels.reduce((s, m) => s + m.providers.filter(p => p.encrypted).length, 0)
 
   return (
     <div className="space-y-6">
@@ -507,8 +502,7 @@ export function Models() {
       {allModels.length > 0 && (
         <div className="flex items-center gap-4 text-xs flex-wrap" style={{ color: UI.muted }}>
           <span><span className="font-semibold" style={{ color: UI.text }}>{allModels.length}</span> model{allModels.length !== 1 ? 's' : ''}</span>
-          <span><span className="font-semibold" style={{ color: UI.text }}>{totalProviders}</span> provider{totalProviders !== 1 ? 's' : ''}</span>
-          {totalEncrypted > 0 && <span><span className="font-semibold" style={{ color: UI.info }}>{totalEncrypted}</span> provider keys</span>}
+          <span><span className="font-semibold" style={{ color: UI.text }}>{totalProviders}</span> live IE provider{totalProviders !== 1 ? 's' : ''}</span>
           {totalVerified > 0 && <span><span className="font-semibold" style={{ color: UI.success }}>{totalVerified}</span> verified</span>}
         </div>
       )}
