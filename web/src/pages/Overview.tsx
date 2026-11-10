@@ -132,7 +132,7 @@ export function Overview() {
           {/* Fleet capacity */}
           <div className="mt-4 pt-4 flex items-center gap-4 text-xs" style={{ borderTop: "1px solid var(--ui-border)", color: UI.muted }}>
             <span>Capacity: <span className="font-semibold" style={{ color: UI.text }}>{usedSlots}/{totalSlots}</span> slots</span>
-            {encryptedCount > 0 && <span><span className="font-semibold" style={{ color: UI.info }}>{encryptedCount}</span> provider keys</span>}
+            {encryptedCount > 0 && <span><span className="font-semibold" style={{ color: UI.info }}>{encryptedCount}</span> encrypted connection{encryptedCount !== 1 ? 's' : ''}</span>}
             {hardenedCount > 0 && <span><span className="font-semibold" style={{ color: UI.accent }}>{hardenedCount}</span> Hardened+</span>}
           </div>
         </div>
