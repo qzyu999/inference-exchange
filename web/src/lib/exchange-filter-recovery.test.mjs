@@ -6,7 +6,7 @@ const exchange = read('../pages/Exchange.tsx')
 const picker = read('../components/ModelSearch.tsx')
 assert.match(exchange, /function clearFilters\(\)/)
 for (const reset of [
-  'setFilterIE(false)',
+  'setFilterProvider(null)', 'setFilterIE(false)',
   'setFilterOpen(null)', 'setFilterCache(false)', 'setFilterBenchmarked(false)',
   'setFilterSize(null)', 'setFilterPriceCap(null)', 'setFilterFamily(null)',
 ]) assert.ok(exchange.includes(reset), 'Missing reset: ' + reset)

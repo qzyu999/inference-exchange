@@ -2,7 +2,7 @@
 
 ### CATALOG-001: All-model catalog and exact comparison identity
 
-MUST: Show the published external catalog and live admitted, non-quarantined IE offers. Filter models by IE availability without removing external comparison offers. Join source IDs through explicit exact aliases. Keep unmapped models separate. Keep routes distinct. Preserve zero and unknown rates. Show stale observations and reject them from headline savings. Require matching known quantization and context for headline percentages. Show input, cache-read, and output separately.
+MUST: Show the published external catalog and live admitted, non-quarantined IE offers. Provide a dropdown with every provider that has a catalog offer or quote. Filter the model list by the selected provider. Provide a separate, visible IE availability toggle. Make the two filters work together. Update IE availability when providers connect or disconnect. Let users clear both filters when the result is empty. Keep all comparison offers for the selected model. Join source IDs through explicit exact aliases. Keep unmapped models separate. Keep routes distinct. Preserve zero and unknown rates. Show stale observations and reject them from headline savings. Require matching known quantization and context for headline percentages. Show input, cache-read, and output separately.
 
 An exact comparison alias must not verify an artifact hash.
 An exact comparison alias must not establish runtime identity.

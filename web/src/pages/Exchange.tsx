@@ -54,6 +54,7 @@ interface UnifiedModel {
   totalParameters?: number | null
   price: number; quality: number | null; codingIndex: number | null
   cache: boolean; open: boolean; ctx: string; providerCount: number; ieProviderCount: number
+  providers: string[]
   source: 'ie' | 'ref' | 'both'
 }
 
@@ -356,6 +357,7 @@ export function Exchange() {
         open: ie.length > 0 || Boolean(first?.open_weight),
         ctx: context > 0 ? formatCtx(context) : '—', providerCount: f.provider_count,
         ieProviderCount: new Set(ie.map(p => p.id)).size,
+        providers: [...ie.map(p => p.name), ...f.prices.map(p => p.source)],
         source: ie.length ? (f.prices.length ? 'both' : 'ie') : 'ref',
       } as UnifiedModel
     })
@@ -374,7 +376,8 @@ export function Exchange() {
         cache: m.providers.some(p => p.price_cache > 0),
         open: true, // IE providers run open-weight models
         ctx: caps?.context_length > 0 ? formatCtx(caps.context_length) : '—',
-        providerCount: m.provider_count, ieProviderCount: new Set(m.providers.map(p => p.id)).size, source: 'ie',
+        providerCount: m.provider_count, ieProviderCount: new Set(m.providers.map(p => p.id)).size,
+        providers: m.providers.map(p => p.name), source: 'ie',
       })
     }
 
@@ -386,6 +389,7 @@ export function Exchange() {
         if (existing) {
           existing.source = f.prices.some((p: any) => p.source !== 'inference-exchange') ? 'both' : 'ie'
           existing.providerCount = f.provider_count
+          existing.providers.push(...f.prices.map((p: any) => p.source))
           // Pull benchmark data from reference
           const withQuality = f.prices.find((p: any) => p.intelligence_index > 0)
           if (withQuality) {
@@ -413,7 +417,8 @@ export function Exchange() {
         codingIndex: withQuality?.coding_index || null,
         cache: hasCache, open: isOpen,
         ctx: first?.context_length ? formatCtx(first.context_length) : '—',
-        providerCount: f.provider_count, ieProviderCount: 0, source: 'ref',
+        providerCount: f.provider_count, ieProviderCount: 0,
+        providers: f.prices.map((p: any) => p.source), source: 'ref',
       })
     }
 
@@ -422,6 +427,7 @@ export function Exchange() {
 
   // ─── State ───────────────────────────────────────────────
   const [selectedKey, setSelectedKey] = useState('')
+  const [filterProvider, setFilterProvider] = useState<string | null>(null)
   const [filterIE, setFilterIE] = useState(false)
   const [filterOpen, setFilterOpen] = useState<boolean | null>(null) // null=all, true=open, false=prop
   const [filterCache, setFilterCache] = useState(false)
@@ -429,10 +435,11 @@ export function Exchange() {
   const [filterSize, setFilterSize] = useState<string | null>(null)
   const [filterPriceCap, setFilterPriceCap] = useState<number | null>(null)
   const [filterFamily, setFilterFamily] = useState<string | null>(null)
-  const filtersActive = filterIE || filterOpen !== null || filterCache || filterBenchmarked ||
+  const filtersActive = filterProvider !== null || filterIE || filterOpen !== null || filterCache || filterBenchmarked ||
     filterSize !== null || filterPriceCap !== null || filterFamily !== null
 
   function clearFilters() {
+    setFilterProvider(null)
     setFilterIE(false)
     setFilterOpen(null)
     setFilterCache(false)
@@ -453,9 +460,19 @@ export function Exchange() {
 
   // ─── Filtered model list for palette ─────────────────────
   const families = useMemo(() => [...new Set(unifiedModels.map(m => m.family))].sort(), [unifiedModels])
+  const providerChoices = useMemo(() => {
+    const choices = new Map<string, string>()
+    for (const model of unifiedModels) for (const name of model.providers) {
+      if (typeof name !== 'string' || !name.trim()) continue
+      const key = name.trim().toLocaleLowerCase()
+      if (!choices.has(key)) choices.set(key, PROVIDER_NAMES[key] || providerName(name.trim()))
+    }
+    return [...choices].sort((a, b) => a[1].localeCompare(b[1]))
+  }, [unifiedModels])
 
   const filteredModels = useMemo(() => {
     return unifiedModels.filter(m => {
+      if (filterProvider && !m.providers.some(name => typeof name === 'string' && name.trim().toLocaleLowerCase() === filterProvider)) return false
       if (filterIE && m.ieProviderCount === 0) return false
       if (filterOpen === true && !m.open) return false
       if (filterOpen === false && m.open) return false
@@ -472,7 +489,7 @@ export function Exchange() {
       if (filterFamily && m.family !== filterFamily) return false
       return true
     })
-  }, [unifiedModels, filterIE, filterOpen, filterCache, filterBenchmarked, filterSize, filterPriceCap, filterFamily])
+  }, [unifiedModels, filterProvider, filterIE, filterOpen, filterCache, filterBenchmarked, filterSize, filterPriceCap, filterFamily])
 
   const groupedModels = useMemo(() => {
     const groups: Record<string, UnifiedModel[]> = {}
@@ -647,6 +664,7 @@ export function Exchange() {
       </div>
 
       {/* ── 2. Model Selector — Shared Search (same component as Chat) ── */}
+      <div className="mb-4 flex min-w-0 flex-col gap-2 sm:flex-row sm:items-start">
       <ModelSearch
         items={searchItems}
         value={activeKey}
@@ -656,7 +674,7 @@ export function Exchange() {
         placeholder="Search models (qwen, llama 70b, deepseek, claude)"
         selectedLabel="Select a model to compare"
         emptyMessage="No discoverable models"
-        className="w-full mb-4"
+        className="w-full sm:flex-1"
         filters={
           <>
             {/* Filter bar */}
@@ -664,12 +682,15 @@ export function Exchange() {
               <span style={{ fontSize: 8, textTransform: 'uppercase', letterSpacing: '.06em', color: UI.muted, marginRight: 2 }}>Filter</span>
               <label className="flex max-w-full items-center gap-1 text-[10px] text-ui-muted">
                 Provider:
-                <select aria-label="Filter models by provider" value={filterIE ? 'ie' : ''}
-                  onChange={e => setFilterIE(e.target.value === 'ie')}
+                <select aria-label="Filter models by provider" value={filterProvider || ''}
+                  onChange={e => setFilterProvider(e.target.value || null)}
                   className="min-w-0 rounded border border-ui-border bg-ui-surface-muted px-2 py-1 text-[11px] focus-visible:outline focus-visible:outline-2 focus-visible:outline-ui-warning"
-                  style={{ color: filterIE ? UI.accent : UI.text }}>
+                  style={{ color: filterProvider ? UI.accent : UI.text }}>
                   <option value="">All providers</option>
-                  <option value="ie">Inference Exchange (online)</option>
+                  {filterProvider && !providerChoices.some(([key]) => key === filterProvider) && (
+                    <option value={filterProvider}>{providerName(filterProvider)} (unavailable)</option>
+                  )}
+                  {providerChoices.map(([key, name]) => <option key={key} value={key}>{name}</option>)}
                 </select>
               </label>
               <Sep />
@@ -710,6 +731,12 @@ export function Exchange() {
           </>
         }
       />
+      <button type="button" aria-pressed={filterIE} onClick={() => setFilterIE(!filterIE)}
+        className={'order-first shrink-0 self-start rounded-xl border px-3 py-3 text-xs font-semibold shadow-sm transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-ui-warning sm:order-last ' +
+          (filterIE ? 'border-ui-warning bg-ui-warning-surface text-ui-warning' : 'border-ui-border bg-ui-surface text-ui-muted hover:border-ui-warning')}>
+        Available on Inference Exchange
+      </button>
+      </div>
 
       {/* ── 3. Header ── */}
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 14, marginBottom: 4, flexWrap: 'wrap' }}>
@@ -799,15 +826,15 @@ export function Exchange() {
         </div>
 
         {/* ── Below table: [DOM + Chart stacked] left | [Fills] right ── */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 280px', gap: 14 }}>
+        <div className="grid min-w-0 grid-cols-1 gap-[14px] lg:grid-cols-[minmax(0,1fr)_280px]">
           {/* Left: DOM stacked on chart */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14, minWidth: 0 }}>
             {/* 3-column DOM */}
-            <div style={{ background: UI.surface, borderRadius: 12, border: "1px solid var(--ui-border)", padding: 14, overflow: 'hidden' }}>
+            <div style={{ background: UI.surface, borderRadius: 12, border: "1px solid var(--ui-border)", padding: 14, overflowX: 'auto' }}>
               <h4 style={{ fontSize: 8, textTransform: 'uppercase', letterSpacing: '.06em', color: UI.muted, marginBottom: 10, fontWeight: 600 }}>
                 Depth of market — three-tier pricing
               </h4>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, minWidth: 0 }}>
+              <div className="grid min-w-0 grid-cols-1 gap-[10px] sm:grid-cols-3">
                 <DOMColumn label="Input" unit="$/Mtok" color={UI.info} levels={domData.input} />
                 <DOMColumn label="Cache read" unit="$/Mtok" color={UI.info} levels={domData.cache} emptyMsg="Only IE publishes cache pricing" offerRows={offerRows} />
                 <DOMColumn label="Output" unit="$/Mtok" color={UI.accent} levels={domData.output} />
