@@ -74,7 +74,7 @@ MUST: An admin can stop new sign-ups without a restart. While sign-ups are stopp
 
 - Principle: P6
 - Status: implemented
-- Verified by: tests/test_operator_controls.py::TestSignupSwitch::test_signup_disabled_blocks_new_accounts_only, tests/test_operator_controls.py::TestSignupSwitch::test_signup_disabled_blocks_new_github_identity
+- Verified by: tests/test_operator_controls.py::TestSignupSwitch::test_signup_disabled_blocks_new_accounts_only, tests/test_operator_controls.py::TestSignupSwitch::test_signup_disabled_blocks_new_github_identity, tests/test_operator_controls.py::TestSignupSwitch::test_startup_value_replaces_runtime_toggle
 
 ### OPS-010: Bounded load per account and in the queue
 

@@ -138,7 +138,9 @@ A revoked provider token cannot be restored. Create a new token for the provider
 
 ## Configuration at start-up
 
-Runtime changes to the controls stop at a restart. To keep a setting, put it in `deploy/.env`:
+Runtime changes to the controls stop at a restart.
+Set lasting values in the environment loaded by the coordinator launcher.
+For the two-host alpha, see [Alpha operations](alpha-operations.md#account-signup-at-startup).
 
 | Variable | Default | Function |
 |---|---|---|

@@ -140,6 +140,40 @@ That status does not prove the client received a response.
 A successful health check does not prove ledger conservation or full inference readiness.
 Use the [operator playbook](operator-playbook.md) for pauses, account controls, and incident response.
 
+## Account signup at startup
+
+For the intended two-host alpha, set `IE_SIGNUP_DISABLED=0` to allow GitHub account signup.
+This value applies only to the coordinator.
+Keep the existing access policies in place.
+Keep the separate `IE_PROVIDER_SELF_ENROLL_ENABLED` policy in place.
+Other deployments keep their own startup values.
+
+On the coordinator host, inspect the private alpha environment and the launchd launcher.
+Check launchd environment variables and each export after the launcher sources the environment.
+A later export overrides the value from the environment file.
+Set `IE_SIGNUP_DISABLED=0` in the effective startup environment.
+Remove or change a later `IE_SIGNUP_DISABLED=1` export if it overrides that value.
+Do not copy the environment file or other private values into a PR or issue.
+
+Restart the existing coordinator service.
+Sign in as an admin and confirm that `/v1/admin/controls` reports `signup_disabled: false`.
+Use a fresh GitHub identity permitted by the current access policies to create an account.
+Confirm that an existing GitHub account can still sign in.
+Record the release commit, the effective signup flag, and the check results in the private release record.
+
+The admin signup switch changes only the running process.
+To pause signup across restarts, set `IE_SIGNUP_DISABLED=1` in the effective startup environment and restart the coordinator.
+Confirm that `/v1/admin/controls` reports `signup_disabled: true`.
+Confirm that a fresh permitted GitHub identity cannot create an account.
+Confirm that an existing GitHub account can still sign in.
+Restart once more and repeat the checks.
+
+To roll back the alpha signup policy, restore the previous private startup value and restart the coordinator.
+Confirm the admin state and both GitHub sign-in paths again.
+A pinned release changes only the release path and `PYTHONPATH` in the launcher.
+It preserves the environment source and later exports.
+Review the effective signup flag before and after each pinned release.
+
 ## Geography checks
 
 `IE_COUNTRY_ACTIVITY_ENABLED=1` also requires `IE_GEO_INGRESS_SECRET` of at least 32 characters.
