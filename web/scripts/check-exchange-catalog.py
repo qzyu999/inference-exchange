@@ -1,8 +1,8 @@
 """Browser contract test against a running Vite server, with isolated API fixtures.
 
-Checks that the Exchange page keeps its original layout and lists published
-catalog models (#269). Run with playwright installed. Set IE_BROWSER_EXECUTABLE
-for an existing Chrome.
+Check the catalog, IE availability filter, and empty-result recovery.
+Run with Playwright installed.
+Set IE_BROWSER_EXECUTABLE for an existing Chrome.
 """
 import os
 import time
@@ -19,7 +19,9 @@ external = dict(id='or/one', provider='Example competitor', route='OpenRouter',
                 input='0.2', cache_read='0.05', output='0.6', observed_at=now,
                 quantization='FP16', context_length=4096, source_url='https://openrouter.ai/example/model')
 catalog = [dict(id='example/model', name='Example model', ie_count=1, offers=[ie, external]),
-           dict(id='example/external', name='External model', ie_count=0, offers=[{**external, 'id': 'or/two'}])]
+           dict(id='example/external', name='External model', ie_count=0, offers=[{**external, 'id': 'or/two'}]),
+           dict(id='example/reference', name='IE reference model', ie_count=0, offers=[
+               {**external, 'id': 'ie/reference', 'provider': 'inference-exchange', 'quote_kind': 'catalog'}])]
 market = [dict(model='Example model', family='Example', size='8B', canonical_id='example-8b-instruct',
                provider_count=1, cheapest_output=0.15, fastest_tps=0, max_trust='open',
                capabilities=dict(context_length=4096, supports_vision=False, supports_tool_calling=False,
@@ -80,7 +82,50 @@ with sync_playwright() as p:
     page.keyboard.press('Enter')
     expect(page.get_by_role('heading', name='External model', exact=True)).to_be_visible()
     expect(page.get_by_role('cell').filter(has_text='Example competitor')).to_be_visible()
-    page.screenshot(path=os.environ.get('IE_BROWSER_SCREENSHOT', '/tmp/exchange-desktop.png'), full_page=True)
+    # Filter the model list by live IE offers. Retain comparison offers.
+    trigger = page.get_by_role('button', name='Search exchange models')
+    search = page.get_by_role('combobox', name='Search exchange models')
+    provider_filter = page.get_by_role('combobox', name='Filter models by provider')
+    trigger.click()
+    provider_filter.select_option('ie')
+    expect(page.get_by_role('option', name='External model', exact=False)).to_have_count(0)
+    expect(page.get_by_role('option', name='IE reference model', exact=False)).to_have_count(0)
+    expect(page.get_by_role('option', name='Example model', exact=False)).to_be_visible()
+    expect(trigger).to_contain_text('Selected model hidden by filters')
+    expect(page.get_by_role('listbox')).to_contain_text('1 IE provider online')
+    search.fill('Example model')
+    page.keyboard.press('Enter')
+    expect(page.get_by_role('heading', name='Example model', exact=True)).to_be_visible()
+    expect(page.get_by_role('cell').filter(has_text='Community provider')).to_be_visible()
+    expect(page.get_by_role('cell').filter(has_text='Example competitor')).to_be_visible()
+    # Combine filters, then recover from an empty list after closing the popup.
+    trigger.click()
+    page.get_by_text('Proprietary', exact=True).click()
+    expect(page.get_by_role('listbox')).to_contain_text('0 models match')
+    search.focus()
+    page.keyboard.press('Escape')
+    expect(provider_filter).to_have_count(0)
+    trigger.click()
+    expect(provider_filter).to_have_value('ie')
+    page.get_by_role('button', name='Clear filters', exact=True).click()
+    expect(provider_filter).to_have_value('')
+    expect(page.get_by_role('option', name='External model', exact=False)).to_be_visible()
+    expect(page.get_by_role('option', name='IE reference model', exact=False)).to_be_visible()
+    # Check a narrow screen with the provider filter active.
+    page.set_viewport_size({'width': 390, 'height': 844})
+    provider_filter.select_option('ie')
+    expect(provider_filter).to_be_visible()
+    assert provider_filter.evaluate('(el) => el.getBoundingClientRect().right <= window.innerWidth')
+    page.screenshot(path=os.environ.get('IE_BROWSER_SCREENSHOT', '/tmp/exchange-mobile.png'), full_page=True)
+    # A refreshed catalog with no live offers must allow filter recovery.
+    for model in catalog:
+        model['offers'] = [offer for offer in model['offers'] if not offer.get('ie')]
+        model['ie_count'] = 0
+    market.clear()
+    expect(page.get_by_role('listbox')).to_contain_text('0 models match', timeout=20000)
+    expect(provider_filter).to_be_enabled()
+    provider_filter.select_option('')
+    expect(page.get_by_role('option', name='External model', exact=False)).to_be_visible()
     assert not errors, errors
     browser.close()
-print('Browser catalog: original layout, exact IE join, catalog-only model selection passed')
+print('Browser catalog: IE availability, comparison offers, empty-result recovery, refresh, and mobile passed')

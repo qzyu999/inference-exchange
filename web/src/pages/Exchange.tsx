@@ -53,7 +53,7 @@ interface UnifiedModel {
   key: string; name: string; vendor: string; family: string; params: string
   totalParameters?: number | null
   price: number; quality: number | null; codingIndex: number | null
-  cache: boolean; open: boolean; ctx: string; providerCount: number
+  cache: boolean; open: boolean; ctx: string; providerCount: number; ieProviderCount: number
   source: 'ie' | 'ref' | 'both'
 }
 
@@ -327,7 +327,7 @@ export function Exchange() {
   const { data: stats } = useSWR('stats', api.stats, { refreshInterval: 5000 })
   const { data: traceData } = useSWR('traces', api.traces, { refreshInterval: 5000 })
   const { data: refData } = useSWR('refPrices', () => api.referencePrices(), { refreshInterval: 30000 })
-  const { data: catalog } = useSWR('catalog', fetchCatalog, { refreshInterval: 60000 })
+  const { data: catalog } = useSWR('catalog', fetchCatalog, { refreshInterval: 10000 })
 
   const models = (marketData?.models || []) as MarketModel[]
   const traces = traceData?.traces || []
@@ -355,6 +355,7 @@ export function Exchange() {
         cache: ie.some(p => p.price_cache > 0) || f.prices.some(p => p.price_cache_read > 0),
         open: ie.length > 0 || Boolean(first?.open_weight),
         ctx: context > 0 ? formatCtx(context) : '—', providerCount: f.provider_count,
+        ieProviderCount: new Set(ie.map(p => p.id)).size,
         source: ie.length ? (f.prices.length ? 'both' : 'ie') : 'ref',
       } as UnifiedModel
     })
@@ -373,7 +374,7 @@ export function Exchange() {
         cache: m.providers.some(p => p.price_cache > 0),
         open: true, // IE providers run open-weight models
         ctx: caps?.context_length > 0 ? formatCtx(caps.context_length) : '—',
-        providerCount: m.provider_count, source: 'ie',
+        providerCount: m.provider_count, ieProviderCount: new Set(m.providers.map(p => p.id)).size, source: 'ie',
       })
     }
 
@@ -412,7 +413,7 @@ export function Exchange() {
         codingIndex: withQuality?.coding_index || null,
         cache: hasCache, open: isOpen,
         ctx: first?.context_length ? formatCtx(first.context_length) : '—',
-        providerCount: f.provider_count, source: 'ref',
+        providerCount: f.provider_count, ieProviderCount: 0, source: 'ref',
       })
     }
 
@@ -421,16 +422,18 @@ export function Exchange() {
 
   // ─── State ───────────────────────────────────────────────
   const [selectedKey, setSelectedKey] = useState('')
+  const [filterIE, setFilterIE] = useState(false)
   const [filterOpen, setFilterOpen] = useState<boolean | null>(null) // null=all, true=open, false=prop
   const [filterCache, setFilterCache] = useState(false)
   const [filterBenchmarked, setFilterBenchmarked] = useState(false)
   const [filterSize, setFilterSize] = useState<string | null>(null)
   const [filterPriceCap, setFilterPriceCap] = useState<number | null>(null)
   const [filterFamily, setFilterFamily] = useState<string | null>(null)
-  const filtersActive = filterOpen !== null || filterCache || filterBenchmarked ||
+  const filtersActive = filterIE || filterOpen !== null || filterCache || filterBenchmarked ||
     filterSize !== null || filterPriceCap !== null || filterFamily !== null
 
   function clearFilters() {
+    setFilterIE(false)
     setFilterOpen(null)
     setFilterCache(false)
     setFilterBenchmarked(false)
@@ -453,6 +456,7 @@ export function Exchange() {
 
   const filteredModels = useMemo(() => {
     return unifiedModels.filter(m => {
+      if (filterIE && m.ieProviderCount === 0) return false
       if (filterOpen === true && !m.open) return false
       if (filterOpen === false && m.open) return false
       if (filterCache && !m.cache) return false
@@ -468,7 +472,7 @@ export function Exchange() {
       if (filterFamily && m.family !== filterFamily) return false
       return true
     })
-  }, [unifiedModels, filterOpen, filterCache, filterBenchmarked, filterSize, filterPriceCap, filterFamily])
+  }, [unifiedModels, filterIE, filterOpen, filterCache, filterBenchmarked, filterSize, filterPriceCap, filterFamily])
 
   const groupedModels = useMemo(() => {
     const groups: Record<string, UnifiedModel[]> = {}
@@ -493,6 +497,7 @@ export function Exchange() {
         m.params !== '—' ? m.params : '',
         m.ctx !== '—' ? m.ctx + ' context' : '',
         m.providerCount + ' providers',
+        m.ieProviderCount > 0 ? m.ieProviderCount + ' IE ' + (m.ieProviderCount === 1 ? 'provider' : 'providers') + ' online' : '',
       ].filter(Boolean).join(' · '),
       priceLabel: m.price > 0 ? formatPrice(m.price) : undefined,
       badges: [
@@ -657,6 +662,17 @@ export function Exchange() {
             {/* Filter bar */}
             <div style={{ padding: '6px 12px', borderBottom: "1px solid var(--ui-border)", display: 'flex', gap: 4, flexWrap: 'wrap', alignItems: 'center' }}>
               <span style={{ fontSize: 8, textTransform: 'uppercase', letterSpacing: '.06em', color: UI.muted, marginRight: 2 }}>Filter</span>
+              <label className="flex max-w-full items-center gap-1 text-[10px] text-ui-muted">
+                Provider:
+                <select aria-label="Filter models by provider" value={filterIE ? 'ie' : ''}
+                  onChange={e => setFilterIE(e.target.value === 'ie')}
+                  className="min-w-0 rounded border border-ui-border bg-ui-surface-muted px-2 py-1 text-[11px] focus-visible:outline focus-visible:outline-2 focus-visible:outline-ui-warning"
+                  style={{ color: filterIE ? UI.accent : UI.text }}>
+                  <option value="">All providers</option>
+                  <option value="ie">Inference Exchange (online)</option>
+                </select>
+              </label>
+              <Sep />
               <Chip label="Open-weight" active={filterOpen === true} color={UI.success} bg={UI.successSurface}
                 onClick={() => setFilterOpen(filterOpen === true ? null : true)} />
               <Chip label="Proprietary" active={filterOpen === false} color={UI.purple} bg={UI.purpleSurface}

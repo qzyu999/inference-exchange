@@ -10,7 +10,7 @@ An exact comparison alias must not make different quantizations equivalent.
 
 - Principle: P2, P3, P5, P8
 - Status: implemented
-- Verified by: tests/test_ticker_catalog.py, web/src/lib/catalog.test.mjs, web/src/lib/exchange-filter-recovery.test.mjs
+- Verified by: tests/test_ticker_catalog.py, web/src/lib/catalog.test.mjs, web/src/lib/exchange-filter-recovery.test.mjs, web/scripts/check-exchange-catalog.py
 - Issue: #269
 
 ### CATALOG-003: Exact comparison identity and source labels

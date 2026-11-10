@@ -22,7 +22,8 @@ jobs:
         working-directory: formal/ticker
         run: java -cp /tmp/tla2tools.jar tlc2.TLC -workers 2 Snapshot.tla
   browser:
-    runs-on: ubuntu-latest
+    # Playwright 1.51 supports Ubuntu 24.04, but not the newer latest runner.
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
