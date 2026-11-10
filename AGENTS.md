@@ -2,6 +2,8 @@
 
 Guidance for AI coding agents working in this repository.
 
+Open a pull request for every change. Do not push directly to main.
+
 ## Source of truth
 
 `docs/principles.md` and `docs/requirements/*.md` define what the system must do. The code implements them.
