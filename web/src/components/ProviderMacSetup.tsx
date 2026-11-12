@@ -24,7 +24,7 @@ const INSTALL_BREW = [
   'else',
   '  echo "Homebrew is already installed."',
   'fi',
-].join('\\n')
+].join('\n')
 
 const CHECK_BREW = 'brew --version'
 
