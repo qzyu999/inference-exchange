@@ -28,6 +28,11 @@ const INSTALL_BREW = [
 
 const CHECK_BREW = 'brew --version'
 
+const INSTALL_PYTHON = [
+  'brew install python@3.13',
+  '"$(brew --prefix python@3.13)/bin/python3.13" --version',
+].join('\n')
+
 const INSTALL_LLAMA = [
   'brew install llama.cpp',
   'command -v llama-server',
@@ -53,8 +58,11 @@ const INSTALL_AGENT = [
   'git clone https://github.com/qzyu999/inference-exchange.git "$HOME/inference-exchange"',
   'cd "$HOME/inference-exchange"',
   'git checkout --detach ' + RECIPE_COMMIT,
-  'make setup-py',
+  'rm -rf .venv',
+  '"$(brew --prefix python@3.13)/bin/python3.13" -m venv .venv',
   'source .venv/bin/activate',
+  'python --version',
+  'make setup-py',
 ].join('\n')
 
 const CONNECT_AGENT = [
@@ -114,7 +122,7 @@ export function ProviderMacSetup() {
       <div className="space-y-2">
         <h4 className="text-sm font-semibold" style={{ color: UI.text }}>A. Check compatibility</h4>
         <p className="text-sm text-ui-body">
-          Open Terminal on your provider Mac. Confirm <code>arm64</code>, Python 3.11+ and Git.
+          Open Terminal on your provider Mac. Confirm <code>arm64</code> and Git. The next steps install Python 3.13, even if macOS reports an older system Python.
           Check available RAM and disk space before choosing a larger model.
         </p>
         <Command title="Mac prerequisites" code={CHECK_MAC} />
@@ -137,7 +145,21 @@ export function ProviderMacSetup() {
       </div>
 
       <div className="space-y-2">
-        <h4 className="text-sm font-semibold" style={{ color: UI.text }}>C. Install llama-server</h4>
+        <h4 className="text-sm font-semibold" style={{ color: UI.text }}>C. Install Python 3.13</h4>
+        <p className="text-sm text-ui-body">
+          IE requires Python 3.11 or newer, but some Macs still default to Python 3.9.
+          Install Python 3.13 through Homebrew and check the explicit Homebrew interpreter.
+          Do not rely on <code>python3</code> pointing to the right version.
+        </p>
+        <Command title="Install and verify Python 3.13" code={INSTALL_PYTHON} />
+        <p className="text-sm text-ui-body">
+          <strong>Open a new Terminal window after installing Python</strong> before continuing.
+          The agent setup below uses the explicit Homebrew Python path, regardless of shell PATH.
+        </p>
+      </div>
+
+      <div className="space-y-2">
+        <h4 className="text-sm font-semibold" style={{ color: UI.text }}>D. Install llama-server</h4>
         <p className="text-sm text-ui-body">
           Install <a href="https://formulae.brew.sh/formula/llama.cpp" target="_blank" rel="noopener noreferrer" className="underline">llama.cpp through Homebrew</a>.
           Do not start <code>llama-server</code> yourself: the OCIP agent starts and stops it on <code>127.0.0.1</code>.
@@ -151,7 +173,7 @@ export function ProviderMacSetup() {
       </div>
 
       <div className="space-y-2">
-        <h4 className="text-sm font-semibold" style={{ color: UI.text }}>D. Download a small test model</h4>
+        <h4 className="text-sm font-semibold" style={{ color: UI.text }}>E. Download a small test model</h4>
         <p className="text-sm text-ui-body">
           Start with <a href="https://huggingface.co/bartowski/Qwen2.5-0.5B-Instruct-GGUF" target="_blank" rel="noopener noreferrer" className="underline">Qwen2.5 0.5B Instruct, Q4_K_M GGUF</a> (about 400 MB).
           The commands download one model file to <code>~/.inference-exchange/models/</code> and check its
@@ -170,7 +192,7 @@ export function ProviderMacSetup() {
             Choose an instruct/chat GGUF compatible with your installed llama.cpp build.
             Read its model card and license. Check RAM, disk and context memory; the GGUF file size
             is not the full runtime memory requirement. Download the exact file, record its source
-            and SHA-256, then replace the <code>--model</code> path in step F.
+            and SHA-256, then replace the <code>--model</code> path in step G.
             A model that starts locally is not automatically an admitted or tested IE model.
           </p>
           <a href="https://github.com/ggml-org/llama.cpp/blob/master/docs/models.md"
@@ -179,9 +201,9 @@ export function ProviderMacSetup() {
       </div>
 
       <div className="space-y-2">
-        <h4 className="text-sm font-semibold" style={{ color: UI.text }}>E. Install the OCIP agent</h4>
+        <h4 className="text-sm font-semibold" style={{ color: UI.text }}>F. Install the OCIP agent</h4>
         <p className="text-sm text-ui-body">
-          Run this in Terminal after installing Git and Python. The checkout is a code-reviewed
+          Run this in Terminal after installing Git and Python 3.13. These commands recreate a failed <code>.venv</code> using the verified Homebrew Python. The checkout is a code-reviewed
           candidate revision, not a qualified Mac build. Python dependencies may compile on first
           install; this step is not yet a lightweight signed installer.
         </p>
@@ -194,7 +216,7 @@ export function ProviderMacSetup() {
       </div>
 
       <div className="space-y-2">
-        <h4 className="text-sm font-semibold" style={{ color: UI.text }}>F. Enroll, connect, and verify</h4>
+        <h4 className="text-sm font-semibold" style={{ color: UI.text }}>G. Enroll, connect, and verify</h4>
         <p className="text-sm text-ui-body">
           After self-service enrollment is enabled, save your one-time provider credential from
           step 2. Open a fresh Terminal window; the commands below activate the Python virtual environment again. The command prompts for your token
@@ -215,6 +237,9 @@ export function ProviderMacSetup() {
         <summary className="cursor-pointer font-medium" style={{ color: UI.text }}>Troubleshooting and safety</summary>
         <ul className="list-disc pl-5 mt-2 space-y-1">
           <li><code>brew: command not found</code>: install Homebrew and follow its PATH instructions.</li>
+          <li><code>requires a different Python: 3.9.6 not in &gt;=3.11</code>: install Python 3.13 (step C), recreate <code>.venv</code> (step F), then rerun setup.</li>
+          <li><code>python: command not found</code> outside a virtual environment: activate <code>.venv</code> or use the explicit Homebrew interpreter.</li>
+          <li><code>zsh: command not found: #</code>: copy only the executable commands; interactive zsh may not recognize pasted comment lines.</li>
           <li><code>llama-server</code> not found: verify Homebrew installation and your shell PATH.</li>
           <li>Download fails or SHA-256 differs: do not run that file; check the model page and try again.</li>
           <li>Python dependency build fails: record macOS, chip, Python version and the nonsecret error for the onboarding issue.</li>
