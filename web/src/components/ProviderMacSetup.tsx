@@ -55,14 +55,36 @@ const DOWNLOAD_MODEL = [
 ].join('\n')
 
 const INSTALL_AGENT = [
-  'git clone https://github.com/qzyu999/inference-exchange.git "$HOME/inference-exchange"',
-  'cd "$HOME/inference-exchange"',
-  'git checkout --detach ' + RECIPE_COMMIT,
-  'rm -rf .venv',
-  '"$(brew --prefix python@3.13)/bin/python3.13" -m venv .venv',
-  'source .venv/bin/activate',
-  'python --version',
-  'make setup-py',
+  '(',
+  '  set -e',
+  '  repo_url=https://github.com/qzyu999/inference-exchange.git',
+  '  repo_dir="$HOME/inference-exchange"',
+  '  if [ ! -e "$repo_dir" ] && [ ! -L "$repo_dir" ]; then',
+  '    git clone "$repo_url" "$repo_dir"',
+  '  fi',
+  '  cd "$repo_dir"',
+  '  repo_prefix="$(git rev-parse --show-prefix 2>/dev/null)" || repo_prefix=invalid',
+  '  origin_url="$(git remote get-url origin 2>/dev/null)" || origin_url=invalid',
+  '  case "$repo_prefix:$origin_url" in',
+  '    :"$repo_url"|:${repo_url%.git}|:git@github.com:qzyu999/inference-exchange.git|:git@github.com:qzyu999/inference-exchange) ;;',
+  '    *)',
+  '      printf "%s\\n" "Expected an Inference Exchange checkout at $repo_dir. Move the existing item aside and retry." >&2',
+  '      exit 1',
+  '      ;;',
+  '  esac',
+  '  git checkout --detach ' + RECIPE_COMMIT,
+  '  if [ ! -e .venv ] && [ ! -L .venv ]; then',
+  '    python_prefix="$(brew --prefix python@3.13)"',
+  '    "$python_prefix/bin/python3.13" -m venv .venv',
+  '  fi',
+  '  if ! .venv/bin/python -c \'import sys; sys.exit(sys.version_info < (3, 11))\' ||',
+  '     ! .venv/bin/pip --version >/dev/null; then',
+  '    printf "%s\\n" "The existing .venv needs repair. Rename it to an unused backup name, then rerun this step." >&2',
+  '    exit 1',
+  '  fi',
+  '  .venv/bin/python --version',
+  '  make setup-py',
+  ')',
 ].join('\n')
 
 const CONNECT_AGENT = [
@@ -203,7 +225,7 @@ export function ProviderMacSetup() {
       <div className="space-y-2">
         <h4 className="text-sm font-semibold" style={{ color: UI.text }}>F. Install the OCIP agent</h4>
         <p className="text-sm text-ui-body">
-          Run this in Terminal after installing Git and Python 3.13. These commands recreate a failed <code>.venv</code> using the verified Homebrew Python. The checkout is a code-reviewed
+          Run this in Terminal after installing Git and Python 3.13. The commands create <code>.venv</code> with Homebrew Python when needed and reuse a working environment. The checkout is a code-reviewed
           candidate revision, not a qualified Mac build. Python dependencies may compile on first
           install; this step is not yet a lightweight signed installer.
         </p>
@@ -237,11 +259,11 @@ export function ProviderMacSetup() {
         <summary className="cursor-pointer font-medium" style={{ color: UI.text }}>Troubleshooting and safety</summary>
         <ul className="list-disc pl-5 mt-2 space-y-1">
           <li><code>brew: command not found</code>: install Homebrew and follow its PATH instructions.</li>
-          <li><code>requires a different Python: 3.9.6 not in &gt;=3.11</code>: install Python 3.13 (step C), recreate <code>.venv</code> (step F), then rerun setup.</li>
           <li><code>python: command not found</code> outside a virtual environment: activate <code>.venv</code> or use the explicit Homebrew interpreter.</li>
           <li><code>zsh: command not found: #</code>: copy only the executable commands; interactive zsh may not recognize pasted comment lines.</li>
           <li><code>llama-server</code> not found: verify Homebrew installation and your shell PATH.</li>
           <li>Download fails or SHA-256 differs: do not run that file; check the model page and try again.</li>
+          <li>Step F reports that <code>.venv</code> needs repair, or Python reports version 3.9.6: install Python 3.13 (step C). Then in <code>~/inference-exchange</code>, rename <code>.venv</code> to an unused backup name and rerun step F.</li>
           <li>Python dependency build fails: record macOS, chip, Python version and the nonsecret error for the onboarding issue.</li>
           <li>HTTP 503 during enrollment: the global self-service gate is still closed; do not use an admin token.</li>
           <li>Offline or no matches: inspect agent status, the model path, network access, and the consumer's explicit L0/Open choice.</li>
