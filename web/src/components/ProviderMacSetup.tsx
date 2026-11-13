@@ -17,6 +17,22 @@ const CHECK_MAC = [
   'git --version',
 ].join('\n')
 
+const INSTALL_BREW = [
+  'if ! command -v brew >/dev/null 2>&1; then',
+  '  /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"',
+  '  echo "Follow the Homebrew installer\'s Next steps to configure your PATH."',
+  'else',
+  '  echo "Homebrew is already installed."',
+  'fi',
+].join('\n')
+
+const CHECK_BREW = 'brew --version'
+
+const INSTALL_PYTHON = [
+  'brew install python@3.13',
+  '"$(brew --prefix python@3.13)/bin/python3.13" --version',
+].join('\n')
+
 const INSTALL_LLAMA = [
   'brew install llama.cpp',
   'command -v llama-server',
@@ -39,14 +55,41 @@ const DOWNLOAD_MODEL = [
 ].join('\n')
 
 const INSTALL_AGENT = [
-  'git clone https://github.com/qzyu999/inference-exchange.git',
-  'cd inference-exchange',
-  'git checkout --detach ' + RECIPE_COMMIT,
-  'make setup-py',
-  'source .venv/bin/activate',
+  '(',
+  '  set -e',
+  '  repo_url=https://github.com/qzyu999/inference-exchange.git',
+  '  repo_dir="$HOME/inference-exchange"',
+  '  if [ ! -e "$repo_dir" ] && [ ! -L "$repo_dir" ]; then',
+  '    git clone "$repo_url" "$repo_dir"',
+  '  fi',
+  '  cd "$repo_dir"',
+  '  repo_prefix="$(git rev-parse --show-prefix 2>/dev/null)" || repo_prefix=invalid',
+  '  origin_url="$(git remote get-url origin 2>/dev/null)" || origin_url=invalid',
+  '  case "$repo_prefix:$origin_url" in',
+  '    :"$repo_url"|:${repo_url%.git}|:git@github.com:qzyu999/inference-exchange.git|:git@github.com:qzyu999/inference-exchange) ;;',
+  '    *)',
+  '      printf "%s\\n" "Expected an Inference Exchange checkout at $repo_dir. Move the existing item aside and retry." >&2',
+  '      exit 1',
+  '      ;;',
+  '  esac',
+  '  git checkout --detach ' + RECIPE_COMMIT,
+  '  if [ ! -e .venv ] && [ ! -L .venv ]; then',
+  '    python_prefix="$(brew --prefix python@3.13)"',
+  '    "$python_prefix/bin/python3.13" -m venv .venv',
+  '  fi',
+  '  if ! .venv/bin/python -c \'import sys; sys.exit(sys.version_info < (3, 11))\' ||',
+  '     ! .venv/bin/pip --version >/dev/null; then',
+  '    printf "%s\\n" "The existing .venv needs repair. Rename it to an unused backup name, then rerun this step." >&2',
+  '    exit 1',
+  '  fi',
+  '  .venv/bin/python --version',
+  '  make setup-py',
+  ')',
 ].join('\n')
 
 const CONNECT_AGENT = [
+  'cd "$HOME/inference-exchange"',
+  'source .venv/bin/activate',
   'export IE_MODEL_PATH="$HOME/.inference-exchange/models/' + MODEL_FILENAME + '"',
   'test -f "$IE_MODEL_PATH" && command -v llama-server',
   'export IE_PROVIDER_TOKEN="$(python3 -c \'from getpass import getpass; print(getpass("Provider credential: "))\')"',
@@ -101,24 +144,58 @@ export function ProviderMacSetup() {
       <div className="space-y-2">
         <h4 className="text-sm font-semibold" style={{ color: UI.text }}>A. Check compatibility</h4>
         <p className="text-sm text-ui-body">
-          Open Terminal on your provider Mac. Confirm <code>arm64</code>, Python 3.11+ and Git.
+          Open Terminal on your provider Mac. Confirm <code>arm64</code> and Git. The next steps install Python 3.13, even if macOS reports an older system Python.
           Check available RAM and disk space before choosing a larger model.
         </p>
         <Command title="Mac prerequisites" code={CHECK_MAC} />
       </div>
 
       <div className="space-y-2">
-        <h4 className="text-sm font-semibold" style={{ color: UI.text }}>B. Install llama-server</h4>
+        <h4 className="text-sm font-semibold" style={{ color: UI.text }}>B. Install Homebrew if needed</h4>
         <p className="text-sm text-ui-body">
-          Install <a href="https://formulae.brew.sh/formula/llama.cpp" target="_blank" rel="noopener noreferrer" className="underline">llama.cpp through Homebrew</a>.
-          If <code>brew</code> is missing, install Homebrew from <a href="https://brew.sh/" target="_blank" rel="noopener noreferrer" className="underline">its official website</a> first.
-          Do not start <code>llama-server</code> yourself: the OCIP agent starts and stops it on <code>127.0.0.1</code>.
+          Homebrew is the package manager used for llama.cpp. If it is already installed, skip
+          the installer. Otherwise run the command below, review the installer prompts, and
+          follow its printed <strong>Next steps</strong> to add Homebrew to your shell PATH.
+          See the <a href="https://brew.sh/" target="_blank" rel="noopener noreferrer" className="underline">official Homebrew instructions</a>.
         </p>
-        <Command title="Install and verify llama-server" code={INSTALL_LLAMA} />
+        <Command title="Install Homebrew only if missing" code={INSTALL_BREW} />
+        <p className="text-sm text-ui-body">
+          <strong>Open a new Terminal window after installing Homebrew</strong>, then verify
+          it is available before moving on.
+        </p>
+        <Command title="Verify Homebrew in the new Terminal" code={CHECK_BREW} />
       </div>
 
       <div className="space-y-2">
-        <h4 className="text-sm font-semibold" style={{ color: UI.text }}>C. Download a small test model</h4>
+        <h4 className="text-sm font-semibold" style={{ color: UI.text }}>C. Install Python 3.13</h4>
+        <p className="text-sm text-ui-body">
+          IE requires Python 3.11 or newer, but some Macs still default to Python 3.9.
+          Install Python 3.13 through Homebrew and check the explicit Homebrew interpreter.
+          Do not rely on <code>python3</code> pointing to the right version.
+        </p>
+        <Command title="Install and verify Python 3.13" code={INSTALL_PYTHON} />
+        <p className="text-sm text-ui-body">
+          <strong>Open a new Terminal window after installing Python</strong> before continuing.
+          The agent setup below uses the explicit Homebrew Python path, regardless of shell PATH.
+        </p>
+      </div>
+
+      <div className="space-y-2">
+        <h4 className="text-sm font-semibold" style={{ color: UI.text }}>D. Install llama-server</h4>
+        <p className="text-sm text-ui-body">
+          Install <a href="https://formulae.brew.sh/formula/llama.cpp" target="_blank" rel="noopener noreferrer" className="underline">llama.cpp through Homebrew</a>.
+          Do not start <code>llama-server</code> yourself: the OCIP agent starts and stops it on <code>127.0.0.1</code>.
+        </p>
+        <Command title="Install and verify llama-server" code={INSTALL_LLAMA} />
+        <p className="text-sm text-ui-body">
+          <strong>After installation, open a new Terminal window</strong> before proceeding
+          to the model download. In the new window, run <code>llama-server --version</code>
+          to check that the command is on your PATH.
+        </p>
+      </div>
+
+      <div className="space-y-2">
+        <h4 className="text-sm font-semibold" style={{ color: UI.text }}>E. Download a small test model</h4>
         <p className="text-sm text-ui-body">
           Start with <a href="https://huggingface.co/bartowski/Qwen2.5-0.5B-Instruct-GGUF" target="_blank" rel="noopener noreferrer" className="underline">Qwen2.5 0.5B Instruct, Q4_K_M GGUF</a> (about 400 MB).
           The commands download one model file to <code>~/.inference-exchange/models/</code> and check its
@@ -137,7 +214,7 @@ export function ProviderMacSetup() {
             Choose an instruct/chat GGUF compatible with your installed llama.cpp build.
             Read its model card and license. Check RAM, disk and context memory; the GGUF file size
             is not the full runtime memory requirement. Download the exact file, record its source
-            and SHA-256, then replace the <code>--model</code> path in step E.
+            and SHA-256, then replace the <code>--model</code> path in step G.
             A model that starts locally is not automatically an admitted or tested IE model.
           </p>
           <a href="https://github.com/ggml-org/llama.cpp/blob/master/docs/models.md"
@@ -146,20 +223,25 @@ export function ProviderMacSetup() {
       </div>
 
       <div className="space-y-2">
-        <h4 className="text-sm font-semibold" style={{ color: UI.text }}>D. Install the OCIP agent</h4>
+        <h4 className="text-sm font-semibold" style={{ color: UI.text }}>F. Install the OCIP agent</h4>
         <p className="text-sm text-ui-body">
-          Run this in Terminal after installing Git and Python. The checkout is a code-reviewed
+          Run this in Terminal after installing Git and Python 3.13. The commands create <code>.venv</code> with Homebrew Python when needed and reuse a working environment. The checkout is a code-reviewed
           candidate revision, not a qualified Mac build. Python dependencies may compile on first
           install; this step is not yet a lightweight signed installer.
         </p>
         <Command title="Install the IE Python agent" code={INSTALL_AGENT} />
+        <p className="text-sm text-ui-body">
+          <strong>After installation, open a new Terminal window</strong> before connecting.
+          The next step explicitly enters <code>~/inference-exchange</code> and reactivates
+          <code>.venv</code>, since activation does not carry over to a new Terminal.
+        </p>
       </div>
 
       <div className="space-y-2">
-        <h4 className="text-sm font-semibold" style={{ color: UI.text }}>E. Enroll, connect, and verify</h4>
+        <h4 className="text-sm font-semibold" style={{ color: UI.text }}>G. Enroll, connect, and verify</h4>
         <p className="text-sm text-ui-body">
           After self-service enrollment is enabled, save your one-time provider credential from
-          step 2. Keep the Python virtual environment active. The command prompts for your token
+          step 2. Open a fresh Terminal window; the commands below activate the Python virtual environment again. The command prompts for your token
           without showing what you type; do not put the token in a URL, CLI argument or screenshot.
           The agent opens an outbound encrypted WebSocket. It does not expose a public local port.
         </p>
@@ -177,8 +259,11 @@ export function ProviderMacSetup() {
         <summary className="cursor-pointer font-medium" style={{ color: UI.text }}>Troubleshooting and safety</summary>
         <ul className="list-disc pl-5 mt-2 space-y-1">
           <li><code>brew: command not found</code>: install Homebrew and follow its PATH instructions.</li>
+          <li><code>python: command not found</code> outside a virtual environment: activate <code>.venv</code> or use the explicit Homebrew interpreter.</li>
+          <li><code>zsh: command not found: #</code>: copy only the executable commands; interactive zsh may not recognize pasted comment lines.</li>
           <li><code>llama-server</code> not found: verify Homebrew installation and your shell PATH.</li>
           <li>Download fails or SHA-256 differs: do not run that file; check the model page and try again.</li>
+          <li>Step F reports that <code>.venv</code> needs repair, or Python reports version 3.9.6: install Python 3.13 (step C). Then in <code>~/inference-exchange</code>, rename <code>.venv</code> to an unused backup name and rerun step F.</li>
           <li>Python dependency build fails: record macOS, chip, Python version and the nonsecret error for the onboarding issue.</li>
           <li>HTTP 503 during enrollment: the global self-service gate is still closed; do not use an admin token.</li>
           <li>Offline or no matches: inspect agent status, the model path, network access, and the consumer's explicit L0/Open choice.</li>
