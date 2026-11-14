@@ -12,7 +12,7 @@ The design gives each paid request one owner and gives money one owner:
 
 - `RequestService` owns the request lifecycle: eligibility, attempts, fallback, and the end state.
 - `Wallet` owns money: funding lots, holds, charges, releases and refunds. Each command is one SQLite transaction.
-- Adapters own external I/O: the OCIP WebSocket hub, a hosted HTTP vendor, and Stripe. An adapter cannot change a balance.
+- Adapters own external I/O: the OCIP WebSocket hub, a hosted HTTP vendor, and one rail adapter per payment rail (Stripe first, then USDC; section 6.3). An adapter cannot change a balance.
 - A composition root builds these objects for each app instance. No route reads a module global or a private hub field.
 - SQLite is the one source of truth. Every component can crash and restart, then rebuild its state from SQLite. Every failure boundary has a stated durable state, recovery action and client-visible outcome (section 8). The coordinator stays one deployable process for now. Section 8.11 says when to split it.
 
@@ -70,7 +70,7 @@ flowchart TD
     subgraph Adapters["Adapters (external I/O)"]
         OCIP["OcipAdapter over ProviderHub"]
         Hosted["HostedHttpAdapter (DeepInfra, Novita)"]
-        Stripe["StripeAdapter"]
+        Rails["RailAdapters (Stripe, USDC, ...)"]
     end
     subgraph Node["Provider node (home Mac or data center)"]
         Agent["ie-agent (node agent)"]
@@ -91,10 +91,10 @@ flowchart TD
     RS --> OCIP
     RS --> Hosted
     Pay --> Wallet
-    Pay --> Stripe
+    Pay --> Rails
     Recon --> Wallet
     Recon --> Hosted
-    Recon --> Stripe
+    Recon --> Rails
     OCIP --> Snap
     Hosted --> Snap
     Wallet --> DB
@@ -123,13 +123,16 @@ inference_exchange/coordinator/
     wallet.py             Wallet: credit_payment, reserve, resize, settle, release, hold_refund, finish_refund
     requests.py           RequestService: admit, run, on_event, recover
     reconcile.py          Reconciler: one loop; resolves uncertain attempts, stale refunds, ledger drift
-    payments.py           PaymentService: create_checkout, handle_event, request_refund
+    payments.py           PaymentService: create_funding, handle_event, request_refund (rail-agnostic)
     schema.py             additive DDL and migration checks for the paid tables
   adapters/
     base.py               ExecutionAdapter protocol
     ocip.py               OcipAdapter: wraps ProviderHub; binds frames to (request, attempt, session)
     hosted_http.py        HostedHttpAdapter: one OpenAI-compatible client, configured per vendor
-    stripe.py             StripeAdapter: Checkout, refunds, signature check
+    rails/
+      base.py             RailAdapter protocol, RailEvent, RailCapabilities
+      stripe.py           StripeRail: Checkout, refunds, webhook signature check
+      usdc.py             UsdcRail: payment requests, chain watcher, refund transfers
   supply/
     allowlist.py          Allowlisted model packs: exact repo, revision, format, quantization, digest
     offers.py             Offer construction for both directions; one Offer type, one eligibility input
@@ -351,17 +354,19 @@ Runtimes such as MLX-Serve also serve images, audio, video and 3D. The current O
 
 ### 6.1 Units and tables
 
-IE amounts are integer micro-USD. Processor amounts are integer cents. Conversion happens only in `StripeAdapter`.
+IE amounts are integer micro-USD. Each payment rail converts its own unit at its boundary (section 6.3).
 
 | Table | Key constraints |
 |---|---|
-| `funding_lots(lot_id, account_id, kind, processor_payment_id, amount_micro, remaining_micro)` | `kind IN ('sponsored','paid')`; `UNIQUE(processor_payment_id)`; `CHECK(remaining_micro >= 0)` |
+| `funding_orders(order_id, account_id, rail_id, amount_micro, rail_amount, currency, rate, status, expires_at)` | `PRIMARY KEY(order_id)`; one order per funding attempt |
+| `funding_lots(lot_id, account_id, kind, rail_id, rail_ref, order_id, amount_micro, remaining_micro)` | `kind IN ('sponsored','paid')`; `UNIQUE(rail_id, rail_ref)`; `CHECK(remaining_micro >= 0)` |
 | `paid_requests(request_id, account_id, phase, location_policy, route_id, active_attempt, quote, hold_micro, charge_micro, idempotency_key)` | `CHECK(phase IN (...))`; `UNIQUE(account_id, idempotency_key)` |
 | `hold_allocations(request_id, lot_id, amount_micro)` | `PRIMARY KEY(request_id, lot_id)`; rows exist only while the request is live |
 | `attempts(request_id, attempt_no, route_id, location, session_id, sent_at, result, upstream_cost_micro)` | `PRIMARY KEY(request_id, attempt_no)` |
 | `ledger_entries(entry_id, account_id, lot_id, request_id, refund_id, kind, amount_micro)` | `UNIQUE(request_id) WHERE kind = 'charge'`; `UNIQUE(refund_id) WHERE kind = 'refund'` |
-| `refunds(refund_id, account_id, lot_id, amount_micro, phase, processor_refund_id)` | `UNIQUE(processor_refund_id)` |
-| `processor_events(event_id, type, received_at)` | `PRIMARY KEY(event_id)` |
+| `refunds(refund_id, account_id, lot_id, rail_id, amount_micro, phase, rail_ref, destination)` | `UNIQUE(rail_id, rail_ref)`; lot `rail_id` = refund `rail_id` |
+| `rail_events(rail_id, rail_event_id, type, order_id, rail_ref, received_at, status)` | `PRIMARY KEY(rail_id, rail_event_id)` |
+| `rail_cursors(rail_id, cursor)` | `PRIMARY KEY(rail_id)`; polling position per rail |
 | `reconciliation_items(request_id, attempt_no, reason, status)` | `PRIMARY KEY(request_id, attempt_no)` |
 
 The migration is additive. Legacy `accounts` and `transactions` rows stay unchanged (BILL-010, BILL-012). A node charge still credits the provider billing principal through `ledger_entries`. The legacy community path keeps `charge_request` until slice 5 moves it.
@@ -373,7 +378,7 @@ Derived values:
 
 ### 6.2 Conservation
 
-For each account, with `credits` the confirmed processor payments and `grants` the sponsored credit:
+For each account, with `credits` the confirmed payments on all rails and `grants` the sponsored credit:
 
 ```
 remaining(paid lots)      + charges on paid lots      + succeeded refunds = credits
@@ -395,6 +400,69 @@ consumer charge = provider credit + platform fee
 For a hosted charge, the platform keeps the customer charge as revenue. The vendor cost is a separate amount on the attempt row. `Reconciler` compares the vendor cost with the vendor report. The margin can be negative. It is a reported number, not a balance.
 
 Reported usage above the hold is not charged. The excess goes in the attempt row and, for a hosted attempt, in a reconciliation item (decision D6).
+
+### 6.3 Payment rails
+
+IE takes money in through more than one rail. Stripe Checkout (cards) is the first rail for #297. USDC (#44) is the second. Others, such as bank transfer or another stablecoin, are later rows. The wallet, the ledger and the request path do not know which rail funded a lot. Only `PaymentService` and one `RailAdapter` per rail do.
+
+```mermaid
+flowchart LR
+    Pay["PaymentService"] --> R1["StripeRail"]
+    Pay --> R2["UsdcRail"]
+    Pay --> R3["... later rails"]
+    R1 --> S["Stripe API + signed webhooks"]
+    R2 --> C["EVM RPC + chain watcher"]
+    Pay -->|"one transaction"| W["Wallet"]
+```
+
+**Rail contract.** Each rail implements the same small interface. It returns normalized events. It never touches the wallet.
+
+```python
+class RailAdapter(Protocol):
+    rail_id: str                                       # "stripe", "usdc-base", ...
+    def capabilities(self) -> RailCapabilities: ...    # refunds, partial refunds, disputes, finality, unit
+    async def create_funding(self, order: FundingOrder) -> FundingInstructions: ...   # idempotency key = order_id
+    async def refund(self, refund: RefundOrder) -> RailResult: ...                   # idempotency key = refund_id
+    def verify_event(self, raw: bytes, headers: Mapping[str, str]) -> RailEvent | Rejected: ...
+    async def poll(self, since: Cursor) -> tuple[list[RailEvent], Cursor]: ...       # for rails without push, and for restore gaps
+    async def statement(self, window: TimeWindow) -> RailStatement: ...              # for reconciliation
+```
+
+`RailEvent` is one of `FundingConfirmed`, `FundingFailed`, `RefundSucceeded`, `RefundFailed`, `DisputeOpened`, `DisputeClosed` and `Reversed`. Each event has a `rail_id`, a `rail_event_id` (unique per rail), a `rail_ref` (the payment, transfer or refund on that rail), the `order_id` it belongs to, an amount in the rail's minor unit, and a currency or asset.
+
+**Normalization at the boundary.** IE amounts are integer micro-USD everywhere inside IE. A rail converts at its own boundary and states the rule:
+
+| Rail | Rail unit | To micro-USD | Rounding |
+|---|---|---|---|
+| Stripe (USD) | cents | × 10,000 | exact |
+| USDC | 10⁻⁶ USDC (the token's 6 decimals) | × 1, at a fixed 1 USDC = 1 USD for credit (D18) | exact |
+| other | its minor unit | stated per rail; a quoted rate is captured on the order | down for credit, down for refund |
+
+A non-USD rail captures its rate on the `FundingOrder`. The credit uses that captured rate, not the rate when the event arrives.
+
+**What differs between rails.**
+
+| Property | Stripe | USDC |
+|---|---|---|
+| Who starts funding | IE creates a Checkout session | IE gives the customer a deposit address or a payment request bound to the order |
+| Confirmation | signed webhook, plus polling | chain watcher after N confirmations (finality rule per chain), plus polling |
+| Idempotency for IE calls | Stripe idempotency key | the order ID is bound into the payment request; a refund is a transfer that IE signs once and records by transaction hash before it is broadcast |
+| Refunds | to the original payment method, partial allowed | a transfer to an address the customer proves they control; never to an address taken only from the payment |
+| Disputes and reversals | chargebacks | none after finality; a reorg before finality is `Reversed` |
+| Fees | processor fee on the statement | network fee paid by IE on refunds |
+| Statement for reconciliation | balance transactions | chain transfers to and from IE addresses |
+
+**Ledger rules for every rail.**
+
+- A funding lot records `rail_id` and `rail_ref`. `UNIQUE(rail_id, rail_ref)` makes a payment credit once.
+- A refund draws only on paid lots of the same rail, and the rail must have `refunds` in its capabilities. A card payment is not refunded in USDC, or the other way round, unless the owner approves a rule for that (D19).
+- `FundingConfirmed` credits only an amount that matches the order, in the order's currency or asset. An underpayment or overpayment is held as a reconciliation item, not credited automatically (D19).
+- `DisputeOpened` or `Reversed` moves the disputed amount into a hold on the lot. If the lot has already been spent, the account goes into a recorded negative position, and paid admission for that account stops until it is resolved. It never takes money from another account.
+- Processor fees and network fees are platform costs on the statement. They never change a customer balance.
+
+**Durability and restore.** The inbox table is `rail_events(rail_id, rail_event_id, ...)` with `PRIMARY KEY(rail_id, rail_event_id)`. Each rail has a polling cursor in SQLite. After a restore (section 8.7), each rail is polled from its cursor minus a margin. A chain rail is replayed from a block height. It does not depend on webhook redelivery.
+
+**Adding a rail.** A new rail is one adapter, one row in the rail table, the conversion rule, the refund rule, a fake for the failure tests in 7.3, and a requirement change. No change to `Wallet`, `RequestService` or the model is needed. The model's `CreditPayment`, `SendRefund` and `FinishRefund` steps are rail-agnostic. They need only event-ID deduplication and an idempotent refund, which every rail must provide.
 
 ## 7. Formal model and refinement
 
@@ -432,25 +500,25 @@ The controls are in `formal/paid/check.py`. CI runs the script in the existing `
 | Pause without drain | `PausedIdle` |
 | Hosted charge credits a provider | `EarningsOnlyFromLocal` |
 | Hosted failure leaves no reconciliation item | `HostedCostTracked` |
-| Processor call without idempotency key | `RefundExactlyOnce` |
-| Processor called before the intent is durable | `ProcessorEffectHasIntent` |
+| Rail call without idempotency key | `RefundExactlyOnce` |
+| Rail called before the intent is durable | `ProcessorEffectHasIntent` |
 | Outbox kept in memory | `RefundResolves` |
 | Vendor called before the attempt row commits | `CalledWasRecorded` |
 | Restart forgets possibly-sent hosted attempts | `CalledCostTracked` |
 
-Limits. The result applies to these bounds only. The model does not check Python code, SQLite, Stripe, vendors, node runtimes, the agent's local access boundary, timing, prices, trust evidence or tokenizer accuracy. Liveness assumes that the deadline, the reconciler, the outbox worker and the refund poller run (weak fairness). The refund path models the outbox (section 8.3): the worker can call the processor again after a crash, and the processor applies each idempotency key once. The hosted call is a separate step after the dispatch commit (`CallVendor`), so the model covers a crash between them (section 8.4). The tests in 7.2 and 7.3 check the implementation.
+Limits. The result applies to these bounds only. The model does not check Python code, SQLite, payment rails, vendors, node runtimes, the agent's local access boundary, timing, prices, trust evidence or tokenizer accuracy. Liveness assumes that the deadline, the reconciler, the outbox worker and the refund poller run (weak fairness). The refund path models the outbox (section 8.3): the worker can call the processor again after a crash, and the processor applies each idempotency key once. The hosted call is a separate step after the dispatch commit (`CallVendor`), so the model covers a crash between them (section 8.4). The tests in 7.2 and 7.3 check the implementation.
 
 ### 7.2 Refinement table
 
 | Model step or property | Service method | SQL guard | Regression test (to write) |
 |---|---|---|---|
-| `CreditPayment` | `PaymentService.handle_event` → `Wallet.credit_payment` | `processor_events` PK; `UNIQUE(processor_payment_id)` | duplicate, concurrent and out-of-order webhook credit one lot |
+| `CreditPayment` | `PaymentService.handle_event` → `Wallet.credit_payment` | `rail_events` PK; `UNIQUE(rail_id, rail_ref)` | per rail: duplicate, concurrent and out-of-order events credit one lot; an amount that does not match the order is not credited |
 | `Reserve`, `NoOverspend` | `Wallet.reserve` | `BEGIN IMMEDIATE`; available ≥ bound in the same transaction | two threads, one balance: one 402; reserve after restart |
 | `Resize` | `Wallet.resize` | replace `hold_allocations` in one transaction | node → hosted fallback fails 402 without leaking the first hold |
 | `Allowed`, `NoHostedWithoutConsent` | `policy.eligible` | `attempts.location` checked against `paid_requests.location_policy` | `node_only` and `node_preferred` without consent never call the hosted adapter, including on fallback |
-| `HoldRefund` (paid only) | `Wallet.hold_refund` | `refundable ≥ amount`; lot `kind = 'paid'` | refund cannot use sponsored or held credit; refund vs spend race |
+| `HoldRefund` (paid only) | `Wallet.hold_refund` | `refundable ≥ amount`; lot `kind = 'paid'`; lot rail = refund rail | refund cannot use sponsored or held credit, or credit from another rail; refund vs spend race |
 | `HoldRefund` outbox write | `Wallet.hold_refund` | `outbox` row in the same transaction as the hold | crash after commit: the worker sends the refund after restart |
-| `SendRefund`, `RefundExactlyOnce` | `OutboxWorker` → `StripeAdapter.refund` | idempotency key = `refund_id` | crash after the processor call and before its result is written: second call returns the first result; Stripe test mode shows one refund |
+| `SendRefund`, `RefundExactlyOnce` | `OutboxWorker` → `RailAdapter.refund` | idempotency key = `refund_id` (Stripe); signed transfer recorded by hash before broadcast (USDC) | crash after the rail call and before its result is written: second call returns the first result; Stripe test mode and a USDC testnet each show one refund |
 | `ProcessorEffectHasIntent` | `OutboxWorker` reads only committed rows | worker selects `status = 'queued'` | no adapter call path exists outside the worker (import-rule test) |
 | `FinishRefund` | `PaymentService.handle_event` | `UNIQUE(refund_id) WHERE kind='refund'` | failed refund releases the hold; replay is a no-op |
 | `Dispatch`, `SlotsWithinCap` | `RequestService.run` → `adapter.run` | attempt row before send | two queued waiters cannot take one slot |
@@ -475,7 +543,7 @@ The conservation test runs on the real `Store` connection, not on `billing_memor
 
 ### 7.3 End-to-end failure injection
 
-These tests run against the real FastAPI app, the real HTTP and SSE path, and a real SQLite file on disk. The node is the mock agent. The vendor is a fake HTTP server that can record calls, delay, return errors and send bad usage. The processor is a fake with Stripe's idempotency rules. A test harness kills the coordinator process with `SIGKILL` at a named point (a fault hook that only test builds enable), then starts a new process on the same file.
+These tests run against the real FastAPI app, the real HTTP and SSE path, and a real SQLite file on disk. The node is the mock agent. The vendor is a fake HTTP server that can record calls, delay, return errors and send bad usage. Each payment rail has a fake: a Stripe fake with Stripe's idempotency rules, and a chain fake that can delay confirmations, reorg before finality and replay blocks. A test harness kills the coordinator process with `SIGKILL` at a named point (a fault hook that only test builds enable), then starts a new process on the same file.
 
 Every test asserts the same oracle after it ends:
 
@@ -502,11 +570,14 @@ Every test asserts the same oracle after it ends:
 | F13 | `SQLITE_BUSY` on reserve (held lock) | 503 `ledger_busy` with `Retry-After`; no hold |
 | F14 | `SQLITE_BUSY` on settle until after the deadline | not charged; stream error; `recover()` releases on the next start |
 | F15 | disk full during settle | paid admission pauses; readiness false; not charged |
-| F16 | restore an older database copy while the fake processor and vendor hold newer events | paid recovery mode; missing payment and refund applied once; vendor usage without an attempt becomes an item; paid traffic stays paused until the report is clean |
-| F17 | kill after the refund outbox commit, and again after the processor call, before its result | one refund at the processor; ledger matches |
+| F16 | restore an older database copy while the rail fakes and the vendor hold newer events | paid recovery mode; missing payment and refund applied once; vendor usage without an attempt becomes an item; paid traffic stays paused until the report is clean |
+| F17 | kill after the refund outbox commit, and again after the rail call, before its result, on each rail | one refund on the rail; ledger matches |
 | F18 | 50 nodes reconnect at once after a restart | registrations spread by jitter and the limit; no node is quarantined for it; no request is admitted to `node_only` before warm-up ends |
 | F19 | 500 clients retry at once with `Retry-After` ignored | 429 and 503 with `Retry-After`; no hold leaks; memory stays within its limit |
 | F20 | vendor returns 429 five times | breaker opens; vendor offers are not eligible; one probe after 30 s |
+| F21 | USDC deposit seen, then a reorg before finality removes it | no credit before finality; `Reversed` before credit has no effect; credit after finality is exactly once |
+| F22 | USDC underpayment, overpayment, wrong token contract, wrong chain | nothing credited automatically; reconciliation item; customer sees the order as `needs_review` |
+| F23 | dispute on a card payment whose credit is already spent | disputed amount held; account in a recorded negative position; its paid admission stops; other accounts unchanged |
 
 ## 8. Failure handling and recovery
 
@@ -521,7 +592,7 @@ Every component follows these rules. Together they make each component crash-saf
 3. **No external call inside a transaction.** An external effect starts from a committed row.
 4. **A worker keeps its position in SQLite.** After a restart, it continues from the last committed row.
 5. **Every queue, buffer, retry and wait has a limit.** A limit that is reached gives a defined error, never an unbounded wait.
-6. **Every input is untrusted until it is validated.** This includes client requests, node frames, vendor responses, processor events and rows read back from a restored database.
+6. **Every input is untrusted until it is validated.** This includes client requests, node frames, vendor responses, payment rail events and rows read back from a restored database.
 
 ### 8.2 Transactions and ownership
 
@@ -543,7 +614,7 @@ with self.db.unit_of_work() as tx:        # BEGIN IMMEDIATE ... COMMIT, or ROLLB
 | Fail / release | `RequestService.on_event(Failed)`, deadline, disconnect | request → released, hold rows deleted, `reconciliation_items` row if the attempt is hosted and possibly sent, journal | phase ∈ live phases |
 | Hold refund | `PaymentService.request_refund` | `refunds` (pending), `outbox` row, journal | refundable ≥ amount |
 | Finish refund | `PaymentService.handle_event` | `refunds` final, `ledger_entries` refund, `outbox` done, journal | refund pending; event ID new |
-| Credit payment | `PaymentService.handle_event` | `processor_events`, `funding_lots`, journal | event ID new; payment ID new |
+| Credit payment | `PaymentService.handle_event` | `rail_events`, `funding_lots`, `funding_orders` status, journal | `(rail_id, rail_event_id)` new; `(rail_id, rail_ref)` new; amount matches the order |
 | Recover | `RequestService.recover` | per request: release as in Fail; journal | phase ∈ live phases |
 
 Each write uses `BEGIN IMMEDIATE`, so the guard and the write see the same state. A compare-and-set that changes zero rows is the normal result for a stale, duplicate or late event. It is not an error.
@@ -556,15 +627,15 @@ flowchart LR
     Cmd -->|"same transaction"| P[("projections: lots, holds, requests, attempts")]
     Cmd -->|"same transaction"| O[("outbox")]
     O --> W["OutboxWorker"]
-    W -->|"idempotency key"| Ext["Stripe"]
-    Ext -->|"signed event or poll"| In["inbox: processor_events"]
+    W -->|"idempotency key"| Ext["Payment rail (Stripe, USDC, ...)"]
+    Ext -->|"signed event, chain event or poll"| In["inbox: rail_events"]
     In --> Cmd
 ```
 
 - **Journal.** Each command appends one row to `journal(seq, at, command, key, payload)` in the same transaction as its effect. The payload holds IDs, amounts, usage and the quote. It never holds prompts or completions. The journal is append-only. A correction is a new entry.
 - **Projections.** `funding_lots`, `hold_allocations`, `paid_requests`, `attempts`, `ledger_entries` and `refunds` are projections of the journal. `journal.rebuild()` applies every entry in order to an empty database. A CI test and the startup check (8.7) compare the rebuild with the live tables. This is the replay property.
 - **Outbox.** A command that needs an idempotent external effect writes an `outbox(id, kind, key, payload, status, attempts, next_at)` row in the same transaction. `OutboxWorker` sends queued rows with `key` as the idempotency key and records the result. After a crash it sends again, and the processor returns the first result. The model checks this (`RefundExactlyOnce`, `ProcessorEffectHasIntent`).
-- **Inbox.** `processor_events` deduplicates signed events by event ID. The webhook route returns 2xx after the durable insert and processes the event from the inbox, so a slow step does not cause a redelivery storm.
+- **Inbox.** `rail_events` deduplicates events by `(rail_id, rail_event_id)`, whether they come from a webhook, a chain watcher or a poll. The webhook route returns 2xx after the durable insert and processes the event from the inbox, so a slow step does not cause a redelivery storm.
 
 Inference calls do not go through the outbox, because no inference upstream accepts an idempotency key (8.4).
 
@@ -578,9 +649,9 @@ An attempt is **possibly sent** from the moment its dispatch transaction commits
 |---|---|---|---|
 | Node inference (OCIP) | No | No | Release the hold. On resync, cancel the attempt on the node (8.10). No reconciliation item: a node is paid only through a charge. |
 | Hosted inference | No (vendor chat APIs take no idempotency key) | No | Release the hold. Add a reconciliation item for possible vendor cost. Never send again. The Reconciler matches the item to the vendor usage report by time window, model and token counts, or marks it "no cost found" after the report window closes. |
-| Stripe refund | Yes (idempotency key = `refund_id`) | Yes | `OutboxWorker` sends again. |
-| Stripe Checkout session | Yes (idempotency key = order ID) | Yes | Create again with the same key. |
-| Processor webhook (inbound) | Yes (event ID) | Yes | Stripe redelivers; the inbox ignores duplicates. |
+| Rail refund | Yes: Stripe idempotency key = `refund_id`; USDC transfer signed once and recorded by hash before broadcast | Yes | `OutboxWorker` sends again; a USDC worker rebroadcasts the same signed transaction, never a new one |
+| Rail funding order | Yes (key = order ID) | Yes | Create again with the same key. |
+| Rail event (inbound) | Yes (`rail_event_id`) | Yes | The rail redelivers or the poll finds it again; the inbox ignores duplicates. |
 | Telemetry, traces, events | n/a | Yes, or drop | Best effort; never affects money. |
 
 A fallback after a definite rejection is a new attempt with a new attempt number. It is never a replay of the old one. The model checks that every vendor call follows a committed attempt row (`CalledWasRecorded`) and that every vendor call without a confirmed charge or a definite rejection reaches reconciliation, also after a restart (`CalledCostTracked`).
@@ -649,7 +720,7 @@ The client sees error code `upstream_usage_invalid`. If output has started, it i
 
 **Vendor responses.** A response with an unexpected status, an invalid SSE line, or a body above the limit is a `Failed` event. It is never parsed into usage.
 
-**Processor events.** An event is accepted only after its signature check, account ownership check and amount and currency check against the local order. A failed check is stored as rejected, with no wallet change, and raises an alert.
+**Rail events.** An event is accepted only after the rail's own check (webhook signature for Stripe; confirmations, token contract, chain ID and recipient address for USDC), the order and account ownership check, and the amount and currency or asset check against the local order. A failed check is stored as rejected, with no wallet change, and raises an alert.
 
 **Stored data.** Money columns have `CHECK` constraints (integer, ≥ 0, phase in its set, charge ≤ hold). At startup, IE runs `PRAGMA quick_check` and the journal rebuild comparison. If either fails, IE starts with paid traffic paused (8.7).
 
@@ -670,10 +741,10 @@ A settle that cannot commit is never retried after the request deadline. The cus
 
 **Restore point.** Litestream replicates the WAL to object storage. With its default sync interval of 1 second, a restore can lose up to about 1 second of committed writes, plus any replication lag at the time of failure. The current `deploy/litestream.yml` keeps 168 hours of history with a 24-hour snapshot interval. OPS records that no restore test exists yet. Slice 7 adds one.
 
-**Restore gap.** A restored database can predate external effects: a Stripe payment or refund, a hosted vendor charge, or a node job. When the `restore` service restores a database, it writes a restore marker. A coordinator that finds the marker, or that finds a journal whose last entry is older than the last-seen watermark in object storage, starts in **paid recovery mode**:
+**Restore gap.** A restored database can predate external effects: a payment or refund on any rail, a hosted vendor charge, or a node job. When the `restore` service restores a database, it writes a restore marker. A coordinator that finds the marker, or that finds a journal whose last entry is older than the last-seen watermark in object storage, starts in **paid recovery mode**:
 
 1. Paid admission is paused. Simulated-credit traffic can continue.
-2. The Reconciler fetches Stripe events from the journal's last entry time minus a margin, and passes them through the inbox. A payment or refund that is missing locally is applied once, by its event ID.
+2. The Reconciler polls each rail from its cursor minus a margin (a chain rail from a block height), and passes the events through the inbox. A payment or refund that is missing locally is applied once, by its rail event ID.
 3. The Reconciler fetches the hosted vendors' usage for the same window. Usage without a local attempt becomes a reconciliation item. The customer charge for it is lost and is written off as IE cost (D16).
 4. Node earnings in the gap are lost from the ledger. The node owner's dashboard shows the gap. Credits are restored only from evidence that IE trusts (D16).
 5. The operator resumes paid traffic after the reconciliation report shows zero unexplained differences.
@@ -693,7 +764,7 @@ A settle that cannot commit is never retried after the request deadline. The cus
 | Hosted calls in flight | per vendor and pilot budget | that vendor counts as busy; routing uses other offers or returns 503 |
 | Outbox retries | exponential backoff with jitter, at most 10 attempts | row becomes `stuck`; alert |
 | Node registration | per credential and global rate (PROV-015) | close with a retry-after hint |
-| Webhook intake | durable insert, then 2xx | processing runs from the inbox at its own rate |
+| Rail event intake | durable insert, then 2xx; chain watcher in batches | processing runs from the inbox at its own rate |
 
 **Load shedding.** Under overload, IE rejects new paid admissions first. Running streams continue to their deadline. A rejection happens before reserve, so it creates no hold.
 
@@ -718,7 +789,7 @@ A settle that cannot commit is never retried after the request deadline. The cus
 | `RequestService` | coordinator | `paid_requests`, `attempts` | `recover()`: live requests released; possibly-sent hosted attempts become reconciliation items |
 | `Wallet` | coordinator | journal + projections | nothing to do; every command was atomic |
 | `OutboxWorker` | coordinator task (can be its own process) | `outbox` | sends `queued` rows again with the same key |
-| `PaymentService` intake | coordinator route | `processor_events` | Stripe redelivers; duplicates are no-ops |
+| `PaymentService` intake | coordinator route and rail watchers | `rail_events`, `rail_cursors` | each rail redelivers or is polled from its cursor; duplicates are no-ops |
 | `Reconciler` | coordinator task (can be its own process) | `reconciliation_items`, its cursor | continues from its cursor |
 | `ProviderHub` | coordinator | sockets only | nodes reconnect with jitter and resync (8.10) |
 | Node agent | provider machine | credential only | reconnects with backoff and resyncs |
@@ -782,7 +853,7 @@ Each slice is one pull request with its requirement changes and tests. A slice d
 ```mermaid
 flowchart LR
     S0["0 design + model"] --> S1["1 composition root"] --> S2["2 hub correctness"] --> S3["3 policy + pricing"] --> S4["4 wallet"] --> S5["5 RequestService"]
-    S5 --> H6["6 hosted: DeepInfra"] --> H7["7 Stripe + reconcile"] --> H8["8 Novita + fallback"]
+    S5 --> H6["6 hosted: DeepInfra"] --> H7["7 payment rails + reconcile"] --> H8["8 Novita + fallback"]
     S2 --> N1["N1 runtime seam + cancel"]
     N1 --> N2["N2 platform profiles + allowlist"]
     S5 --> N3["N3 first nodes on paid path"]
@@ -800,7 +871,8 @@ flowchart LR
 | 4 | `Wallet`, journal, outbox and `paid/schema.py` on SQLite. No route uses it yet. | MUSE-001, 002, 008/009 for the new path | Rows of the refinement table for wallet and outbox steps. Rebuild-from-journal test. |
 | 5 | `RequestService`, unit of work, `OcipAdapter`, request lookup route, idempotency keys, usage validation, limits and fault hooks. The chat route moves to it. The legacy billing callback is deleted. | MUSE-026/062, 033/063, 054/061 | JSON and SSE through the mock provider: one charge, usage parity, telemetry failure does not change the result. Failure cases F1, F4 to F15, F18, F19 in 7.3. |
 | 6 | `HostedHttpAdapter` for one DeepInfra route, behind explicit hosted opt-in. | #292 first route | One real JSON and one real SSE call with capped spend; vendor report matches attempts. F2, F3, F20 in 7.3. |
-| 7 | `PaymentService`, `StripeAdapter`, `Reconciler`, operator pause for paid work. | #297 fund, refund, reconcile | Stripe test mode: pay → infer → partial refund → reconcile, zero differences. F16, F17 in 7.3. A Litestream restore test. |
+| 7 | `PaymentService`, `RailAdapter` protocol, `StripeRail`, `Reconciler`, operator pause for paid work. | #297 fund, refund, reconcile | Stripe test mode: pay → infer → partial refund → reconcile, zero differences. The rail contract test passes for `StripeRail` and a fake second rail. F16, F17 in 7.3. A Litestream restore test. |
+| 7b | `UsdcRail` (#44) on one listed chain, testnet first. | #44 | Fund → infer → refund on testnet. Rail contract test. F21, F22 in 7.3. |
 | 8 | Second vendor (Novita) and same-checkpoint fallback. | ROUTE-008 | Forced definite rejection: one charge at the serving route's rate. |
 | N1 | `ocip_agent` `Runtime` protocol; `openai_compatible` and `managed_llama`; heartbeat `state`; coordinator sends cancel; `resync` on reconnect. | Agent tied to a llama.cpp child process | One runtime contract test (usage, cancel, error, finish reason) passes against the mock, `llama-server` and a stub OpenAI server. |
 | N2 | Profile table in registration and enrollment; GGUF and MLX identity probes; allowlist; explicit free mode. | PROV-014/018 hard-code one Apple GGUF profile | Registration tests: each admitted profile accepts its allowlisted packs at L0; other profiles, packs and higher claims are rejected. |
@@ -817,7 +889,7 @@ The model and the tests depend on these decisions. The model checks both values 
 |---|---|---|
 | D1 | Charge for an interrupted stream | Pilot: release the hold, IE absorbs vendor cost. Later: bill measured delivered output (BILL-007) only with verified usage. |
 | D2 | Order of credit use | Sponsored credit first, then paid lots oldest first. |
-| D3 | Refund rounding | Round the refund down to whole cents. Keep the sub-cent remainder as credit and disclose it. |
+| D3 | Refund rounding | Round the refund down to the rail's minor unit (cents for Stripe; USDC needs no rounding). Keep any remainder as credit and disclose it. |
 | D4 | Hosted consent and trust | Hosted routes are external and unattested (P3). They need per-request opt-in (ROUTE-009). They never satisfy a trust minimum above `open` unless a requirement defines hosted evidence. |
 | D5 | Requirement ID conflict | `BILL-013` on main is price precision. The archive's settlement idempotency rule needs a new ID. The archive's binary64 evaluator is not imported. |
 | D6 | Usage above the hold | Charge at most the hold. Record the excess for reconciliation. |
@@ -830,10 +902,12 @@ The model and the tests depend on these decisions. The model checks both values 
 | D13 | Architecture stage | Keep the modular monolith (decision 0004). Write a new decision record before any split, and only after a signal in section 8.11 is measured. |
 | D14 | Retry semantics | A retry with the same idempotency key returns the first outcome and receipt, never the completion (section 8.5). Keys expire 24 hours after the request ends. |
 | D15 | Invalid upstream usage | Not charged; hold released; reconciliation item; reputation fault for a node (section 8.6). |
-| D16 | Restore gap | A restore starts paid recovery mode. Missing processor events are applied by event ID. Hosted cost and node earnings that have no local record are written off as IE cost unless trusted evidence exists. Paid traffic resumes only after a clean report (section 8.7). |
+| D16 | Restore gap | A restore starts paid recovery mode. Missing rail events are applied by rail event ID. Hosted cost and node earnings that have no local record are written off as IE cost unless trusted evidence exists. Paid traffic resumes only after a clean report (section 8.7). |
+| D18 | USDC credit rate | Credit 1 USDC as 1 USD. Accept only native USDC on chains that the owner lists, after a stated number of confirmations. |
+| D19 | Cross-rail and mismatch rules | Refund only to the rail that funded the lot. Hold an underpayment or overpayment for review. A dispute or reversal on spent credit puts the account in a recorded negative position and stops its paid admission. |
 | D17 | Durability target | `synchronous = FULL` on the paid connection. Recovery point about 1 second (Litestream default sync interval) plus replication lag. A restore test runs before real money. |
 
-Proposed new requirements (IDs to be allocated by the owner): one charge per request ID; holds before dispatch; charge within authorization; frame ownership; one usage object for receipt and API; refunds only from paid unheld credit; webhook credit once; restart recovery; reconciliation of every sent hosted attempt; telemetry cannot change a charge; explicit location policy; pause and drain are not faults; coordinator sends cancel; admission profile table; runtime must report usage for the paid path; append-only journal with a rebuild check; outbox for every idempotent external effect; possibly-sent attempts before any inference send; node resync; request lookup by ID; idempotency key rules; upstream usage validation; bounded queues, retries and waits; circuit breakers; paid recovery mode after a restore; startup readiness order.
+Proposed new requirements (IDs to be allocated by the owner): one charge per request ID; holds before dispatch; charge within authorization; frame ownership; one usage object for receipt and API; refunds only from paid unheld credit; a payment credits once on every rail; rail contract for new payment rails; restart recovery; reconciliation of every sent hosted attempt; telemetry cannot change a charge; explicit location policy; pause and drain are not faults; coordinator sends cancel; admission profile table; runtime must report usage for the paid path; append-only journal with a rebuild check; outbox for every idempotent external effect; possibly-sent attempts before any inference send; node resync; request lookup by ID; idempotency key rules; upstream usage validation; bounded queues, retries and waits; circuit breakers; paid recovery mode after a restore; startup readiness order.
 
 ## 11. Findings on current main
 
