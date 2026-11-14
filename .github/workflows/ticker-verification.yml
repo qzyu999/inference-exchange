@@ -21,6 +21,8 @@ jobs:
       - name: Check snapshot state machine
         working-directory: formal/ticker
         run: java -cp /tmp/tla2tools.jar tlc2.TLC -workers 2 Snapshot.tla
+      - name: Check paid path model and negative controls
+        run: python3 formal/paid/check.py /tmp/tla2tools.jar
   browser:
     # Playwright 1.51 supports Ubuntu 24.04, but not the newer latest runner.
     runs-on: ubuntu-24.04
