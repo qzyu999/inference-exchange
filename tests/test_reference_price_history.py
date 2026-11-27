@@ -58,7 +58,6 @@ def test_history_routes_return_choices_for_mixed_legacy_keys(tmp_path, monkeypat
     import json
     from fastapi.testclient import TestClient
     from inference_exchange.coordinator.main import create_app
-    from inference_exchange.coordinator import dependencies
     from inference_exchange.coordinator.ticker_catalog import SnapshotCache
     now = time.time()
     store = Store(tmp_path / "routes.db")
@@ -70,7 +69,7 @@ def test_history_routes_return_choices_for_mixed_legacy_keys(tmp_path, monkeypat
                         "source_ids": [{"source": "openrouter", "model_id": model}]} for model in IDS]}
     cache.install(json.dumps(data).encode(), None, now=now)
     client.app.state.ticker_cache = cache
-    monkeypatch.setattr(dependencies, "_store", store)
+    monkeypatch.setattr(client.app.state.services, "store", store)
     response = client.get("/v1/exchange/reference-prices/history?family_key=qwen-7b-instruct")
     assert response.status_code == 409
     assert response.json()["detail"]["choices"] == [{"model": model} for model in IDS]

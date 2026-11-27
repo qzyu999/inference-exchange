@@ -15,7 +15,6 @@ def make_client(tmp_path, monkeypatch):
         monkeypatch.setenv("IE_ENV", env)
         monkeypatch.setenv("IE_ADMIN_EMAILS", admin_emails)
         monkeypatch.setenv("IE_JWT_SECRET", "test-secret")
-        dependencies._request_traces.clear()
         return TestClient(create_app())
     return _make
 
@@ -99,15 +98,15 @@ class TestProviderTokens:
 class TestTraceAndEventPrivacy:
     def test_traces_scoped_to_caller(self, make_client):
         c = make_client()
-        dependencies._add_trace({"request_id": "aaaa", "status": "matched"}, "user-a")
-        dependencies._add_trace({"request_id": "bbbb", "status": "matched"}, "user-b")
+        c.app.state.services.traces.add({"request_id": "aaaa", "status": "matched"}, "user-a")
+        c.app.state.services.traces.add({"request_id": "bbbb", "status": "matched"}, "user-b")
         signup(c, "x@example.com")  # now users exist, so dev admin bypass is off
         traces = c.get("/v1/exchange/traces").json()["traces"]
         assert traces == []
 
     def test_trace_owner_field_not_exposed(self, make_client):
         c = make_client(admin_emails="boss@example.com")
-        dependencies._add_trace({"request_id": "aaaa"}, "user-a")
+        c.app.state.services.traces.add({"request_id": "aaaa"}, "user-a")
         signup(c, "boss@example.com")
         traces = c.get("/v1/exchange/traces").json()["traces"]
         assert traces and all(dependencies.TRACE_OWNER_KEY not in t for t in traces)

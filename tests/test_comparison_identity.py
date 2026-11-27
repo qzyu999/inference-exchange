@@ -157,11 +157,10 @@ def test_market_and_reference_routes_never_merge_parser_collisions(tmp_path, mon
     from types import SimpleNamespace as S
     from fastapi.testclient import TestClient
     from inference_exchange.coordinator.main import create_app
-    from inference_exchange.coordinator import dependencies
     p1 = make_provider("p1", ["Qwen2.5 7B Instruct"])
     p2 = make_provider("p2", ["Qwen3 7B Instruct"])
     client = TestClient(create_app())
-    monkeypatch.setattr(dependencies, "_hub", S(_providers={"p1": p1, "p2": p2}))
+    monkeypatch.setattr(client.app.state.services, "hub", S(_providers={"p1": p1, "p2": p2}))
     response = client.get("/v1/exchange/market")
     assert response.status_code == 200
     models = response.json()["models"]

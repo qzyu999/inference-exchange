@@ -1,4 +1,4 @@
-from inference_exchange.coordinator import dependencies
+from inference_exchange.coordinator import context
 from inference_exchange.coordinator.comparison_identity import ExactCatalog
 from inference_exchange.coordinator.price_collector import PriceEntry
 from inference_exchange.coordinator.reference_pricing import get_reference_prices, compute_savings
@@ -10,12 +10,13 @@ def test_same_family_and_old_key_never_join_reference_prices(monkeypatch):
     entries = [PriceEntry(source="openrouter", model_id=model, display_name=model,
                          family="qwen", family_key="qwen-7b-instruct",
                          input_per_mtok=0.1, output_per_mtok=0.2) for model in ids]
-    monkeypatch.setattr(dependencies, "_price_collector", SimpleNamespace(get_all_current=lambda: entries))
+    token = context.bind(SimpleNamespace(price_collector=SimpleNamespace(get_all_current=lambda: entries)))
     resolver = ExactCatalog([{"id": model, "name": model,
                              "source_ids": [{"source": "openrouter", "model_id": model}]} for model in ids])
     assert [q["model"] for q in get_reference_prices(ids[0], resolver=resolver)] == [ids[0]]
     assert get_reference_prices("ie/p/Local", resolver=resolver) == []
     assert get_reference_prices("Qwen 7B Instruct", resolver=resolver) == []
+    context.unbind(token)
 
 
 def test_headline_requires_fresh_matching_quantization_and_context(monkeypatch):

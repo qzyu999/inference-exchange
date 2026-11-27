@@ -86,7 +86,7 @@ def test_sdk_http_path_reads_country_and_resets_context(configured, monkeypatch)
     assert geo.consumer_country.get() is None
 
 
-def test_completion_captures_provider_and_caller_before_context_reset(configured, monkeypatch):
+def test_completion_captures_provider_and_caller_before_context_reset(configured, monkeypatch, bound_services):
     from inference_exchange.coordinator.provider_hub import ConnectedProvider
     from inference_exchange.shared.protocol import ProviderCapabilities, TrustLevel, InferenceDone
     from inference_exchange.coordinator import routes_inference as ri
@@ -96,7 +96,7 @@ def test_completion_captures_provider_and_caller_before_context_reset(configured
     monkeypatch.setattr(ri, 'get_event_bus', lambda: None)
     monkeypatch.setattr(ri, '_complete_trace', Mock())
     record = Mock()
-    monkeypatch.setattr(ri.country_activity, 'record', record)
+    monkeypatch.setattr(bound_services().country_activity, 'record', record)
     token = geo.consumer_country.set('GH')
     callback = ri._make_billing_callback('real-completion', 'Example', provider, 'account', 1, time.time())
     geo.consumer_country.reset(token)
@@ -114,9 +114,10 @@ def test_public_endpoint_exposes_only_release_schema(configured, monkeypatch):
     from inference_exchange.coordinator.main import create_app
     activity = geo.CountryActivity()
     seed(activity)
-    monkeypatch.setattr(geo, 'activity', activity)
     monkeypatch.setattr(geo.time, 'time', lambda: 101 * geo.DAY)
-    response = TestClient(create_app()).get('/v1/exchange/country-activity')
+    client = TestClient(create_app())
+    client.app.state.services.country_activity = activity
+    response = client.get('/v1/exchange/country-activity')
     assert response.status_code == 200
     assert set(response.json()) == {'enabled', 'period', 'routes'}
     assert response.json()['routes'][0] == {'provider_country': 'US', 'caller_country': 'GH', 'count_band': '5–9'}

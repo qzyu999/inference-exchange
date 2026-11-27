@@ -35,7 +35,7 @@ from inference_exchange.shared.protocol import (
 
 from .dependencies import (
     _add_trace,
-    _rate_limiter,
+    get_rate_limiter,
     get_billing,
     get_event_bus,
     get_hub,
@@ -88,7 +88,7 @@ async def confidential_infer(request: ConfidentialInferenceRequest, raw_request:
         return sign_in_required_response()
 
     # Rate limit
-    if not _rate_limiter.allow(consumer_id):
+    if not get_rate_limiter().allow(consumer_id):
         raise RateLimitExceeded()
 
     from .operator_controls import run_guarded

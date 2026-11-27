@@ -2,7 +2,7 @@
 
 These protect a small provider pool from overload. They are not daily quotas.
 
-Start-up values come from the environment. Admins can change them at runtime via
+Start-up values come from the environment when the app is built. Admins can change them at runtime via
 /v1/admin/controls; runtime changes are not persisted and reset on restart.
 
   IE_INFERENCE_PAUSED=1            reject new inference requests (503 inference_paused)
@@ -71,21 +71,10 @@ class OperatorControls:
         return self.snapshot()
 
 
-_controls: OperatorControls | None = None
-
-
 def get_controls() -> OperatorControls:
-    global _controls
-    if _controls is None:
-        _controls = OperatorControls()
-    return _controls
-
-
-def reset_controls() -> OperatorControls:
-    """Re-read the environment. Called once per app start."""
-    global _controls
-    _controls = OperatorControls()
-    return _controls
+    """The controls of the app that serves the current request."""
+    from .context import current
+    return current().controls
 
 
 async def run_guarded(account_id: str, handler):

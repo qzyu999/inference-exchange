@@ -18,7 +18,6 @@ from .store import DEFAULT_CONSUMER_ID
 router = APIRouter()
 
 # Rate limiter for auth endpoints (prevent brute-force)
-_auth_attempts: dict[str, list[float]] = {}
 _AUTH_RATE_LIMIT = 10  # max attempts per window
 _AUTH_RATE_WINDOW = 300  # 5 minute window
 
@@ -26,14 +25,15 @@ _AUTH_RATE_WINDOW = 300  # 5 minute window
 def _check_auth_rate(ip: str) -> bool:
     """Return True if request is allowed, False if rate-limited."""
     import time
+
+    from .context import current
     now = time.time()
-    attempts = _auth_attempts.get(ip, [])
-    # Remove old attempts
-    attempts = [t for t in attempts if now - t < _AUTH_RATE_WINDOW]
+    by_ip = current().auth_attempts  # one limiter per app
+    attempts = [t for t in by_ip.get(ip, []) if now - t < _AUTH_RATE_WINDOW]
     if len(attempts) >= _AUTH_RATE_LIMIT:
         return False
     attempts.append(now)
-    _auth_attempts[ip] = attempts
+    by_ip[ip] = attempts
     return True
 
 # JWT secret: use env var if set, otherwise generate (and warn)

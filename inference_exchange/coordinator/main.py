@@ -24,11 +24,9 @@ from inference_exchange.shared.protocol import (
 )
 
 from .country_activity import cleanup_loop as country_cleanup_loop, trusted_country
-from .dependencies import set_auth, set_billing, set_event_bus, set_hub, set_reputation, set_store, set_tps_tracker, set_audit_log, set_price_collector
-from .audit_log import AuditLog
-from .operator_controls import reset_controls
+from . import composition
+from .composition import ServicesMiddleware
 from .capability_resolver import ModelCapabilityCache
-from .price_collector import PriceCollector
 from .metrics import metrics_middleware
 from .metrics import router as metrics_router
 from .oauth_github import router as github_router
@@ -39,16 +37,14 @@ from .routes_exchange import router as exchange_router
 from .routes_handshake import router as handshake_router
 from .routes_inference import router as inference_router
 from .routes_provider import router as provider_owner_router
-from .event_bus import EventBus, public_event
+from .event_bus import public_event
 from .model_registry import ModelRegistry
 from .provider_hub import ProviderHub
 from .provider_registration import (
     MAX_WS_FRAME_BYTES, REGISTER_TIMEOUT_SECONDS, RegistrationGuard,
     RegistrationRejected, parse_provider_registration,
 )
-from .reputation import ReputationTracker
 from .store import Store
-from .tps_tracker import TPSTracker
 
 STATIC_DIR = Path(__file__).parent / "static"
 
@@ -216,33 +212,12 @@ def create_app() -> FastAPI:
     if is_production() and not os.environ.get("IE_JWT_SECRET"):
         raise RuntimeError("IE_JWT_SECRET must be set when IE_ENV=prod (sessions would not survive restarts)")
 
-    # SQLite-backed store (persists across restarts)
-    store = Store()
-    hub = ProviderHub()
-    auth = StoreAuthAdapter(store)
-    billing = StoreBillingAdapter(store)
-    tps_tracker = TPSTracker()
-    reputation = ReputationTracker()
+    # One composition root per app: no route reads a module global (paid-path §3.3).
+    services = composition.build_services()
+    store, hub, auth, billing = services.store, services.hub, services.auth, services.billing
+    event_bus, audit_log, price_collector = services.event_bus, services.audit_log, services.price_collector
     model_registry = ModelRegistry()
-    event_bus = EventBus()
     capability_cache = ModelCapabilityCache()
-
-    set_hub(hub)
-    set_billing(billing)
-    set_auth(auth)
-    set_tps_tracker(tps_tracker)
-    set_reputation(reputation)
-    set_event_bus(event_bus)
-    set_store(store)
-
-    audit_log = AuditLog()
-    set_audit_log(audit_log)
-
-    # Operator controls read IE_INFERENCE_PAUSED / IE_SIGNUP_DISABLED / IE_MAX_CONCURRENT_PER_ACCOUNT
-    reset_controls()
-
-    price_collector = PriceCollector(store=store)
-    set_price_collector(price_collector)
 
     from .ticker_catalog import SnapshotCache
     from pathlib import Path
@@ -369,6 +344,9 @@ def create_app() -> FastAPI:
         )
 
     app.middleware("http")(metrics_middleware)
+    # Added last, so it is outermost and binds this app's services for every scope.
+    app.add_middleware(ServicesMiddleware, services=services)
+    app.state.services = services
     app.state.ticker_cache = ticker_cache
     app.include_router(metrics_router)
 
