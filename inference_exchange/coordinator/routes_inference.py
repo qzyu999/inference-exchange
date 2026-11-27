@@ -29,11 +29,11 @@ from inference_exchange.shared.protocol import (
     InferenceResponseChunk,
 )
 
-from .country_activity import activity as country_activity, consumer_country, trusted_country
+from .country_activity import consumer_country, current_activity, trusted_country
 from .dependencies import (
     _add_trace,
     _complete_trace,
-    _rate_limiter,
+    get_rate_limiter,
     get_billing,
     get_event_bus,
     get_hub,
@@ -189,7 +189,7 @@ def _make_billing_callback(
 
         # Country aggregation must never affect settlement or request delivery.
         try:
-            country_activity.record(provider_country, caller_country, consumer_id, request_id)
+            current_activity().record(provider_country, caller_country, consumer_id, request_id)
         except Exception:
             logger.warning("Country activity skipped")
         try:
@@ -273,7 +273,7 @@ async def chat_completions(request: ChatCompletionRequest, raw_request: Request)
         raise InferencePaused()
 
     # Rate limit check
-    if not _rate_limiter.allow(consumer_id):
+    if not get_rate_limiter().allow(consumer_id):
         raise RateLimitExceeded()
 
     country_token = consumer_country.set(trusted_country(raw_request.headers))

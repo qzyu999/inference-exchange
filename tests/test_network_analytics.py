@@ -122,14 +122,14 @@ def test_private_endpoints_and_admin_scope(monkeypatch, tmp_path):
     assert len(client.get('/v1/exchange/activity/recent').json()['requests']) == 2
 
 
-def test_callback_persists_captured_geography_only_after_settlement(tmp_path, monkeypatch):
+def test_callback_persists_captured_geography_only_after_settlement(tmp_path, monkeypatch, bound_services):
     from unittest.mock import AsyncMock
     from inference_exchange.coordinator.provider_hub import ConnectedProvider
     from inference_exchange.shared.protocol import ProviderCapabilities, TrustLevel, InferenceDone
     from inference_exchange.coordinator import routes_inference as ri
     from inference_exchange.coordinator.country_activity import consumer_country
     store = Store(tmp_path / 'db')
-    monkeypatch.setattr(deps, '_store', store)
+    bound_services(store)
     monkeypatch.setattr(ri, 'get_billing', lambda: store)
     monkeypatch.setattr(ri, 'get_event_bus', lambda: None)
     provider = ConnectedProvider(provider_id='actual-provider', name='Example', ws=AsyncMock(),

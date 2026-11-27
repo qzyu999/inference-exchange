@@ -101,10 +101,13 @@ class CountryActivity:
         return {'enabled': True, 'period': period, 'routes': released}
 
 
-activity = CountryActivity()
+def current_activity() -> CountryActivity:
+    from .context import current
+    return current().country_activity
 
 
 async def cleanup_loop():
+    activity = current_activity()  # bound once: the task outlives no app
     while True:
         await asyncio.sleep(60)
         activity.expire()

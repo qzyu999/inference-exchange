@@ -12,20 +12,13 @@
 from .dependencies import (  # noqa: F401
     MAX_TRACES,
     _add_trace,
-    _rate_limiter,
-    _request_traces,
+    get_rate_limiter,
     get_auth,
     get_billing,
     get_event_bus,
     get_hub,
     get_reputation_tracker,
     get_tps_tracker,
-    set_auth,
-    set_billing,
-    set_event_bus,
-    set_hub,
-    set_reputation,
-    set_tps_tracker,
 )
 from .routes_inference import (  # noqa: F401
     ChatCompletionRequest,

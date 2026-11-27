@@ -135,7 +135,8 @@ class TestConcurrencyLimit:
         assert r.status_code == 503
         assert get_controls().active_for(info["user_id"]) == 0
 
-    def test_slot_released_after_stream(self):
+    def test_slot_released_after_stream(self, bound_services):
+        bound_services()
         controls = get_controls()
         controls.max_concurrent_per_account = 1
 
@@ -153,7 +154,8 @@ class TestConcurrencyLimit:
 
         asyncio.run(scenario())
 
-    def test_slot_released_on_plain_response_and_error(self):
+    def test_slot_released_on_plain_response_and_error(self, bound_services):
+        bound_services()
         controls = get_controls()
         controls.max_concurrent_per_account = 1
 
@@ -172,7 +174,8 @@ class TestConcurrencyLimit:
 
         asyncio.run(scenario())
 
-    def test_run_guarded_rejects_when_paused_or_full(self):
+    def test_run_guarded_rejects_when_paused_or_full(self, bound_services):
+        bound_services()
         controls = get_controls()
         controls.max_concurrent_per_account = 1
 

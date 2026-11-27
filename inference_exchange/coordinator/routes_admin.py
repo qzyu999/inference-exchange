@@ -12,7 +12,6 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from .dependencies import (
-    _request_traces,
     get_auth,
     get_billing,
     get_hub,

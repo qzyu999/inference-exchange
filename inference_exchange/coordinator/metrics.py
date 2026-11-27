@@ -18,9 +18,18 @@ router = APIRouter()
 
 LATENCY_BUCKETS = (0.01, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60)
 
-_requests: dict[tuple[str, str, str], int] = defaultdict(int)
-_latency_counts: dict[tuple[str, str], list[int]] = {}
-_latency_sum: dict[tuple[str, str], float] = defaultdict(float)
+class Metrics:
+    """HTTP request counters for one app."""
+
+    def __init__(self):
+        self.requests: dict[tuple[str, str, str], int] = defaultdict(int)
+        self.latency_counts: dict[tuple[str, str], list[int]] = {}
+        self.latency_sum: dict[tuple[str, str], float] = defaultdict(float)
+
+
+def _metrics() -> Metrics:
+    from .context import current
+    return current().metrics
 
 
 def _route_label(request: Request) -> str:
@@ -29,15 +38,16 @@ def _route_label(request: Request) -> str:
 
 
 def observe(request: Request, status: int, seconds: float) -> None:
+    m = _metrics()
     route = _route_label(request)
-    _requests[(request.method, route, str(status))] += 1
+    m.requests[(request.method, route, str(status))] += 1
     key = (request.method, route)
-    counts = _latency_counts.setdefault(key, [0] * (len(LATENCY_BUCKETS) + 1))
+    counts = m.latency_counts.setdefault(key, [0] * (len(LATENCY_BUCKETS) + 1))
     for i, upper in enumerate(LATENCY_BUCKETS):
         if seconds <= upper:
             counts[i] += 1
     counts[-1] += 1
-    _latency_sum[key] += seconds
+    m.latency_sum[key] += seconds
 
 
 async def metrics_middleware(request: Request, call_next):
@@ -54,6 +64,7 @@ async def metrics_middleware(request: Request, call_next):
 
 def _render() -> str:
     hub = get_hub()
+    m = _metrics()
     summary = get_store().billing_summary()
     lines = [
         "# TYPE ie_providers_connected gauge",
@@ -68,15 +79,15 @@ def _render() -> str:
         f"ie_billed_volume_usd_total {summary.get('total_volume_usd', 0)}",
         "# TYPE ie_http_requests_total counter",
     ]
-    for (method, route, status), n in sorted(_requests.items()):
+    for (method, route, status), n in sorted(m.requests.items()):
         lines.append(f'ie_http_requests_total{{method="{method}",route="{route}",status="{status}"}} {n}')
     lines.append("# TYPE ie_http_request_duration_seconds histogram")
-    for (method, route), counts in sorted(_latency_counts.items()):
+    for (method, route), counts in sorted(m.latency_counts.items()):
         labels = f'method="{method}",route="{route}"'
         for upper, n in zip(LATENCY_BUCKETS, counts):
             lines.append(f'ie_http_request_duration_seconds_bucket{{{labels},le="{upper}"}} {n}')
         lines.append(f'ie_http_request_duration_seconds_bucket{{{labels},le="+Inf"}} {counts[-1]}')
-        lines.append(f"ie_http_request_duration_seconds_sum{{{labels}}} {_latency_sum[(method, route)]:.6f}")
+        lines.append(f"ie_http_request_duration_seconds_sum{{{labels}}} {m.latency_sum[(method, route)]:.6f}")
         lines.append(f"ie_http_request_duration_seconds_count{{{labels}}} {counts[-1]}")
     return "\n".join(lines) + "\n"
 

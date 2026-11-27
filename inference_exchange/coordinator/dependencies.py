@@ -1,18 +1,19 @@
-"""Global singletons and shared state for the coordinator API.
+"""Accessors for the services of the app that serves the current request.
 
-All route modules import from here to get access to the ProviderHub,
-BillingLedger, AuthStore, etc. The singletons are set once at startup
-by main.py via the set_* functions.
+The objects live in `composition.Services`, one set per app. These functions
+read the set bound to the current context; they hold no state themselves.
+Route modules can keep importing from here while they migrate.
 """
 
 import logging
 from typing import Any, Protocol
 
+from .context import current
 from .event_bus import EventBus
 from .provider_hub import ProviderHub
-from .rate_limiter import RateLimiter
 from .reputation import ReputationTracker
 from .tps_tracker import TPSTracker
+from .traces import MAX_TRACES, TRACE_OWNER_KEY  # noqa: F401
 
 logger = logging.getLogger(__name__)
 
@@ -38,173 +39,58 @@ class BillingLike(Protocol):
     def total_requests(self) -> int: ...
     def summary(self) -> dict: ...
 
-logger = logging.getLogger(__name__)
-
-# --- Request trace log (ring buffer of recent request decisions) ---
-
-_request_traces: list[dict] = []
-MAX_TRACES = 100
-
-
-TRACE_OWNER_KEY = "_consumer_id"
-
 
 def _add_trace(trace: dict, consumer_id: str | None = None):
-    if _store is not None:
-        try:
-            _store.save_request_outcome(trace, consumer_id)
-        except Exception:
-            logger.warning("Request outcome could not be saved")
-        return
-    trace[TRACE_OWNER_KEY] = consumer_id
-    _request_traces.append(trace)
-    if len(_request_traces) > MAX_TRACES:
-        _request_traces.pop(0)
+    current().traces.add(trace, consumer_id)
 
-def _complete_trace(request_id: str, consumer_id: str, served_model: str | None, latency_ms: int, provider_country=None, caller_country=None):
-    """Amend the original match decision, keeping request history unambiguous."""
-    if _store is not None:
-        _store.amend_request_outcome(request_id, consumer_id=consumer_id, status="completed", served_model=served_model, latency_ms=latency_ms, provider_country=provider_country, caller_country=caller_country)
-        return
-    for trace in reversed(_request_traces):
-        if trace.get("request_id") in (request_id, request_id[:8]) and trace.get(TRACE_OWNER_KEY) == consumer_id:
-            if trace.get("status") in ("matched", "matched_from_queue"):
-                trace.update(status="completed", served_model=served_model, latency_ms=latency_ms)
-            return
+
+def _complete_trace(request_id: str, consumer_id: str, served_model: str | None, latency_ms: int,
+                    provider_country=None, caller_country=None):
+    current().traces.complete(request_id, consumer_id, served_model, latency_ms, provider_country, caller_country)
 
 
 def traces_for(consumer_id: str | None, limit: int = 30) -> list[dict]:
-    """Recent traces, newest first. consumer_id=None returns all traces (admin view)."""
-    if _store is not None:
-        return _store.request_outcomes(consumer_id, limit)
-    out = []
-    for t in reversed(_request_traces):
-        if consumer_id is not None and t.get(TRACE_OWNER_KEY) != consumer_id:
-            continue
-        out.append({k: v for k, v in t.items() if k != TRACE_OWNER_KEY})
-        if len(out) >= limit:
-            break
-    return out
-
-
-# --- Global singletons (injected from main.py at startup) ---
-
-_hub: ProviderHub | None = None
-_billing: BillingLike | None = None
-_auth: AuthLike | None = None
-_tps: TPSTracker | None = None
-_reputation: ReputationTracker | None = None
-_event_bus: EventBus | None = None
-_rate_limiter: RateLimiter = RateLimiter()  # Default: 30 req/min, burst 10
-
-
-def set_hub(hub: ProviderHub):
-    global _hub
-    _hub = hub
-
-
-def set_billing(billing: BillingLike):
-    global _billing
-    _billing = billing
-
-
-def set_auth(auth: AuthLike):
-    global _auth
-    _auth = auth
-
-
-def set_tps_tracker(tracker: TPSTracker):
-    global _tps
-    _tps = tracker
-
-
-def set_reputation(tracker: ReputationTracker):
-    global _reputation
-    _reputation = tracker
-
-
-def set_event_bus(bus: EventBus):
-    global _event_bus
-    _event_bus = bus
+    return current().traces.recent(consumer_id, limit)
 
 
 def get_hub() -> ProviderHub:
-    if _hub is None:
-        raise RuntimeError("ProviderHub not initialized")
-    return _hub
+    return current().hub
 
 
 def get_billing() -> BillingLike:
-    if _billing is None:
-        raise RuntimeError("BillingLedger not initialized")
-    return _billing
+    return current().billing
 
 
 def get_auth() -> AuthLike:
-    if _auth is None:
-        raise RuntimeError("AuthStore not initialized")
-    return _auth
+    return current().auth
 
 
 def get_tps_tracker() -> TPSTracker:
-    if _tps is None:
-        raise RuntimeError("TPSTracker not initialized")
-    return _tps
+    return current().tps
 
 
 def get_reputation_tracker() -> ReputationTracker:
-    if _reputation is None:
-        raise RuntimeError("ReputationTracker not initialized")
-    return _reputation
+    return current().reputation
 
 
 def get_event_bus() -> EventBus | None:
-    """Return the event bus, or None if not yet initialized."""
-    return _event_bus
-
-
-# --- Store singleton ---
-
-_store = None
-
-
-def set_store(store):
-    global _store
-    _store = store
+    return current().event_bus
 
 
 def get_store():
-    if _store is None:
-        raise RuntimeError("Store not initialized")
-    return _store
-
-
-# --- Audit log singleton ---
-
-_audit_log = None
-
-
-def set_audit_log(audit_log):
-    global _audit_log
-    _audit_log = audit_log
+    return current().store
 
 
 def get_audit_log():
-    return _audit_log
-
-
-# --- Price collector singleton ---
-
-_price_collector = None
-
-
-def set_price_collector(collector):
-    global _price_collector
-    _price_collector = collector
+    return current().audit_log
 
 
 def get_price_collector():
-    return _price_collector
+    return current().price_collector
+
+
+def get_rate_limiter():
+    return current().rate_limiter
 
 
 async def outcome_cleanup_loop():
