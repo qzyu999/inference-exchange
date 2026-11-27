@@ -24,7 +24,10 @@ RefundAmount == 1
 MaxUsage == 4         \* a provider can report more than any hold
 MinCharge == 1        \* BILL-004
 Fee(c) == c \div 2    \* abstract platform fee; BILL-002 fixes the real rate
-BillInterrupted == FALSE  \* owner decision D1; check.py runs both values
+\* D1: TRUE bills a client-caused interruption for its delivered lower bound;
+\* a vendor or IE fault still releases. FALSE releases every interruption
+\* (#332 compares them). check.py runs both values.
+BillInterrupted == TRUE
 
 Attempts == 1..MaxAttempt
 Keys == Requests \X Attempts
@@ -36,14 +39,15 @@ LocalStates == {"available", "draining", "paused", "offline"}
 
 VARIABLES paid, sponsored, credited, req, sent, slots, uncertain, refund,
           absorbed, local, earned, revenue, rejected, resolved,
-          outbox, procState, procMoved
+          outbox, procState, procMoved, inflight, called
 wallet == <<paid, sponsored, credited, refund>>
 books == <<absorbed, earned, revenue>>
 audit == <<rejected, resolved>>
 proc == <<outbox, procState, procMoved>>
+vend == <<inflight, called>>
 vars == <<paid, sponsored, credited, req, sent, slots, uncertain, refund,
           absorbed, local, earned, revenue, rejected, resolved,
-          outbox, procState, procMoved>>
+          outbox, procState, procMoved, inflight, called>>
 
 Min(a, b) == IF a < b THEN a ELSE b
 Max(a, b) == IF a > b THEN a ELSE b
@@ -88,13 +92,15 @@ Init ==
   /\ outbox = "none"
   /\ procState = "none"
   /\ procMoved = 0
+  /\ inflight = {}
+  /\ called = {}
 
 \* Verified webhook. A duplicate delivery of the same payment ID is a no-op.
 CreditPayment ==
   /\ ~credited
   /\ credited' = TRUE
   /\ paid' = paid + TopUp
-  /\ UNCHANGED <<proc, audit, sponsored, req, sent, slots, uncertain, refund, books, local>>
+  /\ UNCHANGED <<vend, proc, audit, sponsored, req, sent, slots, uncertain, refund, books, local>>
 
 \* Hold the route's maximum charge. Sponsored credit is drawn first.
 Reserve(r, rt) ==
@@ -104,7 +110,7 @@ Reserve(r, rt) ==
   /\ LET s == Min(HoldOf[rt], SponsoredFree)
      IN req' = [req EXCEPT ![r].phase = "held", ![r].route = rt,
                            ![r].holdS = s, ![r].holdP = HoldOf[rt] - s]
-  /\ UNCHANGED <<proc, audit, wallet, sent, slots, uncertain, books, local>>
+  /\ UNCHANGED <<vend, proc, audit, wallet, sent, slots, uncertain, books, local>>
 
 \* Record the attempt and take a slot before the external send. A node that
 \* is paused, draining or offline gets no new IE job.
@@ -116,8 +122,9 @@ Dispatch(r) ==
   /\ LET a == req[r].attempt + 1
      IN /\ req' = [req EXCEPT ![r].phase = "running", ![r].attempt = a]
         /\ sent' = sent \cup {<<r, a, req[r].route>>}
+        /\ inflight' = IF req[r].route = "hosted" THEN inflight \cup {<<r, a>>} ELSE inflight
   /\ slots' = [slots EXCEPT ![req[r].route] = @ + 1]
-  /\ UNCHANGED <<proc, audit, wallet, uncertain, books, local>>
+  /\ UNCHANGED <<called, proc, audit, wallet, uncertain, books, local>>
 
 \* Any connected provider can send a frame for any request ID it knows.
 \* Only the active attempt, from the provider that received it, is accepted.
@@ -125,6 +132,7 @@ Accepts(r, a, from) ==
   /\ req[r].phase \in Upstream
   /\ req[r].attempt = a
   /\ <<r, a, from>> \in sent
+  /\ (from = "hosted" => <<r, a>> \in called)
 
 \* Definite rejection before any output: free the slot, then pick a new route.
 DefiniteReject(r, a, from) ==
@@ -133,7 +141,7 @@ DefiniteReject(r, a, from) ==
   /\ req' = [req EXCEPT ![r].phase = "rerouting"]
   /\ slots' = [slots EXCEPT ![req[r].route] = @ - 1]
   /\ rejected' = rejected \cup {<<r, a>>}
-  /\ UNCHANGED <<proc, resolved, wallet, sent, uncertain, books, local>>
+  /\ UNCHANGED <<vend, proc, resolved, wallet, sent, uncertain, books, local>>
 
 \* Atomically replace the hold with the next route's bound. Fallback from a
 \* node to a hosted vendor needs the same consent as a first choice.
@@ -146,13 +154,13 @@ Resize(r, rt) ==
      IN /\ sf + pf >= HoldOf[rt]
         /\ req' = [req EXCEPT ![r].phase = "held", ![r].route = rt,
                               ![r].holdS = s, ![r].holdP = HoldOf[rt] - s]
-  /\ UNCHANGED <<proc, audit, wallet, sent, slots, uncertain, books, local>>
+  /\ UNCHANGED <<vend, proc, audit, wallet, sent, slots, uncertain, books, local>>
 
 DeliverOutput(r, a, from) ==
   /\ Accepts(r, a, from)
   /\ req[r].phase = "running"
   /\ req' = [req EXCEPT ![r].phase = "streaming", ![r].outputAt = a]
-  /\ UNCHANGED <<proc, audit, wallet, sent, slots, uncertain, books, local>>
+  /\ UNCHANGED <<vend, proc, audit, wallet, sent, slots, uncertain, books, local>>
 
 \* One transaction: debit within the hold, release the rest, free the slot.
 \* A community charge splits into provider earnings and the fee (P7). A
@@ -178,20 +186,21 @@ Complete(r, a, from, usage) ==
          charge == Min(billable, hold)
      IN /\ Settle(r, a, charge, from)
         /\ absorbed' = absorbed + (billable - charge)
-  /\ UNCHANGED <<proc, audit, credited, refund, sent, uncertain, local>>
+  /\ UNCHANGED <<vend, proc, audit, credited, refund, sent, uncertain, local>>
 
 \* A sent hosted attempt can carry a vendor cost that IE must reconcile. A
 \* community provider is paid only through a charge, so it leaves no item.
 Owed(r) == IF req[r].route = "hosted" THEN {<<r, req[r].attempt>>} ELSE {}
 
-\* Policy D1 = TRUE: an interrupted stream pays for measured delivered output.
+\* D1 = TRUE: the client ends the stream, so it pays the delivered lower bound.
+\* A vendor or IE fault is Fail below and releases the hold.
 ChargeInterrupted(r, delivered) ==
   /\ BillInterrupted
   /\ req[r].phase = "streaming"
   /\ delivered \in MinCharge..(req[r].holdS + req[r].holdP)
   /\ Settle(r, req[r].attempt, delivered, req[r].route)
   /\ uncertain' = uncertain \cup Owed(r)
-  /\ UNCHANGED <<proc, audit, credited, refund, sent, absorbed, local>>
+  /\ UNCHANGED <<vend, proc, audit, credited, refund, sent, absorbed, local>>
 
 \* Timeout, ambiguous acceptance, error or disconnect after the send.
 Fail(r) ==
@@ -199,13 +208,13 @@ Fail(r) ==
   /\ req' = [req EXCEPT ![r].phase = "released", ![r].holdS = 0, ![r].holdP = 0]
   /\ uncertain' = uncertain \cup Owed(r)
   /\ slots' = [slots EXCEPT ![req[r].route] = @ - 1]
-  /\ UNCHANGED <<proc, audit, wallet, sent, books, local>>
+  /\ UNCHANGED <<vend, proc, audit, wallet, sent, books, local>>
 
 \* No upstream call is outstanding: cancel, deadline, or no eligible route.
 Cancel(r) ==
   /\ req[r].phase \in {"held", "rerouting"}
   /\ req' = [req EXCEPT ![r].phase = "released", ![r].holdS = 0, ![r].holdP = 0]
-  /\ UNCHANGED <<proc, audit, wallet, sent, slots, uncertain, books, local>>
+  /\ UNCHANGED <<vend, proc, audit, wallet, sent, slots, uncertain, books, local>>
 
 Expire(r) == Fail(r) \/ Cancel(r)
 
@@ -214,24 +223,24 @@ Expire(r) == Fail(r) \/ Cancel(r)
 LocalConnect ==
   /\ local = "offline"
   /\ local' = "available"
-  /\ UNCHANGED <<proc, audit, wallet, req, sent, slots, uncertain, books>>
+  /\ UNCHANGED <<vend, proc, audit, wallet, req, sent, slots, uncertain, books>>
 
 \* Pause offers or local work needs the GPU. A running IE job finishes first.
 LocalPause ==
   /\ local = "available"
   /\ local' = IF slots["local"] = 0 THEN "paused" ELSE "draining"
-  /\ UNCHANGED <<proc, audit, wallet, req, sent, slots, uncertain, books>>
+  /\ UNCHANGED <<vend, proc, audit, wallet, req, sent, slots, uncertain, books>>
 
 LocalDrained ==
   /\ local = "draining"
   /\ slots["local"] = 0
   /\ local' = "paused"
-  /\ UNCHANGED <<proc, audit, wallet, req, sent, slots, uncertain, books>>
+  /\ UNCHANGED <<vend, proc, audit, wallet, req, sent, slots, uncertain, books>>
 
 LocalResume ==
   /\ local = "paused"
   /\ local' = "available"
-  /\ UNCHANGED <<proc, audit, wallet, req, sent, slots, uncertain, books>>
+  /\ UNCHANGED <<vend, proc, audit, wallet, req, sent, slots, uncertain, books>>
 
 \* The runtime stops, the machine sleeps, or the WebSocket drops. Its jobs fail.
 LocalOffline ==
@@ -243,7 +252,7 @@ LocalOffline ==
                   THEN [req[r] EXCEPT !.phase = "released", !.holdS = 0, !.holdP = 0]
                   ELSE req[r]]
   /\ slots' = [slots EXCEPT !["local"] = 0]
-  /\ UNCHANGED <<proc, audit, wallet, sent, uncertain, books>>
+  /\ UNCHANGED <<vend, proc, audit, wallet, sent, uncertain, books>>
 
 \* Coordinator restart: memory is lost, SQLite is kept. Committed charges and
 \* a pending refund survive. Sent hosted attempts become reconciliation items.
@@ -257,14 +266,24 @@ Restart ==
   /\ uncertain' = uncertain \cup
        UNION {Owed(r) : r \in {x \in Requests : req[x].phase \in Upstream}}
   /\ slots' = [rt \in Routes |-> 0]
+  /\ inflight' = {}
   /\ local' = "offline"
-  /\ UNCHANGED <<proc, audit, wallet, sent, books>>
+  /\ UNCHANGED <<called, proc, audit, wallet, sent, books>>
+
+\* The network send to the vendor, after the dispatch commit. A crash between
+\* the commit and this step loses the send but keeps the attempt row. The send
+\* can still reach the vendor after the request failed locally.
+CallVendor(k) ==
+  /\ k \in inflight
+  /\ inflight' = inflight \ {k}
+  /\ called' = called \cup {k}
+  /\ UNCHANGED <<proc, audit, wallet, req, sent, slots, uncertain, books, local>>
 
 Reconcile(k) ==
   /\ k \in uncertain
   /\ uncertain' = uncertain \ {k}
   /\ resolved' = resolved \cup {k}
-  /\ UNCHANGED <<proc, rejected, wallet, req, sent, slots, books, local>>
+  /\ UNCHANGED <<vend, proc, rejected, wallet, req, sent, slots, books, local>>
 
 \* Hold eligible paid credit and write the outbox row in one transaction.
 \* No processor call happens inside the transaction.
@@ -273,7 +292,7 @@ HoldRefund ==
   /\ PaidFree >= RefundAmount
   /\ refund' = "pending"
   /\ outbox' = "queued"
-  /\ UNCHANGED <<procState, procMoved, audit, paid, sponsored, credited, req, sent, slots, uncertain, books, local>>
+  /\ UNCHANGED <<vend, procState, procMoved, audit, paid, sponsored, credited, req, sent, slots, uncertain, books, local>>
 
 \* The outbox worker calls the processor with the refund ID as idempotency
 \* key. It may crash before it records the call, so it may call again. The
@@ -285,7 +304,7 @@ SendRefund(ok) ==
           /\ procMoved' = IF ok THEN 1 ELSE 0
      ELSE /\ procState' = procState
           /\ procMoved' = procMoved
-  /\ UNCHANGED <<outbox, audit, wallet, req, sent, slots, uncertain, books, local>>
+  /\ UNCHANGED <<vend, outbox, audit, wallet, req, sent, slots, uncertain, books, local>>
 
 \* A signed processor event or a status poll. Only the first one for this
 \* refund changes the ledger; a duplicate finds the refund already final.
@@ -295,13 +314,13 @@ FinishRefund ==
   /\ refund' = procState
   /\ outbox' = "done"
   /\ paid' = paid - (IF procState = "succeeded" THEN RefundAmount ELSE 0)
-  /\ UNCHANGED <<procState, procMoved, audit, sponsored, credited, req, sent, slots, uncertain, books, local>>
+  /\ UNCHANGED <<vend, procState, procMoved, audit, sponsored, credited, req, sent, slots, uncertain, books, local>>
 
 Next ==
   \/ CreditPayment \/ HoldRefund \/ Restart
   \/ LocalConnect \/ LocalPause \/ LocalDrained \/ LocalResume \/ LocalOffline
   \/ FinishRefund \/ \E ok \in BOOLEAN : SendRefund(ok)
-  \/ \E k \in Keys : Reconcile(k)
+  \/ \E k \in Keys : Reconcile(k) \/ CallVendor(k)
   \/ \E r \in Requests :
        \/ Dispatch(r) \/ Expire(r)
        \/ \E rt \in Routes : Reserve(r, rt) \/ Resize(r, rt)
@@ -344,6 +363,7 @@ TypeOK ==
   /\ outbox \in {"none", "queued", "done"}
   /\ procState \in {"none", "succeeded", "failed"}
   /\ procMoved \in 0..2
+  /\ inflight \subseteq Keys /\ called \subseteq Keys
 
 \* Holds and refund holds never exceed the funds they draw on.
 NoOverspend == SponsoredFree >= 0 /\ PaidFree >= 0
@@ -425,6 +445,18 @@ RefundExactlyOnce ==
 \* Money that left through the processor always has a durable refund row.
 ProcessorEffectHasIntent ==
   procMoved > 0 => refund \in {"pending", "succeeded"}
+
+\* Every vendor call follows a committed attempt row.
+CalledWasRecorded == \A k \in called : <<k[1], k[2], "hosted">> \in sent
+
+\* A vendor call that is not definitely rejected, running or settled is open
+\* or resolved for reconciliation, also after a restart.
+CalledCostTracked ==
+  \A k \in called :
+    ( /\ k \notin rejected
+      /\ ~(req[k[1]].phase \in Upstream /\ req[k[1]].attempt = k[2])
+      /\ ~(req[k[1]].phase = "charged" /\ req[k[1]].settledBy = k[2]) )
+    => k \in uncertain \cup resolved
 
 TerminalStable ==
   [][\A r \in Requests : req[r].phase \in Terminal => req'[r] = req[r]]_vars

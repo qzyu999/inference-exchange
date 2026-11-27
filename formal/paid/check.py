@@ -18,7 +18,7 @@ HERE = Path(__file__).resolve().parent
 SPEC = (HERE / "PaidPath.tla").read_text()
 CFG = (HERE / "PaidPath.cfg").read_text()
 
-POLICY = "BillInterrupted == FALSE"
+POLICY = "BillInterrupted == TRUE"
 
 # (name, text to replace, replacement, property TLC must report)
 UNCERTAIN = "  /\\ uncertain' = uncertain \\cup Owed(r)\n"
@@ -28,9 +28,9 @@ SEND = ("  /\\ IF procState = \"none\"\n"
 SEND_NO_KEY = ("  /\\ IF TRUE\n"
                "     THEN /\\ procState' = IF ok THEN \"succeeded\" ELSE \"failed\"\n"
                "          /\\ procMoved' = procMoved + (IF ok THEN 1 ELSE 0)\n")
-RESTART_KEEP = "  /\\ local' = \"offline\"\n  /\\ UNCHANGED <<proc, audit, wallet, sent, books>>"
+RESTART_KEEP = "  /\\ local' = \"offline\"\n  /\\ UNCHANGED <<called, proc, audit, wallet, sent, books>>"
 RESTART_LOSE = ("  /\\ local' = \"offline\"\n  /\\ outbox' = \"none\"\n"
-                "  /\\ UNCHANGED <<procState, procMoved, audit, wallet, sent, books>>")
+                "  /\\ UNCHANGED <<called, procState, procMoved, audit, wallet, sent, books>>")
 MUTATIONS = [
     ("processor call without idempotency key", SEND, SEND_NO_KEY, "RefundExactlyOnce"),
     ("processor called before the intent is durable",
@@ -85,6 +85,12 @@ MUTATIONS = [
     ("no reconciliation worker",
      "  /\\ \\A k \\in Keys : WF_vars(Reconcile(k))\n", "",
      "UncertainResolved"),
+    ("vendor called before the attempt row commits",
+     "  /\\ k \\in inflight\n", "",
+     "CalledWasRecorded"),
+    ("restart forgets possibly-sent hosted attempts",
+     "UNION {Owed(r) : r \\in {x \\in Requests : req[x].phase \\in Upstream}}", "{}",
+     "CalledCostTracked"),
     ("no request deadline",
      "  /\\ \\A r \\in Requests : WF_vars(Expire(r))\n", "",
      "RequestsFinish"),

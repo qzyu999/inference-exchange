@@ -12,14 +12,14 @@ python formal/paid/check.py /path/to/tla2tools.jar
 ```
 
 The script runs the model once for each interrupted-stream policy
-(`BillInterrupted`). Then it runs each negative control in a temporary
+(`BillInterrupted`). TRUE is the accepted D1 rule: a client-caused interruption pays its delivered lower bound. Then it runs each negative control in a temporary
 directory. A control removes one guard. TLC must find a counterexample for the
 named property. If a control passes, the property does not test that guard.
 CI pins the TLC release and its SHA-256 digest.
 
 ## State
 
-One step is one committed SQLite transaction or one external event. A stale,
+One step is one committed database transaction or one external event. A stale,
 duplicate or foreign event whose guard fails has no effect.
 
 | Variable | Meaning |
@@ -32,8 +32,10 @@ duplicate or foreign event whose guard fails has no effect.
 | `local` | The node's offer state: available, draining, paused or offline. |
 | `uncertain`, `resolved` | Hosted attempts with an open or a resolved vendor cost. |
 | `rejected` | Attempts that the route definitely rejected before output. |
-| `refund` | The state of one refund in SQLite. |
+| `refund` | The state of one refund in the database. |
 | `outbox` | The refund's outbox row: none, queued or done. It survives a restart. |
+| `inflight` | Vendor attempts whose row committed but whose network send has not happened. Memory only: a restart clears it. |
+| `called` | Vendor attempts that the vendor received. This is the vendor's state, so a restart keeps it. |
 | `procState`, `procMoved` | What the processor did for the refund's idempotency key, and how many times money moved. |
 | `earned`, `revenue` | Community provider earnings and platform revenue. |
 | `absorbed` | Reported usage above the authorized hold that IE did not charge. |
@@ -60,6 +62,8 @@ execution.
 | `HostedCostTracked` | Invariant | Each sent hosted attempt without a confirmed result is open or resolved for reconciliation. |
 | `RefundExactlyOnce` | Invariant | The processor moves refund money at most once, and the final ledger agrees with it. |
 | `ProcessorEffectHasIntent` | Invariant | Money leaves through the processor only after a durable refund row exists. |
+| `CalledWasRecorded` | Invariant | Every vendor call follows a committed attempt row. |
+| `CalledCostTracked` | Invariant | Every vendor call that is not settled or definitely rejected is open or resolved for reconciliation, also after a restart. |
 | `TerminalStable` | Action | A charged or released request does not change. |
 | `RequestsFinish` | Liveness | Each live request becomes charged or released. |
 | `UncertainResolved` | Liveness | Each reconciliation item is resolved. |
@@ -78,6 +82,6 @@ The configuration has two requests (one with hosted consent), one local route
 and one hosted route with one slot each, two attempts per request, one
 payment, one sponsored grant and one refund. Usage reports go up to more than
 any hold. The fee function is abstract. A successful run is a result for these
-bounds only. It does not verify Python code, SQLite, Stripe, a hosted vendor,
+bounds only. It does not verify Python code, PostgreSQL, Stripe, a hosted vendor,
 node runtimes, timing, prices, trust evidence or tokenizer accuracy. The
 refinement tests in the design document check the implementation separately.

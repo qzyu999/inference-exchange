@@ -1,24 +1,71 @@
 # Paid path architecture
 
-Status: proposal for owner review. Issues: #297 (release gate), #300 (findings audit), #292 (hosted connector), #145 (recovery). Node supply example: [mlx-serve #1](https://github.com/qzyu999/mlx-serve/issues/1).
+Status: revision 2, accepted direction. Issues: #297 (release gate), #300 (findings audit), #292 (vendor connector), #145 (recovery), #331 (database stages), #332 (who pays for interruptions). Provider supply example: [mlx-serve #1](https://github.com/qzyu999/mlx-serve/issues/1).
 
-Baseline: `main` at `e7d4e90`. This document does not change a requirement. Section 10 lists the requirement changes that the owner must approve.
+Baseline: `main` at `84b905a`. The requirements are BILL-014 to BILL-026, OPS-012 and OPS-013.
+
+## 0. Revision 2
+
+The owner accepted these decisions. They replace the parts of revision 1 that disagree with them.
+
+| Decision | Change |
+|---|---|
+| [0008](../decisions/0008-postgresql-for-paid-path.md) | PostgreSQL holds all coordinator data. It replaces SQLite. Hosting grows in stages (#331). |
+| [0009](../decisions/0009-double-entry-ledger.md) | Immutable double-entry postings are the only money record. The journal and its rebuild check are removed. |
+| [0010](../decisions/0010-live-and-test-modes.md) | Every money and request record has a mode, `live` or `test`. Test mode uses the Stripe sandbox and mocks only. |
+| [0011](../decisions/0011-vendors-and-providers.md) | A **vendor** (DeepInfra, Together, Fireworks) is a hosted API that IE buys from. A **provider** runs the IE agent and OCIP. They share only the `Offer` type. |
+| D1 (section 10) | An interrupted stream is billed by cause (BILL-019). #332 reviews the rule. |
+| D20 (section 10) | Caps are settings. Alpha values: vendor $10 a day, account $20, absorbed cost $5 a day across the platform. |
+
+Terms in revision 1 map to revision 2 as follows. Where an older section still uses a left-hand term, read the right-hand term.
+
+| Revision 1 | Revision 2 |
+|---|---|
+| SQLite, the SQLite file | PostgreSQL primary |
+| `BEGIN IMMEDIATE` | a transaction that locks the account's lot rows with `SELECT ... FOR UPDATE` |
+| `SQLITE_BUSY`, locked | lock timeout or serialization failure |
+| `SQLITE_FULL`, `SQLITE_IOERR`, `SQLITE_CORRUPT` | disk full, I/O error, or a failed integrity check |
+| Litestream restore | point-in-time restore (stage 1) or WAL archive restore (stage 0) |
+| `journal`, `journal.rebuild()` | `ledger_transactions` and `postings`; the balance cache check |
+| `ledger_entries` | `postings` |
+| `recover()` at startup | the expiry worker (OPS-013), which also runs at startup |
+| node, community, `local` | provider |
+| hosted, hosted vendor | vendor |
+| `HostedHttpAdapter` | the vendor transport (`openai_compatible` first) |
+
+### 0.1 Shortcuts and their seams
+
+Each shortcut has a seam now. Removing the shortcut adds or extends one module. It does not change the request lifecycle or the ledger.
+
+| Shortcut | Why | Seam built now | Change that removes it |
+|---|---|---|---|
+| Only vendors on the paid path; providers stay on simulated credit | Payouts need KYC, tax forms and payout reconciliation; provider trust is L0 | `Offer`, the provider payable ledger account | A payout module and its requirement |
+| One rail: Stripe Checkout, USD | Checkout keeps IE in the smallest card-compliance scope | `RailAdapter` and its contract suite | `rails/usdc.py` or another adapter |
+| One vendor: DeepInfra | First contract run and billing evidence | Vendor row, `openai_compatible` transport, contract suite | A new row and a contract run |
+| PostgreSQL stage 0 on the alpha host | Cost; the alpha caps limit exposure | Database URL and pool from configuration | Stage 1 (#331) |
+| Provider sockets on one replica | Providers are not on the paid path | `Dispatcher` interface | A dispatcher across replicas |
+| Byte-based input bound | Correct for every model without a tokenizer | `pricing.input_bound(model)` | A registered tokenizer for a model |
+| Delivered-delta lower bound for client interruptions | Provable without plaintext | `pricing.interrupted_charge(...)` | Exact vendor usage on cancel, if #332 chooses it |
+| Aggregate vendor reconciliation where a vendor has no request IDs | Vendor APIs differ | Vendor capability flags | Per-vendor matching as APIs allow |
+| Text chat only | Media needs its own price unit | Price unit on `Quote` | A media pricing function (#318) |
+| PostgreSQL as the work queue | `SKIP LOCKED` is enough at this scale | `WorkQueue` interface | A broker, if a measurement requires it |
+| TLA+ results hold within stated bounds | Model checking is bounded | Split models; Hypothesis tests on PostgreSQL | Wider runs; Apalache for invariants |
 
 ## 1. Summary
 
-The coordinator stays one FastAPI process with one SQLite database (decision 0004). The change is inside the process. Today one request crosses five owners: the route handler, `ProviderHub`, an in-memory billing callback, `Store`, and module globals. No owner has the full request state. The defects in #300 come from this split.
+The coordinator is a set of stateless API processes on one PostgreSQL database (decision 0008). The alpha runs one process. Today one request crosses five owners: the route handler, `ProviderHub`, an in-memory billing callback, `Store`, and module globals. No owner has the full request state. The defects in #300 come from this split.
 
 The design gives each paid request one owner and gives money one owner:
 
 - `RequestService` owns the request lifecycle: eligibility, attempts, fallback, and the end state.
-- `Wallet` owns money: funding lots, holds, charges, releases and refunds. Each command is one SQLite transaction.
+- `Wallet` owns money: funding lots, holds, charges, releases and refunds. Each command is one database transaction.
 - Adapters own external I/O: the OCIP WebSocket hub, a hosted HTTP vendor, and one rail adapter per payment rail (Stripe first, then USDC; section 6.3). An adapter cannot change a balance.
 - A composition root builds these objects for each app instance. No route reads a module global or a private hub field.
-- SQLite is the one source of truth. Every component can crash and restart, then rebuild its state from SQLite. Every failure boundary has a stated durable state, recovery action and client-visible outcome (section 8). The coordinator stays one deployable process for now. Section 8.11 says when to split it.
+- PostgreSQL is the one source of truth. Every component can crash and restart, then rebuild its state from the database. Every failure boundary has a stated durable state, recovery action and client-visible outcome (section 8). The coordinator stays one deployable process for now. Section 8.11 says when to split it.
 
 Supply comes from two directions (section 5). Nodes run the IE node agent in front of any OpenAI-compatible runtime: a home Mac with MLX-Serve, a workstation with llama.cpp or Ollama, or a data-center pool with vLLM or SGLang. Hosted vendors such as DeepInfra and Novita do not run IE software, so a connector in the coordinator calls them. Both are `Offer`s behind the same adapter contract. The request lifecycle and the wallet are the same for both. The differences are explicit: consent, trust, who is paid, and what IE must reconcile.
 
-A TLA+ model (`formal/paid/PaidPath.tla`) states the invariants for both directions. TLC checks them and 21 negative controls. Section 7 maps each model step to a service method, a SQL guard and a test.
+A TLA+ model (`formal/paid/PaidPath.tla`) states the invariants for both directions. TLC checks them and 21 negative controls, with both values of D1. Section 7 maps each model step to a service method, a SQL guard and a test.
 
 ## 2. Current dependencies
 
@@ -201,16 +248,16 @@ Rules:
 
 Telemetry (traces, reputation, TPS, country activity, event bus) runs after the commit and cannot change the result. An exception in telemetry is logged and ignored.
 
-## 5. Supply from two directions
+## 5. Supply: vendors and providers
 
-IE bootstraps supply from two sides at once:
+IE gets inference from two kinds of supplier (decision 0011). They are different businesses and they use different code.
 
-- **Nodes (community and operators).** A provider runs the IE node agent next to an inference runtime that they already operate. This covers a home Mac with MLX-Serve ([mlx-serve #1](https://github.com/qzyu999/mlx-serve/issues/1)), a workstation with llama.cpp or Ollama, and a data-center operator with vLLM or SGLang. All of them use the same agent, protocol, admission and payout path. Supply grows one node at a time. A node can pause at any time and earns credits.
-- **Hosted (vendors).** IE calls a vendor such as DeepInfra or Novita with an IE-owned credential (#292). The vendor runs no IE software. Capacity is large and always on. IE pays the vendor's invoice and charges the customer.
+- **Vendors.** A vendor is a hosted inference API company such as DeepInfra, Together or Fireworks. IE is an ordinary API customer of the vendor. The vendor runs no IE software and does not know OCIP. IE calls it with an IE-owned key, pays its invoice and charges the IE customer. DeepInfra is the first vendor (#292).
+- **Providers.** A provider is a machine that runs the IE agent and speaks OCIP: a home Mac with MLX-Serve ([mlx-serve #1](https://github.com/qzyu999/mlx-serve/issues/1)), a workstation with llama.cpp or Ollama, or an operator pool with vLLM or SGLang. IE credits the provider for each charged request. Providers stay on simulated credit until a payout requirement exists.
 
-Hosted supply serves strong models from day one. Node supply grows into the same catalog. A model that both directions serve can run on a node first and fall back to a vendor when the customer allows it.
+The split is by the commercial relationship, not by the hardware. A data center that runs the IE agent is a provider. A data center that IE buys from by API is a vendor.
 
-The split is by who is paid, not by where the hardware is. A data center that runs the IE agent is a node: it earns provider credit and its trust comes from IE admission. A data center that IE buys from by API is a hosted vendor: IE pays its invoice and its trust is `external`.
+Sections 5.0 to 5.3 describe providers. Section 5.6 describes vendors. Routing and settlement see both only as an `Offer` (section 5.1). In the older tables of this section, "node" means provider and "hosted" means vendor.
 
 ### 5.0 Current state: explicit, not agnostic
 
@@ -257,7 +304,7 @@ Both directions produce the same `Offer`. Routing, pricing, holds and settlement
 
 An offer exists only when both IE and the supplier allow it. For a node, that is served by the runtime ∩ IE allowlist ∩ owner opt-in. For a vendor, that is the IE allowlist ∩ vendor catalog ∩ IE pilot budget.
 
-### 5.2 Node supply: one agent, any runtime
+### 5.2 Provider supply: one agent, any runtime
 
 The node agent (`ie-agent`) is the only IE software on a provider machine. It holds the IE provider credential, keeps one outbound WebSocket to the coordinator, and talks to the runtime over loopback HTTP. The runtime does not know about IE.
 
@@ -350,26 +397,59 @@ The model checks the split (`BooksBalance`, `EarningsOnlyFromLocal`) and checks 
 
 Runtimes such as MLX-Serve also serve images, audio, video and 3D. The current OCIP request is chat messages, text chunks and token counts. The provider WebSocket caps a message at 1 MB. A media job is a separate job type with its own price unit (for example per image at a stated resolution, or per second of audio). It uses the same `Offer`, hold, attempt and settlement. Its output is an encrypted artifact that the client downloads, not a stream of frames. It is out of scope for the paid alpha. The `RequestService` and `Wallet` contracts do not assume tokens, so a media job adds a pricing function and an artifact path, not a second lifecycle.
 
+### 5.6 Vendor connector
+
+The connector is agnostic. A vendor is data. A transport is code.
+
+| Part | Contents | Where |
+|---|---|---|
+| Vendor row | ID, display name, base URL, secret reference, approval state, spend cap, concurrency limit, capability flags | database, admin console |
+| Model mapping | IE model ID (exact checkpoint, revision, precision) → vendor model ID, verified by the contract suite | database |
+| Rates | vendor list rate, IE rate, effective date | database; bound into each quote |
+| Capability flags | streaming usage, usage on cancel, cancel stops billing, request ID header, usage export API, definite rejection codes | database; set from the contract run |
+| Transport | `openai_compatible` first; another transport only for a vendor whose API differs | `supply/vendors/transports/` |
+| Contract suite | usage shape, cancel, error classes, finish reasons, streaming format | runs against the mock vendor in CI and against the real vendor on staging under the vendor cap |
+
+A route becomes eligible only when its vendor is approved and its last contract run passed. Reconciliation uses the request ID where the vendor returns one. Otherwise it matches time-window aggregates and labels them aggregate-only. It never assigns an unsupported cost to one customer request.
+
+Adding a vendor is a row, a model mapping and a contract run. It changes no service code.
+
 ## 6. Money
 
 ### 6.1 Units and tables
 
-IE amounts are integer micro-USD. Each payment rail converts its own unit at its boundary (section 6.3).
+IE amounts are integer micro-USD (`bigint`). Each payment rail converts its own unit at its boundary (section 6.3). Every table below has `mode IN ('live','test')`, and each foreign key includes the mode (decision 0010).
 
 | Table | Key constraints |
 |---|---|
+| `ledger_accounts(ledger_account_id, mode, owner_kind, owner_id, kind)` | `kind IN ('customer_paid','customer_sponsored','customer_held','provider_payable','platform_revenue','rail_clearing','vendor_cost','write_off')` |
+| `ledger_transactions(txn_id, mode, kind, idempotency_key, request_id, refund_id, order_id, at)` | `UNIQUE(mode, idempotency_key)`; `UNIQUE(request_id) WHERE kind = 'charge'`; `UNIQUE(refund_id) WHERE kind = 'refund'` |
+| `postings(posting_id, txn_id, ledger_account_id, lot_id, amount_micro)` | lines of one `txn_id` sum to zero (deferred constraint trigger); no `UPDATE` or `DELETE` (trigger and grants) |
 | `funding_orders(order_id, account_id, rail_id, amount_micro, rail_amount, currency, rate, status, expires_at)` | `PRIMARY KEY(order_id)`; one order per funding attempt |
-| `funding_lots(lot_id, account_id, kind, rail_id, rail_ref, order_id, amount_micro, remaining_micro)` | `kind IN ('sponsored','paid')`; `UNIQUE(rail_id, rail_ref)`; `CHECK(remaining_micro >= 0)` |
-| `paid_requests(request_id, account_id, phase, location_policy, route_id, active_attempt, quote, hold_micro, charge_micro, idempotency_key)` | `CHECK(phase IN (...))`; `UNIQUE(account_id, idempotency_key)` |
+| `funding_lots(lot_id, account_id, kind, rail_id, rail_ref, order_id, amount_micro, remaining_micro)` | `kind IN ('sponsored','paid')`; `UNIQUE(rail_id, rail_ref)`; `CHECK(remaining_micro >= 0)`; `remaining_micro` is a cache of postings |
+| `paid_requests(request_id, account_id, phase, location_policy, route_id, active_attempt, quote, hold_micro, charge_micro, idempotency_key, body_hash, deadline_at)` | `CHECK(phase IN (...))`; `CHECK(charge_micro <= hold_micro)`; `UNIQUE(account_id, idempotency_key)` |
 | `hold_allocations(request_id, lot_id, amount_micro)` | `PRIMARY KEY(request_id, lot_id)`; rows exist only while the request is live |
-| `attempts(request_id, attempt_no, route_id, location, session_id, sent_at, result, upstream_cost_micro)` | `PRIMARY KEY(request_id, attempt_no)` |
-| `ledger_entries(entry_id, account_id, lot_id, request_id, refund_id, kind, amount_micro)` | `UNIQUE(request_id) WHERE kind = 'charge'`; `UNIQUE(refund_id) WHERE kind = 'refund'` |
+| `attempts(request_id, attempt_no, route_id, supply_kind, session_id, dispatch, sent_at, result, upstream_request_id, upstream_cost_micro)` | `PRIMARY KEY(request_id, attempt_no)`; `supply_kind IN ('vendor','provider')` |
 | `refunds(refund_id, account_id, lot_id, rail_id, amount_micro, phase, rail_ref, destination)` | `UNIQUE(rail_id, rail_ref)`; lot `rail_id` = refund `rail_id` |
 | `rail_events(rail_id, rail_event_id, type, order_id, rail_ref, received_at, status)` | `PRIMARY KEY(rail_id, rail_event_id)` |
-| `rail_cursors(rail_id, cursor)` | `PRIMARY KEY(rail_id)`; polling position per rail |
+| `rail_cursors(rail_id, cursor)` | `PRIMARY KEY(rail_id)` |
+| `outbox(id, kind, key, payload, status, attempts, next_at)` | `UNIQUE(kind, key)`; claimed with `FOR UPDATE SKIP LOCKED` |
 | `reconciliation_items(request_id, attempt_no, reason, status)` | `PRIMARY KEY(request_id, attempt_no)` |
+| `limits(name, mode, value_micro, updated_by, updated_at)` and `limit_changes` | one row per cap (BILL-024); every change is audited |
 
-The migration is additive. Legacy `accounts` and `transactions` rows stay unchanged (BILL-010, BILL-012). A node charge still credits the provider billing principal through `ledger_entries`. The legacy community path keeps `charge_request` until slice 5 moves it.
+**One charge across several lots.** A charge is one `ledger_transactions` row of kind `charge`. It has one posting for each lot it draws on, plus the credit postings for platform revenue and, for a provider charge, the provider payable. The partial unique index keeps one charge per request. This answers the question in the ERD.
+
+Worked example (sponsored first, D2). A customer has a sponsored lot S with 30 and a paid lot P with 100. A hold of 100 allocates 30 from S and 70 from P. The final charge is 40 on a vendor route:
+
+| Ledger account | Lot | Amount |
+|---|---|---|
+| `customer_sponsored` | S | −30 |
+| `customer_paid` | P | −10 |
+| `platform_revenue` | | +40 |
+
+The postings sum to zero. P keeps 90, and all 90 is refundable. S is empty and was never refundable.
+
+Legacy `accounts` and `transactions` rows stay unchanged (BILL-010, BILL-012). The PostgreSQL migration copies them and reconciles row counts and balances. A paid account never uses `accounts.balance_micro`.
 
 Derived values:
 
@@ -476,8 +556,8 @@ Result on this branch, TLC 1.8.0, Java 17:
 
 | Run | Result |
 |---|---|
-| Base model, `BillInterrupted = FALSE` | No violation. 136,861 distinct states. |
-| Base model, `BillInterrupted = TRUE` | No violation. 162,061 distinct states. |
+| Base model, `BillInterrupted = FALSE` | No violation. 85,345 distinct states. |
+| Base model, `BillInterrupted = TRUE` (accepted D1) | No violation. 94,833 distinct states. |
 | 21 negative controls | Each control produces a counterexample for its property. |
 
 The controls are in `formal/paid/check.py`. CI runs the script in the existing `Ticker verification` workflow.
@@ -619,21 +699,21 @@ with self.db.unit_of_work() as tx:        # BEGIN IMMEDIATE ... COMMIT, or ROLLB
 
 Each write uses `BEGIN IMMEDIATE`, so the guard and the write see the same state. A compare-and-set that changes zero rows is the normal result for a stale, duplicate or late event. It is not an error.
 
-### 8.3 Journal and outbox
+### 8.3 Ledger, outbox and inbox
 
 ```mermaid
 flowchart LR
-    Cmd["RequestService unit of work"] -->|"one transaction"| J[("journal (append-only)")]
-    Cmd -->|"same transaction"| P[("projections: lots, holds, requests, attempts")]
+    Cmd["Command handler (one transaction)"] -->|"same transaction"| L[("ledger_transactions + postings")]
+    Cmd -->|"same transaction"| S[("state: lots cache, holds, requests, attempts")]
     Cmd -->|"same transaction"| O[("outbox")]
-    O --> W["OutboxWorker"]
+    O --> W["OutboxWorker (SKIP LOCKED)"]
     W -->|"idempotency key"| Ext["Payment rail (Stripe, USDC, ...)"]
     Ext -->|"signed event, chain event or poll"| In["inbox: rail_events"]
     In --> Cmd
 ```
 
-- **Journal.** Each command appends one row to `journal(seq, at, command, key, payload)` in the same transaction as its effect. The payload holds IDs, amounts, usage and the quote. It never holds prompts or completions. The journal is append-only. A correction is a new entry.
-- **Projections.** `funding_lots`, `hold_allocations`, `paid_requests`, `attempts`, `ledger_entries` and `refunds` are projections of the journal. `journal.rebuild()` applies every entry in order to an empty database. A CI test and the startup check (8.7) compare the rebuild with the live tables. This is the replay property.
+- **Ledger.** Money is only in `ledger_transactions` and `postings` (decision 0009). Each money command writes one ledger transaction whose postings sum to zero, in the same transaction as its state change. The payload holds IDs, amounts, usage and the quote. It never holds prompts or completions. Postings are never updated or deleted. A correction is a new transaction.
+- **Balance cache.** `funding_lots.remaining_micro` is a cache of the lot's postings, changed in the same transaction. A scheduled check and a CI test compare every cache with the sum of its postings.
 - **Outbox.** A command that needs an idempotent external effect writes an `outbox(id, kind, key, payload, status, attempts, next_at)` row in the same transaction. `OutboxWorker` sends queued rows with `key` as the idempotency key and records the result. After a crash it sends again, and the processor returns the first result. The model checks this (`RefundExactlyOnce`, `ProcessorEffectHasIntent`).
 - **Inbox.** `rail_events` deduplicates events by `(rail_id, rail_event_id)`, whether they come from a webhook, a chain watcher or a poll. The webhook route returns 2xx after the durable insert and processes the event from the inbox, so a slow step does not cause a redelivery storm.
 
@@ -724,30 +804,36 @@ The client sees error code `upstream_usage_invalid`. If output has started, it i
 
 **Stored data.** Money columns have `CHECK` constraints (integer, ≥ 0, phase in its set, charge ≤ hold). At startup, IE runs `PRAGMA quick_check` and the journal rebuild comparison. If either fails, IE starts with paid traffic paused (8.7).
 
-### 8.7 SQLite failures, durability and restore
+### 8.7 Database failures, durability and restore
 
-**Settings.** WAL mode, `synchronous = FULL` on the paid-path connection, `foreign_keys = ON`, `busy_timeout = 5000`, `BEGIN IMMEDIATE` for writes. With `FULL`, a commit that returned is durable on the local disk after a power loss.
+**Settings.** `synchronous_commit = on`. Money transactions run at `READ COMMITTED` and lock the account's lot rows with `SELECT ... FOR UPDATE` in a fixed order, so two commands for one account serialize and do not deadlock. Each transaction has a `lock_timeout` and a `statement_timeout`. Money reads use the primary.
 
 **Errors.**
 
 | Error | During reserve or other admission | During settle or release | Process-wide |
 |---|---|---|---|
-| `SQLITE_BUSY` / locked | retry up to 3 times with jitter inside the request deadline; then HTTP 503 `ledger_busy` with `Retry-After`; no hold | retry with backoff until the request deadline; if it still fails, the stream ends with an error and no `[DONE]`; the request stays live in SQLite and `recover()` releases it later | alert above a rate |
-| `SQLITE_FULL`, `SQLITE_IOERR`, `SQLITE_CORRUPT` | HTTP 503 `paid_unavailable` | stream ends with an error | paid admission pauses automatically; readiness fails; an operator must clear the pause |
+| Lock timeout or serialization failure | retry up to 3 times with jitter inside the request deadline; then HTTP 503 `ledger_busy` with `Retry-After`; no hold | retry with backoff until the request deadline; then the stream ends with an error and no `[DONE]`; the expiry worker releases the request when writes succeed (OPS-013) | alert above a rate |
+| Connection lost or failover during a commit | the outcome is unknown; the client uses the request ID or the idempotency key | the outcome is unknown; the request is either charged or still live, and the expiry worker resolves a live one | alert |
+| Disk full, I/O error, failed integrity check | HTTP 503 `paid_unavailable` | stream ends with an error | paid admission pauses (OPS-012); readiness fails |
 
-A settle that cannot commit is never retried after the request deadline. The customer is not charged. A hosted attempt keeps its reconciliation item.
+A settle that does not commit before the request deadline is never retried. The customer is not charged. A vendor attempt keeps its reconciliation item.
 
-**Interrupted startup recovery.** `recover()` releases each live request in its own transaction and is idempotent. A crash during recovery leaves some requests released and some live. The next start runs `recover()` again. Readiness stays false, and the API admits no paid request, until recovery, `quick_check` and the rebuild comparison finish.
+**Expiry worker.** The worker selects live requests past `deadline_at` with `FOR UPDATE SKIP LOCKED` and releases each one with a compare-and-set on phase and attempt. It runs at startup and then continuously on every replica. A late `Done`, the worker and a restart can race safely. Only the first commit wins.
 
-**Restore point.** Litestream replicates the WAL to object storage. With its default sync interval of 1 second, a restore can lose up to about 1 second of committed writes, plus any replication lag at the time of failure. The current `deploy/litestream.yml` keeps 168 hours of history with a 24-hour snapshot interval. OPS records that no restore test exists yet. Slice 7 adds one.
+**Recovery point by stage (#331).**
 
-**Restore gap.** A restored database can predate external effects: a payment or refund on any rail, a hosted vendor charge, or a node job. When the `restore` service restores a database, it writes a restore marker. A coordinator that finds the marker, or that finds a journal whose last entry is older than the last-seen watermark in object storage, starts in **paid recovery mode**:
+| Stage | Committed data at risk | Restore |
+|---|---|---|
+| 0 | writes after the last archived WAL segment (`archive_timeout`, 60 seconds or less) | restore the base backup and WAL archive on a new host |
+| 1 | none for a commit that the synchronous standby confirmed; confirm the service's replication mode | automatic failover; point-in-time restore for operator errors |
 
-1. Paid admission is paused. Simulated-credit traffic can continue.
-2. The Reconciler polls each rail from its cursor minus a margin (a chain rail from a block height), and passes the events through the inbox. A payment or refund that is missing locally is applied once, by its rail event ID.
-3. The Reconciler fetches the hosted vendors' usage for the same window. Usage without a local attempt becomes a reconciliation item. The customer charge for it is lost and is written off as IE cost (D16).
-4. Node earnings in the gap are lost from the ledger. The node owner's dashboard shows the gap. Credits are restored only from evidence that IE trusts (D16).
-5. The operator resumes paid traffic after the reconciliation report shows zero unexplained differences.
+**Restore gap.** A restored database can predate external effects: a payment or refund on a rail, a vendor charge, or a provider job. A restore writes a marker row. A coordinator that finds the marker starts in **paid recovery mode** (OPS-012):
+
+1. Paid admission is paused. Test-mode and simulated traffic can continue.
+2. The reconciler polls each rail from its cursor minus a margin and passes the events through the inbox. A missing payment or refund is applied once, by its rail event ID.
+3. The reconciler fetches vendor usage for the same window. Usage without a local attempt becomes a reconciliation item and IE cost (D16).
+4. A customer whose receipt was lost keeps the receipt as evidence. `GET /v1/requests/{id}` returns `unknown_after_restore` until the reconciler matches the vendor record. IE does not charge the customer again for that request.
+5. An operator reopens paid traffic after the report shows zero unexplained differences.
 
 ### 8.8 Overload, cold start and thundering herd
 
@@ -848,38 +934,25 @@ The money boundary moves last. `Wallet` and `RequestService` stay in one transac
 
 ## 9. Delivery order
 
-Each slice is one pull request with its requirement changes and tests. A slice does not start before the owner approves its requirements. The two supply tracks run in parallel after slice 5.
+Each slice is one pull request with its requirement changes and tests, written test first. The vendor track is the #297 gate. The provider track can continue on simulated credit.
 
-```mermaid
-flowchart LR
-    S0["0 design + model"] --> S1["1 composition root"] --> S2["2 hub correctness"] --> S3["3 policy + pricing"] --> S4["4 wallet"] --> S5["5 RequestService"]
-    S5 --> H6["6 hosted: DeepInfra"] --> H7["7 payment rails + reconcile"] --> H8["8 Novita + fallback"]
-    S2 --> N1["N1 runtime seam + cancel"]
-    N1 --> N2["N2 platform profiles + allowlist"]
-    S5 --> N3["N3 first nodes on paid path"]
-    N2 --> N3
-    N3 --> X["X node → hosted fallback"]
-    H8 --> X
-```
+| Slice | Change | Evidence |
+|---|---|---|
+| 0 | Decision records 0008 to 0011, requirements BILL-014 to BILL-026 and OPS-012 and OPS-013, model with `CallVendor` and both D1 values, ERD with postings. | TLC and 21 negative controls in CI. |
+| 1 | PostgreSQL `Store`, versioned migrations, async pool, verified data migration from SQLite, composition root, no module globals. | Full suite on PostgreSQL; migration reconciles counts and balances; two-app isolation test. |
+| 2 | Hub correctness: queue before send, sender session check, slot count on assignment, bounded queues, `cancel_request`. | Regression test for MUSE-012, 016 to 019 and 038, red first. |
+| 3 | Pure `policy` and `pricing`: byte-based input bound, delivered lower bound, location policy. | Property tests; the immediate, queued and retry paths give the same ranking. |
+| 4 | Ledger: postings, lots, holds, modes, zero-sum trigger, caps as settings. | Hypothesis stateful tests on PostgreSQL check the model invariants; replay of TLC traces. |
+| 5 | `RequestService`, idempotency keys, request lookup, usage validation, expiry worker. The chat route moves to it. The legacy billing callback is deleted. | F1, F4 to F15, F18, F19. |
+| 6 | Vendor registry, `openai_compatible` transport, vendor contract suite, mock vendor, DeepInfra row, circuit breaker, reconciliation items. | F2, F3, F20; a capped DeepInfra run on staging (#313). |
+| 7 | `PaymentService`, Stripe rail (inbox, outbox, lookup after the idempotency window, disputes), fake rail, test mode end to end. | F16, F17, F23; Stripe sandbox pay → infer → partial refund → reconcile. |
+| 8 | Reconciler, alerts, operator pause, paid recovery mode, restore drill on a new host, runbook. | #314, #317, #326. |
+| 9 | Failure campaign: every feasible ordered fault pair and named triples; load test. | #323, #310, #312. |
+| 10 | Capped live smoke test and launch evidence. | #297, #319, #322. |
 
-| Slice | Change | Closes (current main) | Evidence |
-|---|---|---|---|
-| 0 | This document, `formal/paid`, CI step. | none | TLC run and controls in CI. |
-| 1 | Composition root. Move limiter, controls and traces onto `app.state`. Add `ProviderHub.snapshot()` and migrate the 7 readers of `_providers`. | Two apps share state. Limiter state crosses tests. | Two-app isolation test. Import-rule test. Existing suite green. |
-| 2 | Hub correctness without money changes: install queue before send, check sender session, count slots on assignment, ignore heartbeat slot reports, bound response queues, send `cancel_request`. | MUSE-012, 016–019, 038 | Hub tests for each defect, red first. |
-| 3 | `policy` and `pricing` as pure modules, with location policy. Immediate, queued and retry selection call them. | Divergent selection paths | Same inputs give the same ranking on all three paths. |
-| 4 | `Wallet`, journal, outbox and `paid/schema.py` on SQLite. No route uses it yet. | MUSE-001, 002, 008/009 for the new path | Rows of the refinement table for wallet and outbox steps. Rebuild-from-journal test. |
-| 5 | `RequestService`, unit of work, `OcipAdapter`, request lookup route, idempotency keys, usage validation, limits and fault hooks. The chat route moves to it. The legacy billing callback is deleted. | MUSE-026/062, 033/063, 054/061 | JSON and SSE through the mock provider: one charge, usage parity, telemetry failure does not change the result. Failure cases F1, F4 to F15, F18, F19 in 7.3. |
-| 6 | `HostedHttpAdapter` for one DeepInfra route, behind explicit hosted opt-in. | #292 first route | One real JSON and one real SSE call with capped spend; vendor report matches attempts. F2, F3, F20 in 7.3. |
-| 7 | `PaymentService`, `RailAdapter` protocol, `StripeRail`, `Reconciler`, operator pause for paid work. | #297 fund, refund, reconcile | Stripe test mode: pay → infer → partial refund → reconcile, zero differences. The rail contract test passes for `StripeRail` and a fake second rail. F16, F17 in 7.3. A Litestream restore test. |
-| 7b | `UsdcRail` (#44) on one listed chain, testnet first. | #44 | Fund → infer → refund on testnet. Rail contract test. F21, F22 in 7.3. |
-| 8 | Second vendor (Novita) and same-checkpoint fallback. | ROUTE-008 | Forced definite rejection: one charge at the serving route's rate. |
-| N1 | `ocip_agent` `Runtime` protocol; `openai_compatible` and `managed_llama`; heartbeat `state`; coordinator sends cancel; `resync` on reconnect. | Agent tied to a llama.cpp child process | One runtime contract test (usage, cancel, error, finish reason) passes against the mock, `llama-server` and a stub OpenAI server. |
-| N2 | Profile table in registration and enrollment; GGUF and MLX identity probes; allowlist; explicit free mode. | PROV-014/018 hard-code one Apple GGUF profile | Registration tests: each admitted profile accepts its allowlisted packs at L0; other profiles, packs and higher claims are rejected. |
-| N3 | First nodes on the paid path: one MLX-Serve Mac (mlx-serve #1 fork POC) and one `llama-server` node, each with one allowlisted chat model. | mlx-serve #1 POC | Real request from a separate client to each; stream and usage; ledger entry; pause stops new jobs while the owner's own use still works. |
-| X | `node_preferred` with consented hosted fallback for one exact checkpoint served by both directions. | ROUTE-008, ROUTE-009 | Node rejects before output → vendor serves → one charge at the vendor rate; without consent → 503, no vendor call. |
+Legal review (#320, #174) and admin 2FA (#315) run in parallel. They can block launch on their own.
 
-The confidential relay (`routes_confidential.py`) stays outside the paid path until its usage can be checked (MUSE-035, MUSE-058). Slice 5 makes the paid path refuse it by name. The #297 release gate needs only the hosted track (slices 0 to 7). The node track can ship to the paid path when N3 passes; until then, nodes keep serving the simulated-credit path. A data-center operator profile (`linux-cuda-l0`) is a later N2 row and needs no new slice.
+The confidential relay stays outside the paid path until its usage can be checked (MUSE-035, MUSE-058).
 
 ## 10. Owner decisions and requirement changes
 
@@ -887,7 +960,7 @@ The model and the tests depend on these decisions. The model checks both values 
 
 | ID | Decision | Proposal |
 |---|---|---|
-| D1 | Charge for an interrupted stream | Pilot: release the hold, IE absorbs vendor cost. Later: bill measured delivered output (BILL-007) only with verified usage. |
+| D1 | Charge for an interrupted stream | Accepted: by cause (BILL-019). The client ends the stream: charge the delivered lower bound. A vendor, provider or IE fault: release the hold; IE absorbs the cost up to the absorbed-cost cap. #332 reviews this. |
 | D2 | Order of credit use | Sponsored credit first, then paid lots oldest first. |
 | D3 | Refund rounding | Round the refund down to the rail's minor unit (cents for Stripe; USDC needs no rounding). Keep any remainder as credit and disclose it. |
 | D4 | Hosted consent and trust | Hosted routes are external and unattested (P3). They need per-request opt-in (ROUTE-009). They never satisfy a trust minimum above `open` unless a requirement defines hosted evidence. |
@@ -899,13 +972,16 @@ The model and the tests depend on these decisions. The model checks both values 
 | D10 | Node pricing | Pilot: manual rates only. Auto pricing needs a defined input, cadence and floor, and each job binds to its quoted rate. |
 | D11 | Default location policy | `hosted_only` for models with no node supply; `node_preferred` without hosted consent otherwise. A customer opts in to hosted fallback. |
 | D12 | Node earnings | Simulated credits until a payout requirement and its reconciliation exist. |
-| D13 | Architecture stage | Keep the modular monolith (decision 0004). Write a new decision record before any split, and only after a signal in section 8.11 is measured. |
+| D13 | Architecture stage | Accepted: a modular monolith on PostgreSQL (decision 0008). API processes are stateless. Write a new decision record before a component split, and only after a signal in section 8.11 or #331 is measured. |
 | D14 | Retry semantics | A retry with the same idempotency key returns the first outcome and receipt, never the completion (section 8.5). Keys expire 24 hours after the request ends. |
 | D15 | Invalid upstream usage | Not charged; hold released; reconciliation item; reputation fault for a node (section 8.6). |
 | D16 | Restore gap | A restore starts paid recovery mode. Missing rail events are applied by rail event ID. Hosted cost and node earnings that have no local record are written off as IE cost unless trusted evidence exists. Paid traffic resumes only after a clean report (section 8.7). |
 | D18 | USDC credit rate | Credit 1 USDC as 1 USD. Accept only native USDC on chains that the owner lists, after a stated number of confirmations. |
 | D19 | Cross-rail and mismatch rules | Refund only to the rail that funded the lot. Hold an underpayment or overpayment for review. A dispute or reversal on spent credit puts the account in a recorded negative position and stops its paid admission. |
-| D17 | Durability target | `synchronous = FULL` on the paid connection. Recovery point about 1 second (Litestream default sync interval) plus replication lag. A restore test runs before real money. |
+| D17 | Durability target | Accepted: stage 0 loses at most the last WAL archive interval; stage 1 loses no commit that the standby confirmed. A restore drill runs before real money (section 8.7). |
+| D20 | Caps | Accepted: settings, audited (BILL-024). Alpha: vendor $10 a day, account $20, absorbed cost $5 a day across the platform. |
+| D21 | Modes | Accepted: live and test (decision 0010). Test mode uses mocks only. |
+| D22 | Supply terms | Accepted: vendor and provider (decision 0011). |
 
 Proposed new requirements (IDs to be allocated by the owner): one charge per request ID; holds before dispatch; charge within authorization; frame ownership; one usage object for receipt and API; refunds only from paid unheld credit; a payment credits once on every rail; rail contract for new payment rails; restart recovery; reconciliation of every sent hosted attempt; telemetry cannot change a charge; explicit location policy; pause and drain are not faults; coordinator sends cancel; admission profile table; runtime must report usage for the paid path; append-only journal with a rebuild check; outbox for every idempotent external effect; possibly-sent attempts before any inference send; node resync; request lookup by ID; idempotency key rules; upstream usage validation; bounded queues, retries and waits; circuit breakers; paid recovery mode after a restore; startup readiness order.
 

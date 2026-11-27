@@ -9,7 +9,11 @@ Format: one file for each decision, named `NNNN-short-title.md`. Do not change a
 | [0001](0001-github-oauth.md) | GitHub OAuth for public sign-in | Accepted |
 | [0002](0002-l2-floor.md) | Admit only L2 or higher providers | Accepted |
 | [0003](0003-byok-in-client.md) | External providers use the user's key, in the client | Accepted |
-| [0004](0004-single-vm-sqlite.md) | One VM and SQLite for alpha | Accepted |
+| [0004](0004-single-vm-sqlite.md) | One VM and SQLite for alpha | Database replaced by 0008 |
 | [0005](0005-opentofu.md) | OpenTofu for infrastructure as code | Accepted |
 | [0006](0006-docs-as-requirements.md) | Requirements in docs, checked by CI | Accepted |
 | [0007](0007-shared-network-activity.md) | Shared account-free recent activity | Accepted |
+| [0008](0008-postgresql-for-paid-path.md) | PostgreSQL for the coordinator database | Accepted |
+| [0009](0009-double-entry-ledger.md) | Double-entry postings are the money record | Accepted |
+| [0010](0010-live-and-test-modes.md) | Live mode and test mode | Accepted |
+| [0011](0011-vendors-and-providers.md) | Vendors and providers are separate kinds of supply | Accepted |

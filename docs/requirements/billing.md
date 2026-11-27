@@ -132,3 +132,115 @@ Note: Reference prices from external sources can have more digits. The system ro
 - Status: implemented
 - Verified by: tests/test_price_precision.py::test_price_precision_limit, tests/test_price_precision.py::test_cost_is_exact_and_rounds_down, tests/test_price_precision.py::test_cost_matches_integer_reference_for_random_prices, tests/test_price_precision.py::test_store_charge_uses_exact_arithmetic, tests/test_provider_registration_validation.py::test_too_precise_price_rejected, web/src/lib/price.test.mjs
 - Issue: #275
+
+## Paid path
+
+These requirements apply to paid-path accounts in live mode and test mode (decision 0010). They do not change simulated alpha accounts. Design: [paid-path architecture](../design/paid-path-architecture.md). Model: `formal/paid/PaidPath.tla`.
+
+### BILL-014: Money is recorded as double-entry postings
+
+MUST: Each money event is one ledger transaction with a unique idempotency key. Its postings are integer micro-USD and sum to zero. The database rejects a commit where they do not.
+MUST NOT: The system update or delete a posting. A correction is a new transaction.
+
+- Principle: P7
+- Status: not-implemented
+- Issue: #297
+
+### BILL-015: A hold comes before dispatch
+
+MUST: Before the first upstream call, the system holds the maximum charge of the selected route in one transaction. If available funds do not cover it, the system returns HTTP 402 and calls no upstream.
+
+- Principle: P7
+- Status: not-implemented
+- Issue: #297
+
+### BILL-016: One charge per request, within its hold
+
+MUST: A paid request has at most one charge. Only the active attempt, from the session that received it, can settle it. The charge is not more than the hold.
+
+- Principle: P7
+- Status: not-implemented
+- Issue: #297
+
+### BILL-017: Upstream usage is validated
+
+MUST: The system charges usage only if each count is a non-negative integer, cached tokens are not more than prompt tokens, completion tokens are not more than `max_tokens`, prompt tokens are not more than the input bound, and one terminal event reports it. Invalid usage is not charged. The hold is released and a reconciliation item records the reason.
+
+- Principle: P7, P3
+- Status: not-implemented
+- Issue: #297
+
+### BILL-018: The input bound needs no tokenizer
+
+MUST: The input bound of a request is its prompt size in UTF-8 bytes plus a stated overhead for each message. A registered tokenizer for the exact model can give a lower bound. The hold uses the bound at the input rate.
+
+- Principle: P7
+- Status: not-implemented
+- Issue: #297
+
+### BILL-019: Interrupted streams are billed by cause
+
+MUST: If the client ends a stream, the system charges the delivered lower bound: the count of content deltas that the client received at the output rate, plus the minimum input charge, not more than the hold. If a vendor, a provider or IE ends the stream, the system releases the hold. #332 reviews this rule.
+
+- Principle: P7
+- Status: not-implemented
+- Issue: #332
+
+### BILL-020: Paid and sponsored credit stay separate
+
+MUST: Sponsored credit is used first, then paid lots oldest first. A refund draws only on paid credit that is not held, from the rail that funded it.
+MUST NOT: A refund pay out sponsored credit or credit that a request holds.
+
+- Principle: P7
+- Status: not-implemented
+- Issue: #297
+
+### BILL-021: A payment credits once
+
+MUST: A rail event is stored by `(rail_id, rail_event_id)` before it is processed. A payment credits its order at most once. An amount, currency or account that does not match the order is not credited and becomes a reconciliation item.
+
+- Principle: P7
+- Status: not-implemented
+- Issue: #297
+
+### BILL-022: External money effects go through the outbox
+
+MUST: A refund or other external money effect starts only from a committed outbox row. The worker sends it with the IE ID as the idempotency key. Before a retry after the rail's idempotency window, the worker looks up the effect by the IE ID.
+
+- Principle: P7
+- Status: not-implemented
+- Issue: #297
+
+### BILL-023: Every possibly-sent vendor call is tracked
+
+MUST: The attempt row commits before the vendor call. Each vendor attempt that is not settled or definitely rejected gets a reconciliation item, also after a restart. The system never sends the same inference call again.
+
+- Principle: P7
+- Status: not-implemented
+- Issue: #313
+
+### BILL-024: Limits are settings
+
+MUST: The vendor daily spend cap, the account balance and daily spend cap, and the platform-wide daily absorbed-cost cap are settings that an admin can change. Each change writes an audit row. A request that would pass a cap is rejected before its hold.
+
+Note: Alpha defaults are a vendor cap of $10 a day, an account cap of $20 and an absorbed-cost cap of $5 a day across the platform.
+
+- Principle: P7
+- Status: not-implemented
+- Issue: #297
+
+### BILL-025: Live and test money never mix
+
+MUST: Each account, key, lot, transaction, posting, request and rail event has one mode. A record cannot refer to a record of the other mode. Test mode uses only the rail sandbox and mock vendors.
+
+- Principle: P7, P6
+- Status: not-implemented
+- Issue: #297
+
+### BILL-026: Request outcome lookup and idempotency keys
+
+MUST: Each paid response carries `X-IE-Request-Id` before any output. `GET /v1/requests/{id}` returns the owner's request phase and receipt, never the completion. A retry with the same `Idempotency-Key` and body returns the first outcome. The same key with a different body returns HTTP 422.
+
+- Principle: P7, P2
+- Status: not-implemented
+- Issue: #297
