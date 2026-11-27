@@ -101,3 +101,19 @@ Note: Cloudflare Access on `/admin` and `/v1/admin/*` is an added edge control. 
 - Principle: P6
 - Status: implemented
 - Verified by: tests/test_route_inventory.py::test_every_route_is_classified, tests/test_route_inventory.py::test_account_routes_need_credentials_in_prod, tests/test_route_inventory.py::test_admin_routes_need_admin_in_prod, tests/test_route_inventory.py::test_provider_socket_needs_token_in_prod, tests/test_route_inventory.py::test_api_schema_and_docs_hidden_in_prod, tests/test_route_inventory.py::test_metrics_hidden_in_prod_without_token
+
+### OPS-012: Paid recovery mode
+
+MUST: After a restore, a failed integrity check or a ledger write failure, paid admission stays paused. It reopens only after an operator confirms a reconciliation report with zero unexplained differences against the payment rail and vendor records. The pause survives a restart.
+
+- Principle: P7
+- Status: not-implemented
+- Issue: #317
+
+### OPS-013: Expired paid requests are released while the coordinator runs
+
+MUST: A worker releases each live paid request after its deadline, with a guard on the phase and attempt. It does not wait for a restart. An alert fires if a hold stays live past the recovery window.
+
+- Principle: P7
+- Status: not-implemented
+- Issue: #314

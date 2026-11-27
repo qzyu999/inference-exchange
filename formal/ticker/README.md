@@ -1,6 +1,6 @@
 # Snapshot publication and synchronization model
 
-Run TLC 1.8.0 with Java 17 or newer:
+Run TLC 1.7.4 with Java 17 or newer:
 
 ```
 java -cp /path/to/tla2tools.jar tlc2.TLC -workers 2 Snapshot.tla
