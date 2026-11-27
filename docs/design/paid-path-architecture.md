@@ -552,7 +552,7 @@ A non-USD rail captures its rate on the `FundingOrder`. The credit uses that cap
 
 In the model, route `"local"` stands for any node. The model does not depend on the runtime behind it.
 
-Result on this branch, TLC 1.8.0, Java 17:
+Result on this branch, TLC 1.7.4, Java 17:
 
 | Run | Result |
 |---|---|

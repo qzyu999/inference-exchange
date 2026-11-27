@@ -5,7 +5,7 @@ This model checks the proposed wallet, request lifecycle, capacity and refund ru
 supply from two directions: a node behind the IE agent (any runtime, home or
 data center) and a hosted vendor.
 
-Run it with TLC 1.8.0 and Java 17 or newer:
+Run it with TLC 1.7.4 and Java 17 or newer:
 
 ```
 python formal/paid/check.py /path/to/tla2tools.jar
