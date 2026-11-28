@@ -1,5 +1,8 @@
 """Read-only preflight for an existing alpha SQLite ledger and provider identity.
 
+SQLite only (decision 0008). This alpha tool runs on the SQLite database before
+scripts/copy_sqlite_to_postgres.py moves it. It is not ported to PostgreSQL.
+
 The source database is opened with mode=ro. SQLite's backup API creates an
 isolated snapshot. Schema migration and Store startup are run ONLY on that
 temporary copy. Never pass a raw provider credential to this script.

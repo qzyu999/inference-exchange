@@ -3,6 +3,10 @@
 All database files live under pytest's tmp_path. No live DB is opened.
 """
 
+import pytest as _pytest
+
+pytestmark = _pytest.mark.sqlite_only  # alpha operator script reads SQLite files only
+
 import argparse
 import importlib.util
 import json

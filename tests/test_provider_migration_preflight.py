@@ -1,5 +1,9 @@
 """The migration preflight must never mutate the original SQLite file."""
 
+import pytest as _pytest
+
+pytestmark = _pytest.mark.sqlite_only  # alpha operator script reads SQLite files only
+
 import importlib.util
 import sqlite3
 from pathlib import Path

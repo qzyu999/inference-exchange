@@ -249,6 +249,7 @@ def test_delete_with_provider_nodes_requires_offboarding(setup):
     assert store.validate_provider_token(token)["billing_account_id"] == principal
 
 
+@pytest.mark.sqlite_only  # checks the in-place SQLite upgrade in Store._migrate()
 def test_additive_migration_preserves_existing_ledger_and_unclaimed_token(env):
     """Simulate a pre-PR1 database, then apply the additive migration twice."""
     old_schema = SCHEMA.replace(

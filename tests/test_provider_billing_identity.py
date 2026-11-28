@@ -139,6 +139,7 @@ def test_two_credentials_same_display_name_never_cross_credit(db):
             assert dependencies.get_hub()._providers[pid2].billing_account_id == b
 
 
+@pytest.mark.sqlite_only  # checks the in-place SQLite upgrade in Store._migrate()
 def test_legacy_migration_is_idempotent_and_preserves_balances(db):
     store = Store(db_path=db)
     token1 = store.create_provider_token("m6-mac-mini")
@@ -194,6 +195,7 @@ def test_legacy_accounts_stay_separate_from_new_principals(db):
     assert store.get_account(stable_id)["total_earned_micro"] == 0
 
 
+@pytest.mark.sqlite_only  # checks the in-place SQLite upgrade in Store._migrate()
 def test_real_pre136_schema_is_migrated_in_place(db):
     """Create a database that lacks every new #136 column (the live upgrade path)."""
     raw_token = "pt-ie-" + "ab" * 16

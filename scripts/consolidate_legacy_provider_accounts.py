@@ -1,5 +1,8 @@
 """One-time, operator-approved alpha provider ledger consolidation (#136).
 
+SQLite only (decision 0008). This alpha tool runs on the SQLite database before
+scripts/copy_sqlite_to_postgres.py moves it. It is not ported to PostgreSQL.
+
 This is NOT a Store startup migration. By default it backs up a selected SQLite
 database and rehearses the consolidation on a temporary copy. Only --apply can
 change the explicitly selected source database, and only after a successful
