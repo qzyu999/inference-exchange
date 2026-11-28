@@ -66,6 +66,7 @@ def build_services(store: Store | None = None) -> Services:
         metrics=Metrics(),
     )
     services.price_collector = PriceCollector(store=store)
+    services.hub.reputation_fn = services.reputation.get_score
     return services
 
 
