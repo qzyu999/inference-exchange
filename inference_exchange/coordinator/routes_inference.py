@@ -568,8 +568,10 @@ async def _route_and_dispatch(request: ChatCompletionRequest, consumer_id: str):
             preference=request.ocip_preference,
             min_confidence=request.ocip_min_confidence,
             max_price=request.ocip_max_price,
+            session_id=request.ocip_session_id,
+            exclude={provider.provider_id},
         )
-        if retry_provider and retry_provider.provider_id != provider.provider_id:
+        if retry_provider is not None:
             queue = bind(retry_provider)
             provider = retry_provider  # Use the retry provider for billing/traces
             # Ciphertext must be rebound to the final provider's public key.

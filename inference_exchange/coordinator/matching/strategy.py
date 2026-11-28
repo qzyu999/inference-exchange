@@ -1,5 +1,9 @@
 """Matching strategies — pluggable algorithms for pairing orders with providers.
 
+Not used by routing since #297 slice 3: the hub ranks with paid/policy.py, which
+keeps these weights. Kept for test_matching.py and the batch-auction research.
+
+
 Each strategy implements the same Protocol (interface). You can swap strategies
 without changing the matching engine or any upstream code.
 

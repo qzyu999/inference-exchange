@@ -86,34 +86,20 @@ class ConnectedProvider:
             return 1.0
         return self.active_requests / self.capabilities.max_concurrent
 
-    def score_for_request(self, model: str, preference: str = "balanced") -> float:
-        from .matching.models import ConfidenceLevel, InferenceOrder, ProviderOffer, RoutingPreference
-        from .matching.strategy import compute_score
-
-        pref_map = {
-            "cheapest": RoutingPreference.CHEAPEST,
-            "fastest": RoutingPreference.FASTEST,
-            "most_secure": RoutingPreference.MOST_SECURE,
-            "balanced": RoutingPreference.BALANCED,
-        }
-        conf_map = {"open": ConfidenceLevel.OPEN, "contained": ConfidenceLevel.CONTAINED,
-                     "hardened": ConfidenceLevel.HARDENED, "confidential": ConfidenceLevel.CONFIDENTIAL}
-        order = InferenceOrder(order_id="trace", consumer_id="", model=model,
-                               preference=pref_map.get(preference, RoutingPreference.BALANCED))
-        offer = ProviderOffer(
-            provider_id=self.provider_id,
-            provider_name=self.name,
-            models=self.capabilities.models,
-            price_per_mtok_input=self.capabilities.price_per_mtok_input,
-            price_per_mtok_output=self.capabilities.price_per_mtok_output,
-            confidence_level=conf_map.get(self.capabilities.trust_level.value, ConfidenceLevel.OPEN),
-            measured_throughput_tps=self.capabilities.measured_tps,
-            total_slots=self.capabilities.max_concurrent,
-            used_slots=self.active_requests,
-            encrypted=bool(self.encryption_public_key),
-            hardware=self.capabilities.hardware,
-        )
-        return compute_score(order, offer)
+    def score_for_request(self, model: str, preference: str = "balanced", reputation: float = 1.0) -> float:
+        """The routing score for this provider, from the same function routing uses."""
+        from .paid import policy
+        from .paid.model import Candidate, Order
+        if model != "default" and model not in self.capabilities.models:
+            return -1
+        levels = ("open", "contained", "hardened", "confidential")
+        return policy.score(Order(model=model, preference=preference), Candidate(
+            provider_id=self.provider_id, models=frozenset(self.capabilities.models),
+            price_output=self.capabilities.price_per_mtok_output,
+            trust=levels.index(self.capabilities.trust_level.value),
+            slots=self.capabilities.max_concurrent, used=self.active_requests,
+            tps=self.capabilities.measured_tps, reputation=reputation,
+        ))
 
 
 @dataclass
@@ -179,6 +165,9 @@ class ProviderHub:
         self._session_affinity: dict[str, str] = {}
         self._SESSION_AFFINITY_MAX = 1000
         self._assignments: dict[str, Assignment] = {}
+        # Provider reputation in [0, 1], set by the composition root. Every
+        # selection path uses it, including the queue scheduler (design §2).
+        self.reputation_fn = None
         self._pending_queue: asyncio.Queue[PendingRequest] = asyncio.Queue(maxsize=self.QUEUE_MAX_DEPTH)
 
     @property
@@ -262,58 +251,51 @@ class ProviderHub:
     def providers_with_token(self, token_id: str) -> list[str]:
         return [pid for pid, p in self._providers.items() if token_id and p.token_id == token_id]
 
-    def select_provider(self, model: str, preference: str = "balanced",
-                        min_confidence: str = "open", max_price: float | None = None,
-                        session_id: str | None = None, reputation_fn=None) -> ConnectedProvider | None:
-        from .matching.models import ConfidenceLevel, InferenceOrder, ProviderOffer, RoutingPreference
-        from .matching.strategy import GreedyStrategy
+    TRUST_LEVELS = ("open", "contained", "hardened", "confidential")
 
-        pref_map = {"cheapest": RoutingPreference.CHEAPEST, "fastest": RoutingPreference.FASTEST,
-                    "most_secure": RoutingPreference.MOST_SECURE, "balanced": RoutingPreference.BALANCED}
-        conf_map = {"open": ConfidenceLevel.OPEN, "contained": ConfidenceLevel.CONTAINED,
-                     "hardened": ConfidenceLevel.HARDENED, "confidential": ConfidenceLevel.CONFIDENTIAL}
-        affinity_pid = self._session_affinity.get(session_id, "") if session_id else ""
-        order = InferenceOrder(
-            order_id="select", consumer_id="", model=model,
-            max_price_per_mtok=max_price if max_price is not None else float("inf"),
-            min_confidence=conf_map[min_confidence],  # fail closed on unknown levels (P1)
-            preference=pref_map.get(preference, RoutingPreference.BALANCED),
-            session_affinity_provider_id=affinity_pid,
-        )
-
-        offers = []
+    def candidates(self, reputation_fn=None) -> list:
+        """Routable providers as pure `Candidate`s (paid/policy.py)."""
+        from .paid.model import Candidate
+        rep = reputation_fn or self.reputation_fn
+        out = []
         for p in self._providers.values():
             # Confidential providers are invisible to routing until App Attest admission succeeds.
-            if not p.admitted:
+            if not p.admitted or p.quarantined:  # quarantine: PROV-010
                 continue
-            # Operator quarantine (PROV-010)
-            if p.quarantined:
-                continue
-            rep = reputation_fn(p.provider_id) if reputation_fn else 1.0
-            offers.append(ProviderOffer(
-                provider_id=p.provider_id,
-                provider_name=p.name,
-                models=p.capabilities.models,
-                price_per_mtok_input=p.capabilities.price_per_mtok_input,
-                price_per_mtok_output=p.capabilities.price_per_mtok_output,
-                confidence_level=conf_map.get(p.capabilities.trust_level.value, ConfidenceLevel.OPEN),
-                measured_throughput_tps=p.capabilities.measured_tps,
-                total_slots=p.capabilities.max_concurrent,
-                used_slots=p.active_requests,
-                encrypted=bool(p.encryption_public_key),
-                hardware=p.capabilities.hardware,
-                reputation_score=rep,
+            out.append(Candidate(
+                provider_id=p.provider_id, models=frozenset(p.capabilities.models),
+                price_output=p.capabilities.price_per_mtok_output,
+                trust=self.TRUST_LEVELS.index(p.capabilities.trust_level.value),
+                slots=p.capabilities.max_concurrent, used=p.active_requests,
+                tps=p.capabilities.measured_tps,
+                reputation=rep(p.provider_id) if rep else 1.0,
             ))
-        matches, _ = GreedyStrategy().match([order], offers)
-        if matches:
-            winner_id = matches[0].provider_id
-            if winner_id in self._providers:
-                if session_id:
-                    self._session_affinity[session_id] = winner_id
-                    if len(self._session_affinity) > self._SESSION_AFFINITY_MAX:
-                        del self._session_affinity[next(iter(self._session_affinity))]
-                return self._providers[winner_id]
-        return None
+        return out
+
+    def select_provider(self, model: str, preference: str = "balanced",
+                        min_confidence: str = "open", max_price: float | None = None,
+                        session_id: str | None = None, reputation_fn=None,
+                        exclude=frozenset()) -> ConnectedProvider | None:
+        """The one selection used by the immediate, queued and retry paths (design §4 rule 1)."""
+        from .paid import policy
+        from .paid.model import Order
+
+        if min_confidence not in self.TRUST_LEVELS:
+            raise KeyError(min_confidence)  # fail closed on an unknown level (P1)
+        order = Order(
+            model=model, preference=preference, max_price=max_price,
+            min_trust=self.TRUST_LEVELS.index(min_confidence),
+            exclude=frozenset(exclude),
+            affinity=self._session_affinity.get(session_id, "") if session_id else "",
+        )
+        chosen = policy.choose(order, self.candidates(reputation_fn))
+        if chosen is None:
+            return None
+        if session_id:
+            self._session_affinity[session_id] = chosen.provider_id
+            if len(self._session_affinity) > self._SESSION_AFFINITY_MAX:
+                del self._session_affinity[next(iter(self._session_affinity))]
+        return self._providers[chosen.provider_id]
 
     def explain_no_match(self, model: str, min_confidence: str = "open",
                          max_price: float | None = None) -> dict | None:
