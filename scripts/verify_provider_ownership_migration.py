@@ -1,5 +1,8 @@
 """Safely back up an explicitly selected IE SQLite DB and rehearse migrations.
 
+SQLite only (decision 0008). This alpha tool runs on the SQLite database before
+scripts/copy_sqlite_to_postgres.py moves it. It is not ported to PostgreSQL.
+
 The source SQLite connection is read-only. Store() opens ONLY the rehearsal
 copy. Retain the backup as an operator-controlled, sensitive local file.
 

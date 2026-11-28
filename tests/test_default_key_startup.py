@@ -3,8 +3,7 @@
 Tests use disposable SQLite files only; never the production DB.
 """
 
-import sqlite3
-
+import pg
 import pytest
 from fastapi.testclient import TestClient
 
@@ -13,8 +12,11 @@ from inference_exchange.coordinator.store import Store
 
 
 def _table_rows(db_path, name):
-    with sqlite3.connect(db_path) as conn:
-        return conn.execute(f"SELECT * FROM {name} ORDER BY rowid").fetchall()
+    store = Store(db_path)
+    try:
+        return pg.rows(store, name)
+    finally:
+        store.close()
 
 
 @pytest.mark.parametrize("restart_environment", ["dev", "prod"])
@@ -88,10 +90,7 @@ def test_dev_health_does_not_expose_new_key_after_restart(monkeypatch, tmp_path)
     assert "default_api_key" not in body
     assert "preserved" in body["default_api_key_note"]
     # The key still exists and did not get rotated by create_app().
-    with sqlite3.connect(tmp_path / "app.db") as conn:
-        import hashlib
-        expected_hash = hashlib.sha256(first_key.encode()).hexdigest()
-        count = conn.execute(
-            "SELECT COUNT(*) FROM api_keys WHERE key_hash = ?", (expected_hash,)
-        ).fetchone()[0]
-    assert count == 1
+    import hashlib
+    expected_hash = hashlib.sha256(first_key.encode()).hexdigest()
+    keys = [row[0] for row in _table_rows(tmp_path / "app.db", "api_keys")]
+    assert keys.count(expected_hash) == 1

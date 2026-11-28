@@ -61,6 +61,7 @@ def test_optional_wire_identity_keeps_older_ocip_messages_valid():
     assert new.served_model == "Qwen"
 
 
+@pytest.mark.sqlite_only  # checks the in-place SQLite upgrade in Store._migrate()
 def test_legacy_sqlite_migration_twice_does_not_rewrite_money_or_models(tmp_path):
     path = tmp_path / "legacy.db"
     legacy = sqlite3.connect(path)

@@ -5,7 +5,7 @@ audit is tracked in #84; these tests cover the highest-risk charge/collector
 interleaving and its earlier implicit helper commit.
 """
 
-import sqlite3
+import pg
 from concurrent.futures import ThreadPoolExecutor
 
 import pytest
@@ -67,14 +67,9 @@ def test_failed_transaction_rolls_back_debit_new_principal_and_credit(tmp_path):
     store = Store(db_path=tmp_path / "failed-charge.db")
     store.get_or_create_account("buyer")
     before = dict(store.get_account("buyer"))
-    store._conn.execute(
-        """CREATE TRIGGER fail_this_charge BEFORE INSERT ON transactions
-           WHEN NEW.request_id = 'fail-tx'
-           BEGIN SELECT RAISE(ABORT, 'test transaction failure'); END"""
-    )
-    store._conn.commit()
+    error = pg.fail_inserts(store, "transactions", "NEW.request_id = 'fail-tx'")
 
-    with pytest.raises(sqlite3.IntegrityError):
+    with pytest.raises(error):
         store.charge_request(
             "fail-tx", "buyer", "provider-that-did-not-exist",
             "test-model", 5, 7, 0.2, 0.4,

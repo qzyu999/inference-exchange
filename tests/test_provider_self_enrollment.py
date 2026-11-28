@@ -1,8 +1,8 @@
 """PROV-018: owner-scoped enrollment uses disposable SQLite databases only."""
 
-import sqlite3
 from concurrent.futures import ThreadPoolExecutor
 
+import pg
 import pytest
 from fastapi.testclient import TestClient
 from starlette.websockets import WebSocketDisconnect
@@ -151,11 +151,9 @@ def test_legacy_provider_remains_unchanged(setup):
 
 def test_rollback_on_failed_write(setup):
     _, store, alice, _, _ = setup
-    # Abort at the audit statement after earlier inserts; BEGIN IMMEDIATE must roll back.
-    with sqlite3.connect(store._db_path) as conn:
-        conn.execute("""CREATE TRIGGER fail_enroll_audit BEFORE INSERT ON provider_ownership_actions
-                     WHEN NEW.action = 'enroll' BEGIN SELECT RAISE(ABORT, 'test rollback'); END""")
-    with pytest.raises(sqlite3.IntegrityError):
+    # Abort at the audit statement after earlier inserts; the whole write must roll back.
+    error = pg.fail_inserts(store, "provider_ownership_actions", "NEW.action = 'enroll'")
+    with pytest.raises(error):
         store.enroll_provider_node(alice["user_id"], "mini", PROFILE)
     assert store._conn.execute("SELECT COUNT(*) FROM provider_nodes").fetchone()[0] == 0
     assert store._conn.execute(

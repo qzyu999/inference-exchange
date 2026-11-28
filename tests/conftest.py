@@ -44,3 +44,50 @@ def bound_services():
         return services
 
     return bind
+
+
+@pytest.fixture(autouse=True)
+def _postgres_when_configured(request, monkeypatch):
+    """With IE_TEST_DATABASE_URL set, every Store in the test uses PostgreSQL.
+
+    Each database path the test names maps to its own schema (tests/pg.py).
+    A test marked `sqlite_only` keeps SQLite: it checks a SQLite-only tool.
+    """
+    import pg
+
+    base = pg.url()
+    if not base or request.node.get_closest_marker("sqlite_only"):
+        yield
+        return
+    from pathlib import Path
+
+    from inference_exchange.coordinator import store as store_module
+
+    schemas = pg.Schemas(base, request.node.nodeid)
+
+    def resolve(db_path):
+        if db_path is None:
+            import os
+            db_path = Path(os.environ.get("IE_DB_PATH", str(store_module.DB_PATH)))
+        return "postgres", schemas.for_path(Path(db_path).resolve())
+
+    opened = []
+    real_init = store_module.Store.__init__
+
+    def tracked_init(self, *args, **kwargs):
+        real_init(self, *args, **kwargs)
+        opened.append(self)
+
+    monkeypatch.setattr(store_module, "resolve_backend", resolve)
+    monkeypatch.setattr(store_module.Store, "__init__", tracked_init)
+    yield
+    for store in opened:  # free the server's connection slots
+        try:
+            store.close()
+        except Exception:
+            pass
+    schemas.drop()
+
+
+def pytest_configure(config):
+    config.addinivalue_line("markers", "sqlite_only: checks a tool that reads SQLite files only")

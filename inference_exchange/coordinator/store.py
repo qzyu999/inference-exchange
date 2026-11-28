@@ -1,10 +1,13 @@
-"""SQLite persistence layer — survives restarts.
+"""Persistence layer — survives restarts.
 
 Stores: accounts, API keys, billing transactions, provider history.
 Recorded request outcomes use a bounded operational table.
 Live WebSocket connections and in-flight execution stay in memory.
 
-DB location: ~/.inference-exchange/exchange.db
+Backend (decision 0008): PostgreSQL when IE_DATABASE_URL is set, with the
+schema in pg_schema.py. Otherwise SQLite at IE_DB_PATH
+(~/.inference-exchange/exchange.db), kept until the data copy to PostgreSQL
+has run (scripts/copy_sqlite_to_postgres.py).
 """
 
 import json
@@ -205,6 +208,24 @@ class ProviderNodesExist(Exception):
     """Do not delete a user while their provider nodes own billing history."""
 
 
+def resolve_backend(db_path: Path | None) -> tuple[str, object]:
+    """("postgres", url) when IE_DATABASE_URL is set, else ("sqlite", path).
+
+    An explicit db_path always means SQLite. Tests replace this function to
+    give each path its own PostgreSQL schema.
+    """
+    url = os.environ.get("IE_DATABASE_URL", "").strip()
+    if url and db_path is None:
+        return "postgres", url
+    if db_path is None:
+        db_path = Path(os.environ.get("IE_DB_PATH", str(DB_PATH)))
+    return "sqlite", db_path
+
+
+# One key for every ownership write, so they serialize across processes.
+OWNERSHIP_LOCK = 0x1E_0A_17_E1
+
+
 def serialized_read(method):
     """Keep read queries off the shared SQLite connection during a write.
 
@@ -235,37 +256,47 @@ def serialized_write(method):
 
 
 class Store:
-    """SQLite-backed persistent store for the exchange."""
+    """Persistent store for the exchange (PostgreSQL or SQLite)."""
 
     PLATFORM_FEE_PERCENT = 10
 
     def __init__(self, db_path: Path | None = None):
-        if db_path is None:
-            db_path = Path(os.environ.get("IE_DB_PATH", str(DB_PATH)))
-        db_path.parent.mkdir(parents=True, exist_ok=True)
-        self._db_path = db_path
-        # #84: Python's shared sqlite3 connection does not serialize a
-        # SELECT/UPDATE/INSERT sequence just because check_same_thread=False.
+        # #84: one shared connection; the lock serializes each Store operation.
         self._lock = threading.RLock()
-        self._conn = sqlite3.connect(str(db_path), check_same_thread=False, timeout=30.0)
-        self._conn.row_factory = sqlite3.Row
-        self._conn.execute("PRAGMA busy_timeout=5000")
-        self._conn.execute("PRAGMA journal_mode=WAL")
-        self._conn.execute("PRAGMA foreign_keys=ON")
-        self._conn.executescript(SCHEMA)
-        self._conn.commit()
-
-        # Migrations for existing databases
-        self._migrate()
+        self.backend, target = resolve_backend(db_path)
+        if self.backend == "postgres":
+            from .db import PgConnection, redacted
+            from .pg_schema import migrate
+            self._db_path = None
+            self._conn = PgConnection(target)
+            migrate(self._conn)
+            where = redacted(target)
+        else:
+            target.parent.mkdir(parents=True, exist_ok=True)
+            self._db_path = target
+            self._conn = sqlite3.connect(str(target), check_same_thread=False, timeout=30.0)
+            self._conn.row_factory = sqlite3.Row
+            self._conn.execute("PRAGMA busy_timeout=5000")
+            self._conn.execute("PRAGMA journal_mode=WAL")
+            self._conn.execute("PRAGMA foreign_keys=ON")
+            self._conn.executescript(SCHEMA)
+            self._conn.commit()
+            # Migrations for existing SQLite databases
+            self._migrate()
+            where = str(target)
         self.interrupt_request_outcomes()
 
-        logger.info(f"Store initialized: {db_path}")
+        logger.info(f"Store initialized ({self.backend}): {where}")
 
         # Ensure default consumer exists
         self._ensure_account("default-consumer", "Default (anonymous)")
 
         # Ensure default API key exists, create if not
         self._default_key = self._ensure_default_key()
+
+    def close(self) -> None:
+        with self._lock:
+            self._conn.close()
 
     def _migrate(self):
         """Apply schema migrations for existing databases."""
@@ -380,8 +411,8 @@ class Store:
     def _ensure_account_in_transaction(self, account_id: str, name: str):
         """Insert an account only if absent. Caller owns the transaction."""
         self._conn.execute(
-            "INSERT OR IGNORE INTO accounts (account_id, name, balance_micro, created_at) "
-            "VALUES (?, ?, ?, ?)",
+            "INSERT INTO accounts (account_id, name, balance_micro, created_at) "
+            "VALUES (?, ?, ?, ?) ON CONFLICT (account_id) DO NOTHING",
             (account_id, name, 10 * MICRO_PER_DOLLAR, time.time()),
         )
 
@@ -702,8 +733,8 @@ class Store:
 
     def _prune_outcomes(self):
         self._conn.execute("DELETE FROM request_outcomes WHERE timestamp < ?", (time.time() - TRACE_RETENTION_SECONDS,))
-        self._conn.execute("""DELETE FROM request_outcomes WHERE request_id IN
-            (SELECT request_id FROM request_outcomes ORDER BY timestamp DESC, request_id DESC LIMIT -1 OFFSET ?)""", (TRACE_MAX_ROWS,))
+        self._conn.execute("""DELETE FROM request_outcomes WHERE request_id NOT IN
+            (SELECT request_id FROM request_outcomes ORDER BY timestamp DESC, request_id DESC LIMIT ?)""", (TRACE_MAX_ROWS,))
 
     @serialized_write
     def save_request_outcome(self, trace: dict, consumer_id: str | None):
@@ -920,12 +951,17 @@ class Store:
 
     @contextmanager
     def _ownership_write(self):
-        """Serialize ownership and account deletion writes across SQLite connections.
+        """Serialize ownership and account deletion writes across connections.
 
-        This uses BEGIN IMMEDIATE on a separate connection so that concurrent claims
-        cannot both pass a read-before-write check on the shared Store connection.
-        Full Store write synchronization is tracked separately in issue #84.
+        Concurrent claims must not both pass a read-before-write check. SQLite
+        uses BEGIN IMMEDIATE on a separate connection. PostgreSQL takes one
+        transaction-scoped advisory lock, which also covers other processes.
         """
+        if self.backend == "postgres":
+            with self._lock, self._conn:
+                self._conn.execute("SELECT pg_advisory_xact_lock(?)", (OWNERSHIP_LOCK,))
+                yield self._conn
+            return
         with self._lock:
             conn = sqlite3.connect(str(self._db_path), timeout=30.0)
             conn.row_factory = sqlite3.Row
@@ -1374,7 +1410,7 @@ class Store:
                 "INSERT INTO users (user_id, email, password_hash, name, created_at, signup_country) VALUES (?, ?, ?, ?, ?, ?)",
                 (user_id, email.lower().strip(), password_hash, name or email.split("@")[0], time.time(), signup_country),
             )
-        except sqlite3.IntegrityError:
+        except self._conn.IntegrityError:
             raise ValueError(f"Email already registered: {email}")
 
         # Create billing account for this user
@@ -1452,7 +1488,7 @@ class Store:
                 "INSERT INTO users (user_id, email, password_hash, name, created_at, last_login_at, github_id, signup_country) VALUES (?, ?, '', ?, ?, ?, ?, ?)",
                 (user_id, email, name, now, now, github_id, signup_country),
             )
-        except sqlite3.IntegrityError:
+        except self._conn.IntegrityError:
             raise ValueError(f"Email already registered with a password account: {email}")
         self._conn.execute(
             "INSERT INTO accounts (account_id, name, balance_micro, created_at) VALUES (?, ?, ?, ?)",

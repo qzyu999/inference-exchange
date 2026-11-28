@@ -1,5 +1,6 @@
 import time
 
+import pg
 import pytest
 from inference_exchange.coordinator.comparison_identity import ExactCatalog, AmbiguousHistory
 from inference_exchange.coordinator.price_collector import PriceEntry
@@ -41,8 +42,7 @@ def test_parser_changes_keep_durable_history_separate_and_index_repeatable(tmp_p
         reopened = Store(path)
         assert [tuple(row) for row in reopened._conn.execute("SELECT * FROM reference_prices")] == before
         assert reopened.get_account("default-consumer")["balance_micro"] == balance
-        index = reopened._conn.execute("PRAGMA index_info(idx_ref_source_model_time)").fetchall()
-        assert [r[2] for r in index] == ["source", "model_id", "fetched_at"]
+        assert pg.index_columns(reopened, "idx_ref_source_model_time") == ["source", "model_id", "fetched_at"]
         rows = reopened.exact_reference_price_history(catalog(), 0, model=IDS[0])
         assert [r["output_per_mtok"] for r in rows] == [0.1, 0.15]
         assert {r["model_id"] for r in rows} == {IDS[0]}

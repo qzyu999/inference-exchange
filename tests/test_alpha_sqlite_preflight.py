@@ -1,4 +1,8 @@
 """Read-only live-DB rehearsal uses disposable SQLite files, never user data."""
+
+import pytest as _pytest
+
+pytestmark = _pytest.mark.sqlite_only  # alpha operator script reads SQLite files only
 import sqlite3
 from pathlib import Path
 from runpy import run_path
