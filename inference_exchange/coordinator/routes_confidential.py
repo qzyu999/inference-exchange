@@ -141,11 +141,11 @@ async def _relay_confidential(request: "ConfidentialInferenceRequest", consumer_
         stream=request.stream,
     )
 
-    queue = hub.create_response_queue(request_id)
+    queue = hub.start(request_id, provider)
     try:
         await hub.send_to_provider(provider, inference_req)
     except Exception as e:
-        hub.remove_response_queue(request_id)
+        hub.finish(request_id)
         raise ProviderError(f"Failed to reach provider: {e}")
 
     _add_trace({
@@ -256,7 +256,7 @@ async def _stream_confidential(
         else:
             reputation.record_error(provider.provider_id)
     finally:
-        hub.remove_response_queue(request_id)
+        await hub.cancel(request_id)
 
 
 async def _collect_confidential(
@@ -285,7 +285,7 @@ async def _collect_confidential(
                 get_reputation_tracker().record_error(provider.provider_id)
                 raise ProviderError(msg.error)
     finally:
-        hub.remove_response_queue(request_id)
+        await hub.cancel(request_id)
 
     token_count = len(encrypted_tokens)
 

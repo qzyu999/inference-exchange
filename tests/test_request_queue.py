@@ -74,6 +74,12 @@ def _make_inference_req(request_id: str = "req-1") -> InferenceRequest:
     )
 
 
+async def _in_flight(hub: ProviderHub, provider: ConnectedProvider, request_id: str) -> None:
+    """A request the hub sent to `provider`. It holds one slot, as in production."""
+    hub.start(request_id, provider)
+    await hub.send_to_provider(provider, _make_inference_req(request_id))
+
+
 # ---------------------------------------------------------------------------
 # 1. Request queues when no provider available
 # ---------------------------------------------------------------------------
@@ -145,10 +151,7 @@ class TestQueueDispatch:
         provider = _add_provider(hub, "p1", max_concurrent=1)
 
         # Saturate the provider (1 active = at capacity)
-        provider.active_requests = 1
-        active_req = _make_inference_req("active-req")
-        hub.create_response_queue("active-req")
-        hub._request_to_provider["active-req"] = "p1"
+        await _in_flight(hub, provider, "active-req")
 
         # Enqueue a pending request
         pending_req = _make_inference_req("pending-req")
@@ -178,9 +181,7 @@ class TestQueueDispatch:
         """Queue dispatch also fires when a request errors (provider frees a slot)."""
         hub = _make_hub()
         provider = _add_provider(hub, "p1", max_concurrent=1)
-        provider.active_requests = 1
-        hub.create_response_queue("active-req")
-        hub._request_to_provider["active-req"] = "p1"
+        await _in_flight(hub, provider, "active-req")
 
         pending_req = _make_inference_req("pending-req")
         pending = hub.enqueue_request(pending_req, model="test-model")
@@ -201,9 +202,10 @@ class TestQueueDispatch:
         """If the provider is still at capacity after completing one request, don't dispatch."""
         hub = _make_hub()
         provider = _add_provider(hub, "p1", max_concurrent=1)
-        provider.active_requests = 2  # Over-committed (shouldn't happen, but be safe)
-        hub.create_response_queue("active-req")
-        hub._request_to_provider["active-req"] = "p1"
+        provider.capabilities.max_concurrent = 2
+        await _in_flight(hub, provider, "active-req")
+        await _in_flight(hub, provider, "other-req")
+        provider.capabilities.max_concurrent = 1  # still full after one finishes
 
         pending_req = _make_inference_req("pending-req")
         pending = hub.enqueue_request(pending_req, model="test-model")
@@ -299,11 +301,9 @@ class TestFIFODispatch:
         """Multiple queued requests are dispatched oldest-first as providers free up."""
         hub = _make_hub()
         provider = _add_provider(hub, "p1", max_concurrent=1)
-        provider.active_requests = 1
 
         # Set up the in-flight request
-        hub.create_response_queue("active-req")
-        hub._request_to_provider["active-req"] = "p1"
+        await _in_flight(hub, provider, "active-req")
 
         # Enqueue 3 requests in order
         pendings = []
@@ -326,10 +326,10 @@ class TestFIFODispatch:
         assert not pendings[2].event.is_set()
         assert pendings[0].provider.provider_id == "p1"
 
-        # Simulate that queued-0 was sent and is now in-flight
-        provider.active_requests = 1
-        hub.create_response_queue("queued-0")
-        hub._request_to_provider["queued-0"] = "p1"
+        # queued-0 now sends on the slot the scheduler reserved for it
+        hub.start("queued-0", provider, reserved=True)
+        await hub.send_to_provider(provider, pendings[0].inference_req)
+        assert provider.active_requests == 1
 
         # Complete queued-0 — should dispatch queued-1
         hub.handle_provider_message("p1", {
@@ -350,9 +350,7 @@ class TestFIFODispatch:
         hub = _make_hub()
         # p1 serves model-a, p2 serves model-b
         p1 = _add_provider(hub, "p1", models=["model-a"], max_concurrent=1)
-        p1.active_requests = 1
-        hub.create_response_queue("active-p1")
-        hub._request_to_provider["active-p1"] = "p1"
+        await _in_flight(hub, p1, "active-p1")
 
         # Queue: first wants model-b (p1 can't serve), second wants model-a (p1 can serve)
         req_b = InferenceRequest(
@@ -389,12 +387,8 @@ class TestFIFODispatch:
         """Dispatch uses any available provider, not just the one that freed up."""
         hub = _make_hub()
         p1 = _add_provider(hub, "p1", max_concurrent=1)
-        p2 = _add_provider(hub, "p2", max_concurrent=1)
-        p1.active_requests = 1
-        p2.active_requests = 0  # p2 is idle but wasn't checked because no trigger
-
-        hub.create_response_queue("active-p1")
-        hub._request_to_provider["active-p1"] = "p1"
+        _add_provider(hub, "p2", max_concurrent=1)  # idle second provider
+        await _in_flight(hub, p1, "active-p1")
 
         req = _make_inference_req("queued-1")
         pending = hub.enqueue_request(req, model="test-model")

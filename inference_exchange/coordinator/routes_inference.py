@@ -373,6 +373,7 @@ async def _route_and_dispatch(request: ChatCompletionRequest, consumer_id: str):
                 timeout=hub.QUEUE_TIMEOUT_SECONDS,
             )
         except asyncio.TimeoutError:
+            hub.abandon(pending)
             _add_trace({
                 "request_id": request_id,
                 "timestamp": time.time(),
@@ -384,6 +385,10 @@ async def _route_and_dispatch(request: ChatCompletionRequest, consumer_id: str):
                 "providers_evaluated": hub.provider_count,
             }, consumer_id)
             raise QueueTimeout(hub.QUEUE_TIMEOUT_SECONDS)
+
+        except BaseException:
+            hub.abandon(pending)  # client gone while waiting: return any reserved slot
+            raise
 
         if pending.cleared:
             raise QueueCleared()
@@ -418,12 +423,17 @@ async def _route_and_dispatch(request: ChatCompletionRequest, consumer_id: str):
             )
             logger.info(f"[{request_id[:8]}] 🔐 Request encrypted to provider")
 
-        # Now send to the assigned provider
-        queue = hub.create_response_queue(request_id)
+        # Bind queue, billing and the reserved slot before the send (MUSE-016/019)
+        start_time = time.time()
+        queue_wait = int((time.time() - pending.queued_at) * 1000)
+        queue = hub.start(request_id, provider, reserved=True, on_done=_make_billing_callback(
+            request_id, request.model, provider, consumer_id, input_token_estimate, start_time,
+            preference=request.ocip_preference, queued=True, queue_wait_ms=queue_wait,
+        ))
         try:
             await hub.send_to_provider(provider, inference_req)
         except Exception as e:
-            hub.remove_response_queue(request_id)
+            hub.finish(request_id)
             raise ProviderError(f"Failed to reach provider: {e}")
 
         # Build scoring trace
@@ -477,18 +487,6 @@ async def _route_and_dispatch(request: ChatCompletionRequest, consumer_id: str):
                 "source": "queue",
             })
 
-        # Register billing callback so InferenceDone triggers billing
-        # even if the streaming generator is cancelled by FastAPI
-        start_time = time.time()
-        queue_wait = int((time.time() - pending.queued_at) * 1000)
-        hub.register_billing_callback(
-            request_id,
-            _make_billing_callback(
-                request_id, request.model, provider, consumer_id, input_token_estimate, start_time,
-                preference=request.ocip_preference, queued=True, queue_wait_ms=queue_wait,
-            ),
-        )
-
         if request.stream:
             return StreamingResponse(
                 _stream_response(request_id, request.model, queue, hub, provider, consumer_id, start_time),
@@ -524,8 +522,15 @@ async def _route_and_dispatch(request: ChatCompletionRequest, consumer_id: str):
 
     request_id = str(uuid.uuid4())
 
-    # Create response queue before sending request
-    queue = hub.create_response_queue(request_id)
+    def bind(target):
+        """Queue, billing callback and slot exist before the send (MUSE-016)."""
+        return hub.start(request_id, target, on_done=_make_billing_callback(
+            request_id, request.model, target, consumer_id, input_token_estimate, start_time,
+            preference=request.ocip_preference,
+        ))
+
+    start_time = time.time()
+    queue = bind(provider)
 
     # Build request — encrypt if provider supports E2E
     encrypted_body = None
@@ -555,7 +560,7 @@ async def _route_and_dispatch(request: ChatCompletionRequest, consumer_id: str):
     try:
         await hub.send_to_provider(provider, inference_req)
     except Exception as e:
-        hub.remove_response_queue(request_id)
+        hub.finish(request_id)
         # RETRY: try another provider
         logger.warning(f"[{request_id[:8]}] Provider {provider.name} unreachable, retrying...")
         retry_provider = hub.select_provider(
@@ -565,7 +570,7 @@ async def _route_and_dispatch(request: ChatCompletionRequest, consumer_id: str):
             max_price=request.ocip_max_price,
         )
         if retry_provider and retry_provider.provider_id != provider.provider_id:
-            queue = hub.create_response_queue(request_id)
+            queue = bind(retry_provider)
             provider = retry_provider  # Use the retry provider for billing/traces
             # Ciphertext must be rebound to the final provider's public key.
             retry_body = None
@@ -584,7 +589,7 @@ async def _route_and_dispatch(request: ChatCompletionRequest, consumer_id: str):
                 await hub.send_to_provider(retry_provider, inference_req)
                 logger.info(f"[{request_id[:8]}] Retried on {retry_provider.name}")
             except Exception as e2:
-                hub.remove_response_queue(request_id)
+                hub.finish(request_id)
                 raise ProviderError(f"All providers failed: {e2}")
         else:
             raise ProviderError(f"Failed to reach provider: {e}")
@@ -622,17 +627,6 @@ async def _route_and_dispatch(request: ChatCompletionRequest, consumer_id: str):
             "served_model": served_model_for_request(request.model, provider) if provider is not None else None,
             "score": max((s["score"] for s in scoring_details if s["selected"]), default=0),
         })
-
-    # Register billing callback so InferenceDone triggers billing
-    # even if the streaming generator is cancelled by FastAPI
-    start_time = time.time()
-    hub.register_billing_callback(
-        request_id,
-        _make_billing_callback(
-            request_id, request.model, provider, consumer_id, input_token_estimate, start_time,
-            preference=request.ocip_preference,
-        ),
-    )
 
     if request.stream:
         return StreamingResponse(
@@ -732,7 +726,8 @@ async def _stream_response(
         elif outcome == "error":
             reputation.record_error(provider.provider_id)
     finally:
-        hub.remove_response_queue(request_id)
+        # Normal end: finish. Client disconnect or timeout: tell the provider (MUSE-017).
+        await hub.cancel(request_id)
 
 
 async def _collect_response(
@@ -768,7 +763,7 @@ async def _collect_response(
                 reputation.record_error(provider.provider_id)
                 raise ProviderError(msg.error)
     finally:
-        hub.remove_response_queue(request_id)
+        await hub.cancel(request_id)
 
     # Record reputation — success
     reputation = get_reputation_tracker()

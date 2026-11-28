@@ -82,8 +82,7 @@ class TestTokenRevocation:
 
     def test_revoke_disconnects_live_provider(self):
         hub, pid, ws = _hub_with_provider("tok1")
-        queue = hub.create_response_queue("req-1")
-        hub._request_to_provider["req-1"] = pid
+        queue = hub.start("req-1", hub._providers[pid])
         assert hub.providers_with_token("tok1") == [pid]
         assert asyncio.run(hub.force_disconnect(pid, "Provider token revoked"))
         assert pid not in hub._providers
