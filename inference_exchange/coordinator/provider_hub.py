@@ -12,6 +12,7 @@ from fastapi import WebSocket
 from inference_exchange.shared.protocol import (
     AttestationChallenge,
     AttestationResponse,
+    CancelRequest,
     HeartbeatMessage,
     InferenceDone,
     InferenceError,
@@ -34,7 +35,10 @@ class ConnectedProvider:
     capabilities: ProviderCapabilities
     encryption_public_key: str = ""
     connected_at: float = field(default_factory=time.time)
+    # Slots the hub has reserved for this provider. Only Assignment changes it.
     active_requests: int = 0
+    # What the provider's last heartbeat said. Display only, never routing (MUSE-018).
+    reported_active_requests: int = 0
     last_heartbeat: float = field(default_factory=time.time)
     model_verified: bool = False
     model_identity: dict = field(default_factory=dict)
@@ -113,6 +117,38 @@ class ConnectedProvider:
 
 
 @dataclass
+class Assignment:
+    """One request on one provider connection.
+
+    The hub accepts a frame for the request only from this provider and this
+    connection session (MUSE-012). The queue and the done callback exist before
+    the send (MUSE-016). The slot is reserved once and released once (MUSE-017/019).
+    """
+    request_id: str
+    provider: ConnectedProvider
+    session_id: str
+    queue: asyncio.Queue
+    on_done: object = None
+    holds_slot: bool = False
+    finished: bool = False
+
+    def reserve(self) -> None:
+        if not self.holds_slot:
+            self.provider.active_requests += 1
+            self.holds_slot = True
+
+    def release(self) -> None:
+        self.release_pending()
+
+    def release_pending(self) -> bool:
+        if self.holds_slot:
+            self.provider.active_requests = max(0, self.provider.active_requests - 1)
+            self.holds_slot = False
+            return True
+        return False
+
+
+@dataclass
 class PendingRequest:
     request_id: str
     inference_req: InferenceRequest
@@ -125,25 +161,30 @@ class PendingRequest:
     max_price: float | None = None
     session_id: str | None = None
     cleared: bool = False
+    abandoned: bool = False
 
 
 class ProviderHub:
     QUEUE_MAX_DEPTH = 50
     QUEUE_TIMEOUT_SECONDS = 30.0
+    # Frames buffered per request before the client is too slow (MUSE-038).
+    RESPONSE_QUEUE_MAX = 2048
 
     def __init__(self):
         # Operator overrides (#112): IE_QUEUE_MAX_DEPTH, IE_QUEUE_TIMEOUT_SECONDS
         self.QUEUE_MAX_DEPTH = int(os.environ.get("IE_QUEUE_MAX_DEPTH", self.QUEUE_MAX_DEPTH))
         self.QUEUE_TIMEOUT_SECONDS = float(os.environ.get("IE_QUEUE_TIMEOUT_SECONDS", self.QUEUE_TIMEOUT_SECONDS))
         self._providers: dict[str, ConnectedProvider] = {}
-        self._response_queues: dict[str, asyncio.Queue] = {}
         self._next_provider_id = 0
         self._session_affinity: dict[str, str] = {}
         self._SESSION_AFFINITY_MAX = 1000
-        self._request_to_provider: dict[str, str] = {}
+        self._assignments: dict[str, Assignment] = {}
         self._pending_queue: asyncio.Queue[PendingRequest] = asyncio.Queue(maxsize=self.QUEUE_MAX_DEPTH)
-        # Billing callbacks keyed by request_id, invoked when InferenceDone arrives
-        self._billing_callbacks: dict[str, callable] = {}
+
+    @property
+    def _response_queues(self) -> dict[str, asyncio.Queue]:
+        """Live queues by request ID (read-only view for admin stats)."""
+        return {rid: a.queue for rid, a in self._assignments.items() if not a.finished}
 
     @property
     def provider_count(self) -> int:
@@ -187,14 +228,11 @@ class ProviderHub:
         if provider_id in self._providers:
             provider = self._providers[provider_id]
             name = provider.name
-            orphaned_requests = [req_id for req_id, pid in self._request_to_provider.items() if pid == provider_id]
+            orphaned_requests = [rid for rid, a in self._assignments.items()
+                                 if a.provider is provider and not a.finished]
             for req_id in orphaned_requests:
                 self._record_failed_outcome(req_id)
-                if req_id in self._response_queues:
-                    self._response_queues[req_id].put_nowait(
-                        InferenceError(request_id=req_id, error="provider_disconnected")
-                    )
-                self._request_to_provider.pop(req_id, None)
+                self._fail(self._assignments[req_id], "provider_disconnected")
             del self._providers[provider_id]
             logger.info(f"Provider disconnected: {name} ({provider_id})")
             return orphaned_requests
@@ -323,31 +361,67 @@ class ProviderHub:
                 }
         return None
 
-    def create_response_queue(self, request_id: str) -> asyncio.Queue:
-        queue: asyncio.Queue = asyncio.Queue()
-        self._response_queues[request_id] = queue
-        return queue
+    # --- Assignment lifecycle ------------------------------------------------
 
-    def remove_response_queue(self, request_id: str):
-        self._response_queues.pop(request_id, None)
-        self._request_to_provider.pop(request_id, None)
-        self._billing_callbacks.pop(request_id, None)
+    def start(self, request_id: str, provider: ConnectedProvider, *, on_done=None,
+              reserved: bool = False) -> asyncio.Queue:
+        """Bind a request to one provider connection before anything is sent.
 
-    def register_billing_callback(self, request_id: str, callback: callable):
-        """Register a callback invoked when InferenceDone arrives for this request."""
-        self._billing_callbacks[request_id] = callback
+        `reserved=True` means the queue scheduler already reserved the slot for
+        this provider (MUSE-019). Returns the bounded response queue.
+        """
+        if request_id in self._assignments:
+            raise ValueError(f"request {request_id[:8]} is already assigned")
+        assignment = Assignment(
+            request_id=request_id, provider=provider, session_id=provider.session_id,
+            queue=asyncio.Queue(maxsize=self.RESPONSE_QUEUE_MAX), on_done=on_done,
+            holds_slot=reserved,
+        )
+        assignment.reserve()
+        self._assignments[request_id] = assignment
+        return assignment.queue
+
+    def set_on_done(self, request_id: str, on_done) -> None:
+        assignment = self._assignments.get(request_id)
+        if assignment is not None:
+            assignment.on_done = on_done
+
+    def finish(self, request_id: str) -> None:
+        """The route is done with this request. Releases the slot if still held."""
+        assignment = self._assignments.pop(request_id, None)
+        if assignment is not None:
+            assignment.finished = True
+            if assignment.release_pending():
+                self._schedule_dispatch()
+
+    async def cancel(self, request_id: str) -> None:
+        """Release the request. If the provider may still be working, tell it to stop.
+
+        A request that ended with Done, an error or a disconnect sends no frame.
+        """
+        assignment = self._assignments.get(request_id)
+        if assignment is None:
+            return
+        provider_still_working = not assignment.finished
+        self.finish(request_id)
+        if provider_still_working:
+            await self._send_cancel(assignment)
+
+    async def _send_cancel(self, assignment: Assignment) -> None:
+        if self._providers.get(assignment.provider.provider_id) is not assignment.provider:
+            return  # the connection is gone
+        try:
+            await assignment.provider.ws.send_json(CancelRequest(request_id=assignment.request_id).model_dump())
+        except Exception as e:  # the socket may already be closing
+            logger.debug(f"cancel_request to {assignment.provider.provider_id} failed: {e}")
 
     async def send_to_provider(self, provider: ConnectedProvider, request: InferenceRequest):
         if not provider.admitted and provider.requires_app_attest:
             raise PermissionError("provider is not App Attest admitted")
-        provider.active_requests += 1
-        self._request_to_provider[request.request_id] = provider.provider_id
-        try:
-            await provider.ws.send_json(request.model_dump())
-        except Exception:
-            provider.active_requests = max(0, provider.active_requests - 1)
-            self._request_to_provider.pop(request.request_id, None)
-            raise
+        assignment = self._assignments.get(request.request_id)
+        if assignment is None or assignment.provider is not provider:
+            raise RuntimeError("call ProviderHub.start() for this provider before sending")
+        await provider.ws.send_json(request.model_dump())
 
     def enqueue_request(self, inference_req: InferenceRequest, *, model: str = "default",
                         preference: str = "balanced", min_confidence: str = "open",
@@ -377,6 +451,21 @@ class ProviderHub:
             logger.warning(f"Request queue cleared by operator ({cleared} requests)")
         return cleared
 
+    def abandon(self, pending: PendingRequest) -> None:
+        """The waiting route gave up. Return any slot the scheduler reserved for it."""
+        pending.abandoned = True
+        if pending.provider is not None and pending.request_id not in self._assignments:
+            pending.provider.active_requests = max(0, pending.provider.active_requests - 1)
+            pending.provider = None
+            self._schedule_dispatch()
+
+    def _schedule_dispatch(self) -> None:
+        try:
+            asyncio.get_running_loop()
+        except RuntimeError:
+            return
+        asyncio.ensure_future(self._try_dispatch_queued())
+
     async def _try_dispatch_queued(self, freed_provider_id: str | None = None):
         if self._pending_queue.empty():
             return
@@ -388,6 +477,8 @@ class ProviderHub:
             except asyncio.QueueEmpty:
                 break
         for pending in items:
+            if pending.abandoned or pending.cleared:
+                continue
             if dispatched:
                 self._pending_queue.put_nowait(pending)
                 continue
@@ -395,58 +486,91 @@ class ProviderHub:
                                             min_confidence=pending.min_confidence,
                                             max_price=pending.max_price, session_id=pending.session_id)
             if provider is not None:
+                # Reserve now, in the same step as the choice, so a second pass
+                # sees the slot as taken (MUSE-019). start(reserved=True) adopts it.
+                provider.active_requests += 1
                 pending.provider = provider
                 pending.event.set()
                 dispatched = True
             else:
                 self._pending_queue.put_nowait(pending)
 
+    def _owned(self, provider_id: str, request_id: str) -> Assignment | None:
+        """The live assignment, only if this provider connection owns it (MUSE-012)."""
+        assignment = self._assignments.get(request_id)
+        if assignment is None or assignment.finished:
+            return None
+        provider = self._providers.get(provider_id)
+        if provider is None or provider is not assignment.provider or provider.session_id != assignment.session_id:
+            logger.warning(f"Dropped frame for {request_id[:8]} from {provider_id}: not the assigned provider")
+            return None
+        return assignment
+
+    def _deliver(self, assignment: Assignment, msg) -> bool:
+        """Put a frame on the queue. A full queue fails the request (MUSE-038)."""
+        try:
+            assignment.queue.put_nowait(msg)
+            return True
+        except asyncio.QueueFull:
+            self._fail(assignment, "response_overflow", leave_room=True)
+            asyncio.ensure_future(self._send_cancel(assignment))
+            return False
+
+    def _fail(self, assignment: Assignment, error: str, *, leave_room: bool = False) -> None:
+        """End a live assignment with an error. Its slot is released once."""
+        if assignment.finished:
+            return
+        assignment.finished = True
+        assignment.on_done = None
+        if leave_room:  # drop the oldest frame so the error always fits
+            try:
+                assignment.queue.get_nowait()
+            except asyncio.QueueEmpty:
+                pass
+        try:
+            assignment.queue.put_nowait(InferenceError(request_id=assignment.request_id, error=error))
+        except asyncio.QueueFull:
+            pass
+        if assignment.release_pending():
+            self._schedule_dispatch()
+
     def handle_provider_message(self, provider_id: str, data: dict):
         msg_type = data.get("type")
         request_id = data.get("request_id")
         if not request_id:
             return
+        assignment = self._owned(provider_id, request_id)
+        if assignment is None:
+            return
 
-        # InferenceDone billing must fire even after the response queue is
-        # cleaned up (the streaming generator may have finished and removed
-        # the queue before InferenceDone arrives from the provider).
-        if msg_type == MessageType.INFERENCE_DONE:
+        if msg_type == MessageType.INFERENCE_RESPONSE:
+            self._deliver(assignment, InferenceResponseChunk(**data))
+        elif msg_type == MessageType.INFERENCE_DONE:
             done_msg = InferenceDone(**data)
-            # Deliver to queue if it still exists (streaming generator reads it)
-            queue = self._response_queues.get(request_id)
-            if queue is not None:
-                queue.put_nowait(done_msg)
-            # Fire billing callback regardless of queue state
-            callback = self._billing_callbacks.pop(request_id, None)
+            # Terminal: one Done per assignment. The callback runs at most once.
+            assignment.finished = True
+            callback, assignment.on_done = assignment.on_done, None
+            try:
+                assignment.queue.put_nowait(done_msg)
+            except asyncio.QueueFull:
+                pass
             if callback:
                 try:
                     callback(done_msg)
                 except Exception as e:
                     self._record_failed_outcome(request_id)
                     logger.error(f"Billing callback error for {request_id[:8]}: {e}")
-            if provider_id in self._providers:
-                self._providers[provider_id].active_requests = max(0, self._providers[provider_id].active_requests - 1)
-            asyncio.ensure_future(self._try_dispatch_queued(freed_provider_id=provider_id))
-            return
-
-        # All other message types require an active response queue
-        if request_id not in self._response_queues:
-            return
-        queue = self._response_queues[request_id]
-        if msg_type == MessageType.INFERENCE_RESPONSE:
-            queue.put_nowait(InferenceResponseChunk(**data))
+            if assignment.release_pending():
+                self._schedule_dispatch()
         elif msg_type == MessageType.INFERENCE_ERROR:
             self._record_failed_outcome(request_id)
-            queue.put_nowait(InferenceError(**data))
-            self._billing_callbacks.pop(request_id, None)
-            if provider_id in self._providers:
-                self._providers[provider_id].active_requests = max(0, self._providers[provider_id].active_requests - 1)
-            asyncio.ensure_future(self._try_dispatch_queued(freed_provider_id=provider_id))
+            msg = InferenceError(**data)
+            self._fail(assignment, msg.error)
 
     def handle_heartbeat(self, provider_id: str, msg: HeartbeatMessage):
         if provider_id in self._providers:
             provider = self._providers[provider_id]
-            provider.active_requests = msg.active_requests
+            provider.reported_active_requests = msg.active_requests
             provider.last_heartbeat = time.time()
 
     async def send_attestation_challenge(self, provider: ConnectedProvider) -> str:

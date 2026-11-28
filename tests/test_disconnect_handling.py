@@ -2,7 +2,7 @@
 
 Verifies that when a provider disconnects while requests are in-flight:
 1. InferenceError is pushed to all orphaned response queues
-2. The request_to_provider mapping is properly maintained
+2. Each request's assignment and slot are properly maintained
 3. Reputation records disconnect events
 """
 
@@ -50,7 +50,7 @@ def _make_request(request_id: str = "req-1") -> InferenceRequest:
 
 
 # ---------------------------------------------------------------------------
-# request_to_provider mapping is maintained correctly
+# assignments are maintained correctly
 # ---------------------------------------------------------------------------
 
 class TestRequestProviderMapping:
@@ -60,25 +60,27 @@ class TestRequestProviderMapping:
         hub = ProviderHub()
         provider = _make_provider(hub, "p1")
         req = _make_request("req-1")
-        hub.create_response_queue("req-1")
+        hub.start("req-1", provider)
 
         await hub.send_to_provider(provider, req)
 
-        assert "req-1" in hub._request_to_provider
-        assert hub._request_to_provider["req-1"] == "p1"
+        assert hub._assignments["req-1"].provider is provider
+        assert provider.active_requests == 1
 
     @pytest.mark.asyncio
     async def test_remove_queue_cleans_mapping(self):
-        """remove_response_queue should also remove the request_to_provider entry."""
+        """finish() removes the assignment and releases its slot once."""
         hub = ProviderHub()
         provider = _make_provider(hub, "p1")
         req = _make_request("req-1")
-        hub.create_response_queue("req-1")
+        hub.start("req-1", provider)
         await hub.send_to_provider(provider, req)
 
-        hub.remove_response_queue("req-1")
+        hub.finish("req-1")
+        hub.finish("req-1")
 
-        assert "req-1" not in hub._request_to_provider
+        assert "req-1" not in hub._assignments
+        assert provider.active_requests == 0
 
     @pytest.mark.asyncio
     async def test_multiple_requests_tracked(self):
@@ -88,12 +90,13 @@ class TestRequestProviderMapping:
 
         for i in range(3):
             req = _make_request(f"req-{i}")
-            hub.create_response_queue(f"req-{i}")
+            hub.start(f"req-{i}", provider)
             await hub.send_to_provider(provider, req)
 
-        assert len(hub._request_to_provider) == 3
+        assert len(hub._assignments) == 3
         for i in range(3):
-            assert hub._request_to_provider[f"req-{i}"] == "p1"
+            assert hub._assignments[f"req-{i}"].provider is provider
+        assert provider.active_requests == 3
 
 
 # ---------------------------------------------------------------------------
@@ -107,7 +110,7 @@ class TestDisconnectPushesErrors:
         hub = ProviderHub()
         provider = _make_provider(hub, "p1")
         req = _make_request("req-1")
-        queue = hub.create_response_queue("req-1")
+        queue = hub.start("req-1", provider)
         await hub.send_to_provider(provider, req)
 
         hub.disconnect_provider("p1")
@@ -126,7 +129,7 @@ class TestDisconnectPushesErrors:
         queues = {}
         for i in range(3):
             req = _make_request(f"req-{i}")
-            queues[f"req-{i}"] = hub.create_response_queue(f"req-{i}")
+            queues[f"req-{i}"] = hub.start(f"req-{i}", provider)
             await hub.send_to_provider(provider, req)
 
         hub.disconnect_provider("p1")
@@ -144,7 +147,7 @@ class TestDisconnectPushesErrors:
         provider = _make_provider(hub, "p1")
         for i in range(2):
             req = _make_request(f"req-{i}")
-            hub.create_response_queue(f"req-{i}")
+            hub.start(f"req-{i}", provider)
             await hub.send_to_provider(provider, req)
 
         orphaned = hub.disconnect_provider("p1")
@@ -157,10 +160,10 @@ class TestDisconnectPushesErrors:
         p1 = _make_provider(hub, "p1")
         p2 = _make_provider(hub, "p2")
 
-        q1 = hub.create_response_queue("req-p1")
+        q1 = hub.start("req-p1", p1)
         await hub.send_to_provider(p1, _make_request("req-p1"))
 
-        q2 = hub.create_response_queue("req-p2")
+        q2 = hub.start("req-p2", p2)
         await hub.send_to_provider(p2, _make_request("req-p2"))
 
         hub.disconnect_provider("p1")
@@ -171,7 +174,7 @@ class TestDisconnectPushesErrors:
 
         # p2's queue is untouched
         assert q2.empty()
-        assert "req-p2" in hub._request_to_provider
+        assert not hub._assignments["req-p2"].finished
 
     def test_disconnect_with_no_inflight_is_clean(self):
         """Disconnecting a provider with no in-flight requests is a no-op for queues."""
@@ -190,15 +193,16 @@ class TestDisconnectPushesErrors:
 
     @pytest.mark.asyncio
     async def test_disconnect_cleans_up_mapping(self):
-        """After disconnect, orphaned request_ids are removed from _request_to_provider."""
+        """After disconnect, an orphaned request is finished and holds no slot."""
         hub = ProviderHub()
         provider = _make_provider(hub, "p1")
-        hub.create_response_queue("req-1")
+        hub.start("req-1", provider)
         await hub.send_to_provider(provider, _make_request("req-1"))
 
         hub.disconnect_provider("p1")
 
-        assert "req-1" not in hub._request_to_provider
+        assert hub._assignments["req-1"].finished
+        assert provider.active_requests == 0
 
 
 # ---------------------------------------------------------------------------

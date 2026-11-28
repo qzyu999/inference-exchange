@@ -156,15 +156,9 @@ async def test_done_idempotence_and_provider_error_never_charges(monkeypatch, tm
     monkeypatch.setattr(ri, "get_tps_tracker", lambda: Mock())
     monkeypatch.setattr(ri, "_complete_trace", Mock())
 
-    hub.create_response_queue("failed")
-    hub.register_billing_callback(
-        "failed", _make_billing_callback("failed", "default", p, "consumer-a", 9, time.time() - 1),
-    )
+    hub.start("failed", p, on_done=_make_billing_callback("failed", "default", p, "consumer-a", 9, time.time() - 1))
     hub.handle_provider_message(p.provider_id, InferenceError(request_id="failed", error="unavailable").model_dump())
-    hub.create_response_queue("completed")
-    hub.register_billing_callback(
-        "completed", _make_billing_callback("completed", "default", p, "consumer-a", 9, time.time() - 1),
-    )
+    hub.start("completed", p, on_done=_make_billing_callback("completed", "default", p, "consumer-a", 9, time.time() - 1))
     done = InferenceDone(request_id="completed", served_model="Qwen", tokens_generated=3)
     hub.handle_provider_message(p.provider_id, done.model_dump())
     hub.handle_provider_message(p.provider_id, done.model_dump())  # duplicated completion
@@ -194,7 +188,10 @@ async def test_stream_and_nonstream_keep_request_and_report_actual(monkeypatch):
     from inference_exchange.coordinator import routes_inference as ri
     monkeypatch.setattr(ri, "get_reputation_tracker", lambda: SimpleNamespace(record_success=lambda *a, **kw: None))
     p = provider(["Qwen"])
-    hub = SimpleNamespace(remove_response_queue=Mock())
+    async def cancel(_request_id):
+        pass
+
+    hub = SimpleNamespace(cancel=cancel)
 
     streaming_queue = asyncio.Queue()
     await streaming_queue.put(InferenceResponseChunk(request_id="stream", token="hi"))

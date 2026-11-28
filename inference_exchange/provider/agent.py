@@ -68,6 +68,7 @@ class ProviderAgent:
         self.model_identity = model_identity or {}
         self._ws = None
         self._active_requests = 0
+        self._tasks: dict[str, asyncio.Task] = {}  # in-flight inference by request ID
         self._running = False
         # Generate X25519 keypair for E2E encryption
         self._keypair = KeyPair()
@@ -127,11 +128,16 @@ class ProviderAgent:
                         req = InferenceRequest(**data)
                         # Handle inference in a separate task so we can process
                         # multiple requests concurrently
-                        asyncio.create_task(self._handle_inference(ws, req))
+                        task = asyncio.create_task(self._handle_inference(ws, req))
+                        self._tasks[req.request_id] = task
+                        task.add_done_callback(lambda _t, rid=req.request_id: self._tasks.pop(rid, None))
 
                     elif msg_type == MessageType.CANCEL_REQUEST:
-                        # TODO: implement cancellation
-                        logger.info(f"Cancel requested for {data.get('request_id')}")
+                        # The coordinator stopped this request: stop sending frames for it.
+                        task = self._tasks.get(data.get("request_id", ""))
+                        if task is not None:
+                            task.cancel()
+                            logger.info(f"[{data['request_id'][:8]}] Cancelled by coordinator")
 
                     else:
                         logger.debug(f"Unknown message type: {msg_type}")
@@ -194,6 +200,8 @@ class ProviderAgent:
                 f"in {elapsed:.1f}s ({tps:.1f} tok/s)"
             )
 
+        except asyncio.CancelledError:
+            pass  # cancelled by the coordinator: it expects no further frames
         except Exception as e:
             logger.error(f"[{req.request_id[:8]}] Inference error: {e}")
             error = InferenceError(request_id=req.request_id, error=str(e))
